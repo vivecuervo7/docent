@@ -218,7 +218,7 @@ function FileDiff({
       </div>
       {!collapsed &&
         (hunks && hunks.length > 0 ? (
-          <div className="overflow-x-auto text-sm">
+          <div className="overflow-x-auto text-xs">
             <Diff viewType="unified" diffType={diffType} hunks={hunks} tokens={tokens}>
               {(hunks) =>
                 hunks.flatMap((hunk) => [
