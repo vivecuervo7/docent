@@ -1,0 +1,59 @@
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  font-family: system-ui, sans-serif;
+}
+
+.pr-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pr-form input {
+  padding: 0.4rem 0.6rem;
+}
+
+.error {
+  color: #c00;
+  margin-bottom: 1rem;
+}
+
+.summary {
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.file-block {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.file-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  background: #f6f8fa;
+  cursor: pointer;
+}
+
+.filename {
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+}
+
+.stats {
+  margin-left: auto;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.no-diff {
+  padding: 0.8rem;
+  color: #666;
+  font-style: italic;
+}
