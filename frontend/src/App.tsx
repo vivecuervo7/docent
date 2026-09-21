@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
-import { Decoration, Diff, Hunk, markEdits, parseDiff, tokenize, type DiffType } from "react-diff-view";
+import {
+  Decoration,
+  Diff,
+  Hunk,
+  markEdits,
+  parseDiff,
+  tokenize,
+  type ChangeData,
+  type DiffType,
+  type HunkData,
+} from "react-diff-view";
 import "react-diff-view/style/index.css";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,13 +86,73 @@ function buildDiffText(file: PrFile): string {
   ].join("\n");
 }
 
+type DeleteChange = Extract<ChangeData, { type: "delete" }>;
+type InsertChange = Extract<ChangeData, { type: "insert" }>;
+
+function normalizeForWhitespaceCompare(line: string): string {
+  return line.replace(/\s+/g, "");
+}
+
+// Approximates git's "ignore whitespace" from the patch alone: pairs up each
+// hunk's consecutive delete/insert block and collapses pairs that are
+// identical once whitespace is stripped into a single unchanged line.
+function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
+  return hunks.map((hunk) => {
+    const changes: ChangeData[] = [];
+    const src = hunk.changes;
+    let i = 0;
+
+    while (i < src.length) {
+      if (src[i].type !== "delete") {
+        changes.push(src[i]);
+        i++;
+        continue;
+      }
+
+      const deletes: DeleteChange[] = [];
+      while (i < src.length && src[i].type === "delete") {
+        deletes.push(src[i] as DeleteChange);
+        i++;
+      }
+      const inserts: InsertChange[] = [];
+      while (i < src.length && src[i].type === "insert") {
+        inserts.push(src[i] as InsertChange);
+        i++;
+      }
+
+      const pairCount = Math.min(deletes.length, inserts.length);
+      for (let p = 0; p < pairCount; p++) {
+        const del = deletes[p];
+        const ins = inserts[p];
+        if (normalizeForWhitespaceCompare(del.content) === normalizeForWhitespaceCompare(ins.content)) {
+          changes.push({
+            type: "normal",
+            isNormal: true,
+            content: ins.content,
+            oldLineNumber: del.lineNumber,
+            newLineNumber: ins.lineNumber,
+          });
+        } else {
+          changes.push(del, ins);
+        }
+      }
+      for (let p = pairCount; p < deletes.length; p++) changes.push(deletes[p]);
+      for (let p = pairCount; p < inserts.length; p++) changes.push(inserts[p]);
+    }
+
+    return { ...hunk, changes };
+  });
+}
+
 function FileDiff({
   file,
   reviewed,
+  hideWhitespace,
   onToggle,
 }: {
   file: PrFile;
   reviewed: boolean;
+  hideWhitespace: boolean;
   onToggle: () => void;
 }) {
   let hunks;
@@ -96,6 +166,10 @@ function FileDiff({
     } catch {
       hunks = undefined;
     }
+  }
+
+  if (hunks && hideWhitespace) {
+    hunks = collapseWhitespaceOnlyChanges(hunks);
   }
 
   let tokens;
@@ -189,6 +263,7 @@ function App() {
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hideWhitespace, setHideWhitespace] = useState(true);
 
   async function loadPr(e: FormEvent) {
     e.preventDefault();
@@ -251,8 +326,14 @@ function App() {
       {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
 
       {files && (
-        <div className="mb-4 text-sm font-medium">
-          {Object.values(reviewed).filter(Boolean).length} / {files.length} files reviewed
+        <div className="mb-4 flex items-center gap-4 text-sm">
+          <span className="font-medium">
+            {Object.values(reviewed).filter(Boolean).length} / {files.length} files reviewed
+          </span>
+          <label className="flex items-center gap-2 text-muted-foreground">
+            <Checkbox checked={hideWhitespace} onCheckedChange={setHideWhitespace} />
+            Hide whitespace
+          </label>
         </div>
       )}
 
@@ -265,6 +346,7 @@ function App() {
                 key={file.filename}
                 file={file}
                 reviewed={!!reviewed[file.filename]}
+                hideWhitespace={hideWhitespace}
                 onToggle={() => toggleReviewed(file.filename)}
               />
             ))}
