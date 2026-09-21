@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
-import { Diff, Hunk, parseDiff, type DiffType } from "react-diff-view";
+import { Decoration, Diff, Hunk, markEdits, parseDiff, tokenize, type DiffType } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,6 +98,18 @@ function FileDiff({
     }
   }
 
+  let tokens;
+  if (hunks) {
+    try {
+      tokens = tokenize(hunks, {
+        highlight: false,
+        enhancers: [markEdits(hunks, { type: "block" })],
+      });
+    } catch {
+      tokens = undefined;
+    }
+  }
+
   const [collapsed, setCollapsed] = useState(reviewed);
   const wasReviewed = useRef(reviewed);
 
@@ -133,8 +145,17 @@ function FileDiff({
       {!collapsed &&
         (hunks && hunks.length > 0 ? (
           <div className="overflow-x-auto text-sm">
-            <Diff viewType="unified" diffType={diffType} hunks={hunks}>
-              {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
+            <Diff viewType="unified" diffType={diffType} hunks={hunks} tokens={tokens}>
+              {(hunks) =>
+                hunks.flatMap((hunk) => [
+                  <Decoration key={`decoration-${hunk.content}`}>
+                    <div className="bg-muted px-4 py-1.5 font-mono text-xs text-muted-foreground">
+                      {hunk.content}
+                    </div>
+                  </Decoration>,
+                  <Hunk key={hunk.content} hunk={hunk} />,
+                ])
+              }
             </Diff>
           </div>
         ) : (
@@ -215,8 +236,8 @@ function App() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <form onSubmit={loadPr} className="mb-6 flex gap-2">
+    <div className="w-full p-6">
+      <form onSubmit={loadPr} className="mb-6 flex gap-2 max-w-3xl">
         <Input
           placeholder="https://github.com/owner/repo/pull/123"
           value={prUrl}

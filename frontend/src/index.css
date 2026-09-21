@@ -96,6 +96,7 @@
 
 /* react-diff-view ships light-mode diff colors; override for the dark theme above. */
 .diff {
+  --diff-font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --diff-text-color: var(--foreground);
   --diff-gutter-insert-background-color: oklch(0.6 0.16 145 / 20%);
   --diff-gutter-delete-background-color: oklch(0.6 0.2 25 / 20%);
