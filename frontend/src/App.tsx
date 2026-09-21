@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Check } from "lucide-react";
 import { Diff, Hunk, parseDiff, type DiffType } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface PrFile {
   filename: string;
@@ -14,6 +16,52 @@ interface PrFile {
   additions: number;
   deletions: number;
   patch?: string;
+}
+
+function fileElementId(filename: string): string {
+  return `file-${encodeURIComponent(filename)}`;
+}
+
+function scrollToFile(filename: string) {
+  document
+    .getElementById(fileElementId(filename))
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function TableOfContents({
+  files,
+  reviewed,
+}: {
+  files: PrFile[];
+  reviewed: Record<string, boolean>;
+}) {
+  return (
+    <nav className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col self-start rounded-lg border bg-card">
+      <div className="border-b px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+        Files
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <ul className="flex flex-col gap-0.5 p-1">
+          {files.map((file) => (
+            <li key={file.filename}>
+              <button
+                type="button"
+                onClick={() => scrollToFile(file.filename)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
+              >
+                {reviewed[file.filename] ? (
+                  <Check className="size-3.5 shrink-0 text-green-600 dark:text-green-400" />
+                ) : (
+                  <span className="size-3.5 shrink-0 rounded-full border border-muted-foreground/40" />
+                )}
+                <span className="min-w-0 flex-1 truncate font-mono">{file.filename}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </ScrollArea>
+    </nav>
+  );
 }
 
 function buildDiffText(file: PrFile): string {
@@ -51,7 +99,7 @@ function FileDiff({
   }
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
+    <Card id={fileElementId(file.filename)} className="scroll-mt-6 gap-0 overflow-hidden py-0">
       <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-3">
         <Checkbox checked={reviewed} onCheckedChange={onToggle} />
         <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
@@ -148,7 +196,7 @@ function App() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="mx-auto max-w-6xl p-6">
       <form onSubmit={loadPr} className="mb-6 flex gap-2">
         <Input
           placeholder="https://github.com/owner/repo/pull/123"
@@ -169,15 +217,18 @@ function App() {
       )}
 
       {files && (
-        <div className="flex flex-col gap-4">
-          {files.map((file) => (
-            <FileDiff
-              key={file.filename}
-              file={file}
-              reviewed={!!reviewed[file.filename]}
-              onToggle={() => toggleReviewed(file.filename)}
-            />
-          ))}
+        <div className="grid grid-cols-[240px_1fr] items-start gap-6">
+          <TableOfContents files={files} reviewed={reviewed} />
+          <div className="flex min-w-0 flex-col gap-4">
+            {files.map((file) => (
+              <FileDiff
+                key={file.filename}
+                file={file}
+                reviewed={!!reviewed[file.filename]}
+                onToggle={() => toggleReviewed(file.filename)}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
