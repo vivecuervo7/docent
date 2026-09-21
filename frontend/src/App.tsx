@@ -256,6 +256,32 @@ function parsePrUrl(url: string): PrRef | null {
   return { owner, repo, number };
 }
 
+const STORAGE_KEY = "codetour-pr:last-pr-url";
+
+function readStoredPrUrl(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredPrUrl(url: string) {
+  try {
+    localStorage.setItem(STORAGE_KEY, url);
+  } catch {
+    // ignore, e.g. private browsing
+  }
+}
+
+function clearStoredPrUrl() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 function App() {
   const [prUrl, setPrUrl] = useState("");
   const [prRef, setPrRef] = useState<PrRef | null>(null);
@@ -265,16 +291,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [hideWhitespace, setHideWhitespace] = useState(true);
 
-  async function loadPr(e: FormEvent) {
-    e.preventDefault();
+  async function loadPrByRef(ref: PrRef) {
     setError(null);
-
-    const ref = parsePrUrl(prUrl);
-    if (!ref) {
-      setError("Enter a GitHub PR URL, e.g. https://github.com/owner/repo/pull/123");
-      return;
-    }
-
     setLoading(true);
     setFiles(null);
 
@@ -292,11 +310,41 @@ function App() {
       setPrRef(ref);
       setFiles(files);
       setReviewed(reviewState);
+      writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadPr(e: FormEvent) {
+    e.preventDefault();
+    const ref = parsePrUrl(prUrl);
+    if (!ref) {
+      setError("Enter a GitHub PR URL, e.g. https://github.com/owner/repo/pull/123");
+      return;
+    }
+    await loadPrByRef(ref);
+  }
+
+  useEffect(() => {
+    const stored = readStoredPrUrl();
+    if (!stored) return;
+    const ref = parsePrUrl(stored);
+    if (!ref) return;
+    setPrUrl(stored);
+    loadPrByRef(ref);
+    // Only ever run once, on mount, to restore the last loaded PR.
+  }, []);
+
+  function clearPr() {
+    clearStoredPrUrl();
+    setPrUrl("");
+    setPrRef(null);
+    setFiles(null);
+    setReviewed({});
+    setError(null);
   }
 
   async function toggleReviewed(filename: string) {
@@ -320,6 +368,9 @@ function App() {
         />
         <Button type="submit" disabled={loading}>
           {loading ? "Loading…" : "Load PR"}
+        </Button>
+        <Button type="button" variant="outline" onClick={clearPr} disabled={!files}>
+          Clear
         </Button>
       </form>
 
