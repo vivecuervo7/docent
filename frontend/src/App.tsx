@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -38,37 +38,183 @@ function scrollToFile(filename: string) {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+interface FileTreeFolder {
+  type: "folder";
+  name: string;
+  path: string;
+  children: FileTreeEntry[];
+}
+
+interface FileTreeLeaf {
+  type: "file";
+  name: string;
+  path: string;
+  file: PrFile;
+}
+
+type FileTreeEntry = FileTreeFolder | FileTreeLeaf;
+
+function sortTreeChildren(children: FileTreeEntry[]) {
+  children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  for (const child of children) {
+    if (child.type === "folder") sortTreeChildren(child.children);
+  }
+}
+
+function buildFileTree(files: PrFile[]): FileTreeFolder {
+  const root: FileTreeFolder = { type: "folder", name: "", path: "", children: [] };
+
+  for (const file of files) {
+    const parts = file.filename.split("/");
+    let current = root;
+    let pathSoFar = "";
+
+    parts.forEach((part, i) => {
+      pathSoFar = pathSoFar ? `${pathSoFar}/${part}` : part;
+      const isLast = i === parts.length - 1;
+
+      if (isLast) {
+        current.children.push({ type: "file", name: part, path: pathSoFar, file });
+        return;
+      }
+
+      let next = current.children.find(
+        (c): c is FileTreeFolder => c.type === "folder" && c.name === part,
+      );
+      if (!next) {
+        next = { type: "folder", name: part, path: pathSoFar, children: [] };
+        current.children.push(next);
+      }
+      current = next;
+    });
+  }
+
+  sortTreeChildren(root.children);
+  return root;
+}
+
+function FileTreeNodes({
+  entries,
+  depth,
+  reviewed,
+  collapsedFolders,
+  onToggleFolder,
+  onToggleReviewed,
+}: {
+  entries: FileTreeEntry[];
+  depth: number;
+  reviewed: Record<string, boolean>;
+  collapsedFolders: Set<string>;
+  onToggleFolder: (path: string) => void;
+  onToggleReviewed: (filename: string) => void;
+}) {
+  return (
+    <>
+      {entries.map((entry) => {
+        const indent = 8 + depth * 14;
+
+        if (entry.type === "folder") {
+          const isCollapsed = collapsedFolders.has(entry.path);
+          return (
+            <div key={entry.path}>
+              <button
+                type="button"
+                onClick={() => onToggleFolder(entry.path)}
+                style={{ paddingLeft: indent }}
+                className="flex w-full items-center gap-1.5 rounded-md py-1.5 pr-3 text-left text-xs whitespace-nowrap text-muted-foreground hover:bg-muted"
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="size-3.5 shrink-0" />
+                ) : (
+                  <ChevronDown className="size-3.5 shrink-0" />
+                )}
+                <Folder className="size-3.5 shrink-0" />
+                <span>{entry.name}</span>
+              </button>
+              {!isCollapsed && (
+                <FileTreeNodes
+                  entries={entry.children}
+                  depth={depth + 1}
+                  reviewed={reviewed}
+                  collapsedFolders={collapsedFolders}
+                  onToggleFolder={onToggleFolder}
+                  onToggleReviewed={onToggleReviewed}
+                />
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={entry.path}
+            role="button"
+            tabIndex={0}
+            onClick={() => scrollToFile(entry.file.filename)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") scrollToFile(entry.file.filename);
+            }}
+            title={entry.file.filename}
+            style={{ paddingLeft: indent }}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-3 text-xs whitespace-nowrap hover:bg-muted"
+          >
+            <span onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={!!reviewed[entry.file.filename]}
+                onCheckedChange={() => onToggleReviewed(entry.file.filename)}
+              />
+            </span>
+            <span>{entry.name}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function TableOfContents({
   files,
   reviewed,
+  onToggleReviewed,
 }: {
   files: PrFile[];
   reviewed: Record<string, boolean>;
+  onToggleReviewed: (filename: string) => void;
 }) {
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const tree = buildFileTree(files);
+
+  function toggleFolder(path: string) {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }
+
   return (
     <nav className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col self-start rounded-lg border bg-card">
       <div className="border-b px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
         Files
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <ul className="flex flex-col gap-0.5 p-1">
-          {files.map((file) => (
-            <li key={file.filename}>
-              <button
-                type="button"
-                onClick={() => scrollToFile(file.filename)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
-              >
-                {reviewed[file.filename] ? (
-                  <Check className="size-3.5 shrink-0 text-[#3fb950]" />
-                ) : (
-                  <span className="size-3.5 shrink-0 rounded-full border border-muted-foreground/40" />
-                )}
-                <span className="min-w-0 flex-1 truncate font-mono">{file.filename}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="flex w-max min-w-full flex-col gap-0.5 p-1">
+          <FileTreeNodes
+            entries={tree.children}
+            depth={0}
+            reviewed={reviewed}
+            collapsedFolders={collapsedFolders}
+            onToggleFolder={toggleFolder}
+            onToggleReviewed={onToggleReviewed}
+          />
+        </div>
       </ScrollArea>
     </nav>
   );
@@ -206,7 +352,7 @@ function FileDiff({
           {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
         </button>
         <Checkbox checked={reviewed} onCheckedChange={onToggle} />
-        <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
           {file.filename}
         </span>
         <Badge variant="outline" className="text-[#3fb950]">
@@ -389,8 +535,8 @@ function App() {
       )}
 
       {files && (
-        <div className="grid grid-cols-[240px_1fr] items-start gap-6">
-          <TableOfContents files={files} reviewed={reviewed} />
+        <div className="grid grid-cols-[300px_1fr] items-start gap-6">
+          <TableOfContents files={files} reviewed={reviewed} onToggleReviewed={toggleReviewed} />
           <div className="flex min-w-0 flex-col gap-4">
             {files.map((file) => (
               <FileDiff
