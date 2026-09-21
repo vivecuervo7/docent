@@ -60,7 +60,7 @@ function TableOfContents({
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
               >
                 {reviewed[file.filename] ? (
-                  <Check className="size-3.5 shrink-0 text-green-600 dark:text-green-400" />
+                  <Check className="size-3.5 shrink-0 text-[#3fb950]" />
                 ) : (
                   <span className="size-3.5 shrink-0 rounded-full border border-muted-foreground/40" />
                 )}
@@ -209,10 +209,10 @@ function FileDiff({
         <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
           {file.filename}
         </span>
-        <Badge variant="outline" className="text-green-600 dark:text-green-400">
+        <Badge variant="outline" className="text-[#3fb950]">
           +{file.additions}
         </Badge>
-        <Badge variant="outline" className="text-red-600 dark:text-red-400">
+        <Badge variant="outline" className="text-[#f85149]">
           -{file.deletions}
         </Badge>
       </div>
