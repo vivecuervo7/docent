@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { Diff, Hunk, parseDiff, type DiffType } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import { Badge } from "@/components/ui/badge";
@@ -98,9 +98,27 @@ function FileDiff({
     }
   }
 
+  const [collapsed, setCollapsed] = useState(reviewed);
+  const wasReviewed = useRef(reviewed);
+
+  useEffect(() => {
+    if (!wasReviewed.current && reviewed) {
+      setCollapsed(true);
+    }
+    wasReviewed.current = reviewed;
+  }, [reviewed]);
+
   return (
     <Card id={fileElementId(file.filename)} className="scroll-mt-6 gap-0 overflow-hidden py-0">
       <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? "Expand diff" : "Collapse diff"}
+          className="shrink-0 rounded text-muted-foreground hover:text-foreground"
+        >
+          {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
+        </button>
         <Checkbox checked={reviewed} onCheckedChange={onToggle} />
         <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
           {file.filename}
@@ -112,17 +130,18 @@ function FileDiff({
           -{file.deletions}
         </Badge>
       </div>
-      {hunks && hunks.length > 0 ? (
-        <div className="overflow-x-auto text-sm">
-          <Diff viewType="unified" diffType={diffType} hunks={hunks}>
-            {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
-          </Diff>
-        </div>
-      ) : (
-        <div className="p-4 text-sm italic text-muted-foreground">
-          No diff available for this file.
-        </div>
-      )}
+      {!collapsed &&
+        (hunks && hunks.length > 0 ? (
+          <div className="overflow-x-auto text-sm">
+            <Diff viewType="unified" diffType={diffType} hunks={hunks}>
+              {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
+            </Diff>
+          </div>
+        ) : (
+          <div className="p-4 text-sm italic text-muted-foreground">
+            No diff available for this file.
+          </div>
+        ))}
     </Card>
   );
 }
