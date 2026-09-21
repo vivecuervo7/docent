@@ -1,7 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { Diff, Hunk, parseDiff, type DiffType } from "react-diff-view";
 import "react-diff-view/style/index.css";
-import "./App.css";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 
 interface PrFile {
   filename: string;
@@ -47,22 +51,31 @@ function FileDiff({
   }
 
   return (
-    <div className="file-block">
-      <label className="file-header">
-        <input type="checkbox" checked={reviewed} onChange={onToggle} />
-        <span className="filename">{file.filename}</span>
-        <span className="stats">
-          +{file.additions} -{file.deletions}
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-3">
+        <Checkbox checked={reviewed} onCheckedChange={onToggle} />
+        <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
+          {file.filename}
         </span>
-      </label>
+        <Badge variant="outline" className="text-green-600 dark:text-green-400">
+          +{file.additions}
+        </Badge>
+        <Badge variant="outline" className="text-red-600 dark:text-red-400">
+          -{file.deletions}
+        </Badge>
+      </div>
       {hunks && hunks.length > 0 ? (
-        <Diff viewType="unified" diffType={diffType} hunks={hunks}>
-          {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
-        </Diff>
+        <div className="overflow-x-auto text-sm">
+          <Diff viewType="unified" diffType={diffType} hunks={hunks}>
+            {(hunks) => hunks.map((hunk) => <Hunk key={hunk.content} hunk={hunk} />)}
+          </Diff>
+        </div>
       ) : (
-        <div className="no-diff">No diff available for this file.</div>
+        <div className="p-4 text-sm italic text-muted-foreground">
+          No diff available for this file.
+        </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -135,29 +148,28 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <form onSubmit={loadPr} className="pr-form">
-        <input
-          className="pr-url-input"
+    <div className="mx-auto max-w-4xl p-6">
+      <form onSubmit={loadPr} className="mb-6 flex gap-2">
+        <Input
           placeholder="https://github.com/owner/repo/pull/123"
           value={prUrl}
           onChange={(e) => setPrUrl(e.target.value)}
         />
-        <button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading}>
           {loading ? "Loading…" : "Load PR"}
-        </button>
+        </Button>
       </form>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
 
       {files && (
-        <div className="summary">
+        <div className="mb-4 text-sm font-medium">
           {Object.values(reviewed).filter(Boolean).length} / {files.length} files reviewed
         </div>
       )}
 
       {files && (
-        <div className="file-list">
+        <div className="flex flex-col gap-4">
           {files.map((file) => (
             <FileDiff
               key={file.filename}
