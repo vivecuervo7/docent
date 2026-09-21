@@ -66,10 +66,24 @@ function FileDiff({
   );
 }
 
+const PR_URL_RE = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/;
+
+interface PrRef {
+  owner: string;
+  repo: string;
+  number: string;
+}
+
+function parsePrUrl(url: string): PrRef | null {
+  const match = url.trim().match(PR_URL_RE);
+  if (!match) return null;
+  const [, owner, repo, number] = match;
+  return { owner, repo, number };
+}
+
 function App() {
-  const [owner, setOwner] = useState("");
-  const [repo, setRepo] = useState("");
-  const [number, setNumber] = useState("");
+  const [prUrl, setPrUrl] = useState("");
+  const [prRef, setPrRef] = useState<PrRef | null>(null);
   const [files, setFiles] = useState<PrFile[] | null>(null);
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
@@ -77,14 +91,21 @@ function App() {
 
   async function loadPr(e: FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+
+    const ref = parsePrUrl(prUrl);
+    if (!ref) {
+      setError("Enter a GitHub PR URL, e.g. https://github.com/owner/repo/pull/123");
+      return;
+    }
+
+    setLoading(true);
     setFiles(null);
 
     try {
       const [filesRes, reviewRes] = await Promise.all([
-        fetch(`/api/pr/${owner}/${repo}/${number}`),
-        fetch(`/api/review/${owner}/${repo}/${number}`),
+        fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}`),
+        fetch(`/api/review/${ref.owner}/${ref.repo}/${ref.number}`),
       ]);
       if (!filesRes.ok) {
         const body = await filesRes.json();
@@ -92,6 +113,7 @@ function App() {
       }
       const { files } = await filesRes.json();
       const reviewState = await reviewRes.json();
+      setPrRef(ref);
       setFiles(files);
       setReviewed(reviewState);
     } catch (err) {
@@ -102,9 +124,10 @@ function App() {
   }
 
   async function toggleReviewed(filename: string) {
+    if (!prRef) return;
     const next = !reviewed[filename];
     setReviewed((prev) => ({ ...prev, [filename]: next }));
-    await fetch(`/api/review/${owner}/${repo}/${number}`, {
+    await fetch(`/api/review/${prRef.owner}/${prRef.repo}/${prRef.number}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filename, reviewed: next }),
@@ -115,19 +138,10 @@ function App() {
     <div className="app">
       <form onSubmit={loadPr} className="pr-form">
         <input
-          placeholder="owner"
-          value={owner}
-          onChange={(e) => setOwner(e.target.value)}
-        />
-        <input
-          placeholder="repo"
-          value={repo}
-          onChange={(e) => setRepo(e.target.value)}
-        />
-        <input
-          placeholder="PR number"
-          value={number}
-          onChange={(e) => setNumber(e.target.value)}
+          className="pr-url-input"
+          placeholder="https://github.com/owner/repo/pull/123"
+          value={prUrl}
+          onChange={(e) => setPrUrl(e.target.value)}
         />
         <button type="submit" disabled={loading}>
           {loading ? "Loading…" : "Load PR"}
