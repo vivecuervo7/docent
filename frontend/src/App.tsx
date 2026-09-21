@@ -351,16 +351,19 @@ function FileDiff({
         >
           {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
         </button>
-        <Checkbox checked={reviewed} onCheckedChange={onToggle} />
         <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
           {file.filename}
         </span>
-        <Badge variant="outline" className="text-[#3fb950]">
+        <Badge variant="outline" className="border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]">
           +{file.additions}
         </Badge>
-        <Badge variant="outline" className="text-[#f85149]">
+        <Badge variant="outline" className="border-[#f85149]/40 bg-[#f85149]/10 text-[#f85149]">
           -{file.deletions}
         </Badge>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Checkbox checked={reviewed} onCheckedChange={onToggle} />
+          Reviewed
+        </label>
       </div>
       {!collapsed &&
         (hunks && hunks.length > 0 ? (
@@ -369,7 +372,7 @@ function FileDiff({
               {(hunks) =>
                 hunks.flatMap((hunk) => [
                   <Decoration key={`decoration-${hunk.content}`}>
-                    <div className="bg-muted px-4 py-1.5 font-mono text-xs text-muted-foreground">
+                    <div className="bg-[rgba(56,139,253,0.1)] px-4 py-1.5 font-mono text-xs text-[#79c0ff]">
                       {hunk.content}
                     </div>
                   </Decoration>,

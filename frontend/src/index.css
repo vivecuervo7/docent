@@ -100,14 +100,14 @@
     ui-monospace, "SF Mono", "SFMono-Regular", "Monaspace Neon", Menlo, Consolas,
     "Liberation Mono", monospace;
   --diff-text-color: var(--foreground);
-  --diff-gutter-insert-background-color: rgba(46, 160, 67, 0.2);
-  --diff-gutter-delete-background-color: rgba(248, 81, 73, 0.2);
-  --diff-gutter-selected-background-color: rgba(210, 153, 34, 0.2);
-  --diff-code-insert-background-color: rgba(46, 160, 67, 0.15);
-  --diff-code-delete-background-color: rgba(248, 81, 73, 0.15);
-  --diff-code-insert-edit-background-color: rgba(46, 160, 67, 0.4);
-  --diff-code-delete-edit-background-color: rgba(248, 81, 73, 0.4);
-  --diff-code-selected-background-color: rgba(210, 153, 34, 0.15);
+  --diff-gutter-insert-background-color: rgba(46, 160, 67, 0.3);
+  --diff-gutter-delete-background-color: rgba(248, 81, 73, 0.3);
+  --diff-gutter-selected-background-color: rgba(210, 153, 34, 0.25);
+  --diff-code-insert-background-color: rgba(46, 160, 67, 0.2);
+  --diff-code-delete-background-color: rgba(248, 81, 73, 0.2);
+  --diff-code-insert-edit-background-color: rgba(63, 185, 80, 0.6);
+  --diff-code-delete-edit-background-color: rgba(248, 81, 73, 0.6);
+  --diff-code-selected-background-color: rgba(210, 153, 34, 0.2);
   --diff-selection-background-color: rgba(56, 139, 253, 0.35);
   --diff-omit-gutter-line-color: #f85149;
 }
