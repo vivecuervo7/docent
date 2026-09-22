@@ -1,5 +1,5 @@
 import express from "express";
-import { fetchPrFiles } from "./github.js";
+import { fetchFileContentAtRef, fetchPrBaseSha, fetchPrFiles } from "./github.js";
 import { readReviewState, setFileReviewed } from "./reviewStore.js";
 
 const app = express();
@@ -23,6 +23,22 @@ app.get("/api/pr/:owner/:repo/:number", async (req, res) => {
   try {
     const files = await fetchPrFiles(owner, repo, number);
     res.json({ files });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.get("/api/pr/:owner/:repo/:number/old-content", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const { path } = req.query;
+  if (!validParams(owner, repo, number) || typeof path !== "string" || !path) {
+    return res.status(400).json({ error: "invalid owner, repo, number, or path" });
+  }
+
+  try {
+    const baseSha = await fetchPrBaseSha(owner, repo, number);
+    const content = await fetchFileContentAtRef(owner, repo, baseSha, path);
+    res.json({ content });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }

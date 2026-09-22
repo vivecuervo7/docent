@@ -361,11 +361,13 @@ function FileDiff({
   file,
   reviewed,
   hideWhitespace,
+  prRef,
   onToggle,
 }: {
   file: PrFile;
   reviewed: boolean;
   hideWhitespace: boolean;
+  prRef: PrRef;
   onToggle: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(reviewed);
@@ -392,6 +394,31 @@ function FileDiff({
 
   const language = useMemo(() => languageForFilename(file.filename), [file.filename]);
 
+  // Fetched lazily, only once a file is expanded and has a language worth
+  // highlighting, since it's the full old file's content, not just the diff.
+  const [oldContent, setOldContent] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (collapsed || !hunks || !language || file.status === "added") return;
+    if (oldContent !== undefined) return;
+
+    let cancelled = false;
+    const path = file.previous_filename ?? file.filename;
+
+    fetch(
+      `/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/old-content?path=${encodeURIComponent(path)}`,
+    )
+      .then((res) => (res.ok ? res.json() : { content: null }))
+      .then((data: { content: string | null }) => {
+        if (!cancelled && data.content) setOldContent(data.content);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [collapsed, hunks, language, file, prRef, oldContent]);
+
   // Skip the (relatively expensive) syntax-highlighting tokenize pass while
   // collapsed, since nothing using it renders until it's expanded.
   const tokens = useMemo(() => {
@@ -402,6 +429,7 @@ function FileDiff({
             highlight: true,
             refractor,
             language,
+            oldSource: oldContent,
             enhancers: [markEdits(hunks, { type: "block" })],
           })
         : tokenize(hunks, {
@@ -411,7 +439,7 @@ function FileDiff({
     } catch {
       return undefined;
     }
-  }, [hunks, collapsed, language]);
+  }, [hunks, collapsed, language, oldContent]);
 
   return (
     <Card id={fileElementId(file.filename)} className="scroll-mt-6 gap-0 overflow-hidden py-0">
@@ -610,7 +638,7 @@ function App() {
         </div>
       )}
 
-      {files && (
+      {files && prRef && (
         <div className="grid grid-cols-[300px_1fr] items-start gap-6">
           <TableOfContents files={files} reviewed={reviewed} onToggleReviewed={toggleReviewed} />
           <div className="flex min-w-0 flex-col gap-4">
@@ -620,6 +648,7 @@ function App() {
                 file={file}
                 reviewed={!!reviewed[file.filename]}
                 hideWhitespace={hideWhitespace}
+                prRef={prRef}
                 onToggle={() => toggleReviewed(file.filename)}
               />
             ))}
