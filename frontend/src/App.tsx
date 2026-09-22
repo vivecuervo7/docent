@@ -239,9 +239,13 @@ function normalizeForWhitespaceCompare(line: string): string {
   return line.replace(/\s+/g, "");
 }
 
-// Approximates git's "ignore whitespace" from the patch alone: pairs up each
-// hunk's consecutive delete/insert block and collapses pairs that are
-// identical once whitespace is stripped into a single unchanged line.
+// Approximates git's "ignore whitespace" from the patch alone: a hunk's
+// consecutive delete/insert block collapses into unchanged lines only when
+// it's a *pure* reflow (same line count, every line pairs up once whitespace
+// is stripped) — collapsing some pairs but not others would mean moving an
+// insert out of its block to sit next to its paired delete, which reorders
+// the block and scrambles any real change mixed in with it. A block that
+// isn't a pure reflow is left exactly as it was.
 function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
   return hunks.map((hunk) => {
     const changes: ChangeData[] = [];
@@ -266,11 +270,17 @@ function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
         i++;
       }
 
-      const pairCount = Math.min(deletes.length, inserts.length);
-      for (let p = 0; p < pairCount; p++) {
-        const del = deletes[p];
-        const ins = inserts[p];
-        if (normalizeForWhitespaceCompare(del.content) === normalizeForWhitespaceCompare(ins.content)) {
+      const isPureReflow =
+        deletes.length === inserts.length &&
+        deletes.every(
+          (del, idx) =>
+            normalizeForWhitespaceCompare(del.content) ===
+            normalizeForWhitespaceCompare(inserts[idx].content),
+        );
+
+      if (isPureReflow) {
+        deletes.forEach((del, idx) => {
+          const ins = inserts[idx];
           changes.push({
             type: "normal",
             isNormal: true,
@@ -278,12 +288,10 @@ function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
             oldLineNumber: del.lineNumber,
             newLineNumber: ins.lineNumber,
           });
-        } else {
-          changes.push(del, ins);
-        }
+        });
+      } else {
+        changes.push(...deletes, ...inserts);
       }
-      for (let p = pairCount; p < deletes.length; p++) changes.push(deletes[p]);
-      for (let p = pairCount; p < inserts.length; p++) changes.push(inserts[p]);
     }
 
     return { ...hunk, changes };
