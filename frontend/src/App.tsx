@@ -103,6 +103,46 @@ interface ConversationCard {
   summary: string;
 }
 
+interface PrSummary {
+  what: string;
+  why: string;
+  how?: string;
+}
+
+interface Link {
+  label: string;
+  url: string;
+}
+
+// Markdown links first (keeping their label), then any remaining bare
+// URLs, deduped by URL.
+function extractLinks(body: string | null): Link[] {
+  if (!body) return [];
+
+  const links: Link[] = [];
+  const seen = new Set<string>();
+  let remaining = body;
+
+  for (const match of body.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g)) {
+    const [full, label, url] = match;
+    if (!seen.has(url)) {
+      seen.add(url);
+      links.push({ label, url });
+    }
+    remaining = remaining.replace(full, "");
+  }
+
+  for (const match of remaining.matchAll(/https?:\/\/[^\s)\]"'<>]+/g)) {
+    const url = match[0].replace(/[.,;:!?]+$/, "");
+    if (!seen.has(url)) {
+      seen.add(url);
+      links.push({ label: url.replace(/^https?:\/\//, ""), url });
+    }
+  }
+
+  return links;
+}
+
 type PipelineStage = "ideas" | "summary" | "conversation" | null;
 
 // Every hunk-addressable unit is keyed "filename#index"; files with no
@@ -745,7 +785,7 @@ function LandingView({
 }: {
   prMeta: PrMeta | null;
   pipelineStage: PipelineStage;
-  summary: string | null;
+  summary: PrSummary | null;
   summaryLoading: boolean;
   onGenerateSummary: () => void;
   conversationCards: ConversationCard[] | null;
@@ -762,6 +802,8 @@ function LandingView({
         : pipelineStage === "conversation"
           ? "Reading the conversation…"
           : null;
+
+  const links = useMemo(() => extractLinks(prMeta?.body ?? null), [prMeta]);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -782,7 +824,7 @@ function LandingView({
         </div>
       )}
 
-      <Card className="gap-2 p-4">
+      <Card className="gap-3 p-4">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase text-muted-foreground">Summary</span>
           <Button size="sm" variant="outline" onClick={onGenerateSummary} disabled={summaryLoading}>
@@ -790,11 +832,45 @@ function LandingView({
           </Button>
         </div>
         {summary ? (
-          <p className="text-sm">{summary}</p>
+          <div className="flex flex-col gap-2 text-sm">
+            <div>
+              <span className="font-medium text-muted-foreground">What: </span>
+              {summary.what}
+            </div>
+            <div>
+              <span className="font-medium text-muted-foreground">Why: </span>
+              {summary.why}
+            </div>
+            {summary.how && (
+              <div>
+                <span className="font-medium text-muted-foreground">How: </span>
+                {summary.how}
+              </div>
+            )}
+          </div>
         ) : (
           !summaryLoading && <p className="text-sm text-muted-foreground italic">No summary yet.</p>
         )}
       </Card>
+
+      {links.length > 0 && (
+        <Card className="gap-2 p-4">
+          <span className="text-xs font-semibold uppercase text-muted-foreground">Links</span>
+          <div className="flex flex-col gap-1">
+            {links.map((link) => (
+              <a
+                key={link.url}
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-sm text-[#79c0ff] hover:underline"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase text-muted-foreground">Conversation</span>
@@ -962,7 +1038,7 @@ function App() {
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
   const [ideasLoading, setIdeasLoading] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
+  const [summary, setSummary] = useState<PrSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [conversationCards, setConversationCards] = useState<ConversationCard[] | null>(null);
   const [conversationLoading, setConversationLoading] = useState(false);
@@ -1007,12 +1083,14 @@ function App() {
     return body.ideas ?? [];
   }
 
-  async function fetchSummaryFor(ref: PrRef): Promise<string> {
+  async function fetchSummaryFor(ref: PrRef): Promise<PrSummary | null> {
     const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/summary`, {
       method: "POST",
     });
     const body = await res.json();
-    return body.summary?.text ?? "";
+    if (!body.summary) return null;
+    const { what, why, how } = body.summary;
+    return { what, why, how };
   }
 
   async function fetchConversationFor(ref: PrRef): Promise<ConversationCard[]> {
@@ -1066,7 +1144,7 @@ function App() {
       setPrMeta(meta ?? null);
       setReviewed(reviewState);
       setIdeas(ideasState.ideas ?? null);
-      setSummary(overviewState.summary?.text ?? null);
+      setSummary(overviewState.summary ? { ...overviewState.summary } : null);
       setConversationCards(overviewState.conversation?.cards ?? null);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
 
