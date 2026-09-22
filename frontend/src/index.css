@@ -118,7 +118,6 @@
 .diff .token.doctype,
 .diff .token.cdata {
   color: #8b949e;
-  font-style: italic;
 }
 .diff .token.keyword,
 .diff .token.operator,
@@ -155,5 +154,5 @@
   color: #ffa657;
 }
 .diff .token.punctuation {
-  color: #c9d1d9;
+  color: var(--foreground);
 }
