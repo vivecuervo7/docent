@@ -111,6 +111,48 @@ function isIdeaReviewed(idea: Idea, reviewed: Record<string, boolean>): boolean 
   return idea.hunks.length > 0 && idea.hunks.every((k) => reviewed[k]);
 }
 
+function isTestFile(filename: string): boolean {
+  return (
+    /\.(test|spec)\.[jt]sx?$/.test(filename) ||
+    /(^|\/)(__tests__)\//.test(filename) ||
+    /(^|\/)(tests?)\//.test(filename)
+  );
+}
+
+function isGeneratedFile(filename: string): boolean {
+  return (
+    /\.snap$/.test(filename) ||
+    /(^|\/)(generated|__generated__)\//.test(filename) ||
+    /\.generated\./.test(filename) ||
+    /package-lock\.json$/.test(filename) ||
+    /(^|\/)(yarn|pnpm)-lock\.(json|yaml)$/.test(filename)
+  );
+}
+
+// Core/foundational files first (smallest diffs, likely to establish
+// vocabulary for the rest), then the meaty implementation, then tests,
+// then generated/lockfile noise last.
+function fileCategoryRank(filename: string): number {
+  if (isGeneratedFile(filename)) return 2;
+  if (isTestFile(filename)) return 1;
+  return 0;
+}
+
+function orderFileGroups(
+  byFile: Map<string, number[]>,
+  files: PrFile[],
+): [string, number[]][] {
+  const sizeOf = (filename: string) => {
+    const file = files.find((f) => f.filename === filename);
+    return file ? file.additions + file.deletions : 0;
+  };
+
+  return [...byFile.entries()].sort(([aName], [bName]) => {
+    const rankDiff = fileCategoryRank(aName) - fileCategoryRank(bName);
+    return rankDiff !== 0 ? rankDiff : sizeOf(aName) - sizeOf(bName);
+  });
+}
+
 function groupHunkRefsByFile(refs: string[]): Map<string, number[]> {
   const byFile = new Map<string, number[]>();
   for (const ref of refs) {
@@ -557,6 +599,7 @@ function IdeaView({
   onClose: () => void;
 }) {
   const byFile = useMemo(() => groupHunkRefsByFile(idea.hunks), [idea]);
+  const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
   const done = isIdeaReviewed(idea, reviewed);
 
   return (
@@ -587,7 +630,7 @@ function IdeaView({
           </label>
         </div>
       </Card>
-      {[...byFile.entries()].map(([filename, hunkIndices]) => {
+      {orderedFileGroups.map(([filename, hunkIndices]) => {
         const file = files.find((f) => f.filename === filename);
         if (!file) return null;
         return (
