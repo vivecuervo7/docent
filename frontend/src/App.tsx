@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { diffArrays } from "diff";
-import { ChevronDown, ChevronRight, Folder } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, TriangleAlert } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -84,12 +84,26 @@ interface PrFile {
   patch?: string;
 }
 
+type Scrutiny = "skim" | "read" | "careful";
+
 interface Idea {
   id: string;
   title: string;
   summary: string;
   hunks: string[];
+  scrutiny?: Scrutiny;
+  attention?: string;
+  tested?: string;
+  untested?: string;
 }
+
+const SCRUTINY_RANK: Record<Scrutiny, number> = { skim: 0, read: 1, careful: 2 };
+
+const SCRUTINY_BADGE_CLASSES: Record<Scrutiny, string> = {
+  skim: "border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]",
+  read: "border-[#79c0ff]/40 bg-[#79c0ff]/10 text-[#79c0ff]",
+  careful: "border-[#d29922]/40 bg-[#d29922]/10 text-[#d29922]",
+};
 
 // Every hunk-addressable unit is keyed "filename#index"; files with no
 // hunks to address individually (e.g. binary changes) fall back to a
@@ -573,6 +587,25 @@ function IdeaFileSection({
   );
 }
 
+function TestNoteCard({ idea }: { idea: Idea }) {
+  return (
+    <Card className="gap-1 p-4 text-sm">
+      {idea.tested && (
+        <div>
+          <span className="font-medium text-muted-foreground">Tested: </span>
+          {idea.tested}
+        </div>
+      )}
+      {idea.untested && (
+        <div>
+          <span className="font-medium text-muted-foreground">Missing coverage: </span>
+          {idea.untested}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function IdeaView({
   idea,
   files,
@@ -602,6 +635,10 @@ function IdeaView({
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
   const done = isIdeaReviewed(idea, reviewed);
 
+  const hasTestNote = !!(idea.tested || idea.untested);
+  const firstTestIndex = orderedFileGroups.findIndex(([filename]) => isTestFile(filename));
+  const testNoteIndex = firstTestIndex >= 0 ? firstTestIndex : orderedFileGroups.length;
+
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -621,7 +658,14 @@ function IdeaView({
       <Card className="gap-2 p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-sm font-semibold">{idea.title}</div>
+            <div className="flex items-center gap-2">
+              {idea.scrutiny && (
+                <Badge variant="outline" className={cn("text-xs", SCRUTINY_BADGE_CLASSES[idea.scrutiny])}>
+                  {idea.scrutiny}
+                </Badge>
+              )}
+              <div className="text-sm font-semibold">{idea.title}</div>
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">{idea.summary}</p>
           </div>
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -629,27 +673,36 @@ function IdeaView({
             Reviewed
           </label>
         </div>
+        {idea.attention && (
+          <div className="mt-1 flex gap-2 rounded-md border border-[#d29922]/40 bg-[#d29922]/10 p-3 text-sm text-[#d29922]">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <span>{idea.attention}</span>
+          </div>
+        )}
       </Card>
-      {orderedFileGroups.map(([filename, hunkIndices]) => {
+      {orderedFileGroups.map(([filename, hunkIndices], i) => {
         const file = files.find((f) => f.filename === filename);
         if (!file) return null;
         return (
-          <IdeaFileSection
-            key={filename}
-            file={file}
-            hunkIndices={hunkIndices}
-            hideWhitespace={hideWhitespace}
-            prRef={prRef}
-          />
+          <div key={filename} className="flex flex-col gap-4">
+            {i === testNoteIndex && hasTestNote && <TestNoteCard idea={idea} />}
+            <IdeaFileSection
+              file={file}
+              hunkIndices={hunkIndices}
+              hideWhitespace={hideWhitespace}
+              prRef={prRef}
+            />
+          </div>
         );
       })}
+      {testNoteIndex === orderedFileGroups.length && hasTestNote && <TestNoteCard idea={idea} />}
     </div>
   );
 }
 
 function IdeasPanel({
-  ideas,
-  everythingElse,
+  allIdeas,
+  hasIdeas,
   reviewed,
   loading,
   activeIdeaId,
@@ -657,8 +710,8 @@ function IdeasPanel({
   onSelectIdea,
   onToggleIdea,
 }: {
-  ideas: Idea[] | null;
-  everythingElse: Idea;
+  allIdeas: Idea[];
+  hasIdeas: boolean;
   reviewed: Record<string, boolean>;
   loading: boolean;
   activeIdeaId: string | null;
@@ -666,23 +719,21 @@ function IdeasPanel({
   onSelectIdea: (id: string) => void;
   onToggleIdea: (idea: Idea) => void;
 }) {
-  const all = everythingElse.hunks.length > 0 ? [...(ideas ?? []), everythingElse] : (ideas ?? []);
-
   return (
     <div className="flex flex-col rounded-lg border bg-card">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-xs font-semibold uppercase text-muted-foreground">Ideas</span>
         <Button size="sm" variant="outline" onClick={onGenerate} disabled={loading}>
-          {loading ? "Generating…" : ideas ? "Regenerate" : "Generate"}
+          {loading ? "Generating…" : hasIdeas ? "Regenerate" : "Generate"}
         </Button>
       </div>
-      {all.length === 0 ? (
+      {allIdeas.length === 0 ? (
         <div className="p-3 text-xs text-muted-foreground">
           {loading ? "Decomposing PR into ideas…" : "No ideas generated yet."}
         </div>
       ) : (
         <div className="flex flex-col gap-0.5 p-1">
-          {all.map((idea) => {
+          {allIdeas.map((idea) => {
             const doneCount = idea.hunks.filter((k) => reviewed[k]).length;
             const done = doneCount === idea.hunks.length;
             return (
@@ -699,7 +750,18 @@ function IdeasPanel({
                   <span onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={done} onCheckedChange={() => onToggleIdea(idea)} />
                   </span>
+                  {idea.scrutiny && (
+                    <Badge
+                      variant="outline"
+                      className={cn("shrink-0 px-1 py-0 text-[10px]", SCRUTINY_BADGE_CLASSES[idea.scrutiny])}
+                    >
+                      {idea.scrutiny}
+                    </Badge>
+                  )}
                   <span className="min-w-0 flex-1 truncate">{idea.title}</span>
+                  {idea.attention && (
+                    <TriangleAlert className="size-3 shrink-0 text-[#d29922]" />
+                  )}
                   <span className="shrink-0 text-muted-foreground">
                     {doneCount}/{idea.hunks.length}
                   </span>
@@ -860,9 +922,16 @@ function App() {
     };
   }, [files, ideas, fileHunkCounts]);
 
+  const sortedIdeas = useMemo(
+    () =>
+      [...(ideas ?? [])].sort(
+        (a, b) => SCRUTINY_RANK[a.scrutiny ?? "read"] - SCRUTINY_RANK[b.scrutiny ?? "read"],
+      ),
+    [ideas],
+  );
   const allIdeas = useMemo(
-    () => (everythingElse.hunks.length > 0 ? [...(ideas ?? []), everythingElse] : (ideas ?? [])),
-    [ideas, everythingElse],
+    () => (everythingElse.hunks.length > 0 ? [...sortedIdeas, everythingElse] : sortedIdeas),
+    [sortedIdeas, everythingElse],
   );
   const activeIdeaIndex = activeIdeaId ? allIdeas.findIndex((i) => i.id === activeIdeaId) : -1;
   const activeIdea = activeIdeaIndex >= 0 ? allIdeas[activeIdeaIndex] : null;
@@ -1004,8 +1073,8 @@ function App() {
         <div className="grid grid-cols-[300px_1fr] items-start gap-6">
           <div className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col gap-4 self-start">
             <IdeasPanel
-              ideas={ideas}
-              everythingElse={everythingElse}
+              allIdeas={allIdeas}
+              hasIdeas={ideas !== null}
               reviewed={reviewed}
               loading={ideasLoading}
               activeIdeaId={activeIdeaId}
