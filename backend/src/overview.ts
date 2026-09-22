@@ -1,28 +1,33 @@
 import { chatWithTool } from "./modelProvider.js";
 import type { ConversationItem, PrMeta } from "./github.js";
 import type { Idea } from "./ideaStore.js";
-import type { ConversationCard } from "./overviewStore.js";
+import type { ConversationCard, PrSummary } from "./overviewStore.js";
 
 const SUMMARY_TOOL = {
   name: "report_summary",
-  description: "Report a succinct, accurate summary of the pull request.",
+  description: "Report a succinct, accurate What/Why/How summary of the pull request.",
   parameters: {
     type: "object",
     properties: {
-      summary: { type: "string" },
+      what: { type: "string" },
+      why: { type: "string" },
+      how: { type: "string" },
     },
-    required: ["summary"],
+    required: ["what", "why"],
   },
 };
 
 const SUMMARY_SYSTEM_PROMPT = `You are orienting a reviewer to a pull request. Below is the \
 author's PR description and a breakdown of the change into small ideas, each already grounded in \
-the actual code diff. Write a succinct, accurate 2-4 sentence summary of what this PR actually \
-does, in plain language a reviewer can read in a few seconds. Treat the ideas as ground truth; \
-use the description only as supporting context, not something to audit or critique - just give \
-the reviewer a correct, brief orientation. Call report_summary with the result.`;
+the actual code diff. Treat the ideas as ground truth; use the description only as supporting \
+context, not something to audit or critique. Write a succinct, accurate summary in three parts:
+- what: 1-3 sentences on what this PR actually does.
+- why: 1-2 sentences on why this change is being made.
+- how: only if the approach isn't obvious from "what" - 1-2 sentences on the mechanism, otherwise \
+an empty string.
+Call report_summary with the result.`;
 
-export async function generateSummary(meta: PrMeta, ideas: Idea[]): Promise<string> {
+export async function generateSummary(meta: PrMeta, ideas: Idea[]): Promise<PrSummary> {
   const ideasText = ideas.map((idea) => `- ${idea.title}: ${idea.summary}`).join("\n");
   const userContent = `PR description:\nTitle: ${meta.title}\n${meta.body ?? "(no description provided)"}\n\nIdeas derived from the diff:\n${ideasText || "(none generated)"}`;
 
@@ -34,8 +39,15 @@ export async function generateSummary(meta: PrMeta, ideas: Idea[]): Promise<stri
     SUMMARY_TOOL,
   );
 
-  const raw = result.arguments as { summary?: unknown };
-  return typeof raw.summary === "string" ? raw.summary.trim() : "";
+  const raw = result.arguments as { what?: unknown; why?: unknown; how?: unknown };
+  const nonEmpty = (v: unknown): string | undefined =>
+    typeof v === "string" && v.trim() ? v.trim() : undefined;
+
+  return {
+    what: nonEmpty(raw.what) ?? "",
+    why: nonEmpty(raw.why) ?? "",
+    how: nonEmpty(raw.how),
+  };
 }
 
 const CONVERSATION_TOOL = {

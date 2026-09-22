@@ -9,8 +9,14 @@ export interface ConversationCard {
   summary: string;
 }
 
+export interface PrSummary {
+  what: string;
+  why: string;
+  how?: string;
+}
+
 export interface OverviewState {
-  summary?: { text: string; generatedAt: string };
+  summary?: PrSummary & { generatedAt: string };
   conversation?: { cards: ConversationCard[]; generatedAt: string };
 }
 
@@ -46,10 +52,10 @@ export async function saveSummary(
   owner: string,
   repo: string,
   number: string,
-  text: string,
+  summary: PrSummary,
 ): Promise<OverviewState> {
   const state = await readOverview(owner, repo, number);
-  state.summary = { text, generatedAt: new Date().toISOString() };
+  state.summary = { ...summary, generatedAt: new Date().toISOString() };
   await writeOverview(owner, repo, number, state);
   return state;
 }

@@ -129,8 +129,8 @@ app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
       fetchPrMeta(owner, repo, number),
       readIdeas(owner, repo, number),
     ]);
-    const text = await generateSummary(meta, ideasState?.ideas ?? []);
-    const state = await saveSummary(owner, repo, number, text);
+    const summary = await generateSummary(meta, ideasState?.ideas ?? []);
+    const state = await saveSummary(owner, repo, number, summary);
     res.json(state);
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
