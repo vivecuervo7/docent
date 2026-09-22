@@ -112,10 +112,15 @@ interface PrSummary {
 interface Link {
   label: string;
   url: string;
+  isImage: boolean;
 }
 
-// Markdown links first (keeping their label), then any remaining bare
-// URLs, deduped by URL.
+const IMAGE_EXTENSION_RE = /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i;
+const CLAUDE_CODE_LINK_RE = /claude\.com\/claude-code/i;
+
+// Order matters: <img> tags and markdown image syntax first (removing
+// matched text as we go), so they don't also get picked up by the plain
+// markdown-link or bare-URL passes that follow. Deduped by URL throughout.
 function extractLinks(body: string | null): Link[] {
   if (!body) return [];
 
@@ -123,21 +128,34 @@ function extractLinks(body: string | null): Link[] {
   const seen = new Set<string>();
   let remaining = body;
 
-  for (const match of body.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g)) {
+  const add = (label: string, url: string, isImage: boolean) => {
+    if (seen.has(url) || CLAUDE_CODE_LINK_RE.test(url)) return;
+    seen.add(url);
+    links.push({ label, url, isImage });
+  };
+
+  for (const match of remaining.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
+    const [full, url] = match;
+    const alt = full.match(/\balt=["']([^"']*)["']/i)?.[1];
+    add(alt || "Image", url, true);
+    remaining = remaining.replace(full, "");
+  }
+
+  for (const match of remaining.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g)) {
     const [full, label, url] = match;
-    if (!seen.has(url)) {
-      seen.add(url);
-      links.push({ label, url });
-    }
+    add(label || "Image", url, true);
+    remaining = remaining.replace(full, "");
+  }
+
+  for (const match of remaining.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g)) {
+    const [full, label, url] = match;
+    add(label, url, IMAGE_EXTENSION_RE.test(url));
     remaining = remaining.replace(full, "");
   }
 
   for (const match of remaining.matchAll(/https?:\/\/[^\s)\]"'<>]+/g)) {
     const url = match[0].replace(/[.,;:!?]+$/, "");
-    if (!seen.has(url)) {
-      seen.add(url);
-      links.push({ label: url.replace(/^https?:\/\//, ""), url });
-    }
+    add(url.replace(/^https?:\/\//, ""), url, IMAGE_EXTENSION_RE.test(url));
   }
 
   return links;
@@ -771,6 +789,59 @@ function IdeasPanel({
   );
 }
 
+function ImageLightbox({
+  images,
+  index,
+  onIndexChange,
+  onClose,
+}: {
+  images: Link[];
+  index: number;
+  onIndexChange: (index: number) => void;
+  onClose: () => void;
+}) {
+  const image = images[index];
+  if (!image) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/80 p-6"
+      onClick={onClose}
+    >
+      <img
+        src={image.url}
+        alt={image.label}
+        className="max-h-[80vh] max-w-[90vw] rounded-lg object-contain"
+        onClick={(e) => e.stopPropagation()}
+      />
+      <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onIndexChange(index - 1)}
+          disabled={index === 0}
+        >
+          Prev
+        </Button>
+        <span className="text-sm text-white">
+          {index + 1} / {images.length}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onIndexChange(index + 1)}
+          disabled={index === images.length - 1}
+        >
+          Next
+        </Button>
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function LandingView({
   prMeta,
   pipelineStage,
@@ -804,6 +875,9 @@ function LandingView({
           : null;
 
   const links = useMemo(() => extractLinks(prMeta?.body ?? null), [prMeta]);
+  const imageLinks = useMemo(() => links.filter((l) => l.isImage), [links]);
+  const plainLinks = useMemo(() => links.filter((l) => !l.isImage), [links]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -856,20 +930,45 @@ function LandingView({
       {links.length > 0 && (
         <Card className="gap-2 p-4">
           <span className="text-xs font-semibold uppercase text-muted-foreground">Links</span>
-          <div className="flex flex-col gap-1">
-            {links.map((link) => (
-              <a
-                key={link.url}
-                href={link.url}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate text-sm text-[#79c0ff] hover:underline"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
+          {imageLinks.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {imageLinks.map((link, i) => (
+                <button
+                  key={link.url}
+                  type="button"
+                  onClick={() => setLightboxIndex(i)}
+                  className="size-20 shrink-0 overflow-hidden rounded-md border hover:border-foreground"
+                >
+                  <img src={link.url} alt={link.label} className="size-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+          {plainLinks.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {plainLinks.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="truncate text-sm text-[#79c0ff] hover:underline"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          )}
         </Card>
+      )}
+
+      {lightboxIndex !== null && (
+        <ImageLightbox
+          images={imageLinks}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
 
       <div className="flex items-center justify-between">
