@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { diffArrays } from "diff";
-import { ChevronDown, ChevronRight, Folder, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -84,21 +84,12 @@ interface PrFile {
   patch?: string;
 }
 
-type Scrutiny = "skim" | "read" | "careful";
-
 interface Idea {
   id: string;
   title: string;
   summary: string;
   hunks: string[];
-  scrutiny?: Scrutiny;
-  attention?: string;
-  tested?: string;
-  untested?: string;
 }
-
-// Not shown to the reviewer directly - only used to order ideas (skim first).
-const SCRUTINY_RANK: Record<Scrutiny, number> = { skim: 0, read: 1, careful: 2 };
 
 // Every hunk-addressable unit is keyed "filename#index"; files with no
 // hunks to address individually (e.g. binary changes) fall back to a
@@ -582,29 +573,6 @@ function IdeaFileSection({
   );
 }
 
-function TestNoteCard({ idea }: { idea: Idea }) {
-  const colorClasses = idea.untested
-    ? "border-[#d29922]/40 bg-[#d29922]/10 text-[#d29922]"
-    : "border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]";
-
-  return (
-    <div className={cn("flex flex-col gap-1 rounded-md border p-4 text-sm", colorClasses)}>
-      {idea.tested && (
-        <div>
-          <span className="font-medium">Tested: </span>
-          {idea.tested}
-        </div>
-      )}
-      {idea.untested && (
-        <div>
-          <span className="font-medium">Missing coverage: </span>
-          {idea.untested}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function IdeaView({
   idea,
   files,
@@ -634,10 +602,6 @@ function IdeaView({
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
   const done = isIdeaReviewed(idea, reviewed);
 
-  const hasTestNote = !!(idea.tested || idea.untested);
-  const firstTestIndex = orderedFileGroups.findIndex(([filename]) => isTestFile(filename));
-  const testNoteIndex = firstTestIndex >= 0 ? firstTestIndex : orderedFileGroups.length;
-
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -665,29 +629,20 @@ function IdeaView({
             Reviewed
           </label>
         </div>
-        {idea.attention && (
-          <div className="mt-1 flex gap-2 rounded-md border border-[#d29922]/40 bg-[#d29922]/10 p-3 text-sm text-[#d29922]">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            <span>{idea.attention}</span>
-          </div>
-        )}
       </Card>
-      {orderedFileGroups.map(([filename, hunkIndices], i) => {
+      {orderedFileGroups.map(([filename, hunkIndices]) => {
         const file = files.find((f) => f.filename === filename);
         if (!file) return null;
         return (
-          <div key={filename} className="flex flex-col gap-4">
-            {i === testNoteIndex && hasTestNote && <TestNoteCard idea={idea} />}
-            <IdeaFileSection
-              file={file}
-              hunkIndices={hunkIndices}
-              hideWhitespace={hideWhitespace}
-              prRef={prRef}
-            />
-          </div>
+          <IdeaFileSection
+            key={filename}
+            file={file}
+            hunkIndices={hunkIndices}
+            hideWhitespace={hideWhitespace}
+            prRef={prRef}
+          />
         );
       })}
-      {testNoteIndex === orderedFileGroups.length && hasTestNote && <TestNoteCard idea={idea} />}
     </div>
   );
 }
@@ -743,9 +698,6 @@ function IdeasPanel({
                     <Checkbox checked={done} onCheckedChange={() => onToggleIdea(idea)} />
                   </span>
                   <span className="min-w-0 flex-1 truncate">{idea.title}</span>
-                  {idea.attention && (
-                    <TriangleAlert className="size-3 shrink-0 text-[#d29922]" />
-                  )}
                   <span className="shrink-0 text-muted-foreground">
                     {doneCount}/{idea.hunks.length}
                   </span>
@@ -906,16 +858,9 @@ function App() {
     };
   }, [files, ideas, fileHunkCounts]);
 
-  const sortedIdeas = useMemo(
-    () =>
-      [...(ideas ?? [])].sort(
-        (a, b) => SCRUTINY_RANK[a.scrutiny ?? "read"] - SCRUTINY_RANK[b.scrutiny ?? "read"],
-      ),
-    [ideas],
-  );
   const allIdeas = useMemo(
-    () => (everythingElse.hunks.length > 0 ? [...sortedIdeas, everythingElse] : sortedIdeas),
-    [sortedIdeas, everythingElse],
+    () => (everythingElse.hunks.length > 0 ? [...(ideas ?? []), everythingElse] : (ideas ?? [])),
+    [ideas, everythingElse],
   );
   const activeIdeaIndex = activeIdeaId ? allIdeas.findIndex((i) => i.id === activeIdeaId) : -1;
   const activeIdea = activeIdeaIndex >= 0 ? allIdeas[activeIdeaIndex] : null;
