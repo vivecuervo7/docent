@@ -97,13 +97,8 @@ interface Idea {
   untested?: string;
 }
 
+// Not shown to the reviewer directly - only used to order ideas (skim first).
 const SCRUTINY_RANK: Record<Scrutiny, number> = { skim: 0, read: 1, careful: 2 };
-
-const SCRUTINY_BADGE_CLASSES: Record<Scrutiny, string> = {
-  skim: "border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]",
-  read: "border-[#79c0ff]/40 bg-[#79c0ff]/10 text-[#79c0ff]",
-  careful: "border-[#d29922]/40 bg-[#d29922]/10 text-[#d29922]",
-};
 
 // Every hunk-addressable unit is keyed "filename#index"; files with no
 // hunks to address individually (e.g. binary changes) fall back to a
@@ -588,21 +583,25 @@ function IdeaFileSection({
 }
 
 function TestNoteCard({ idea }: { idea: Idea }) {
+  const colorClasses = idea.untested
+    ? "border-[#d29922]/40 bg-[#d29922]/10 text-[#d29922]"
+    : "border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]";
+
   return (
-    <Card className="gap-1 p-4 text-sm">
+    <div className={cn("flex flex-col gap-1 rounded-md border p-4 text-sm", colorClasses)}>
       {idea.tested && (
         <div>
-          <span className="font-medium text-muted-foreground">Tested: </span>
+          <span className="font-medium">Tested: </span>
           {idea.tested}
         </div>
       )}
       {idea.untested && (
         <div>
-          <span className="font-medium text-muted-foreground">Missing coverage: </span>
+          <span className="font-medium">Missing coverage: </span>
           {idea.untested}
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -658,14 +657,7 @@ function IdeaView({
       <Card className="gap-2 p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              {idea.scrutiny && (
-                <Badge variant="outline" className={cn("text-xs", SCRUTINY_BADGE_CLASSES[idea.scrutiny])}>
-                  {idea.scrutiny}
-                </Badge>
-              )}
-              <div className="text-sm font-semibold">{idea.title}</div>
-            </div>
+            <div className="text-sm font-semibold">{idea.title}</div>
             <p className="mt-1 text-sm text-muted-foreground">{idea.summary}</p>
           </div>
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -750,14 +742,6 @@ function IdeasPanel({
                   <span onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={done} onCheckedChange={() => onToggleIdea(idea)} />
                   </span>
-                  {idea.scrutiny && (
-                    <Badge
-                      variant="outline"
-                      className={cn("shrink-0 px-1 py-0 text-[10px]", SCRUTINY_BADGE_CLASSES[idea.scrutiny])}
-                    >
-                      {idea.scrutiny}
-                    </Badge>
-                  )}
                   <span className="min-w-0 flex-1 truncate">{idea.title}</span>
                   {idea.attention && (
                     <TriangleAlert className="size-3 shrink-0 text-[#d29922]" />
