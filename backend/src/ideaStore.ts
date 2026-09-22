@@ -3,11 +3,17 @@ import path from "node:path";
 
 const DATA_DIR = path.join(import.meta.dirname, "..", "data");
 
+export type Scrutiny = "skim" | "read" | "careful";
+
 export interface Idea {
   id: string;
   title: string;
   summary: string;
   hunks: string[];
+  scrutiny?: Scrutiny;
+  attention?: string;
+  tested?: string;
+  untested?: string;
 }
 
 export interface IdeasState {
