@@ -1,6 +1,8 @@
 import express from "express";
 import { fetchFileContentAtRef, fetchPrBaseSha, fetchPrFiles } from "./github.js";
-import { readReviewState, setFileReviewed } from "./reviewStore.js";
+import { readReviewState, setHunksReviewed } from "./reviewStore.js";
+import { generateIdeas } from "./ideas.js";
+import { readIdeas, writeIdeas } from "./ideaStore.js";
 
 const app = express();
 app.use(express.json());
@@ -60,13 +62,39 @@ app.post("/api/review/:owner/:repo/:number", async (req, res) => {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
 
-  const { filename, reviewed } = req.body as { filename?: string; reviewed?: boolean };
-  if (typeof filename !== "string" || typeof reviewed !== "boolean") {
-    return res.status(400).json({ error: "expected { filename: string, reviewed: boolean }" });
+  const { keys, reviewed } = req.body as { keys?: string[]; reviewed?: boolean };
+  if (!Array.isArray(keys) || !keys.every((k) => typeof k === "string") || typeof reviewed !== "boolean") {
+    return res.status(400).json({ error: "expected { keys: string[], reviewed: boolean }" });
   }
 
-  const state = await setFileReviewed(owner, repo, number, filename, reviewed);
+  const state = await setHunksReviewed(owner, repo, number, keys, reviewed);
   res.json(state);
+});
+
+app.get("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+
+  const state = await readIdeas(owner, repo, number);
+  res.json(state ?? { ideas: null });
+});
+
+app.post("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+
+  try {
+    const files = await fetchPrFiles(owner, repo, number);
+    const ideas = await generateIdeas(files);
+    const state = await writeIdeas(owner, repo, number, ideas);
+    res.json(state);
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
 });
 
 const PORT = 3001;

@@ -16,6 +16,7 @@ import "react-diff-view/style/index.css";
 import refractor from "refractor";
 import jsx from "refractor/lang/jsx.js";
 import tsx from "refractor/lang/tsx.js";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -81,6 +82,46 @@ interface PrFile {
   additions: number;
   deletions: number;
   patch?: string;
+}
+
+interface Idea {
+  id: string;
+  title: string;
+  summary: string;
+  hunks: string[];
+}
+
+// Every hunk-addressable unit is keyed "filename#index"; files with no
+// hunks to address individually (e.g. binary changes) fall back to a
+// single "filename#file" key standing in for the whole file.
+function fileHunkKeys(filename: string, hunkCount: number): string[] {
+  if (hunkCount === 0) return [`${filename}#file`];
+  return Array.from({ length: hunkCount }, (_, i) => `${filename}#${i}`);
+}
+
+function isFileReviewed(
+  filename: string,
+  hunkCount: number,
+  reviewed: Record<string, boolean>,
+): boolean {
+  return fileHunkKeys(filename, hunkCount).every((k) => reviewed[k]);
+}
+
+function isIdeaReviewed(idea: Idea, reviewed: Record<string, boolean>): boolean {
+  return idea.hunks.length > 0 && idea.hunks.every((k) => reviewed[k]);
+}
+
+function groupHunkRefsByFile(refs: string[]): Map<string, number[]> {
+  const byFile = new Map<string, number[]>();
+  for (const ref of refs) {
+    const sep = ref.lastIndexOf("#");
+    const filename = ref.slice(0, sep);
+    const index = Number(ref.slice(sep + 1));
+    if (Number.isNaN(index)) continue;
+    if (!byFile.has(filename)) byFile.set(filename, []);
+    byFile.get(filename)!.push(index);
+  }
+  return byFile;
 }
 
 function fileElementId(filename: string): string {
@@ -154,17 +195,19 @@ function buildFileTree(files: PrFile[]): FileTreeFolder {
 function FileTreeNodes({
   entries,
   depth,
+  fileHunkCounts,
   reviewed,
   collapsedFolders,
   onToggleFolder,
-  onToggleReviewed,
+  onToggleFile,
 }: {
   entries: FileTreeEntry[];
   depth: number;
+  fileHunkCounts: Record<string, number>;
   reviewed: Record<string, boolean>;
   collapsedFolders: Set<string>;
   onToggleFolder: (path: string) => void;
-  onToggleReviewed: (filename: string) => void;
+  onToggleFile: (filename: string) => void;
 }) {
   return (
     <>
@@ -193,10 +236,11 @@ function FileTreeNodes({
                 <FileTreeNodes
                   entries={entry.children}
                   depth={depth + 1}
+                  fileHunkCounts={fileHunkCounts}
                   reviewed={reviewed}
                   collapsedFolders={collapsedFolders}
                   onToggleFolder={onToggleFolder}
-                  onToggleReviewed={onToggleReviewed}
+                  onToggleFile={onToggleFile}
                 />
               )}
             </div>
@@ -218,8 +262,12 @@ function FileTreeNodes({
           >
             <span onClick={(e) => e.stopPropagation()}>
               <Checkbox
-                checked={!!reviewed[entry.file.filename]}
-                onCheckedChange={() => onToggleReviewed(entry.file.filename)}
+                checked={isFileReviewed(
+                  entry.file.filename,
+                  fileHunkCounts[entry.file.filename] ?? 0,
+                  reviewed,
+                )}
+                onCheckedChange={() => onToggleFile(entry.file.filename)}
               />
             </span>
             <span>{entry.name}</span>
@@ -232,12 +280,14 @@ function FileTreeNodes({
 
 function TableOfContents({
   files,
+  fileHunkCounts,
   reviewed,
-  onToggleReviewed,
+  onToggleFile,
 }: {
   files: PrFile[];
+  fileHunkCounts: Record<string, number>;
   reviewed: Record<string, boolean>;
-  onToggleReviewed: (filename: string) => void;
+  onToggleFile: (filename: string) => void;
 }) {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const tree = buildFileTree(files);
@@ -255,7 +305,7 @@ function TableOfContents({
   }
 
   return (
-    <nav className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col self-start rounded-lg border bg-card">
+    <nav className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card">
       <div className="border-b px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
         Files
       </div>
@@ -264,10 +314,11 @@ function TableOfContents({
           <FileTreeNodes
             entries={tree.children}
             depth={0}
+            fileHunkCounts={fileHunkCounts}
             reviewed={reviewed}
             collapsedFolders={collapsedFolders}
             onToggleFolder={toggleFolder}
-            onToggleReviewed={onToggleReviewed}
+            onToggleFile={onToggleFile}
           />
         </div>
       </ScrollArea>
@@ -285,6 +336,16 @@ function buildDiffText(file: PrFile): string {
     `+++ ${newPath}`,
     file.patch ?? "",
   ].join("\n");
+}
+
+function countFileHunks(file: PrFile): number {
+  if (!file.patch) return 0;
+  try {
+    const [parsed] = parseDiff(buildDiffText(file));
+    return parsed?.hunks?.length ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 interface LineEntry {
@@ -357,6 +418,258 @@ function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
   });
 }
 
+// Shared by the full per-file view and the single-idea view: parses a
+// file's patch into hunks, lazily fetches old-file context for syntax
+// highlighting, and tokenizes. `enabled` gates the (relatively expensive)
+// context fetch + tokenize pass so a collapsed file in the full list skips
+// both until expanded.
+function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enabled: boolean) {
+  const { hunks, diffType } = useMemo((): { hunks?: HunkData[]; diffType: DiffType } => {
+    if (!file.patch) return { hunks: undefined, diffType: "modify" };
+    try {
+      const [parsed] = parseDiff(buildDiffText(file));
+      let hunks = parsed?.hunks;
+      if (hunks && hideWhitespace) hunks = collapseWhitespaceOnlyChanges(hunks);
+      return { hunks, diffType: (parsed?.type as DiffType) ?? "modify" };
+    } catch {
+      return { hunks: undefined, diffType: "modify" };
+    }
+  }, [file, hideWhitespace]);
+
+  const language = useMemo(() => languageForFilename(file.filename), [file.filename]);
+
+  // Fetched lazily, only once enabled and there's a language worth
+  // highlighting, since it's the full old file's content, not just the diff.
+  const [oldContent, setOldContent] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!enabled || !hunks || !language || file.status === "added") return;
+    if (oldContent !== undefined) return;
+
+    let cancelled = false;
+    const path = file.previous_filename ?? file.filename;
+
+    fetch(
+      `/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/old-content?path=${encodeURIComponent(path)}`,
+    )
+      .then((res) => (res.ok ? res.json() : { content: null }))
+      .then((data: { content: string | null }) => {
+        if (!cancelled && data.content) setOldContent(data.content);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, hunks, language, file, prRef, oldContent]);
+
+  const tokens = useMemo(() => {
+    if (!hunks || !enabled) return undefined;
+    try {
+      return language
+        ? tokenize(hunks, {
+            highlight: true,
+            refractor,
+            language,
+            oldSource: oldContent,
+            enhancers: [markEdits(hunks, { type: "block" })],
+          })
+        : tokenize(hunks, {
+            highlight: false,
+            enhancers: [markEdits(hunks, { type: "block" })],
+          });
+    } catch {
+      return undefined;
+    }
+  }, [hunks, enabled, language, oldContent]);
+
+  return { hunks, diffType, tokens };
+}
+
+function IdeaFileSection({
+  file,
+  hunkIndices,
+  hideWhitespace,
+  prRef,
+}: {
+  file: PrFile;
+  hunkIndices: number[];
+  hideWhitespace: boolean;
+  prRef: PrRef;
+}) {
+  const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, true);
+
+  const displayedHunks = useMemo(() => {
+    if (!hunks) return undefined;
+    return hunkIndices.map((i) => hunks[i]).filter((h): h is HunkData => !!h);
+  }, [hunks, hunkIndices]);
+
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="border-b bg-muted/50 px-4 py-2 font-mono text-xs font-medium">
+        {file.filename}
+      </div>
+      {displayedHunks && displayedHunks.length > 0 ? (
+        <div className="overflow-x-auto text-xs">
+          <Diff viewType="unified" diffType={diffType} hunks={displayedHunks} tokens={tokens}>
+            {(hunks) =>
+              hunks.flatMap((hunk) => [
+                <Decoration key={`decoration-${hunk.content}`}>
+                  <div className="bg-[rgba(56,139,253,0.1)] px-4 py-1.5 font-mono text-xs text-[#79c0ff]">
+                    {hunk.content}
+                  </div>
+                </Decoration>,
+                <Hunk key={hunk.content} hunk={hunk} />,
+              ])
+            }
+          </Diff>
+        </div>
+      ) : (
+        <div className="p-4 text-sm italic text-muted-foreground">No matching hunks.</div>
+      )}
+    </Card>
+  );
+}
+
+function IdeaView({
+  idea,
+  files,
+  hideWhitespace,
+  prRef,
+  reviewed,
+  index,
+  total,
+  onToggleIdea,
+  onPrev,
+  onNext,
+  onClose,
+}: {
+  idea: Idea;
+  files: PrFile[];
+  hideWhitespace: boolean;
+  prRef: PrRef;
+  reviewed: Record<string, boolean>;
+  index: number;
+  total: number;
+  onToggleIdea: (idea: Idea) => void;
+  onPrev: () => void;
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const byFile = useMemo(() => groupHunkRefsByFile(idea.hunks), [idea]);
+  const done = isIdeaReviewed(idea, reviewed);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onPrev} disabled={index === 0}>
+          Prev
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Idea {index + 1} / {total}
+        </span>
+        <Button variant="outline" size="sm" onClick={onNext} disabled={index === total - 1}>
+          Next
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onClose} className="ml-auto">
+          Back to files
+        </Button>
+      </div>
+      <Card className="gap-2 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">{idea.title}</div>
+            <p className="mt-1 text-sm text-muted-foreground">{idea.summary}</p>
+          </div>
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox checked={done} onCheckedChange={() => onToggleIdea(idea)} />
+            Reviewed
+          </label>
+        </div>
+      </Card>
+      {[...byFile.entries()].map(([filename, hunkIndices]) => {
+        const file = files.find((f) => f.filename === filename);
+        if (!file) return null;
+        return (
+          <IdeaFileSection
+            key={filename}
+            file={file}
+            hunkIndices={hunkIndices}
+            hideWhitespace={hideWhitespace}
+            prRef={prRef}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function IdeasPanel({
+  ideas,
+  everythingElse,
+  reviewed,
+  loading,
+  activeIdeaId,
+  onGenerate,
+  onSelectIdea,
+  onToggleIdea,
+}: {
+  ideas: Idea[] | null;
+  everythingElse: Idea;
+  reviewed: Record<string, boolean>;
+  loading: boolean;
+  activeIdeaId: string | null;
+  onGenerate: () => void;
+  onSelectIdea: (id: string) => void;
+  onToggleIdea: (idea: Idea) => void;
+}) {
+  const all = everythingElse.hunks.length > 0 ? [...(ideas ?? []), everythingElse] : (ideas ?? []);
+
+  return (
+    <div className="flex flex-col rounded-lg border bg-card">
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <span className="text-xs font-semibold uppercase text-muted-foreground">Ideas</span>
+        <Button size="sm" variant="outline" onClick={onGenerate} disabled={loading}>
+          {loading ? "Generating…" : ideas ? "Regenerate" : "Generate"}
+        </Button>
+      </div>
+      {all.length === 0 ? (
+        <div className="p-3 text-xs text-muted-foreground">
+          {loading ? "Decomposing PR into ideas…" : "No ideas generated yet."}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-0.5 p-1">
+          {all.map((idea) => {
+            const doneCount = idea.hunks.filter((k) => reviewed[k]).length;
+            const done = doneCount === idea.hunks.length;
+            return (
+              <button
+                key={idea.id}
+                type="button"
+                onClick={() => onSelectIdea(idea.id)}
+                className={cn(
+                  "flex flex-col gap-1 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
+                  activeIdeaId === idea.id && "bg-muted",
+                )}
+              >
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <Checkbox checked={done} onCheckedChange={() => onToggleIdea(idea)} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{idea.title}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {doneCount}/{idea.hunks.length}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FileDiff({
   file,
   reviewed,
@@ -380,66 +693,7 @@ function FileDiff({
     wasReviewed.current = reviewed;
   }, [reviewed]);
 
-  const { hunks, diffType } = useMemo((): { hunks?: HunkData[]; diffType: DiffType } => {
-    if (!file.patch) return { hunks: undefined, diffType: "modify" };
-    try {
-      const [parsed] = parseDiff(buildDiffText(file));
-      let hunks = parsed?.hunks;
-      if (hunks && hideWhitespace) hunks = collapseWhitespaceOnlyChanges(hunks);
-      return { hunks, diffType: (parsed?.type as DiffType) ?? "modify" };
-    } catch {
-      return { hunks: undefined, diffType: "modify" };
-    }
-  }, [file, hideWhitespace]);
-
-  const language = useMemo(() => languageForFilename(file.filename), [file.filename]);
-
-  // Fetched lazily, only once a file is expanded and has a language worth
-  // highlighting, since it's the full old file's content, not just the diff.
-  const [oldContent, setOldContent] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (collapsed || !hunks || !language || file.status === "added") return;
-    if (oldContent !== undefined) return;
-
-    let cancelled = false;
-    const path = file.previous_filename ?? file.filename;
-
-    fetch(
-      `/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/old-content?path=${encodeURIComponent(path)}`,
-    )
-      .then((res) => (res.ok ? res.json() : { content: null }))
-      .then((data: { content: string | null }) => {
-        if (!cancelled && data.content) setOldContent(data.content);
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [collapsed, hunks, language, file, prRef, oldContent]);
-
-  // Skip the (relatively expensive) syntax-highlighting tokenize pass while
-  // collapsed, since nothing using it renders until it's expanded.
-  const tokens = useMemo(() => {
-    if (!hunks || collapsed) return undefined;
-    try {
-      return language
-        ? tokenize(hunks, {
-            highlight: true,
-            refractor,
-            language,
-            oldSource: oldContent,
-            enhancers: [markEdits(hunks, { type: "block" })],
-          })
-        : tokenize(hunks, {
-            highlight: false,
-            enhancers: [markEdits(hunks, { type: "block" })],
-          });
-    } catch {
-      return undefined;
-    }
-  }, [hunks, collapsed, language, oldContent]);
+  const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, !collapsed);
 
   return (
     <Card id={fileElementId(file.filename)} className="scroll-mt-6 gap-0 overflow-hidden py-0">
@@ -537,19 +791,51 @@ function App() {
   const [prRef, setPrRef] = useState<PrRef | null>(null);
   const [files, setFiles] = useState<PrFile[] | null>(null);
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
+  const [ideas, setIdeas] = useState<Idea[] | null>(null);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hideWhitespace, setHideWhitespace] = useState(true);
+
+  const fileHunkCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const file of files ?? []) counts[file.filename] = countFileHunks(file);
+    return counts;
+  }, [files]);
+
+  const everythingElse = useMemo((): Idea => {
+    const claimed = new Set((ideas ?? []).flatMap((idea) => idea.hunks));
+    const hunks = (files ?? []).flatMap((file) =>
+      fileHunkKeys(file.filename, fileHunkCounts[file.filename] ?? 0).filter((k) => !claimed.has(k)),
+    );
+    return {
+      id: "everything-else",
+      title: "Everything else",
+      summary: "Hunks not covered by any idea above.",
+      hunks,
+    };
+  }, [files, ideas, fileHunkCounts]);
+
+  const allIdeas = useMemo(
+    () => (everythingElse.hunks.length > 0 ? [...(ideas ?? []), everythingElse] : (ideas ?? [])),
+    [ideas, everythingElse],
+  );
+  const activeIdeaIndex = activeIdeaId ? allIdeas.findIndex((i) => i.id === activeIdeaId) : -1;
+  const activeIdea = activeIdeaIndex >= 0 ? allIdeas[activeIdeaIndex] : null;
 
   async function loadPrByRef(ref: PrRef) {
     setError(null);
     setLoading(true);
     setFiles(null);
+    setIdeas(null);
+    setActiveIdeaId(null);
 
     try {
-      const [filesRes, reviewRes] = await Promise.all([
+      const [filesRes, reviewRes, ideasRes] = await Promise.all([
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}`),
         fetch(`/api/review/${ref.owner}/${ref.repo}/${ref.number}`),
+        fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/ideas`),
       ]);
       if (!filesRes.ok) {
         const body = await filesRes.json();
@@ -557,9 +843,11 @@ function App() {
       }
       const { files } = await filesRes.json();
       const reviewState = await reviewRes.json();
+      const ideasState = await ideasRes.json();
       setPrRef(ref);
       setFiles(files);
       setReviewed(reviewState);
+      setIdeas(ideasState.ideas ?? null);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
     } catch (err) {
       setError((err as Error).message);
@@ -594,19 +882,52 @@ function App() {
     setPrRef(null);
     setFiles(null);
     setReviewed({});
+    setIdeas(null);
+    setActiveIdeaId(null);
     setError(null);
   }
 
-  async function toggleReviewed(filename: string) {
-    if (!prRef) return;
-    const next = !reviewed[filename];
-    setReviewed((prev) => ({ ...prev, [filename]: next }));
+  async function setHunksReviewed(keys: string[], value: boolean) {
+    if (!prRef || keys.length === 0) return;
+    setReviewed((prev) => {
+      const next = { ...prev };
+      for (const key of keys) next[key] = value;
+      return next;
+    });
     await fetch(`/api/review/${prRef.owner}/${prRef.repo}/${prRef.number}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename, reviewed: next }),
+      body: JSON.stringify({ keys, reviewed: value }),
     });
   }
+
+  function toggleFile(filename: string) {
+    const keys = fileHunkKeys(filename, fileHunkCounts[filename] ?? 0);
+    const currentlyReviewed = keys.every((k) => reviewed[k]);
+    setHunksReviewed(keys, !currentlyReviewed);
+  }
+
+  function toggleIdea(idea: Idea) {
+    setHunksReviewed(idea.hunks, !isIdeaReviewed(idea, reviewed));
+  }
+
+  async function generateIdeas() {
+    if (!prRef) return;
+    setIdeasLoading(true);
+    try {
+      const res = await fetch(`/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/ideas`, {
+        method: "POST",
+      });
+      const body = await res.json();
+      setIdeas(body.ideas ?? null);
+    } finally {
+      setIdeasLoading(false);
+    }
+  }
+
+  const reviewedFileCount = (files ?? []).filter((file) =>
+    isFileReviewed(file.filename, fileHunkCounts[file.filename] ?? 0, reviewed),
+  ).length;
 
   return (
     <div className="w-full p-6">
@@ -628,9 +949,7 @@ function App() {
 
       {files && (
         <div className="mb-4 flex items-center gap-4 text-sm">
-          <span className="font-medium">
-            {Object.values(reviewed).filter(Boolean).length} / {files.length} files reviewed
-          </span>
+          <span className="font-medium">{reviewedFileCount} / {files.length} files reviewed</span>
           <label className="flex items-center gap-2 text-muted-foreground">
             <Checkbox checked={hideWhitespace} onCheckedChange={setHideWhitespace} />
             Hide whitespace
@@ -640,19 +959,52 @@ function App() {
 
       {files && prRef && (
         <div className="grid grid-cols-[300px_1fr] items-start gap-6">
-          <TableOfContents files={files} reviewed={reviewed} onToggleReviewed={toggleReviewed} />
-          <div className="flex min-w-0 flex-col gap-4">
-            {files.map((file) => (
-              <FileDiff
-                key={file.filename}
-                file={file}
-                reviewed={!!reviewed[file.filename]}
-                hideWhitespace={hideWhitespace}
-                prRef={prRef}
-                onToggle={() => toggleReviewed(file.filename)}
-              />
-            ))}
+          <div className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col gap-4 self-start">
+            <IdeasPanel
+              ideas={ideas}
+              everythingElse={everythingElse}
+              reviewed={reviewed}
+              loading={ideasLoading}
+              activeIdeaId={activeIdeaId}
+              onGenerate={generateIdeas}
+              onSelectIdea={setActiveIdeaId}
+              onToggleIdea={toggleIdea}
+            />
+            <TableOfContents
+              files={files}
+              fileHunkCounts={fileHunkCounts}
+              reviewed={reviewed}
+              onToggleFile={toggleFile}
+            />
           </div>
+          {activeIdea ? (
+            <IdeaView
+              idea={activeIdea}
+              files={files}
+              hideWhitespace={hideWhitespace}
+              prRef={prRef}
+              reviewed={reviewed}
+              index={activeIdeaIndex}
+              total={allIdeas.length}
+              onToggleIdea={toggleIdea}
+              onPrev={() => setActiveIdeaId(allIdeas[activeIdeaIndex - 1]?.id ?? null)}
+              onNext={() => setActiveIdeaId(allIdeas[activeIdeaIndex + 1]?.id ?? null)}
+              onClose={() => setActiveIdeaId(null)}
+            />
+          ) : (
+            <div className="flex min-w-0 flex-col gap-4">
+              {files.map((file) => (
+                <FileDiff
+                  key={file.filename}
+                  file={file}
+                  reviewed={isFileReviewed(file.filename, fileHunkCounts[file.filename] ?? 0, reviewed)}
+                  hideWhitespace={hideWhitespace}
+                  prRef={prRef}
+                  onToggle={() => toggleFile(file.filename)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
