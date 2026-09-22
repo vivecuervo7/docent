@@ -3,6 +3,29 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+const ATTACHMENT_URL_RE = /^https:\/\/github\.com\/user-attachments\//;
+
+// github.com/user-attachments URLs 302 to a presigned, short-lived S3 URL
+// and require an authenticated GitHub session to resolve at all - a plain
+// cross-origin <img> tag never sends that session cookie (SameSite=Lax,
+// blocked on subresource loads), so these need fetching server-side where
+// `gh` is already authenticated, then served from our own origin.
+export async function fetchAttachment(
+  url: string,
+): Promise<{ contentType: string; body: Buffer } | null> {
+  if (!ATTACHMENT_URL_RE.test(url)) return null;
+
+  const { stdout: tokenOut } = await execFileAsync("gh", ["auth", "token"]);
+  const token = tokenOut.trim();
+
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return null;
+
+  const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+  const body = Buffer.from(await res.arrayBuffer());
+  return { contentType, body };
+}
+
 export interface PrFile {
   filename: string;
   status: string;

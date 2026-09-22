@@ -117,6 +117,14 @@ interface Link {
 
 const IMAGE_EXTENSION_RE = /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i;
 const CLAUDE_CODE_LINK_RE = /claude\.com\/claude-code/i;
+const GITHUB_ATTACHMENT_RE = /^https:\/\/github\.com\/user-attachments\//;
+
+// github.com/user-attachments images require an authenticated GitHub
+// session to load, which a cross-origin <img> tag never has - route those
+// through our own backend, which fetches them with `gh`'s auth instead.
+function imageSrcFor(url: string): string {
+  return GITHUB_ATTACHMENT_RE.test(url) ? `/api/attachment?url=${encodeURIComponent(url)}` : url;
+}
 
 // Order matters: <img> tags and markdown image syntax first (removing
 // matched text as we go), so they don't also get picked up by the plain
@@ -809,7 +817,7 @@ function ImageLightbox({
       onClick={onClose}
     >
       <img
-        src={image.url}
+        src={imageSrcFor(image.url)}
         alt={image.label}
         className="max-h-[80vh] max-w-[90vw] rounded-lg object-contain"
         onClick={(e) => e.stopPropagation()}
@@ -939,7 +947,11 @@ function LandingView({
                   onClick={() => setLightboxIndex(i)}
                   className="size-20 shrink-0 overflow-hidden rounded-md border hover:border-foreground"
                 >
-                  <img src={link.url} alt={link.label} className="size-full object-cover" />
+                  <img
+                    src={imageSrcFor(link.url)}
+                    alt={link.label}
+                    className="size-full object-cover"
+                  />
                 </button>
               ))}
             </div>

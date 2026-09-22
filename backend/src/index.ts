@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  fetchAttachment,
   fetchFileContentAtRef,
   fetchPrBaseSha,
   fetchPrConversation,
@@ -36,6 +37,22 @@ app.get("/api/pr/:owner/:repo/:number", async (req, res) => {
       fetchPrMeta(owner, repo, number),
     ]);
     res.json({ files, meta });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.get("/api/attachment", async (req, res) => {
+  const { url } = req.query;
+  if (typeof url !== "string" || !url) {
+    return res.status(400).json({ error: "missing url" });
+  }
+
+  try {
+    const attachment = await fetchAttachment(url);
+    if (!attachment) return res.status(404).end();
+    res.setHeader("Content-Type", attachment.contentType);
+    res.send(attachment.body);
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }
