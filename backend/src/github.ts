@@ -25,6 +25,107 @@ export async function fetchPrFiles(
   return JSON.parse(stdout) as PrFile[];
 }
 
+export interface PrMeta {
+  title: string;
+  body: string | null;
+  htmlUrl: string;
+}
+
+export async function fetchPrMeta(owner: string, repo: string, number: string): Promise<PrMeta> {
+  const { stdout } = await execFileAsync("gh", [
+    "api",
+    `repos/${owner}/${repo}/pulls/${number}`,
+    "--jq",
+    "{title: .title, body: .body, htmlUrl: .html_url}",
+  ]);
+
+  return JSON.parse(stdout) as PrMeta;
+}
+
+export interface ConversationItem {
+  kind: "review" | "comment";
+  author: string;
+  body: string;
+  state?: string;
+  inlineComments?: { path: string; body: string }[];
+}
+
+interface RawReview {
+  id: number;
+  user: { login?: string } | null;
+  body: string | null;
+  state: string;
+}
+
+interface RawInlineComment {
+  pull_request_review_id: number | null;
+  path: string;
+  body: string;
+}
+
+interface RawIssueComment {
+  user: { login?: string } | null;
+  body: string | null;
+}
+
+export async function fetchPrConversation(
+  owner: string,
+  repo: string,
+  number: string,
+): Promise<ConversationItem[]> {
+  const [reviewsRes, inlineRes, issueCommentsRes] = await Promise.all([
+    execFileAsync("gh", [
+      "api",
+      "--paginate",
+      `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`,
+    ]),
+    execFileAsync("gh", [
+      "api",
+      "--paginate",
+      `repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`,
+    ]),
+    execFileAsync("gh", [
+      "api",
+      "--paginate",
+      `repos/${owner}/${repo}/issues/${number}/comments?per_page=100`,
+    ]),
+  ]);
+
+  const reviews = JSON.parse(reviewsRes.stdout) as RawReview[];
+  const inline = JSON.parse(inlineRes.stdout) as RawInlineComment[];
+  const issueComments = JSON.parse(issueCommentsRes.stdout) as RawIssueComment[];
+
+  const inlineByReview = new Map<number, { path: string; body: string }[]>();
+  for (const c of inline) {
+    if (c.pull_request_review_id == null) continue;
+    if (!inlineByReview.has(c.pull_request_review_id)) {
+      inlineByReview.set(c.pull_request_review_id, []);
+    }
+    inlineByReview.get(c.pull_request_review_id)!.push({ path: c.path, body: c.body });
+  }
+
+  const items: ConversationItem[] = [];
+
+  for (const r of reviews) {
+    const inlineForThis = inlineByReview.get(r.id) ?? [];
+    if (!r.body && inlineForThis.length === 0) continue;
+    items.push({
+      kind: "review",
+      author: r.user?.login ?? "unknown",
+      body: r.body ?? "",
+      state: r.state,
+      inlineComments: inlineForThis.length > 0 ? inlineForThis : undefined,
+    });
+  }
+
+  for (const c of issueComments) {
+    if (!c.body) continue;
+    items.push({ kind: "comment", author: c.user?.login ?? "unknown", body: c.body });
+  }
+
+  return items;
+}
+
 export async function fetchPrBaseSha(
   owner: string,
   repo: string,

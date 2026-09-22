@@ -1,8 +1,16 @@
 import express from "express";
-import { fetchFileContentAtRef, fetchPrBaseSha, fetchPrFiles } from "./github.js";
+import {
+  fetchFileContentAtRef,
+  fetchPrBaseSha,
+  fetchPrConversation,
+  fetchPrFiles,
+  fetchPrMeta,
+} from "./github.js";
 import { readReviewState, setHunksReviewed } from "./reviewStore.js";
 import { generateIdeas } from "./ideas.js";
 import { readIdeas, writeIdeas } from "./ideaStore.js";
+import { generateConversationCards, generateSummary } from "./overview.js";
+import { readOverview, saveConversation, saveSummary } from "./overviewStore.js";
 
 const app = express();
 app.use(express.json());
@@ -23,8 +31,11 @@ app.get("/api/pr/:owner/:repo/:number", async (req, res) => {
   }
 
   try {
-    const files = await fetchPrFiles(owner, repo, number);
-    res.json({ files });
+    const [files, meta] = await Promise.all([
+      fetchPrFiles(owner, repo, number),
+      fetchPrMeta(owner, repo, number),
+    ]);
+    res.json({ files, meta });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }
@@ -91,6 +102,51 @@ app.post("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
     const files = await fetchPrFiles(owner, repo, number);
     const ideas = await generateIdeas(files);
     const state = await writeIdeas(owner, repo, number, ideas);
+    res.json(state);
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.get("/api/pr/:owner/:repo/:number/overview", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+
+  const state = await readOverview(owner, repo, number);
+  res.json(state);
+});
+
+app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+
+  try {
+    const [meta, ideasState] = await Promise.all([
+      fetchPrMeta(owner, repo, number),
+      readIdeas(owner, repo, number),
+    ]);
+    const text = await generateSummary(meta, ideasState?.ideas ?? []);
+    const state = await saveSummary(owner, repo, number, text);
+    res.json(state);
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.post("/api/pr/:owner/:repo/:number/overview/conversation", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+
+  try {
+    const items = await fetchPrConversation(owner, repo, number);
+    const cards = await generateConversationCards(items);
+    const state = await saveConversation(owner, repo, number, cards);
     res.json(state);
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
