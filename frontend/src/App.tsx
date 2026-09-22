@@ -91,6 +91,20 @@ interface Idea {
   hunks: string[];
 }
 
+interface PrMeta {
+  title: string;
+  body: string | null;
+  htmlUrl: string;
+}
+
+interface ConversationCard {
+  author: string;
+  kind: string;
+  summary: string;
+}
+
+type PipelineStage = "ideas" | "summary" | "conversation" | null;
+
 // Every hunk-addressable unit is keyed "filename#index"; files with no
 // hunks to address individually (e.g. binary changes) fall back to a
 // single "filename#file" key standing in for the whole file.
@@ -325,11 +339,13 @@ function TableOfContents({
   fileHunkCounts,
   reviewed,
   onToggleFile,
+  onHeaderClick,
 }: {
   files: PrFile[];
   fileHunkCounts: Record<string, number>;
   reviewed: Record<string, boolean>;
   onToggleFile: (filename: string) => void;
+  onHeaderClick: () => void;
 }) {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const tree = buildFileTree(files);
@@ -348,9 +364,13 @@ function TableOfContents({
 
   return (
     <nav className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card">
-      <div className="border-b px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+      <button
+        type="button"
+        onClick={onHeaderClick}
+        className="border-b px-3 py-2 text-left text-xs font-semibold uppercase text-muted-foreground hover:text-foreground"
+      >
         Files
-      </div>
+      </button>
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex w-max min-w-full flex-col gap-0.5 p-1">
           <FileTreeNodes
@@ -615,7 +635,7 @@ function IdeaView({
           Next
         </Button>
         <Button variant="ghost" size="sm" onClick={onClose} className="ml-auto">
-          Back to files
+          Back to overview
         </Button>
       </div>
       <Card className="gap-2 p-4">
@@ -706,6 +726,111 @@ function IdeasPanel({
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+function LandingView({
+  prMeta,
+  pipelineStage,
+  summary,
+  summaryLoading,
+  onGenerateSummary,
+  conversationCards,
+  conversationLoading,
+  onGenerateConversation,
+  hasIdeas,
+  onStartReviewing,
+}: {
+  prMeta: PrMeta | null;
+  pipelineStage: PipelineStage;
+  summary: string | null;
+  summaryLoading: boolean;
+  onGenerateSummary: () => void;
+  conversationCards: ConversationCard[] | null;
+  conversationLoading: boolean;
+  onGenerateConversation: () => void;
+  hasIdeas: boolean;
+  onStartReviewing: () => void;
+}) {
+  const stageLabel =
+    pipelineStage === "ideas"
+      ? "Breaking the PR into ideas…"
+      : pipelineStage === "summary"
+        ? "Summarizing the PR…"
+        : pipelineStage === "conversation"
+          ? "Reading the conversation…"
+          : null;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="min-w-0 text-lg font-semibold">{prMeta?.title ?? "Pull request"}</h1>
+        {prMeta && (
+          <a href={prMeta.htmlUrl} target="_blank" rel="noreferrer" className="shrink-0">
+            <Button variant="outline" size="sm">
+              View in GitHub
+            </Button>
+          </a>
+        )}
+      </div>
+
+      {stageLabel && (
+        <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+          {stageLabel}
+        </div>
+      )}
+
+      <Card className="gap-2 p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase text-muted-foreground">Summary</span>
+          <Button size="sm" variant="outline" onClick={onGenerateSummary} disabled={summaryLoading}>
+            {summaryLoading ? "Generating…" : summary ? "Regenerate" : "Generate"}
+          </Button>
+        </div>
+        {summary ? (
+          <p className="text-sm">{summary}</p>
+        ) : (
+          !summaryLoading && <p className="text-sm text-muted-foreground italic">No summary yet.</p>
+        )}
+      </Card>
+
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase text-muted-foreground">Conversation</span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onGenerateConversation}
+          disabled={conversationLoading}
+        >
+          {conversationLoading ? "Generating…" : conversationCards ? "Regenerate" : "Generate"}
+        </Button>
+      </div>
+      {conversationCards && conversationCards.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {conversationCards.map((card, i) => (
+            <Card key={i} className="gap-1 p-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium">{card.author}</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {card.kind}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{card.summary}</p>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        !conversationLoading && (
+          <p className="text-sm text-muted-foreground italic">No conversation yet.</p>
+        )
+      )}
+
+      {hasIdeas && (
+        <Button onClick={onStartReviewing} className="self-start">
+          Start reviewing
+        </Button>
       )}
     </div>
   );
@@ -827,13 +952,22 @@ function clearStoredPrUrl() {
   }
 }
 
+type View = "landing" | "idea" | "files";
+
 function App() {
   const [prUrl, setPrUrl] = useState("");
   const [prRef, setPrRef] = useState<PrRef | null>(null);
+  const [prMeta, setPrMeta] = useState<PrMeta | null>(null);
   const [files, setFiles] = useState<PrFile[] | null>(null);
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
   const [ideasLoading, setIdeasLoading] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [conversationCards, setConversationCards] = useState<ConversationCard[] | null>(null);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [pipelineStage, setPipelineStage] = useState<PipelineStage>(null);
+  const [view, setView] = useState<View>("landing");
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -865,31 +999,81 @@ function App() {
   const activeIdeaIndex = activeIdeaId ? allIdeas.findIndex((i) => i.id === activeIdeaId) : -1;
   const activeIdea = activeIdeaIndex >= 0 ? allIdeas[activeIdeaIndex] : null;
 
+  async function fetchIdeasFor(ref: PrRef): Promise<Idea[]> {
+    const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/ideas`, {
+      method: "POST",
+    });
+    const body = await res.json();
+    return body.ideas ?? [];
+  }
+
+  async function fetchSummaryFor(ref: PrRef): Promise<string> {
+    const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/summary`, {
+      method: "POST",
+    });
+    const body = await res.json();
+    return body.summary?.text ?? "";
+  }
+
+  async function fetchConversationFor(ref: PrRef): Promise<ConversationCard[]> {
+    const res = await fetch(
+      `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/conversation`,
+      { method: "POST" },
+    );
+    const body = await res.json();
+    return body.conversation?.cards ?? [];
+  }
+
+  async function runFullPipeline(ref: PrRef) {
+    setPipelineStage("ideas");
+    setIdeas(await fetchIdeasFor(ref));
+    setPipelineStage("summary");
+    setSummary(await fetchSummaryFor(ref));
+    setPipelineStage("conversation");
+    setConversationCards(await fetchConversationFor(ref));
+    setPipelineStage(null);
+  }
+
   async function loadPrByRef(ref: PrRef) {
     setError(null);
     setLoading(true);
     setFiles(null);
+    setPrMeta(null);
     setIdeas(null);
+    setSummary(null);
+    setConversationCards(null);
     setActiveIdeaId(null);
+    setView("landing");
 
     try {
-      const [filesRes, reviewRes, ideasRes] = await Promise.all([
+      const [filesRes, reviewRes, ideasRes, overviewRes] = await Promise.all([
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}`),
         fetch(`/api/review/${ref.owner}/${ref.repo}/${ref.number}`),
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/ideas`),
+        fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview`),
       ]);
       if (!filesRes.ok) {
         const body = await filesRes.json();
         throw new Error(body.error ?? "Failed to fetch PR");
       }
-      const { files } = await filesRes.json();
+      const { files, meta } = await filesRes.json();
       const reviewState = await reviewRes.json();
       const ideasState = await ideasRes.json();
+      const overviewState = await overviewRes.json();
+
       setPrRef(ref);
       setFiles(files);
+      setPrMeta(meta ?? null);
       setReviewed(reviewState);
       setIdeas(ideasState.ideas ?? null);
+      setSummary(overviewState.summary?.text ?? null);
+      setConversationCards(overviewState.conversation?.cards ?? null);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
+
+      if (!ideasState.ideas) {
+        // Fire and forget - this can take minutes; don't block the initial load on it.
+        runFullPipeline(ref);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -921,10 +1105,15 @@ function App() {
     clearStoredPrUrl();
     setPrUrl("");
     setPrRef(null);
+    setPrMeta(null);
     setFiles(null);
     setReviewed({});
     setIdeas(null);
+    setSummary(null);
+    setConversationCards(null);
+    setPipelineStage(null);
     setActiveIdeaId(null);
+    setView("landing");
     setError(null);
   }
 
@@ -956,13 +1145,29 @@ function App() {
     if (!prRef) return;
     setIdeasLoading(true);
     try {
-      const res = await fetch(`/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/ideas`, {
-        method: "POST",
-      });
-      const body = await res.json();
-      setIdeas(body.ideas ?? null);
+      setIdeas(await fetchIdeasFor(prRef));
     } finally {
       setIdeasLoading(false);
+    }
+  }
+
+  async function generateSummary() {
+    if (!prRef) return;
+    setSummaryLoading(true);
+    try {
+      setSummary(await fetchSummaryFor(prRef));
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  async function generateConversation() {
+    if (!prRef) return;
+    setConversationLoading(true);
+    try {
+      setConversationCards(await fetchConversationFor(prRef));
+    } finally {
+      setConversationLoading(false);
     }
   }
 
@@ -1005,10 +1210,13 @@ function App() {
               allIdeas={allIdeas}
               hasIdeas={ideas !== null}
               reviewed={reviewed}
-              loading={ideasLoading}
+              loading={ideasLoading || pipelineStage === "ideas"}
               activeIdeaId={activeIdeaId}
               onGenerate={generateIdeas}
-              onSelectIdea={setActiveIdeaId}
+              onSelectIdea={(id) => {
+                setActiveIdeaId(id);
+                setView("idea");
+              }}
               onToggleIdea={toggleIdea}
             />
             <TableOfContents
@@ -1016,9 +1224,10 @@ function App() {
               fileHunkCounts={fileHunkCounts}
               reviewed={reviewed}
               onToggleFile={toggleFile}
+              onHeaderClick={() => setView("files")}
             />
           </div>
-          {activeIdea ? (
+          {view === "idea" && activeIdea ? (
             <IdeaView
               idea={activeIdea}
               files={files}
@@ -1030,9 +1239,9 @@ function App() {
               onToggleIdea={toggleIdea}
               onPrev={() => setActiveIdeaId(allIdeas[activeIdeaIndex - 1]?.id ?? null)}
               onNext={() => setActiveIdeaId(allIdeas[activeIdeaIndex + 1]?.id ?? null)}
-              onClose={() => setActiveIdeaId(null)}
+              onClose={() => setView("landing")}
             />
-          ) : (
+          ) : view === "files" ? (
             <div className="flex min-w-0 flex-col gap-4">
               {files.map((file) => (
                 <FileDiff
@@ -1045,6 +1254,25 @@ function App() {
                 />
               ))}
             </div>
+          ) : (
+            <LandingView
+              prMeta={prMeta}
+              pipelineStage={pipelineStage}
+              summary={summary}
+              summaryLoading={summaryLoading}
+              onGenerateSummary={generateSummary}
+              conversationCards={conversationCards}
+              conversationLoading={conversationLoading}
+              onGenerateConversation={generateConversation}
+              hasIdeas={ideas !== null && ideas.length > 0}
+              onStartReviewing={() => {
+                const first = allIdeas[0];
+                if (first) {
+                  setActiveIdeaId(first.id);
+                  setView("idea");
+                }
+              }}
+            />
           )}
         </div>
       )}
