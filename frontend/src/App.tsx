@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { diffArrays } from "diff";
 import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import {
@@ -13,12 +13,66 @@ import {
   type HunkData,
 } from "react-diff-view";
 import "react-diff-view/style/index.css";
+import refractor from "refractor";
+import jsx from "refractor/lang/jsx.js";
+import tsx from "refractor/lang/tsx.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+// The bundled "common" language set covers most backend languages already;
+// JSX/TSX aren't in it and are registered separately (each pulls in its own
+// JS/TS grammar dependency automatically).
+refractor.register(jsx);
+refractor.register(tsx);
+
+const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
+  ts: "typescript",
+  tsx: "tsx",
+  js: "javascript",
+  jsx: "jsx",
+  mjs: "javascript",
+  cjs: "javascript",
+  go: "go",
+  py: "python",
+  rb: "ruby",
+  java: "java",
+  kt: "kotlin",
+  rs: "rust",
+  c: "c",
+  h: "c",
+  cpp: "cpp",
+  cc: "cpp",
+  hpp: "cpp",
+  cs: "csharp",
+  php: "php",
+  swift: "swift",
+  sh: "bash",
+  bash: "bash",
+  yml: "yaml",
+  yaml: "yaml",
+  json: "json",
+  md: "markdown",
+  css: "css",
+  scss: "scss",
+  less: "less",
+  html: "markup",
+  htm: "markup",
+  xml: "markup",
+  sql: "sql",
+  lua: "lua",
+  r: "r",
+  pl: "perl",
+  ini: "ini",
+};
+
+function languageForFilename(filename: string): string | undefined {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  return ext ? EXTENSION_LANGUAGE_MAP[ext] : undefined;
+}
 
 interface PrFile {
   filename: string;
@@ -314,35 +368,6 @@ function FileDiff({
   hideWhitespace: boolean;
   onToggle: () => void;
 }) {
-  let hunks;
-  let diffType: DiffType = "modify";
-
-  if (file.patch) {
-    try {
-      const [parsed] = parseDiff(buildDiffText(file));
-      hunks = parsed?.hunks;
-      diffType = (parsed?.type as DiffType) ?? diffType;
-    } catch {
-      hunks = undefined;
-    }
-  }
-
-  if (hunks && hideWhitespace) {
-    hunks = collapseWhitespaceOnlyChanges(hunks);
-  }
-
-  let tokens;
-  if (hunks) {
-    try {
-      tokens = tokenize(hunks, {
-        highlight: false,
-        enhancers: [markEdits(hunks, { type: "block" })],
-      });
-    } catch {
-      tokens = undefined;
-    }
-  }
-
   const [collapsed, setCollapsed] = useState(reviewed);
   const wasReviewed = useRef(reviewed);
 
@@ -352,6 +377,41 @@ function FileDiff({
     }
     wasReviewed.current = reviewed;
   }, [reviewed]);
+
+  const { hunks, diffType } = useMemo((): { hunks?: HunkData[]; diffType: DiffType } => {
+    if (!file.patch) return { hunks: undefined, diffType: "modify" };
+    try {
+      const [parsed] = parseDiff(buildDiffText(file));
+      let hunks = parsed?.hunks;
+      if (hunks && hideWhitespace) hunks = collapseWhitespaceOnlyChanges(hunks);
+      return { hunks, diffType: (parsed?.type as DiffType) ?? "modify" };
+    } catch {
+      return { hunks: undefined, diffType: "modify" };
+    }
+  }, [file, hideWhitespace]);
+
+  const language = useMemo(() => languageForFilename(file.filename), [file.filename]);
+
+  // Skip the (relatively expensive) syntax-highlighting tokenize pass while
+  // collapsed, since nothing using it renders until it's expanded.
+  const tokens = useMemo(() => {
+    if (!hunks || collapsed) return undefined;
+    try {
+      return language
+        ? tokenize(hunks, {
+            highlight: true,
+            refractor,
+            language,
+            enhancers: [markEdits(hunks, { type: "block" })],
+          })
+        : tokenize(hunks, {
+            highlight: false,
+            enhancers: [markEdits(hunks, { type: "block" })],
+          });
+    } catch {
+      return undefined;
+    }
+  }, [hunks, collapsed, language]);
 
   return (
     <Card id={fileElementId(file.filename)} className="scroll-mt-6 gap-0 overflow-hidden py-0">

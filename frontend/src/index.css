@@ -111,3 +111,49 @@
   --diff-selection-background-color: rgba(56, 139, 253, 0.35);
   --diff-omit-gutter-line-color: #f85149;
 }
+
+/* Syntax highlighting (refractor/Prism token classes), matching GitHub's dark theme. */
+.diff .token.comment,
+.diff .token.prolog,
+.diff .token.doctype,
+.diff .token.cdata {
+  color: #8b949e;
+  font-style: italic;
+}
+.diff .token.keyword,
+.diff .token.operator,
+.diff .token.important,
+.diff .token.atrule {
+  color: #ff7b72;
+}
+.diff .token.string,
+.diff .token.char,
+.diff .token.attr-value,
+.diff .token.regex {
+  color: #a5d6ff;
+}
+.diff .token.function,
+.diff .token.class-name {
+  color: #d2a8ff;
+}
+.diff .token.tag,
+.diff .token.selector {
+  color: #7ee787;
+}
+.diff .token.attr-name,
+.diff .token.property,
+.diff .token.symbol {
+  color: #79c0ff;
+}
+.diff .token.number,
+.diff .token.boolean,
+.diff .token.constant {
+  color: #79c0ff;
+}
+.diff .token.variable,
+.diff .token.builtin {
+  color: #ffa657;
+}
+.diff .token.punctuation {
+  color: #c9d1d9;
+}
