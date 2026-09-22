@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { diffArrays } from "diff";
 import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import {
   Decoration,
@@ -232,65 +233,69 @@ function buildDiffText(file: PrFile): string {
   ].join("\n");
 }
 
-type DeleteChange = Extract<ChangeData, { type: "delete" }>;
-type InsertChange = Extract<ChangeData, { type: "insert" }>;
+interface LineEntry {
+  content: string;
+  lineNumber: number;
+}
 
 function normalizeForWhitespaceCompare(line: string): string {
   return line.replace(/\s+/g, "");
 }
 
-// Approximates git's "ignore whitespace" from the patch alone: a hunk's
-// consecutive delete/insert block collapses into unchanged lines only when
-// it's a *pure* reflow (same line count, every line pairs up once whitespace
-// is stripped) — collapsing some pairs but not others would mean moving an
-// insert out of its block to sit next to its paired delete, which reorders
-// the block and scrambles any real change mixed in with it. A block that
-// isn't a pure reflow is left exactly as it was.
+// Approximates git's "ignore whitespace" from the patch alone: realigns each
+// hunk's full old/new line sequences with a whitespace-insensitive LCS diff
+// (rather than just pairing up adjacent delete/insert blocks), so a line
+// that only moved position or got reformatted shows as unchanged context —
+// the same shape GitHub's own "hide whitespace" produces by re-diffing,
+// not just filtering matching pairs.
 function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
   return hunks.map((hunk) => {
+    const oldEntries: LineEntry[] = [];
+    const newEntries: LineEntry[] = [];
+
+    for (const c of hunk.changes) {
+      if (c.type === "delete") {
+        oldEntries.push({ content: c.content, lineNumber: c.lineNumber });
+      } else if (c.type === "insert") {
+        newEntries.push({ content: c.content, lineNumber: c.lineNumber });
+      } else {
+        oldEntries.push({ content: c.content, lineNumber: c.oldLineNumber });
+        newEntries.push({ content: c.content, lineNumber: c.newLineNumber });
+      }
+    }
+
+    const groups = diffArrays(oldEntries, newEntries, {
+      comparator: (a, b) =>
+        normalizeForWhitespaceCompare(a.content) === normalizeForWhitespaceCompare(b.content),
+    });
+
     const changes: ChangeData[] = [];
-    const src = hunk.changes;
-    let i = 0;
+    let oldIdx = 0;
 
-    while (i < src.length) {
-      if (src[i].type !== "delete") {
-        changes.push(src[i]);
-        i++;
-        continue;
-      }
-
-      const deletes: DeleteChange[] = [];
-      while (i < src.length && src[i].type === "delete") {
-        deletes.push(src[i] as DeleteChange);
-        i++;
-      }
-      const inserts: InsertChange[] = [];
-      while (i < src.length && src[i].type === "insert") {
-        inserts.push(src[i] as InsertChange);
-        i++;
-      }
-
-      const isPureReflow =
-        deletes.length === inserts.length &&
-        deletes.every(
-          (del, idx) =>
-            normalizeForWhitespaceCompare(del.content) ===
-            normalizeForWhitespaceCompare(inserts[idx].content),
-        );
-
-      if (isPureReflow) {
-        deletes.forEach((del, idx) => {
-          const ins = inserts[idx];
+    for (const group of groups) {
+      if (group.removed) {
+        for (const entry of group.value) {
+          changes.push({ type: "delete", isDelete: true, content: entry.content, lineNumber: entry.lineNumber });
+        }
+        oldIdx += group.value.length;
+      } else if (group.added) {
+        for (const entry of group.value) {
+          changes.push({ type: "insert", isInsert: true, content: entry.content, lineNumber: entry.lineNumber });
+        }
+      } else {
+        // jsdiff gives the new-side entry for a matched-but-non-identical pair;
+        // pair it with the corresponding old entry via the running old index.
+        group.value.forEach((newEntry, k) => {
+          const oldEntry = oldEntries[oldIdx + k];
           changes.push({
             type: "normal",
             isNormal: true,
-            content: ins.content,
-            oldLineNumber: del.lineNumber,
-            newLineNumber: ins.lineNumber,
+            content: newEntry.content,
+            oldLineNumber: oldEntry.lineNumber,
+            newLineNumber: newEntry.lineNumber,
           });
         });
-      } else {
-        changes.push(...deletes, ...inserts);
+        oldIdx += group.value.length;
       }
     }
 
