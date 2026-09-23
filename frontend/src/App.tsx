@@ -1481,7 +1481,7 @@ function parsePrUrl(url: string): PrRef | null {
   return { owner, repo, number };
 }
 
-const STORAGE_KEY = "codetour-pr:last-pr-url";
+const STORAGE_KEY = "docent:last-pr-url";
 
 function readStoredPrUrl(): string | null {
   try {
@@ -1507,7 +1507,7 @@ function clearStoredPrUrl() {
   }
 }
 
-const SIDEBAR_WIDTH_KEY = "codetour-pr:sidebar-width";
+const SIDEBAR_WIDTH_KEY = "docent:sidebar-width";
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 520;
 const SIDEBAR_DEFAULT = 300;

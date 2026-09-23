@@ -43,7 +43,7 @@ export interface PrRecord {
   conversation: ConversationSummary | null;
 }
 
-const DB_NAME = "codetour-pr";
+const DB_NAME = "docent";
 const DB_VERSION = 2;
 const STORE = "prs";
 
