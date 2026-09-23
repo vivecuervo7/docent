@@ -851,7 +851,6 @@ function SliceView({
 function SidebarNav({
   allSlices,
   reviewed,
-  loading,
   activeSliceId,
   overviewActive,
   allFilesActive,
@@ -863,7 +862,6 @@ function SidebarNav({
 }: {
   allSlices: Slice[];
   reviewed: Record<string, boolean>;
-  loading: boolean;
   activeSliceId: string | null;
   overviewActive: boolean;
   allFilesActive: boolean;
@@ -905,7 +903,6 @@ function SidebarNav({
           <button
             type="button"
             onClick={onResumeSlices}
-            disabled={allSlices.length === 0}
             title="Go to the first slice you haven't reviewed"
             className={topLevelClass(false)}
           >
@@ -913,38 +910,32 @@ function SidebarNav({
           </button>
         </div>
         <ol className="flex flex-col gap-0.5 pl-3">
-          {allSlices.length === 0 ? (
-            <li className="px-2.5 py-2 text-sm text-muted-foreground">
-              {loading ? "Breaking the PR into slices…" : "No slices yet."}
-            </li>
-          ) : (
-            allSlices.map((slice) => {
-              const done = isSliceReviewed(slice, reviewed);
-              const current = activeSliceId === slice.id;
-              return (
-                <li key={slice.id} className={rowClass(current)}>
-                  <button
-                    type="button"
-                    onClick={() => onToggleSlice(slice)}
-                    aria-label={done ? `Mark "${slice.title}" unreviewed` : `Mark "${slice.title}" reviewed`}
-                    className={cn(
-                      "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px]",
-                      done
-                        ? "border-reviewed-strong bg-reviewed-strong text-white"
-                        : current
-                          ? "border-foreground/70"
-                          : "border-muted-foreground/40 hover:border-muted-foreground",
-                    )}
-                  >
-                    {done && <Check className="size-2.5" strokeWidth={3.5} />}
-                  </button>
-                  <button type="button" onClick={() => onSelectSlice(slice.id)} className={sliceLabelClass(current)}>
-                    {slice.title}
-                  </button>
-                </li>
-              );
-            })
-          )}
+          {allSlices.map((slice) => {
+            const done = isSliceReviewed(slice, reviewed);
+            const current = activeSliceId === slice.id;
+            return (
+              <li key={slice.id} className={rowClass(current)}>
+                <button
+                  type="button"
+                  onClick={() => onToggleSlice(slice)}
+                  aria-label={done ? `Mark "${slice.title}" unreviewed` : `Mark "${slice.title}" reviewed`}
+                  className={cn(
+                    "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px]",
+                    done
+                      ? "border-reviewed-strong bg-reviewed-strong text-white"
+                      : current
+                        ? "border-foreground/70"
+                        : "border-muted-foreground/40 hover:border-muted-foreground",
+                  )}
+                >
+                  {done && <Check className="size-2.5" strokeWidth={3.5} />}
+                </button>
+                <button type="button" onClick={() => onSelectSlice(slice.id)} className={sliceLabelClass(current)}>
+                  {slice.title}
+                </button>
+              </li>
+            );
+          })}
         </ol>
       </div>
 
@@ -1904,31 +1895,48 @@ function App() {
     return conversation;
   }
 
-  async function runFullPipeline(ref: PrRef, { firstRun }: { firstRun: boolean }) {
+  // Each step saves its result as soon as it finishes, so a run that stopped
+  // part way (a failure, a reload) can pass what it already has as `reuse`
+  // and only redo the rest. The summary is always rewritten, since it's
+  // written from the other two.
+  async function runPipeline(
+    ref: PrRef,
+    {
+      firstRun,
+      reuse,
+    }: {
+      firstRun: boolean;
+      reuse?: { slices: Slice[] | null; conversation: ConversationSummary | null };
+    },
+  ) {
     setPreparing(firstRun);
     setPipelineError(null);
     const mark = (step: PipelineStep, status: "active" | "done") =>
       setPipelineSteps((prev) =>
         prev && { ...prev, [step]: { status, startedAt: status === "active" ? Date.now() : undefined } },
       );
+    const reusedSlices = reuse?.slices ?? null;
+    const reusedConversation = reuse?.conversation ?? null;
     const now = Date.now();
     setPipelineSteps({
-      slices: { status: "active", startedAt: now },
-      conversation: { status: "active", startedAt: now },
+      slices: reusedSlices ? { status: "done" } : { status: "active", startedAt: now },
+      conversation: reusedConversation ? { status: "done" } : { status: "active", startedAt: now },
       summary: { status: "pending" },
     });
     try {
       const [generatedSlices, generatedConversation] = await Promise.all([
-        fetchSlicesFor(ref).then((result) => {
-          setSlices(result);
-          mark("slices", "done");
-          return result;
-        }),
-        fetchConversationFor(ref).then((result) => {
-          setConversation(result);
-          mark("conversation", "done");
-          return result;
-        }),
+        reusedSlices ??
+          fetchSlicesFor(ref).then((result) => {
+            setSlices(result);
+            mark("slices", "done");
+            return result;
+          }),
+        reusedConversation ??
+          fetchConversationFor(ref).then((result) => {
+            setConversation(result);
+            mark("conversation", "done");
+            return result;
+          }),
       ]);
       mark("summary", "active");
       setSummary(await fetchSummaryFor(ref, generatedSlices, generatedConversation));
@@ -1974,9 +1982,12 @@ function App() {
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
-      if (!prRecord.slices) {
+      if (!prRecord.slices || !prRecord.conversation || !prRecord.summary) {
         // Fire and forget - this can take minutes; don't block the initial load on it.
-        runFullPipeline(ref, { firstRun: true });
+        runPipeline(ref, {
+          firstRun: !prRecord.summary,
+          reuse: { slices: prRecord.slices, conversation: prRecord.conversation },
+        });
       }
     } catch (err) {
       setError((err as Error).message);
@@ -2119,7 +2130,10 @@ function App() {
 
   function resumeSlices() {
     const next = allSlices.find((slice) => !isSliceReviewed(slice, reviewed)) ?? allSlices[0];
-    if (!next) return;
+    if (!next) {
+      setView("landing");
+      return;
+    }
     setActiveSliceId(next.id);
     setView("slice");
   }
@@ -2158,7 +2172,6 @@ function App() {
           <SidebarNav
             allSlices={allSlices}
             reviewed={reviewed}
-            loading={!pipelineError && pipelineSteps?.slices.status === "active"}
             activeSliceId={view === "slice" ? activeSliceId : null}
             overviewActive={view === "landing"}
             allFilesActive={view === "files"}
@@ -2244,7 +2257,7 @@ function App() {
             fileCount={files.length}
             steps={pipelineSteps}
             error={pipelineError}
-            onRetry={() => runFullPipeline(prRef, { firstRun: true })}
+            onRetry={() => runPipeline(prRef, { firstRun: true, reuse: { slices, conversation } })}
           />
         ) : view === "files" ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -2278,7 +2291,7 @@ function App() {
             pipelineError={pipelineError}
             summary={summary}
             conversation={conversation}
-            onRegenerate={() => runFullPipeline(prRef, { firstRun: false })}
+            onRegenerate={() => runPipeline(prRef, { firstRun: false })}
             hasSlices={slices !== null && slices.length > 0}
             hasProgress={Object.values(reviewed).some(Boolean)}
             onStartReviewing={resumeSlices}
