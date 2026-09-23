@@ -169,8 +169,17 @@
 .note-pin-pulse {
   animation: note-pin-pulse 700ms ease-out;
 }
+@keyframes note-offscreen-in {
+  from {
+    opacity: 0;
+  }
+}
+.note-offscreen-in {
+  animation: note-offscreen-in 200ms ease-out;
+}
 @media (prefers-reduced-motion: reduce) {
   .note-panel-in,
+  .note-offscreen-in,
   .note-pin-pulse {
     animation: none;
   }

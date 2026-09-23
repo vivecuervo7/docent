@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Loader2, MessageSquare, Trash2, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, Loader2, MessageSquare, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PIN_SIZE } from "./noteAnchors";
 import type { NoteMessage } from "./prDb";
@@ -48,14 +48,27 @@ function MessageText({ text }: { text: string }) {
   );
 }
 
-// A reply that hasn't been seen yet. `ring` matches the surface it sits on,
-// so the dot reads as cut out of its badge's corner.
-function UnreadDot({ ring }: { ring: string }) {
+// A reply that hasn't been seen yet, centred on the icon's top-right corner.
+// `ring` matches the surface behind it, so it reads as cut out of the icon.
+function UnreadDot({ ring, small }: { ring: string; small?: boolean }) {
   return (
     <span
       aria-hidden
-      className={cn("absolute -top-1 -right-1 size-2 rounded-full bg-reviewed ring-2", ring)}
+      className={cn(
+        "absolute rounded-full bg-reviewed",
+        small ? "-top-[3px] -right-[3px] size-1.5 ring-[1.5px]" : "-top-1 -right-1 size-2 ring-2",
+        ring,
+      )}
     />
+  );
+}
+
+function CommentIcon({ className, unread, ring }: { className: string; unread: boolean; ring: string }) {
+  return (
+    <span className="relative">
+      <MessageSquare className={className} />
+      {unread && <UnreadDot ring={ring} small />}
+    </span>
   );
 }
 
@@ -82,8 +95,41 @@ export function NotePin({
           : "border-reviewed/35 bg-reviewed/15 text-reviewed hover:bg-reviewed/25",
       )}
     >
-      <MessageSquare className="size-3.5" />
-      {unread && !active && <UnreadDot ring="ring-background" />}
+      <CommentIcon className="size-3.5" unread={unread && !active} ring="ring-[#152439]" />
+    </button>
+  );
+}
+
+// Points at an unread reply that's scrolled out of view, from the top or
+// bottom of the margin the pins sit in. Clicking it goes there.
+export function OffscreenUnread({
+  direction,
+  style,
+  onClick,
+}: {
+  direction: "up" | "down";
+  style: CSSProperties;
+  onClick: () => void;
+}) {
+  const Chevron = direction === "up" ? ChevronUp : ChevronDown;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={style}
+      title={direction === "up" ? "Unread reply above" : "Unread reply below"}
+      aria-label={direction === "up" ? "Go to the unread reply above" : "Go to the unread reply below"}
+      className={cn(
+        "note-offscreen-in fixed z-30 flex items-center gap-0.5 text-reviewed drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] hover:text-[#79b8ff]",
+        direction === "up" ? "flex-col" : "flex-col-reverse",
+      )}
+    >
+      <Chevron className="size-4" strokeWidth={2.5} />
+      <span className="relative">
+        {/* Two-tone: Lucide ships outlines only, so the fill is added faintly. */}
+        <MessageSquare className="size-6" fill="currentColor" fillOpacity={0.2} />
+        <UnreadDot ring="ring-background" />
+      </span>
     </button>
   );
 }
@@ -102,13 +148,14 @@ export function NoteCount({
   ring: string;
   onClick?: () => void;
 }) {
+  // Just the icon and number at rest; the badge only appears on hover, to
+  // keep headers and the sidebar quiet.
   const className =
-    "relative flex shrink-0 items-center gap-1 rounded-md border border-reviewed/35 bg-reviewed/15 px-1.5 py-0.5 text-[11px] text-reviewed tabular-nums";
+    "relative flex shrink-0 items-center gap-1 rounded-md border border-transparent px-1.5 py-0.5 text-[11px] text-reviewed tabular-nums";
   const content = (
     <>
-      <MessageSquare className="size-3" />
+      <CommentIcon className="size-3" unread={unread} ring={ring} />
       {count}
-      {unread && <UnreadDot ring={ring} />}
     </>
   );
   const label = `${count} on this file${unread ? ", with an unread reply" : ""}`;
@@ -122,7 +169,7 @@ export function NoteCount({
       }}
       title={unread ? "Open the unread reply" : "Expand to see them"}
       aria-label={`${label}; expand to see them`}
-      className={cn(className, "hover:bg-reviewed/25")}
+      className={cn(className, "hover:border-reviewed/35 hover:bg-reviewed/15")}
     >
       {content}
     </button>

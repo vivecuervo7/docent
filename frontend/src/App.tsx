@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type UIEvent } from "react";
 import { diffArrays } from "diff";
 import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, SlidersHorizontal, Trash2, Wrench, type LucideIcon } from "lucide-react";
 import {
@@ -45,7 +45,7 @@ import {
   type SavedPr,
 } from "./prDb";
 import { changeKeys, changesBetween, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
-import { NoteCount, NotePanel, NotePin } from "./notes";
+import { NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
 
 // The bundled "common" language set covers most backend languages already;
 // JSX/TSX aren't in it and are registered separately (each pulls in its own
@@ -853,6 +853,89 @@ function useNoteSelection(notes: Note[], noteControls: NoteControls, reveal: Rev
   return { contentRef, startSelecting, fileNoteProps, hint, dragOverlay };
 }
 
+// The nearest unread replies scrolled out of view above and below, pointed
+// at from the pins' margin. A reply in a collapsed file has no pin, so its
+// file stands in for it.
+function useOffscreenUnread(
+  scrollerRef: RefObject<HTMLDivElement | null>,
+  contentRef: RefObject<HTMLDivElement | null>,
+  unread: Note[],
+  onGoTo: (note: Note) => void,
+) {
+  const [state, setState] = useState<{
+    above?: Note;
+    below?: Note;
+    left: number;
+    top: number;
+    bottom: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    let frame = 0;
+    function measure() {
+      frame = 0;
+      const view = scroller!.getBoundingClientRect();
+      let above: { note: Note; at: number } | undefined;
+      let below: { note: Note; at: number } | undefined;
+      for (const note of unread) {
+        const el =
+          document.querySelector(`[data-note-id="${note.id}"]`) ??
+          content!.querySelector(`[data-note-path="${CSS.escape(note.path)}"]`);
+        if (!el) continue;
+        const box = el.getBoundingClientRect();
+        if (box.bottom < view.top && (!above || box.bottom > above.at)) above = { note, at: box.bottom };
+        if (box.top > view.bottom && (!below || box.top < below.at)) below = { note, at: box.top };
+      }
+      const next = above || below
+        ? { above: above?.note, below: below?.note, left: content!.getBoundingClientRect().right + 5, top: view.top + 12, bottom: view.bottom - 12 }
+        : null;
+      setState((prev) =>
+        prev?.above === next?.above && prev?.below === next?.below && prev?.left === next?.left &&
+        prev?.top === next?.top && prev?.bottom === next?.bottom
+          ? prev
+          : next,
+      );
+    }
+    function schedule() {
+      if (!frame) frame = requestAnimationFrame(measure);
+    }
+    measure();
+    scroller.addEventListener("scroll", schedule, { passive: true });
+    const observer = new ResizeObserver(schedule);
+    observer.observe(scroller);
+    observer.observe(content);
+    return () => {
+      scroller.removeEventListener("scroll", schedule);
+      observer.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [scrollerRef, contentRef, unread]);
+
+  if (!state) return null;
+  const width = PIN_SIZE + 6;
+  return (
+    <>
+      {state.above && (
+        <OffscreenUnread
+          direction="up"
+          style={{ left: state.left, top: state.top, width }}
+          onClick={() => onGoTo(state.above!)}
+        />
+      )}
+      {state.below && (
+        <OffscreenUnread
+          direction="down"
+          style={{ left: state.left, top: state.bottom, width, transform: "translateY(-100%)" }}
+          onClick={() => onGoTo(state.below!)}
+        />
+      )}
+    </>
+  );
+}
+
 // Notes on one file's diff: pins in the right margin level with the lines
 // they're about, an outline around the selected lines, and the open panel.
 // The caller puts wrapperRef and data-note-path on a relative element around
@@ -1239,6 +1322,7 @@ function SliceView({
   notes,
   noteControls,
   revealedFile,
+  onRevealNote,
 }: {
   slice: Slice;
   files: PrFile[];
@@ -1256,13 +1340,20 @@ function SliceView({
   notes: Note[];
   noteControls: NoteControls;
   revealedFile: RevealedFile | null;
+  onRevealNote: (note: Note) => void;
 }) {
   const byFile = useMemo(() => groupHunkRefsByFile(slice.hunks), [slice]);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const unreadHere = useMemo(
+    () => notes.filter((n) => isUnread(n) && slice.hunks.includes(`${n.path}#${n.hunk}`)),
+    [notes, slice],
+  );
   const { contentRef, startSelecting, fileNoteProps, hint, dragOverlay } = useNoteSelection(
     notes,
     noteControls,
     revealedFile,
   );
+  const offscreenUnread = useOffscreenUnread(scrollerRef, contentRef, unreadHere, onRevealNote);
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
   const done = isSliceReviewed(slice, reviewed);
   const [compact, setCompact] = useState(false);
@@ -1340,6 +1431,7 @@ function SliceView({
         )}
       </header>
       <div
+        ref={scrollerRef}
         data-note-scroller
         onScroll={onScroll}
         className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]"
@@ -1373,6 +1465,7 @@ function SliceView({
         </div>
       </div>
       {dragOverlay}
+      {offscreenUnread}
     </div>
   );
 }
@@ -2419,6 +2512,7 @@ function AllFilesView({
   notes,
   noteControls,
   revealedFile,
+  onRevealNote,
 }: {
   files: PrFile[];
   reviewedFileCount: number;
@@ -2430,12 +2524,16 @@ function AllFilesView({
   notes: Note[];
   noteControls: NoteControls;
   revealedFile: RevealedFile | null;
+  onRevealNote: (note: Note) => void;
 }) {
   const { contentRef, startSelecting, fileNoteProps, hint, dragOverlay } = useNoteSelection(
     notes,
     noteControls,
     revealedFile,
   );
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const unreadHere = useMemo(() => notes.filter(isUnread), [notes]);
+  const offscreenUnread = useOffscreenUnread(scrollerRef, contentRef, unreadHere, onRevealNote);
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="shrink-0 px-10 pt-10 pb-6">
@@ -2445,6 +2543,7 @@ function AllFilesView({
         </p>
       </header>
       <div
+        ref={scrollerRef}
         data-note-scroller
         className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]"
       >
@@ -2472,6 +2571,7 @@ function AllFilesView({
         </div>
       </div>
       {dragOverlay}
+      {offscreenUnread}
     </div>
   );
 }
@@ -3155,6 +3255,7 @@ function App() {
             notes={notes}
             noteControls={noteControls}
             revealedFile={revealedFile}
+            onRevealNote={(note) => revealFile(note.path, note.id)}
           />
         ) : view === "landing" && preparing ? (
           <PreparingView
@@ -3177,6 +3278,7 @@ function App() {
             notes={notes}
             noteControls={noteControls}
             revealedFile={revealedFile}
+            onRevealNote={(note) => revealFile(note.path, note.id)}
           />
         ) : (
           <LandingView
