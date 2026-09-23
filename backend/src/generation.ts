@@ -51,6 +51,22 @@ function isActive(generation: Generation): boolean {
   return generation.status === "queued" || generation.status === "running";
 }
 
+export interface ListedGeneration {
+  owner: string;
+  repo: string;
+  number: string;
+  generation: Generation;
+}
+
+export function listGenerations(): ListedGeneration[] {
+  return [...jobs.values()].map(({ owner, repo, number, generation }) => ({
+    owner,
+    repo,
+    number,
+    generation,
+  }));
+}
+
 export function getGeneration(owner: string, repo: string, number: string): Generation | null {
   return jobs.get(keyFor(owner, repo, number))?.generation ?? null;
 }

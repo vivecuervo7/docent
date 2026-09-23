@@ -9,6 +9,7 @@ import {
 import {
   dismissGeneration,
   getGeneration,
+  listGenerations,
   startGeneration,
   stopGeneration,
   type Reuse,
@@ -78,6 +79,10 @@ app.get("/api/pr/:owner/:repo/:number/old-content", async (req, res) => {
 
 // Preparing a PR's review (slices, conversation, summary) runs as a
 // background generation; see generation.ts.
+app.get("/api/generations", (_req, res) => {
+  res.json({ generations: listGenerations() });
+});
+
 app.post("/api/pr/:owner/:repo/:number/generation", (req, res) => {
   const { owner, repo, number } = req.params;
   if (!validParams(owner, repo, number)) {

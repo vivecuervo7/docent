@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
 import { diffArrays } from "diff";
 import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, SlidersHorizontal, Trash2, Wrench, type LucideIcon } from "lucide-react";
 import {
@@ -188,8 +188,19 @@ function emptyGeneration(): Generation {
   };
 }
 
-function isGenerating(generation: Generation | null): boolean {
+function isGenerating(generation: Generation | null | undefined): boolean {
   return generation?.status === "queued" || generation?.status === "running";
+}
+
+function generationUrlFor(owner: string, repo: string, number: string): string {
+  return `/api/pr/${owner}/${repo}/${number}/generation`;
+}
+
+interface ListedGeneration {
+  owner: string;
+  repo: string;
+  number: string;
+  generation: Generation;
 }
 
 const PIPELINE_STEPS: { step: PipelineStep; label: string }[] = [
@@ -1032,15 +1043,54 @@ function formatRelativeTime(timestamp: number): string {
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
+function GenerationStatus({
+  generation,
+  now,
+  onStop,
+}: {
+  generation: Generation;
+  now: number;
+  onStop: () => void;
+}) {
+  if (generation.status === "failed" || generation.status === "stopped") {
+    return (
+      <span className={cn("text-sm", generation.status === "failed" ? "text-destructive" : "text-muted-foreground")}>
+        {generation.status === "failed" ? "Preparing failed" : "Preparing stopped"}
+      </span>
+    );
+  }
+  const active = PIPELINE_STEPS.filter(({ step }) => generation.steps[step].status === "active");
+  const startedAt = Math.min(...active.map(({ step }) => generation.steps[step].startedAt ?? now));
+  return (
+    <span className="flex items-center gap-3 text-sm">
+      <Loader2 className="size-4 animate-spin text-reviewed motion-reduce:animate-none" />
+      <span className="text-muted-foreground">
+        {generation.status === "queued"
+          ? "Queued"
+          : `${active.map(({ label }) => label).join(" and ") || "Preparing"} · ${formatElapsed(now - startedAt)}`}
+      </span>
+      <Button size="sm" variant="ghost" onClick={onStop}>
+        Stop
+      </Button>
+    </span>
+  );
+}
+
 function SavedPrRow({
   saved,
+  generation,
+  now,
   disabled,
   onOpen,
+  onStop,
   onDelete,
 }: {
   saved: SavedPr;
+  generation: Generation | undefined;
+  now: number;
   disabled: boolean;
   onOpen: () => void;
+  onStop: () => void;
   onDelete: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -1063,12 +1113,20 @@ function SavedPrRow({
           {owner}/{repo} #{number}
         </div>
       </button>
-      <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-        {slices ? `${reviewedSlices}/${slices.length} slices` : "No slices yet"}
-      </span>
-      <span className="w-24 shrink-0 text-right text-sm text-muted-foreground">
-        {record.lastOpenedAt ? formatRelativeTime(record.lastOpenedAt) : ""}
-      </span>
+      {generation ? (
+        <span className="shrink-0">
+          <GenerationStatus generation={generation} now={now} onStop={onStop} />
+        </span>
+      ) : (
+        <>
+          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+            {slices ? `${reviewedSlices}/${slices.length} slices` : "No slices yet"}
+          </span>
+          <span className="w-24 shrink-0 text-right text-sm text-muted-foreground">
+            {record.lastOpenedAt ? formatRelativeTime(record.lastOpenedAt) : ""}
+          </span>
+        </>
+      )}
       <div className="flex w-28 shrink-0 justify-end">
         {confirming ? (
           <div className="flex items-center gap-1 text-sm">
@@ -1112,24 +1170,80 @@ function StartPage({
   error: string | null;
 }) {
   const [saved, setSaved] = useState<SavedPr[] | null>(null);
+  const [generations, setGenerations] = useState<ListedGeneration[]>([]);
+  const [now, setNow] = useState(() => Date.now());
+  // Generation states whose results are already saved, so each is written once.
+  const collected = useRef(new Set<string>());
 
-  useEffect(() => {
-    let cancelled = false;
-    listSavedPrs()
-      .then((list) => {
-        if (!cancelled) setSaved(list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0)));
-      })
-      .catch(() => {
-        if (!cancelled) setSaved([]);
-      });
-    return () => {
-      cancelled = true;
-    };
+  // Reads saved reviews and the backend's generations together. Results of
+  // a generation that stopped, failed or finished while nobody was looking
+  // are saved here; a finished one is then dropped from the backend, since
+  // everything it produced now lives in the browser.
+  const refresh = useCallback(async () => {
+    const listed = await fetch("/api/generations")
+      .then((res) => readOk<{ generations: ListedGeneration[] }>(res))
+      .then((body) => body.generations)
+      .catch(() => [] as ListedGeneration[]);
+
+    for (const { owner, repo, number, generation } of listed) {
+      if (isGenerating(generation)) continue;
+      const mark = `${generation.id}:${generation.status}`;
+      if (collected.current.has(mark)) continue;
+      collected.current.add(mark);
+      const { slices, conversation, summary } = generation.results;
+      if (slices) await persistSlices(owner, repo, number, slices);
+      if (conversation) await persistConversation(owner, repo, number, conversation);
+      if (summary) await persistSummary(owner, repo, number, summary);
+      if (generation.status === "done") {
+        await fetch(generationUrlFor(owner, repo, number), { method: "DELETE" }).catch(() => {});
+      }
+    }
+
+    const list = await listSavedPrs().catch(() => [] as SavedPr[]);
+    // A generation can exist for a PR with no saved row yet.
+    for (const { owner, repo, number } of listed) {
+      if (!list.some((s) => s.owner === owner && s.repo === repo && s.number === number)) {
+        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null } });
+      }
+    }
+    setSaved(list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0)));
+    setGenerations(listed.filter(({ generation }) => generation.status !== "done"));
   }, []);
 
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const anyActive = generations.some(({ generation }) => isGenerating(generation));
+  useEffect(() => {
+    if (!anyActive) return;
+    const poll = setInterval(refresh, 2000);
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+    };
+  }, [anyActive, refresh]);
+
+  function generationFor(target: SavedPr): Generation | undefined {
+    return generations.find(
+      (g) => g.owner === target.owner && g.repo === target.repo && g.number === target.number,
+    )?.generation;
+  }
+
+  async function stopFor(target: SavedPr) {
+    await fetch(`${generationUrlFor(target.owner, target.repo, target.number)}/stop`, { method: "POST" }).catch(
+      () => {},
+    );
+    await refresh();
+  }
+
   async function deleteSaved(target: SavedPr) {
+    const url = generationUrlFor(target.owner, target.repo, target.number);
+    if (isGenerating(generationFor(target))) await fetch(`${url}/stop`, { method: "POST" }).catch(() => {});
+    await fetch(url, { method: "DELETE" }).catch(() => {});
     await deleteSavedPr(target.owner, target.repo, target.number);
-    setSaved((prev) => prev?.filter((s) => s !== target) ?? null);
+    await refresh();
   }
 
   return (
@@ -1162,8 +1276,11 @@ function StartPage({
                 <SavedPrRow
                   key={`${entry.owner}/${entry.repo}/${entry.number}`}
                   saved={entry}
+                  generation={generationFor(entry)}
+                  now={now}
                   disabled={loading}
                   onOpen={() => onOpenSaved({ owner: entry.owner, repo: entry.repo, number: entry.number })}
+                  onStop={() => stopFor(entry)}
                   onDelete={() => deleteSaved(entry)}
                 />
               ))}
@@ -1903,7 +2020,7 @@ function App() {
   const activeSliceIndex = activeSliceId ? allSlices.findIndex((i) => i.id === activeSliceId) : -1;
   const activeSlice = activeSliceIndex >= 0 ? allSlices[activeSliceIndex] : null;
 
-  const generationUrl = (ref: PrRef) => `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/generation`;
+  const generationUrl = (ref: PrRef) => generationUrlFor(ref.owner, ref.repo, ref.number);
 
   // Results the browser has already copied out of the current generation, so
   // each one is saved once however many times it's polled.
