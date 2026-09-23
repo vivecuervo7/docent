@@ -1,9 +1,14 @@
 import { getChangeKey, isDelete, isInsert, isNormal, type ChangeData, type HunkData } from "react-diff-view";
-import type { LineRef } from "./prDb";
+import type { LineRef, Note } from "./prDb";
 
 // Mapping between diff changes and the lines a note is anchored to.
 
 export const PIN_SIZE = 26;
+
+export function isUnread(note: Note): boolean {
+  const reply = note.messages.findLast((m) => m.role === "assistant");
+  return !!reply && reply.at > (note.readAt ?? 0);
+}
 
 export function lineRefFor(change: ChangeData): LineRef {
   if (isDelete(change)) return { side: "old", line: change.lineNumber };

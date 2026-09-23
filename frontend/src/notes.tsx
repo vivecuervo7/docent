@@ -48,23 +48,88 @@ function MessageText({ text }: { text: string }) {
   );
 }
 
-export function NotePin({ active, onClick }: { active: boolean; onClick: () => void }) {
+// A reply that hasn't been seen yet. `ring` matches the surface it sits on,
+// so the dot reads as cut out of its badge's corner.
+function UnreadDot({ ring }: { ring: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn("absolute -top-1 -right-1 size-2 rounded-full bg-reviewed ring-2", ring)}
+    />
+  );
+}
+
+export function NotePin({
+  active,
+  unread,
+  onClick,
+}: {
+  active: boolean;
+  unread: boolean;
+  onClick: () => void;
+}) {
   // note-pin-pulse runs once each time the pin becomes active.
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={active ? "Close note" : "Open note"}
+      aria-label={active ? "Close note" : unread ? "Open note (unread reply)" : "Open note"}
       style={{ width: PIN_SIZE, height: PIN_SIZE - 4 }}
       className={cn(
-        "grid place-items-center rounded-md border transition-colors",
+        "relative grid place-items-center rounded-md border transition-colors",
         active
           ? "note-pin-pulse border-reviewed bg-reviewed text-background"
           : "border-reviewed/35 bg-reviewed/15 text-reviewed hover:bg-reviewed/25",
       )}
     >
       <MessageSquare className="size-3.5" />
+      {unread && !active && <UnreadDot ring="ring-background" />}
     </button>
+  );
+}
+
+// How many threads a file has. On a collapsed file's header (where its pins
+// are hidden with its diff) clicking it expands the file; in the sidebar it's
+// just a marker.
+export function NoteCount({
+  count,
+  unread,
+  ring,
+  onClick,
+}: {
+  count: number;
+  unread: boolean;
+  ring: string;
+  onClick?: () => void;
+}) {
+  const className =
+    "relative flex shrink-0 items-center gap-1 rounded-md border border-reviewed/35 bg-reviewed/15 px-1.5 py-0.5 text-[11px] text-reviewed tabular-nums";
+  const content = (
+    <>
+      <MessageSquare className="size-3" />
+      {count}
+      {unread && <UnreadDot ring={ring} />}
+    </>
+  );
+  const label = `${count} on this file${unread ? ", with an unread reply" : ""}`;
+  return onClick ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        // It sits inside a clickable header or sidebar row.
+        e.stopPropagation();
+        onClick();
+      }}
+      title={unread ? "Open the unread reply" : "Expand to see them"}
+      aria-label={`${label}; expand to see them`}
+      className={cn(className, "hover:bg-reviewed/25")}
+    >
+      {content}
+    </button>
+  ) : (
+    <span title={label} aria-label={label} className={className}>
+      {content}
+    </span>
   );
 }
 
@@ -84,6 +149,7 @@ export function NotePanel({
   onRetry,
   onClose,
   onDelete,
+  onRead,
 }: {
   title: ReactNode;
   // Held by the caller, so unsent text survives the panel closing.
@@ -96,6 +162,8 @@ export function NotePanel({
   onRetry: () => void;
   onClose: () => void;
   onDelete?: () => void;
+  // Called while the thread is on screen, including when a reply lands.
+  onRead?: () => void;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -126,6 +194,14 @@ export function NotePanel({
   useEffect(() => {
     inputRef.current?.focus({ preventScroll: true });
   }, []);
+
+  const onReadRef = useRef(onRead);
+  useEffect(() => {
+    onReadRef.current = onRead;
+  });
+  useEffect(() => {
+    onReadRef.current?.();
+  }, [messages.length]);
 
   // Scrolls the thread itself; scrollIntoView would drag the diff along too.
   useEffect(() => {

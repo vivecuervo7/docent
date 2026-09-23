@@ -60,6 +60,8 @@ export interface Note {
   code: string;
   messages: NoteMessage[];
   createdAt: number;
+  // When the reviewer last had the thread open. A reply after this is unread.
+  readAt?: number;
 }
 
 export interface PrRecord {
@@ -239,6 +241,18 @@ export async function appendNoteMessage(
     });
   });
   return updated;
+}
+
+export async function markNoteRead(
+  owner: string,
+  repo: string,
+  number: string,
+  id: string,
+  readAt: number,
+): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    r.notes = (r.notes ?? []).map((n) => (n.id === id ? { ...n, readAt } : n));
+  });
 }
 
 export async function deleteNote(owner: string, repo: string, number: string, id: string): Promise<void> {

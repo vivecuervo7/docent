@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import {
   appendNoteMessage,
   deleteNote as persistDeleteNote,
+  markNoteRead as persistNoteRead,
   deleteSavedPr,
   getPrRecord,
   listSavedPrs,
@@ -43,8 +44,8 @@ import {
   type PrSummary,
   type SavedPr,
 } from "./prDb";
-import { changeKeys, changesBetween, describeLines, diffLines, lineRefFor, PIN_SIZE } from "./noteAnchors";
-import { NotePanel, NotePin } from "./notes";
+import { changeKeys, changesBetween, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
+import { NoteCount, NotePanel, NotePin } from "./notes";
 
 // The bundled "common" language set covers most backend languages already;
 // JSX/TSX aren't in it and are registered separately (each pulls in its own
@@ -295,10 +296,26 @@ function fileElementId(filename: string): string {
   return `file-${encodeURIComponent(filename)}`;
 }
 
-function scrollToFile(filename: string) {
-  document
-    .getElementById(fileElementId(filename))
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+// Scrolls to an element that may not be rendered yet - a file that's still
+// expanding, or a view that's still mounting - trying each frame for a while.
+function scrollWhenReady(find: () => Element | null, block: ScrollLogicalPosition, then?: () => void) {
+  let frames = 30;
+  function attempt() {
+    const el = find();
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block });
+      then?.();
+    } else if (frames-- > 0) {
+      requestAnimationFrame(attempt);
+    } else {
+      then?.();
+    }
+  }
+  requestAnimationFrame(attempt);
+}
+
+function scrollToNote(id: string, then?: () => void) {
+  scrollWhenReady(() => document.querySelector(`[data-note-id="${id}"]`), "center", then);
 }
 
 interface FileTreeFolder {
@@ -367,6 +384,8 @@ function FileTreeNodes({
   onToggleFolder,
   onToggleFile,
   onSelectFile,
+  notesFor,
+  onOpenUnread,
 }: {
   entries: FileTreeEntry[];
   depth: number;
@@ -375,6 +394,8 @@ function FileTreeNodes({
   onToggleFolder: (path: string) => void;
   onToggleFile: (filename: string) => void;
   onSelectFile: (filename: string) => void;
+  notesFor: (filename: string) => { count: number; unread: boolean } | null;
+  onOpenUnread: (filename: string) => void;
 }) {
   return (
     <>
@@ -408,12 +429,15 @@ function FileTreeNodes({
                   onToggleFolder={onToggleFolder}
                   onToggleFile={onToggleFile}
                   onSelectFile={onSelectFile}
+                  notesFor={notesFor}
+                  onOpenUnread={onOpenUnread}
                 />
               )}
             </div>
           );
         }
 
+        const fileNotes = notesFor(entry.file.filename);
         return (
           <div
             key={entry.path}
@@ -434,6 +458,14 @@ function FileTreeNodes({
               />
             </span>
             <span>{entry.name}</span>
+            {fileNotes && (
+              <NoteCount
+                count={fileNotes.count}
+                unread={fileNotes.unread}
+                ring="ring-sidebar"
+                onClick={fileNotes.unread ? () => onOpenUnread(entry.file.filename) : undefined}
+              />
+            )}
           </div>
         );
       })}
@@ -446,11 +478,15 @@ function FileTree({
   isFileChecked,
   onToggleFile,
   onSelectFile,
+  notesFor,
+  onOpenUnread,
 }: {
   files: PrFile[];
   isFileChecked: (filename: string) => boolean;
   onToggleFile: (filename: string) => void;
   onSelectFile: (filename: string) => void;
+  notesFor: (filename: string) => { count: number; unread: boolean } | null;
+  onOpenUnread: (filename: string) => void;
 }) {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const tree = buildFileTree(files);
@@ -478,6 +514,8 @@ function FileTree({
           onToggleFolder={toggleFolder}
           onToggleFile={onToggleFile}
           onSelectFile={onSelectFile}
+          notesFor={notesFor}
+          onOpenUnread={onOpenUnread}
         />
       </div>
     </div>
@@ -658,37 +696,24 @@ interface NoteControls {
   send: (id: string, text: string) => void;
   retry: (id: string) => void;
   remove: (id: string) => void;
+  markRead: (id: string) => void;
 }
 
 const NO_NOTES: Note[] = [];
 
+// A file picked in the sidebar, for the view to expand - and, when the pick
+// was an unread reply, the note to open. Cleared once it's been scrolled to.
+interface RevealedFile {
+  filename: string;
+  noteId?: string;
+  at: number;
+}
+
 // The pin for a selection that doesn't have a note yet.
 const DRAFT_PIN = "draft";
 
-function SliceFileSection({
-  file,
-  hunkIndices,
-  hideWhitespace,
-  prRef,
-  reviewed,
-  onSetHunksReviewed,
-  notes,
-  selectionKeys,
-  draftOpen,
-  openNoteId,
-  noteControls,
-  onOpenNote,
-  onCloseDraft,
-  onCreateNote,
-  unsent,
-  onUnsentChange,
-}: {
-  file: PrFile;
-  hunkIndices: number[];
-  hideWhitespace: boolean;
-  prRef: PrRef;
-  reviewed: Record<string, boolean>;
-  onSetHunksReviewed: (keys: string[], value: boolean) => void;
+// What one file's diff needs from the view around it to show notes.
+interface FileNoteProps {
   notes: Note[];
   // The rows being selected in this file, or just selected when draftOpen.
   selectionKeys: string[] | null;
@@ -700,32 +725,156 @@ function SliceFileSection({
   onCreateNote: (anchor: NoteAnchor, text: string) => void;
   unsent: Record<string, string>;
   onUnsentChange: (id: string, text: string) => void;
-}) {
-  const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, true);
-  const hunkKey = (index: number) => `${file.filename}#${index}`;
-  const keys = hunkIndices.map(hunkKey);
-  // Scoped to the hunks this slice shows - the file may have others that
-  // belong to different slices.
-  const fileReviewed = keys.length > 0 && keys.every((k) => reviewed[k]);
+}
 
-  const [fileCollapsed, setFileCollapsed] = useState(fileReviewed);
+// A scrolling list of file diffs that notes can be made on: ⌥-drag draws a
+// rectangle that snaps to the lines it covers, and letting go opens a panel
+// to ask or comment about them. At most one panel is open at a time.
+function useNoteSelection(notes: Note[], noteControls: NoteControls, reveal: RevealedFile | null) {
+  const notesByFile = useMemo(() => {
+    const grouped = new Map<string, Note[]>();
+    for (const note of notes) grouped.set(note.path, [...(grouped.get(note.path) ?? []), note]);
+    return grouped;
+  }, [notes]);
 
-  // Reviewed state drives the file's collapse in both directions: marking
-  // reviewed folds it away, marking unreviewed brings it back. Manual
-  // expand/collapse in between is left alone.
-  const wasFileReviewed = useRef(fileReviewed);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [dragRect, setDragRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [selection, setSelection] = useState<{ path: string; keys: string[]; done: boolean } | null>(null);
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
+  // Typed but not yet sent, by note id (or DRAFT_PIN for a new selection).
+  const [unsent, setUnsent] = useState<Record<string, string>>({});
+
+  const [seenReveal, setSeenReveal] = useState(0);
+  if (reveal && reveal.at !== seenReveal) {
+    setSeenReveal(reveal.at);
+    if (reveal.noteId) {
+      setSelection(null);
+      setOpenNoteId(reveal.noteId);
+    }
+  }
+
+  function startSelecting(e: ReactPointerEvent<HTMLDivElement>) {
+    const content = contentRef.current;
+    if (!e.altKey || e.button !== 0 || !content) return;
+    e.preventDefault();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let dragging = false;
+    let latest: { path: string; keys: string[] } | null = null;
+    function onMove(ev: PointerEvent) {
+      // A plain ⌥-click isn't a selection.
+      if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
+      dragging = true;
+      const rect = {
+        left: Math.min(x0, ev.clientX),
+        top: Math.min(y0, ev.clientY),
+        right: Math.max(x0, ev.clientX),
+        bottom: Math.max(y0, ev.clientY),
+      };
+      setDragRect({ left: rect.left, top: rect.top, width: rect.right - rect.left, height: rect.bottom - rect.top });
+      latest = rowsInRect(content!, rect);
+      setSelection(latest && { ...latest, done: false });
+      setOpenNoteId(null);
+      setUnsent((prev) => ({ ...prev, [DRAFT_PIN]: "" }));
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+      setDragRect(null);
+      if (dragging) setSelection(latest && { ...latest, done: true });
+    }
+    document.body.style.cursor = "crosshair";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
   useEffect(() => {
-    if (fileReviewed !== wasFileReviewed.current) setFileCollapsed(fileReviewed);
-    wasFileReviewed.current = fileReviewed;
-  }, [fileReviewed]);
+    if (!openNoteId && !selection) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setOpenNoteId(null);
+      setSelection(null);
+    }
+    // Clicking away closes the panel too. A note keeps anything typed for
+    // when it's reopened; a new selection with text typed stays open, since
+    // closing it would lose the selection. ⌥-drag makes its own selection.
+    function onPointerDown(e: PointerEvent) {
+      if (e.altKey || (e.target as Element).closest("[data-note-layer]")) return;
+      if (selection?.done && unsent[DRAFT_PIN]?.trim()) return;
+      setOpenNoteId(null);
+      setSelection(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [openNoteId, selection, unsent]);
 
-  const displayed = useMemo(() => {
-    if (!hunks) return [];
-    return hunkIndices
-      .map((index) => ({ index, hunk: hunks[index] }))
-      .filter((h): h is { index: number; hunk: HunkData } => !!h.hunk);
-  }, [hunks, hunkIndices]);
+  function fileNoteProps(filename: string): FileNoteProps {
+    return {
+      notes: notesByFile.get(filename) ?? NO_NOTES,
+      selectionKeys: selection?.path === filename ? selection.keys : null,
+      draftOpen: !!selection?.done,
+      openNoteId,
+      noteControls,
+      onOpenNote: (id) => {
+        setSelection(null);
+        setOpenNoteId(id);
+      },
+      onCloseDraft: () => setSelection(null),
+      onCreateNote: (anchor, text) => {
+        setSelection(null);
+        setOpenNoteId(noteControls.create(anchor, text));
+      },
+      unsent,
+      onUnsentChange: (id, text) => setUnsent((prev) => ({ ...prev, [id]: text })),
+    };
+  }
 
+  const hint = (
+    <span className="text-xs text-muted-foreground">
+      <kbd className="rounded border px-1 font-mono text-[11px]">⌥</kbd> drag over code to ask or comment
+    </span>
+  );
+
+  const dragOverlay = dragRect && (
+    <div
+      aria-hidden
+      style={dragRect}
+      className="pointer-events-none fixed z-40 rounded-sm border-[1.5px] border-dashed border-[rgba(145,152,161,0.6)]"
+    />
+  );
+
+  return { contentRef, startSelecting, fileNoteProps, hint, dragOverlay };
+}
+
+// Notes on one file's diff: pins in the right margin level with the lines
+// they're about, an outline around the selected lines, and the open panel.
+// The caller puts wrapperRef and data-note-path on a relative element around
+// the file, passes selectedChanges to its Diff, and renders overlay inside.
+function useFileNotes(
+  file: PrFile,
+  displayed: { index: number; hunk: HunkData }[],
+  {
+    notes,
+    selectionKeys,
+    draftOpen,
+    openNoteId,
+    noteControls,
+    onOpenNote,
+    onCloseDraft,
+    onCreateNote,
+    unsent,
+    onUnsentChange,
+  }: FileNoteProps,
+  collapsed: boolean,
+  tokens: unknown,
+) {
   const selection = useMemo(() => {
     if (!selectionKeys?.length) return null;
     const wanted = new Set(selectionKeys);
@@ -804,7 +953,7 @@ function SliceFileSection({
     const observer = new ResizeObserver(measure);
     observer.observe(wrapper);
     return () => observer.disconnect();
-  }, [pinAnchors, selectedChanges, fileCollapsed, tokens]);
+  }, [pinAnchors, selectedChanges, collapsed, tokens]);
 
   function panelTitle(lines: string) {
     return (
@@ -850,6 +999,7 @@ function SliceFileSection({
         error={status.error}
         onSend={(text) => noteControls.send(id, text)}
         onRetry={() => noteControls.retry(id)}
+        onRead={() => noteControls.markRead(id)}
         onClose={() => onOpenNote(null)}
         onDelete={() => {
           noteControls.remove(id);
@@ -858,6 +1008,104 @@ function SliceFileSection({
       />
     );
   }
+
+  const overlay = !collapsed && (
+    <>
+      {outline && (
+        <div
+          aria-hidden
+          style={{ top: outline.top - 2, height: outline.height + 4 }}
+          className="pointer-events-none absolute -inset-x-0.5 z-10 rounded-[4px] border-[1.5px] border-reviewed shadow-[0_0_0_4px_rgba(68,147,248,0.14)]"
+        />
+      )}
+      {Object.entries(pinTops).map(([id, top]) => {
+        const open = id === DRAFT_PIN || id === openNoteId;
+        const placed = placedNotes.find((p) => p.note.id === id);
+        return (
+          <div
+            key={id}
+            data-note-layer
+            data-note-id={id}
+            className="absolute left-full ml-2"
+            style={{ top: top - 2 }}
+          >
+            <NotePin
+              active={open}
+              unread={!!placed && isUnread(placed.note)}
+              onClick={() => (id === DRAFT_PIN ? onCloseDraft() : onOpenNote(open ? null : id))}
+            />
+            {open && renderPanel(id)}
+          </div>
+        );
+      })}
+    </>
+  );
+
+  return {
+    wrapperRef,
+    selectedChanges,
+    noteCount: placedNotes.length,
+    firstUnreadId: placedNotes
+      .filter((p) => isUnread(p.note))
+      .sort((a, b) => a.note.hunk - b.note.hunk || a.note.start.line - b.note.start.line)[0]?.note.id,
+    overlay,
+  };
+}
+
+function SliceFileSection({
+  file,
+  hunkIndices,
+  hideWhitespace,
+  prRef,
+  reviewed,
+  onSetHunksReviewed,
+  noteProps,
+  revealAt,
+}: {
+  file: PrFile;
+  hunkIndices: number[];
+  hideWhitespace: boolean;
+  prRef: PrRef;
+  reviewed: Record<string, boolean>;
+  onSetHunksReviewed: (keys: string[], value: boolean) => void;
+  noteProps: FileNoteProps;
+  // When this file was last picked in the sidebar, or 0.
+  revealAt: number;
+}) {
+  const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, true);
+  const hunkKey = (index: number) => `${file.filename}#${index}`;
+  const keys = hunkIndices.map(hunkKey);
+  // Scoped to the hunks this slice shows - the file may have others that
+  // belong to different slices.
+  const fileReviewed = keys.length > 0 && keys.every((k) => reviewed[k]);
+
+  const [fileCollapsed, setFileCollapsed] = useState(fileReviewed);
+
+  // Reviewed state drives the file's collapse in both directions: marking
+  // reviewed folds it away, marking unreviewed brings it back. Manual
+  // expand/collapse in between is left alone.
+  const wasFileReviewed = useRef(fileReviewed);
+  useEffect(() => {
+    if (fileReviewed !== wasFileReviewed.current) setFileCollapsed(fileReviewed);
+    wasFileReviewed.current = fileReviewed;
+  }, [fileReviewed]);
+
+  // Picking this file in the sidebar opens it: nobody navigates to a file to
+  // look at it folded away. Adjusted during render, not in an effect.
+  const [seenReveal, setSeenReveal] = useState(0);
+  if (revealAt !== seenReveal) {
+    setSeenReveal(revealAt);
+    if (revealAt) setFileCollapsed(false);
+  }
+
+  const displayed = useMemo(() => {
+    if (!hunks) return [];
+    return hunkIndices
+      .map((index) => ({ index, hunk: hunks[index] }))
+      .filter((h): h is { index: number; hunk: HunkData } => !!h.hunk);
+  }, [hunks, hunkIndices]);
+
+  const { wrapperRef, selectedChanges, noteCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, fileCollapsed, tokens);
 
   return (
     <div ref={wrapperRef} data-note-path={file.filename} className="relative">
@@ -879,6 +1127,20 @@ function SliceFileSection({
           >
             {file.filename}
           </span>
+          {fileCollapsed && noteCount > 0 && (
+            <NoteCount
+              count={noteCount}
+              unread={!!firstUnreadId}
+              ring="ring-card"
+              onClick={() => {
+                setFileCollapsed(false);
+                if (firstUnreadId) {
+                  noteProps.onOpenNote(firstUnreadId);
+                  scrollToNote(firstUnreadId);
+                }
+              }}
+            />
+          )}
           <span
             title={`This slice shows ${hunkIndices.length} of this file's ${hunks?.length ?? hunkIndices.length} hunks`}
             className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
@@ -929,26 +1191,7 @@ function SliceFileSection({
             <div className="p-4 text-sm italic text-muted-foreground">No matching hunks.</div>
           ))}
       </Card>
-      {!fileCollapsed && outline && (
-        <div
-          aria-hidden
-          style={{ top: outline.top - 2, height: outline.height + 4 }}
-          className="pointer-events-none absolute -inset-x-0.5 z-10 rounded-[4px] border-[1.5px] border-reviewed shadow-[0_0_0_4px_rgba(68,147,248,0.14)]"
-        />
-      )}
-      {!fileCollapsed &&
-        Object.entries(pinTops).map(([id, top]) => {
-          const open = id === DRAFT_PIN || id === openNoteId;
-          return (
-            <div key={id} data-note-layer className="absolute left-full ml-2" style={{ top: top - 2 }}>
-              <NotePin
-                active={open}
-                onClick={() => (id === DRAFT_PIN ? onCloseDraft() : onOpenNote(open ? null : id))}
-              />
-              {open && renderPanel(id)}
-            </div>
-          );
-        })}
+      {overlay}
     </div>
   );
 }
@@ -995,6 +1238,7 @@ function SliceView({
   onNext,
   notes,
   noteControls,
+  revealedFile,
 }: {
   slice: Slice;
   files: PrFile[];
@@ -1011,84 +1255,14 @@ function SliceView({
   onNext: () => void;
   notes: Note[];
   noteControls: NoteControls;
+  revealedFile: RevealedFile | null;
 }) {
   const byFile = useMemo(() => groupHunkRefsByFile(slice.hunks), [slice]);
-  const notesByFile = useMemo(() => {
-    const grouped = new Map<string, Note[]>();
-    for (const note of notes) grouped.set(note.path, [...(grouped.get(note.path) ?? []), note]);
-    return grouped;
-  }, [notes]);
-
-  // ⌥-drag draws a rectangle over the diff; it snaps to the lines it covers,
-  // and letting go opens a panel to ask or comment about them.
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [dragRect, setDragRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-  const [selection, setSelection] = useState<{ path: string; keys: string[]; done: boolean } | null>(null);
-  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
-  // Typed but not yet sent, by note id (or DRAFT_PIN for a new selection).
-  const [unsent, setUnsent] = useState<Record<string, string>>({});
-
-  function startSelecting(e: ReactPointerEvent<HTMLDivElement>) {
-    const content = contentRef.current;
-    if (!e.altKey || e.button !== 0 || !content) return;
-    e.preventDefault();
-    const x0 = e.clientX;
-    const y0 = e.clientY;
-    let dragging = false;
-    let latest: { path: string; keys: string[] } | null = null;
-    function onMove(ev: PointerEvent) {
-      // A plain ⌥-click isn't a selection.
-      if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
-      dragging = true;
-      const rect = {
-        left: Math.min(x0, ev.clientX),
-        top: Math.min(y0, ev.clientY),
-        right: Math.max(x0, ev.clientX),
-        bottom: Math.max(y0, ev.clientY),
-      };
-      setDragRect({ left: rect.left, top: rect.top, width: rect.right - rect.left, height: rect.bottom - rect.top });
-      latest = rowsInRect(content!, rect);
-      setSelection(latest && { ...latest, done: false });
-      setOpenNoteId(null);
-      setUnsent((prev) => ({ ...prev, [DRAFT_PIN]: "" }));
-    }
-    function onUp() {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
-      setDragRect(null);
-      if (dragging) setSelection(latest && { ...latest, done: true });
-    }
-    document.body.style.cursor = "crosshair";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }
-
-  useEffect(() => {
-    if (!openNoteId && !selection) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      setOpenNoteId(null);
-      setSelection(null);
-    }
-    // Clicking away closes the panel too. A note keeps anything typed for
-    // when it's reopened; a new selection with text typed stays open, since
-    // closing it would lose the selection. ⌥-drag makes its own selection.
-    function onPointerDown(e: PointerEvent) {
-      if (e.altKey || (e.target as Element).closest("[data-note-layer]")) return;
-      if (selection?.done && unsent[DRAFT_PIN]?.trim()) return;
-      setOpenNoteId(null);
-      setSelection(null);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [openNoteId, selection, unsent]);
+  const { contentRef, startSelecting, fileNoteProps, hint, dragOverlay } = useNoteSelection(
+    notes,
+    noteControls,
+    revealedFile,
+  );
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
   const done = isSliceReviewed(slice, reviewed);
   const [compact, setCompact] = useState(false);
@@ -1170,12 +1344,13 @@ function SliceView({
         onScroll={onScroll}
         className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]"
       >
-        <div ref={contentRef} onPointerDown={startSelecting} className="flex flex-col gap-6">
+        <div
+          ref={contentRef}
+          onPointerDown={startSelecting}
+          className="flex flex-col gap-6"
+        >
           <div className="-mb-2 flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">
-              <kbd className="rounded border px-1 font-mono text-[11px]">⌥</kbd> drag over code to ask
-              or comment
-            </span>
+            {hint}
             {viewOptions}
           </div>
           {orderedFileGroups.map(([filename, hunkIndices]) => {
@@ -1190,34 +1365,14 @@ function SliceView({
                 prRef={prRef}
                 reviewed={reviewed}
                 onSetHunksReviewed={onSetHunksReviewed}
-                notes={notesByFile.get(filename) ?? NO_NOTES}
-                selectionKeys={selection?.path === filename ? selection.keys : null}
-                draftOpen={!!selection?.done}
-                openNoteId={openNoteId}
-                noteControls={noteControls}
-                onOpenNote={(id) => {
-                  setSelection(null);
-                  setOpenNoteId(id);
-                }}
-                onCloseDraft={() => setSelection(null)}
-                onCreateNote={(anchor, text) => {
-                  setSelection(null);
-                  setOpenNoteId(noteControls.create(anchor, text));
-                }}
-                unsent={unsent}
-                onUnsentChange={(id, text) => setUnsent((prev) => ({ ...prev, [id]: text }))}
+                noteProps={fileNoteProps(filename)}
+                revealAt={revealedFile?.filename === filename ? revealedFile.at : 0}
               />
             );
           })}
         </div>
       </div>
-      {dragRect && (
-        <div
-          aria-hidden
-          style={dragRect}
-          className="pointer-events-none fixed z-40 rounded-sm border-[1.5px] border-dashed border-[rgba(145,152,161,0.6)]"
-        />
-      )}
+      {dragOverlay}
     </div>
   );
 }
@@ -2146,12 +2301,17 @@ function FileDiff({
   hideWhitespace,
   prRef,
   onToggle,
+  noteProps,
+  revealAt,
 }: {
   file: PrFile;
   reviewed: boolean;
   hideWhitespace: boolean;
   prRef: PrRef;
   onToggle: () => void;
+  noteProps: FileNoteProps;
+  // When this file was last picked in the sidebar, or 0.
+  revealAt: number;
 }) {
   const [collapsed, setCollapsed] = useState(reviewed);
   const wasReviewed = useRef(reviewed);
@@ -2163,55 +2323,156 @@ function FileDiff({
     wasReviewed.current = reviewed;
   }, [reviewed]);
 
+  // Picking this file in the sidebar opens it: nobody navigates to a file to
+  // look at it folded away. Adjusted during render, not in an effect.
+  const [seenReveal, setSeenReveal] = useState(0);
+  if (revealAt !== seenReveal) {
+    setSeenReveal(revealAt);
+    if (revealAt) setCollapsed(false);
+  }
+
   const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, !collapsed);
+  const displayed = useMemo(() => (hunks ?? []).map((hunk, index) => ({ index, hunk })), [hunks]);
+  const { wrapperRef, selectedChanges, noteCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, collapsed, tokens);
 
   return (
-    <Card id={fileElementId(file.filename)} className="scroll-mt-6 gap-0 overflow-hidden py-0">
-      <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-3">
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? "Expand diff" : "Collapse diff"}
-          className="shrink-0 rounded text-muted-foreground hover:text-foreground"
+    <div ref={wrapperRef} data-note-path={file.filename} className="relative">
+      <Card id={fileElementId(file.filename)} className="scroll-mt-6 gap-0 overflow-hidden py-0">
+        <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? "Expand diff" : "Collapse diff"}
+            className="shrink-0 rounded text-muted-foreground hover:text-foreground"
+          >
+            {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
+          </button>
+          <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
+            {file.filename}
+          </span>
+          {collapsed && noteCount > 0 && (
+            <NoteCount
+              count={noteCount}
+              unread={!!firstUnreadId}
+              ring="ring-card"
+              onClick={() => {
+                setCollapsed(false);
+                if (firstUnreadId) {
+                  noteProps.onOpenNote(firstUnreadId);
+                  scrollToNote(firstUnreadId);
+                }
+              }}
+            />
+          )}
+          <Badge variant="outline" className="border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]">
+            +{file.additions}
+          </Badge>
+          <Badge variant="outline" className="border-[#f85149]/40 bg-[#f85149]/10 text-[#f85149]">
+            -{file.deletions}
+          </Badge>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox checked={reviewed} onCheckedChange={onToggle} />
+            Reviewed
+          </label>
+        </div>
+        {!collapsed &&
+          (hunks && hunks.length > 0 ? (
+            <div className="overflow-x-auto text-xs">
+              <Diff
+                viewType="unified"
+                diffType={diffType}
+                hunks={hunks}
+                tokens={tokens}
+                selectedChanges={selectedChanges}
+              >
+                {(hunks) =>
+                  hunks.flatMap((hunk) => [
+                    <Decoration key={`decoration-${hunk.content}`}>
+                      <div className="bg-[rgba(56,139,253,0.1)] px-4 py-1.5 font-mono text-xs text-[#79c0ff]">
+                        {hunk.content}
+                      </div>
+                    </Decoration>,
+                    <Hunk key={hunk.content} hunk={hunk} />,
+                  ])
+                }
+              </Diff>
+            </div>
+          ) : (
+            <div className="p-4 text-sm italic text-muted-foreground">
+              No diff available for this file.
+            </div>
+          ))}
+      </Card>
+      {overlay}
+    </div>
+  );
+}
+
+function AllFilesView({
+  files,
+  reviewedFileCount,
+  isReviewed,
+  hideWhitespace,
+  viewOptions,
+  prRef,
+  onToggleFile,
+  notes,
+  noteControls,
+  revealedFile,
+}: {
+  files: PrFile[];
+  reviewedFileCount: number;
+  isReviewed: (filename: string) => boolean;
+  hideWhitespace: boolean;
+  viewOptions: ReactNode;
+  prRef: PrRef;
+  onToggleFile: (filename: string) => void;
+  notes: Note[];
+  noteControls: NoteControls;
+  revealedFile: RevealedFile | null;
+}) {
+  const { contentRef, startSelecting, fileNoteProps, hint, dragOverlay } = useNoteSelection(
+    notes,
+    noteControls,
+    revealedFile,
+  );
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <header className="shrink-0 px-10 pt-10 pb-6">
+        <h2 className="text-[28px] leading-[1.2] font-semibold tracking-tight">All files</h2>
+        <p className="mt-2 text-[15px] text-muted-foreground tabular-nums">
+          {reviewedFileCount} of {files.length} files reviewed
+        </p>
+      </header>
+      <div
+        data-note-scroller
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]"
+      >
+        <div
+          ref={contentRef}
+          onPointerDown={startSelecting}
+          className="flex flex-col gap-4"
         >
-          {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
-        </button>
-        <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
-          {file.filename}
-        </span>
-        <Badge variant="outline" className="border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]">
-          +{file.additions}
-        </Badge>
-        <Badge variant="outline" className="border-[#f85149]/40 bg-[#f85149]/10 text-[#f85149]">
-          -{file.deletions}
-        </Badge>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Checkbox checked={reviewed} onCheckedChange={onToggle} />
-          Reviewed
-        </label>
+          <div className="-mb-2 flex items-center justify-between gap-4">
+            {hint}
+            {viewOptions}
+          </div>
+          {files.map((file) => (
+            <FileDiff
+              key={file.filename}
+              file={file}
+              reviewed={isReviewed(file.filename)}
+              hideWhitespace={hideWhitespace}
+              prRef={prRef}
+              onToggle={() => onToggleFile(file.filename)}
+              noteProps={fileNoteProps(file.filename)}
+              revealAt={revealedFile?.filename === file.filename ? revealedFile.at : 0}
+            />
+          ))}
+        </div>
       </div>
-      {!collapsed &&
-        (hunks && hunks.length > 0 ? (
-          <div className="overflow-x-auto text-xs">
-            <Diff viewType="unified" diffType={diffType} hunks={hunks} tokens={tokens}>
-              {(hunks) =>
-                hunks.flatMap((hunk) => [
-                  <Decoration key={`decoration-${hunk.content}`}>
-                    <div className="bg-[rgba(56,139,253,0.1)] px-4 py-1.5 font-mono text-xs text-[#79c0ff]">
-                      {hunk.content}
-                    </div>
-                  </Decoration>,
-                  <Hunk key={hunk.content} hunk={hunk} />,
-                ])
-              }
-            </Diff>
-          </div>
-        ) : (
-          <div className="p-4 text-sm italic text-muted-foreground">
-            No diff available for this file.
-          </div>
-        ))}
-    </Card>
+      {dragOverlay}
+    </div>
   );
 }
 
@@ -2300,6 +2561,7 @@ function App() {
   const [summary, setSummary] = useState<PrSummary | null>(null);
   const [conversation, setConversation] = useState<ConversationSummary | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [revealedFile, setRevealedFile] = useState<RevealedFile | null>(null);
   // Replies in flight and failed ones, by note id. Not saved: a reply lost
   // to a reload is retried by asking again.
   const [noteStatus, setNoteStatus] = useState<Record<string, NoteStatus>>({});
@@ -2649,6 +2911,13 @@ function App() {
       setNotes((prev) => prev.filter((n) => n.id !== id));
       persistDeleteNote(prRef.owner, prRef.repo, prRef.number, id).catch(() => {});
     },
+    markRead(id) {
+      const note = notes.find((n) => n.id === id);
+      if (!prRef || !note || !isUnread(note)) return;
+      const readAt = Date.now();
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, readAt } : n)));
+      persistNoteRead(prRef.owner, prRef.repo, prRef.number, id, readAt).catch(() => {});
+    },
   };
 
   async function setHunksReviewed(keys: string[], value: boolean) {
@@ -2711,21 +2980,26 @@ function App() {
       ? (files ?? []).filter((f) => sliceHunkKeysByFile.has(f.filename))
       : (files ?? []);
 
-  const pendingFileScroll = useRef<string | null>(null);
-  useEffect(() => {
-    if (view !== "files" || !pendingFileScroll.current) return;
-    const filename = pendingFileScroll.current;
-    pendingFileScroll.current = null;
-    requestAnimationFrame(() => scrollToFile(filename));
-  }, [view]);
+  // Picking a file in the sidebar opens it where it's shown: within the
+  // current slice or All files, and from anywhere else, All files.
+  function revealFile(filename: string, noteId?: string) {
+    setRevealedFile({ filename, noteId, at: Date.now() });
+    if (view !== "slice" && view !== "files") setView("files");
+    const done = () => setRevealedFile(null);
+    if (noteId) scrollToNote(noteId, done);
+    else scrollWhenReady(() => document.getElementById(fileElementId(filename)), "start", done);
+  }
 
   function selectListedFile(filename: string) {
-    if (view === "slice" || view === "files") {
-      scrollToFile(filename);
-      return;
-    }
-    pendingFileScroll.current = filename;
-    setView("files");
+    revealFile(filename);
+  }
+
+  function openUnreadIn(filename: string) {
+    const sliceKeys = fileListMode === "slice" ? sliceHunkKeysByFile.get(filename) : undefined;
+    const first = notes
+      .filter((n) => n.path === filename && isUnread(n) && (!sliceKeys || sliceKeys.includes(`${n.path}#${n.hunk}`)))
+      .sort((a, b) => a.hunk - b.hunk || a.start.line - b.start.line)[0];
+    revealFile(filename, first?.id);
   }
 
   // In a slice, a file's checkbox covers only the hunks that slice shows -
@@ -2739,6 +3013,16 @@ function App() {
   function isListedFileChecked(filename: string): boolean {
     const keys = listedFileKeys(filename);
     return keys.length > 0 && keys.every((k) => reviewed[k]);
+  }
+
+  // Scoped the same way as the checkboxes: in a slice, only threads on the
+  // lines that slice shows.
+  function listedFileNotes(filename: string) {
+    const sliceKeys = fileListMode === "slice" ? sliceHunkKeysByFile.get(filename) : undefined;
+    const fileNotes = notes.filter(
+      (n) => n.path === filename && (!sliceKeys || sliceKeys.includes(`${n.path}#${n.hunk}`)),
+    );
+    return fileNotes.length > 0 ? { count: fileNotes.length, unread: fileNotes.some(isUnread) } : null;
   }
 
   function toggleListedFile(filename: string) {
@@ -2809,6 +3093,8 @@ function App() {
                 isFileChecked={isListedFileChecked}
                 onToggleFile={toggleListedFile}
                 onSelectFile={selectListedFile}
+                notesFor={listedFileNotes}
+                onOpenUnread={openUnreadIn}
               />
             </div>
           )}
@@ -2868,6 +3154,7 @@ function App() {
             onNext={() => setActiveSliceId(allSlices[activeSliceIndex + 1]?.id ?? null)}
             notes={notes}
             noteControls={noteControls}
+            revealedFile={revealedFile}
           />
         ) : view === "landing" && preparing ? (
           <PreparingView
@@ -2879,29 +3166,18 @@ function App() {
             onResume={() => startGeneration(prRef, { firstRun: true, reuse: { slices, conversation } })}
           />
         ) : view === "files" ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <header className="shrink-0 px-10 pt-10 pb-6">
-              <h2 className="text-[28px] leading-[1.2] font-semibold tracking-tight">All files</h2>
-              <p className="mt-2 text-[15px] text-muted-foreground tabular-nums">
-                {reviewedFileCount} of {files.length} files reviewed
-              </p>
-            </header>
-            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]">
-              <div className="flex flex-col gap-4">
-                <div className="-mb-2 flex justify-end">{viewOptions}</div>
-                {files.map((file) => (
-                  <FileDiff
-                    key={file.filename}
-                    file={file}
-                    reviewed={isFileReviewed(file.filename, fileHunkCounts[file.filename] ?? 0, reviewed)}
-                    hideWhitespace={hideWhitespace}
-                    prRef={prRef}
-                    onToggle={() => toggleFile(file.filename)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+          <AllFilesView
+            files={files}
+            reviewedFileCount={reviewedFileCount}
+            isReviewed={(filename) => isFileReviewed(filename, fileHunkCounts[filename] ?? 0, reviewed)}
+            hideWhitespace={hideWhitespace}
+            viewOptions={viewOptions}
+            prRef={prRef}
+            onToggleFile={toggleFile}
+            notes={notes}
+            noteControls={noteControls}
+            revealedFile={revealedFile}
+          />
         ) : (
           <LandingView
             prRef={prRef}
