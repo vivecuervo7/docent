@@ -29,7 +29,7 @@ import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import { modelName, setModelName } from "./config.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
-import { listModels } from "./modelProvider.js";
+import { listModelOptions } from "./modelProvider.js";
 import {
   buildReviewPayload,
   fetchViewer,
@@ -324,13 +324,11 @@ app.all("/mcp", (_req, res) => {
   res.status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null });
 });
 
-// The models the endpoint offers, and which one Docent uses.
+// The models that can be picked - the endpoint's, and Claude Code's when
+// it's installed - and which one Docent uses.
 app.get("/api/models", async (_req, res) => {
-  try {
-    res.json({ models: await listModels(), selected: modelName() });
-  } catch (err) {
-    res.json({ models: [], selected: modelName(), error: (err as Error).message });
-  }
+  const { options, error } = await listModelOptions();
+  res.json({ options, selected: modelName(), error });
 });
 
 app.put("/api/models/selected", (req, res) => {

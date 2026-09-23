@@ -5,7 +5,17 @@
 
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
+import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { modelApiKey, modelBaseUrl, modelName } from "./config.js";
+
+// A model picked from Claude Code's group is saved with this prefix; calls
+// for it go through `claude -p` (claudeCode.ts) instead of the endpoint.
+const CLAUDE_CODE_PREFIX = "claude-code:";
+
+function claudeCodeModel(): string | null {
+  const name = modelName();
+  return name.startsWith(CLAUDE_CODE_PREFIX) ? name.slice(CLAUDE_CODE_PREFIX.length) : null;
+}
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -57,8 +67,34 @@ function send(
 
 const postJson = (url: string, body: unknown, signal?: AbortSignal) => send("POST", url, body, signal);
 
+export interface ModelOption {
+  id: string;
+  label: string;
+  group: "endpoint" | "claude-code";
+}
+
+// Everything that can be picked: the endpoint's models, then Claude Code's
+// when `claude` is installed. An unreachable endpoint still leaves Claude
+// Code's, with the error to show.
+export async function listModelOptions(): Promise<{ options: ModelOption[]; error?: string }> {
+  const [endpoint, claude] = await Promise.all([
+    listModels().then(
+      (models) => ({ models, error: undefined }),
+      (err: Error) => ({ models: [] as string[], error: err.message }),
+    ),
+    claudeCodeAvailable(),
+  ]);
+  const options: ModelOption[] = [
+    ...endpoint.models.map((id) => ({ id, label: id, group: "endpoint" as const })),
+    ...(claude
+      ? CLAUDE_CODE_MODELS.map((alias) => ({ id: `${CLAUDE_CODE_PREFIX}${alias}`, label: alias, group: "claude-code" as const }))
+      : []),
+  ];
+  return { options, error: endpoint.error };
+}
+
 // The models the endpoint offers, from its OpenAI-style model list.
-export async function listModels(): Promise<string[]> {
+async function listModels(): Promise<string[]> {
   const res = await send("GET", `${modelBaseUrl()}/models`, undefined);
   if (res.status < 200 || res.status >= 300) {
     throw new Error(`model backend returned ${res.status}`);
@@ -72,6 +108,9 @@ export async function chatWithTool(
   tool: ToolDefinition,
   signal?: AbortSignal,
 ): Promise<ToolCall> {
+  const claude = claudeCodeModel();
+  if (claude) return claudeCodeChatWithTool(claude, messages, tool, signal);
+
   const res = await postJson(
     `${modelBaseUrl()}/chat/completions`,
     {
@@ -102,6 +141,9 @@ export async function chatWithTool(
 // For free-form replies, where a tool call adds nothing: the model answers
 // in the message content.
 export async function chat(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+  const claude = claudeCodeModel();
+  if (claude) return claudeCodeChat(claude, messages, signal);
+
   const res = await postJson(`${modelBaseUrl()}/chat/completions`, { model: modelName(), messages }, signal);
 
   if (res.status < 200 || res.status >= 300) {

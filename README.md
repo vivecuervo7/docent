@@ -20,7 +20,11 @@ in `backend/data/docent.db`.
   that file on your machine. Restart the backend after changing it.
 
 The model can also be switched from the start page, which lists the models
-the endpoint offers.
+the endpoint offers. If [Claude Code](https://code.claude.com) is installed
+and logged in, its models are listed too: choosing one runs every model call
+through `claude -p` on your own login instead of the endpoint. Those calls
+have no tools, MCP servers or user settings, so they can only read the
+prompt Docent sends.
 
 ## Running
 
