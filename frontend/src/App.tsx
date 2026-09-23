@@ -309,8 +309,7 @@ function buildFileTree(files: PrFile[]): FileTreeFolder {
 function FileTreeNodes({
   entries,
   depth,
-  fileHunkCounts,
-  reviewed,
+  isFileChecked,
   collapsedFolders,
   onToggleFolder,
   onToggleFile,
@@ -318,8 +317,7 @@ function FileTreeNodes({
 }: {
   entries: FileTreeEntry[];
   depth: number;
-  fileHunkCounts: Record<string, number>;
-  reviewed: Record<string, boolean>;
+  isFileChecked: (filename: string) => boolean;
   collapsedFolders: Set<string>;
   onToggleFolder: (path: string) => void;
   onToggleFile: (filename: string) => void;
@@ -352,8 +350,7 @@ function FileTreeNodes({
                 <FileTreeNodes
                   entries={entry.children}
                   depth={depth + 1}
-                  fileHunkCounts={fileHunkCounts}
-                  reviewed={reviewed}
+                  isFileChecked={isFileChecked}
                   collapsedFolders={collapsedFolders}
                   onToggleFolder={onToggleFolder}
                   onToggleFile={onToggleFile}
@@ -379,11 +376,7 @@ function FileTreeNodes({
           >
             <span onClick={(e) => e.stopPropagation()}>
               <Checkbox
-                checked={isFileReviewed(
-                  entry.file.filename,
-                  fileHunkCounts[entry.file.filename] ?? 0,
-                  reviewed,
-                )}
+                checked={isFileChecked(entry.file.filename)}
                 onCheckedChange={() => onToggleFile(entry.file.filename)}
               />
             </span>
@@ -397,14 +390,12 @@ function FileTreeNodes({
 
 function FileTree({
   files,
-  fileHunkCounts,
-  reviewed,
+  isFileChecked,
   onToggleFile,
   onSelectFile,
 }: {
   files: PrFile[];
-  fileHunkCounts: Record<string, number>;
-  reviewed: Record<string, boolean>;
+  isFileChecked: (filename: string) => boolean;
   onToggleFile: (filename: string) => void;
   onSelectFile: (filename: string) => void;
 }) {
@@ -429,8 +420,7 @@ function FileTree({
         <FileTreeNodes
           entries={tree.children}
           depth={0}
-          fileHunkCounts={fileHunkCounts}
-          reviewed={reviewed}
+          isFileChecked={isFileChecked}
           collapsedFolders={collapsedFolders}
           onToggleFolder={toggleFolder}
           onToggleFile={onToggleFile}
@@ -624,44 +614,15 @@ function IdeaFileSection({
   const fileReviewed = keys.length > 0 && keys.every((k) => reviewed[k]);
 
   const [fileCollapsed, setFileCollapsed] = useState(fileReviewed);
-  const [collapsedHunks, setCollapsedHunks] = useState<Set<number>>(
-    () => new Set(hunkIndices.filter((i) => reviewed[hunkKey(i)])),
-  );
 
-  // Reviewed state drives collapse in both directions: marking reviewed
-  // folds it away, marking unreviewed brings it back. Manual expand/collapse
-  // in between is left alone.
+  // Reviewed state drives the file's collapse in both directions: marking
+  // reviewed folds it away, marking unreviewed brings it back. Manual
+  // expand/collapse in between is left alone.
   const wasFileReviewed = useRef(fileReviewed);
-  const wasHunkReviewed = useRef<Record<number, boolean>>(
-    Object.fromEntries(hunkIndices.map((i) => [i, !!reviewed[hunkKey(i)]])),
-  );
   useEffect(() => {
     if (fileReviewed !== wasFileReviewed.current) setFileCollapsed(fileReviewed);
     wasFileReviewed.current = fileReviewed;
-
-    const isReviewed = (i: number) => !!reviewed[`${file.filename}#${i}`];
-    const changed = hunkIndices.filter((i) => isReviewed(i) !== !!wasHunkReviewed.current[i]);
-    if (changed.length > 0) {
-      setCollapsedHunks((prev) => {
-        const next = new Set(prev);
-        for (const i of changed) {
-          if (isReviewed(i)) next.add(i);
-          else next.delete(i);
-        }
-        return next;
-      });
-    }
-    wasHunkReviewed.current = Object.fromEntries(hunkIndices.map((i) => [i, isReviewed(i)]));
-  }, [reviewed, fileReviewed, hunkIndices, file.filename]);
-
-  function toggleHunkCollapsed(index: number) {
-    setCollapsedHunks((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  }
+  }, [fileReviewed]);
 
   const displayed = useMemo(() => {
     if (!hunks) return [];
@@ -716,29 +677,20 @@ function IdeaFileSection({
                 displayed.flatMap(({ index, hunk }) => {
                   const key = hunkKey(index);
                   const isReviewed = !!reviewed[key];
-                  const isCollapsed = collapsedHunks.has(index);
-                  const header = (
+                  return [
                     <Decoration key={`decoration-${key}`}>
-                      <button
-                        type="button"
-                        onClick={() => toggleHunkCollapsed(index)}
-                        aria-label={isCollapsed ? "Expand hunk" : "Collapse hunk"}
+                      <div
                         className={cn(
-                          "flex w-full items-center gap-2 bg-[rgba(56,139,253,0.08)] py-1.5 pr-4 pl-2 text-left font-mono text-xs hover:bg-[rgba(56,139,253,0.14)]",
+                          "flex items-center gap-2 bg-[rgba(56,139,253,0.08)] px-4 py-1.5 font-mono text-xs",
                           isReviewed ? "text-muted-foreground" : "text-[#79c0ff]",
                         )}
                       >
-                        {isCollapsed ? (
-                          <ChevronRight className="size-3.5 shrink-0" />
-                        ) : (
-                          <ChevronDown className="size-3.5 shrink-0" />
-                        )}
                         <span className="min-w-0 flex-1 truncate">{hunk.content}</span>
                         {isReviewed && <Check className="size-3.5 shrink-0 text-reviewed" />}
-                      </button>
-                    </Decoration>
-                  );
-                  return isCollapsed ? [header] : [header, <Hunk key={key} hunk={hunk} />];
+                      </div>
+                    </Decoration>,
+                    <Hunk key={key} hunk={hunk} />,
+                  ];
                 })
               }
             </Diff>
@@ -1817,20 +1769,55 @@ function App() {
   });
 
   // The sidebar's file list follows the view: in an idea it lists just that
-  // idea's files, in "All files" it lists every file, and on the overview
-  // there's nothing to list. Either way, picking a file scrolls to it.
-  const fileListMode: "idea" | "all" | null =
-    view === "idea" && activeIdea ? "idea" : view === "files" ? "all" : null;
-  const ideaFileNames = useMemo(
-    () => new Set(activeIdea ? groupHunkRefsByFile(activeIdea.hunks).keys() : []),
-    [activeIdea],
-  );
+  // idea's files and scrolls within the idea; anywhere else it lists every
+  // file, and picking one opens All files at that file.
+  const fileListMode: "idea" | "all" = view === "idea" && activeIdea ? "idea" : "all";
+  const ideaHunkKeysByFile = useMemo(() => {
+    const byFile = new Map<string, string[]>();
+    if (!activeIdea) return byFile;
+    for (const [filename, indices] of groupHunkRefsByFile(activeIdea.hunks)) {
+      byFile.set(filename, indices.map((i) => `${filename}#${i}`));
+    }
+    return byFile;
+  }, [activeIdea]);
   const listedFiles =
     fileListMode === "idea"
-      ? (files ?? []).filter((f) => ideaFileNames.has(f.filename))
-      : fileListMode === "all"
-        ? (files ?? [])
-        : [];
+      ? (files ?? []).filter((f) => ideaHunkKeysByFile.has(f.filename))
+      : (files ?? []);
+
+  const pendingFileScroll = useRef<string | null>(null);
+  useEffect(() => {
+    if (view !== "files" || !pendingFileScroll.current) return;
+    const filename = pendingFileScroll.current;
+    pendingFileScroll.current = null;
+    requestAnimationFrame(() => scrollToFile(filename));
+  }, [view]);
+
+  function selectListedFile(filename: string) {
+    if (view === "idea" || view === "files") {
+      scrollToFile(filename);
+      return;
+    }
+    pendingFileScroll.current = filename;
+    setView("files");
+  }
+
+  // In an idea, a file's checkbox covers only the hunks that idea shows -
+  // the same scope as the file's own header - so it agrees with what's on
+  // screen even when the file's other hunks belong to other ideas.
+  function listedFileKeys(filename: string): string[] {
+    if (fileListMode === "idea") return ideaHunkKeysByFile.get(filename) ?? [];
+    return fileHunkKeys(filename, fileHunkCounts[filename] ?? 0);
+  }
+
+  function isListedFileChecked(filename: string): boolean {
+    const keys = listedFileKeys(filename);
+    return keys.length > 0 && keys.every((k) => reviewed[k]);
+  }
+
+  function toggleListedFile(filename: string) {
+    setHunksReviewed(listedFileKeys(filename), !isListedFileChecked(filename));
+  }
 
   function resumeIdeas() {
     const next = allIdeas.find((idea) => !isIdeaReviewed(idea, reviewed)) ?? allIdeas[0];
@@ -1863,49 +1850,49 @@ function App() {
     <div className="flex h-screen overflow-hidden">
       <aside
         style={{ width: sidebarWidth }}
-        className="scrollbar-thin sticky top-0 flex h-screen shrink-0 flex-col gap-6 overflow-y-auto border-r bg-sidebar px-5 pt-8 pb-6"
+        className="sticky top-0 flex h-screen shrink-0 flex-col border-r bg-sidebar"
       >
-        <SidebarNav
-          allIdeas={allIdeas}
-          reviewed={reviewed}
-          loading={pipelineStage === "ideas"}
-          activeIdeaId={view === "idea" ? activeIdeaId : null}
-          overviewActive={view === "landing"}
-          allFilesActive={view === "files"}
-          onSelectOverview={() => setView("landing")}
-          onResumeIdeas={resumeIdeas}
-          onSelectIdea={(id) => {
-            setActiveIdeaId(id);
-            setView("idea");
-          }}
-          onToggleIdea={toggleIdea}
-          onSelectAllFiles={() => setView("files")}
-        />
+        <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 pt-8 pb-6">
+          <SidebarNav
+            allIdeas={allIdeas}
+            reviewed={reviewed}
+            loading={pipelineStage === "ideas"}
+            activeIdeaId={view === "idea" ? activeIdeaId : null}
+            overviewActive={view === "landing"}
+            allFilesActive={view === "files"}
+            onSelectOverview={() => setView("landing")}
+            onResumeIdeas={resumeIdeas}
+            onSelectIdea={(id) => {
+              setActiveIdeaId(id);
+              setView("idea");
+            }}
+            onToggleIdea={toggleIdea}
+            onSelectAllFiles={() => setView("files")}
+          />
 
-        {listedFiles.length > 0 && (
-          <div className="border-t pt-6">
-            <FileTree
-              files={listedFiles}
-              fileHunkCounts={fileHunkCounts}
-              reviewed={reviewed}
-              onToggleFile={toggleFile}
-              onSelectFile={scrollToFile}
-            />
-          </div>
-        )}
+          {listedFiles.length > 0 && (
+            <div className="border-t pt-6">
+              <FileTree
+                files={listedFiles}
+                isFileChecked={isListedFileChecked}
+                onToggleFile={toggleListedFile}
+                onSelectFile={selectListedFile}
+              />
+            </div>
+          )}
+        </div>
 
-        <div className="mt-auto pt-2">
-          <Button
-            variant="ghost"
-            size="sm"
+        <footer className="shrink-0 border-t p-2">
+          <button
+            type="button"
             onClick={clearPr}
             title="Leave this PR and go back to the start page. Your progress is kept."
-            className="-ml-2 text-muted-foreground"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[15px] font-medium text-foreground/80 hover:bg-muted hover:text-foreground"
           >
-            <LogOut />
-            Exit
-          </Button>
-        </div>
+            <LogOut className="size-4 text-muted-foreground" />
+            Exit review
+          </button>
+        </footer>
       </aside>
       <div
         role="separator"
