@@ -1,6 +1,6 @@
 import { chatWithTool } from "./modelProvider.js";
 import type { PrFile } from "./github.js";
-import type { Idea } from "./types.js";
+import type { Slice } from "./types.js";
 
 // Splits a unified-diff patch into its hunks purely by the "@@ ... @@"
 // header lines, matching how react-diff-view/gitdiff-parser splits hunks
@@ -40,13 +40,13 @@ function buildPrompt(refs: Map<string, string>): string {
     .join("\n\n");
 }
 
-const REPORT_IDEAS_TOOL = {
-  name: "report_ideas",
-  description: "Report the pull request broken into small, reviewable ideas.",
+const REPORT_SLICES_TOOL = {
+  name: "report_slices",
+  description: "Report the pull request broken into small, reviewable slices.",
   parameters: {
     type: "object",
     properties: {
-      ideas: {
+      slices: {
         type: "array",
         items: {
           type: "object",
@@ -59,21 +59,21 @@ const REPORT_IDEAS_TOOL = {
         },
       },
     },
-    required: ["ideas"],
+    required: ["slices"],
   },
 };
 
 const SYSTEM_PROMPT = `You are reviewing a pull request. Below are the changed hunks, each labeled with a \
 stable reference like "src/foo.ts#0". Break the diff into small, granular, easily-reviewable \
-"ideas" - smaller than a whole feature (e.g. "refactor to use a constant", "clean up indentation \
-on these parameters"). Group whatever hunks are needed to understand one idea, even across \
+"slices" - smaller than a whole feature (e.g. "refactor to use a constant", "clean up indentation \
+on these parameters"). Group whatever hunks are needed to understand one slice, even across \
 files, and even if a hunk is only shown for context - the same hunk reference may legitimately \
-appear under more than one idea. Not every hunk needs to belong to an idea; leave out hunks that \
-don't fit anywhere. For each idea, give a short title, a 1-2 sentence summary of what changed and \
+appear under more than one slice. Not every hunk needs to belong to a slice; leave out hunks that \
+don't fit anywhere. For each slice, give a short title, a 1-2 sentence summary of what changed and \
 why it matters for review, and the exact hunk references (format "path#index") it covers. Call \
-report_ideas with the result.`;
+report_slices with the result.`;
 
-export async function generateIdeas(files: PrFile[]): Promise<Idea[]> {
+export async function generateSlices(files: PrFile[]): Promise<Slice[]> {
   const refs = buildHunkRefs(files);
   if (refs.size === 0) return [];
 
@@ -82,14 +82,14 @@ export async function generateIdeas(files: PrFile[]): Promise<Idea[]> {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: buildPrompt(refs) },
     ],
-    REPORT_IDEAS_TOOL,
+    REPORT_SLICES_TOOL,
   );
 
-  const raw = result.arguments as { ideas?: unknown };
-  if (!Array.isArray(raw.ideas)) return [];
+  const raw = result.arguments as { slices?: unknown };
+  if (!Array.isArray(raw.slices)) return [];
 
-  const ideas: Idea[] = [];
-  raw.ideas.forEach((entry, i) => {
+  const slices: Slice[] = [];
+  raw.slices.forEach((entry, i) => {
     if (typeof entry !== "object" || entry === null) return;
     const { title, summary, hunks } = entry as Record<string, unknown>;
     if (typeof title !== "string" || !Array.isArray(hunks)) return;
@@ -97,13 +97,13 @@ export async function generateIdeas(files: PrFile[]): Promise<Idea[]> {
     const validHunks = hunks.filter((h): h is string => typeof h === "string" && refs.has(h));
     if (validHunks.length === 0) return;
 
-    ideas.push({
-      id: `idea-${i}`,
+    slices.push({
+      id: `slice-${i}`,
       title,
       summary: typeof summary === "string" && summary.trim() ? summary.trim() : "",
       hunks: validHunks,
     });
   });
 
-  return ideas;
+  return slices;
 }

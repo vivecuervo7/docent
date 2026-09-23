@@ -1,7 +1,7 @@
 # Docent
 
 A local tool for reviewing large pull requests. Docent breaks a PR into small
-"ideas" — each a handful of related hunks with a short explanation — and walks
+"slices" — each a handful of related hunks with a short explanation — and walks
 you through them one at a time, starting from an overview of what the PR does,
 why, and what reviewers have already said.
 

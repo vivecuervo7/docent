@@ -1,4 +1,4 @@
-export interface Idea {
+export interface Slice {
   id: string;
   title: string;
   summary: string;

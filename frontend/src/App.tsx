@@ -28,13 +28,13 @@ import {
   listSavedPrs,
   markPrOpened,
   saveConversation as persistConversation,
-  saveIdeas as persistIdeas,
+  saveSlices as persistSlices,
   saveSummary as persistSummary,
   setHunksReviewed as persistReviewedHunks,
   type ConversationSummary,
   type ReplyOutcome,
   type ReviewerConversation,
-  type Idea,
+  type Slice,
   type PrSummary,
   type SavedPr,
 } from "./prDb";
@@ -165,13 +165,13 @@ function extractLinks(body: string | null): Link[] {
   return links;
 }
 
-// Ideas and the conversation don't depend on each other and run together;
+// Slices and the conversation don't depend on each other and run together;
 // the summary waits for both so it can prefer them over a stale description.
-type PipelineStep = "ideas" | "conversation" | "summary";
+type PipelineStep = "slices" | "conversation" | "summary";
 type PipelineSteps = Record<PipelineStep, { status: "pending" | "active" | "done"; startedAt?: number }>;
 
 const PIPELINE_STEPS: { step: PipelineStep; label: string }[] = [
-  { step: "ideas", label: "Breaking the PR into ideas" },
+  { step: "slices", label: "Breaking the PR into slices" },
   { step: "conversation", label: "Reading the review conversation" },
   { step: "summary", label: "Writing the summary" },
 ];
@@ -192,8 +192,8 @@ function isFileReviewed(
   return fileHunkKeys(filename, hunkCount).every((k) => reviewed[k]);
 }
 
-function isIdeaReviewed(idea: Idea, reviewed: Record<string, boolean>): boolean {
-  return idea.hunks.length > 0 && idea.hunks.every((k) => reviewed[k]);
+function isSliceReviewed(slice: Slice, reviewed: Record<string, boolean>): boolean {
+  return slice.hunks.length > 0 && slice.hunks.every((k) => reviewed[k]);
 }
 
 function isTestFile(filename: string): boolean {
@@ -536,7 +536,7 @@ function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
   });
 }
 
-// Shared by the full per-file view and the single-idea view: parses a
+// Shared by the full per-file view and the single-slice view: parses a
 // file's patch into hunks, lazily fetches old-file context for syntax
 // highlighting, and tokenizes. `enabled` gates the (relatively expensive)
 // context fetch + tokenize pass so a collapsed file in the full list skips
@@ -604,7 +604,7 @@ function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enab
   return { hunks, diffType, tokens };
 }
 
-function IdeaFileSection({
+function SliceFileSection({
   file,
   hunkIndices,
   hideWhitespace,
@@ -622,8 +622,8 @@ function IdeaFileSection({
   const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, true);
   const hunkKey = (index: number) => `${file.filename}#${index}`;
   const keys = hunkIndices.map(hunkKey);
-  // Scoped to the hunks this idea shows - the file may have others that
-  // belong to different ideas.
+  // Scoped to the hunks this slice shows - the file may have others that
+  // belong to different slices.
   const fileReviewed = keys.length > 0 && keys.every((k) => reviewed[k]);
 
   const [fileCollapsed, setFileCollapsed] = useState(fileReviewed);
@@ -664,7 +664,7 @@ function IdeaFileSection({
           {file.filename}
         </span>
         <span
-          title={`This idea shows ${hunkIndices.length} of this file's ${hunks?.length ?? hunkIndices.length} hunks`}
+          title={`This slice shows ${hunkIndices.length} of this file's ${hunks?.length ?? hunkIndices.length} hunks`}
           className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
         >
           {hunkIndices.length}/{hunks?.length ?? hunkIndices.length} hunks
@@ -715,8 +715,8 @@ function IdeaFileSection({
   );
 }
 
-function IdeaView({
-  idea,
+function SliceView({
+  slice,
   files,
   hideWhitespace,
   viewOptions,
@@ -724,13 +724,13 @@ function IdeaView({
   reviewed,
   index,
   total,
-  onToggleIdea,
+  onToggleSlice,
   onSetHunksReviewed,
   onMarkReviewed,
   onPrev,
   onNext,
 }: {
-  idea: Idea;
+  slice: Slice;
   files: PrFile[];
   hideWhitespace: boolean;
   viewOptions: ReactNode;
@@ -738,15 +738,15 @@ function IdeaView({
   reviewed: Record<string, boolean>;
   index: number;
   total: number;
-  onToggleIdea: (idea: Idea) => void;
+  onToggleSlice: (slice: Slice) => void;
   onSetHunksReviewed: (keys: string[], value: boolean) => void;
   onMarkReviewed: () => void;
   onPrev: () => void;
   onNext: () => void;
 }) {
-  const byFile = useMemo(() => groupHunkRefsByFile(idea.hunks), [idea]);
+  const byFile = useMemo(() => groupHunkRefsByFile(slice.hunks), [slice]);
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
-  const done = isIdeaReviewed(idea, reviewed);
+  const done = isSliceReviewed(slice, reviewed);
   const [compact, setCompact] = useState(false);
 
   // Hysteresis keeps the header from flickering at the threshold, and the
@@ -772,7 +772,7 @@ function IdeaView({
         Next →
       </Button>
       {done ? (
-        <Button variant="outline" size={compact ? "sm" : "default"} onClick={() => onToggleIdea(idea)}>
+        <Button variant="outline" size={compact ? "sm" : "default"} onClick={() => onToggleSlice(slice)}>
           <Check className="text-reviewed" />
           Reviewed
         </Button>
@@ -800,9 +800,9 @@ function IdeaView({
         {compact ? (
           <div className="flex items-center gap-6">
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-semibold">{idea.title}</h2>
-              {idea.summary && (
-                <p className="truncate text-sm text-muted-foreground">{idea.summary}</p>
+              <h2 className="truncate text-base font-semibold">{slice.title}</h2>
+              {slice.summary && (
+                <p className="truncate text-sm text-muted-foreground">{slice.summary}</p>
               )}
             </div>
             {actions}
@@ -811,11 +811,11 @@ function IdeaView({
           <>
             <div className="mb-12 flex justify-end">{actions}</div>
             <h2 className="text-[28px] leading-[1.2] font-semibold tracking-tight text-balance">
-              {idea.title}
+              {slice.title}
             </h2>
-            {idea.summary && (
+            {slice.summary && (
               <p className="mt-4 text-[17px] leading-[1.65] text-foreground">
-                {idea.summary}
+                {slice.summary}
               </p>
             )}
           </>
@@ -831,8 +831,8 @@ function IdeaView({
             const file = files.find((f) => f.filename === filename);
             if (!file) return null;
             return (
-              <IdeaFileSection
-                key={`${idea.id}:${filename}`}
+              <SliceFileSection
+                key={`${slice.id}:${filename}`}
                 file={file}
                 hunkIndices={hunkIndices}
                 hideWhitespace={hideWhitespace}
@@ -849,28 +849,28 @@ function IdeaView({
 }
 
 function SidebarNav({
-  allIdeas,
+  allSlices,
   reviewed,
   loading,
-  activeIdeaId,
+  activeSliceId,
   overviewActive,
   allFilesActive,
   onSelectOverview,
-  onResumeIdeas,
-  onSelectIdea,
-  onToggleIdea,
+  onResumeSlices,
+  onSelectSlice,
+  onToggleSlice,
   onSelectAllFiles,
 }: {
-  allIdeas: Idea[];
+  allSlices: Slice[];
   reviewed: Record<string, boolean>;
   loading: boolean;
-  activeIdeaId: string | null;
+  activeSliceId: string | null;
   overviewActive: boolean;
   allFilesActive: boolean;
   onSelectOverview: () => void;
-  onResumeIdeas: () => void;
-  onSelectIdea: (id: string) => void;
-  onToggleIdea: (idea: Idea) => void;
+  onResumeSlices: () => void;
+  onSelectSlice: (id: string) => void;
+  onToggleSlice: (slice: Slice) => void;
   onSelectAllFiles: () => void;
 }) {
   const rowClass = (active: boolean) =>
@@ -883,7 +883,7 @@ function SidebarNav({
       "min-w-0 flex-1 text-left text-[15px] font-medium hover:text-foreground",
       active ? "text-foreground" : "text-foreground/80",
     );
-  const ideaLabelClass = (active: boolean) =>
+  const sliceLabelClass = (active: boolean) =>
     cn(
       "min-w-0 flex-1 text-left text-sm leading-snug hover:text-foreground",
       active ? "font-medium text-foreground" : "text-muted-foreground",
@@ -904,29 +904,29 @@ function SidebarNav({
           <ListChecks className={topLevelIcon} />
           <button
             type="button"
-            onClick={onResumeIdeas}
-            disabled={allIdeas.length === 0}
-            title="Go to the first idea you haven't reviewed"
+            onClick={onResumeSlices}
+            disabled={allSlices.length === 0}
+            title="Go to the first slice you haven't reviewed"
             className={topLevelClass(false)}
           >
-            Ideas
+            Slices
           </button>
         </div>
         <ol className="flex flex-col gap-0.5 pl-3">
-          {allIdeas.length === 0 ? (
+          {allSlices.length === 0 ? (
             <li className="px-2.5 py-2 text-sm text-muted-foreground">
-              {loading ? "Breaking the PR into ideas…" : "No ideas yet."}
+              {loading ? "Breaking the PR into slices…" : "No slices yet."}
             </li>
           ) : (
-            allIdeas.map((idea) => {
-              const done = isIdeaReviewed(idea, reviewed);
-              const current = activeIdeaId === idea.id;
+            allSlices.map((slice) => {
+              const done = isSliceReviewed(slice, reviewed);
+              const current = activeSliceId === slice.id;
               return (
-                <li key={idea.id} className={rowClass(current)}>
+                <li key={slice.id} className={rowClass(current)}>
                   <button
                     type="button"
-                    onClick={() => onToggleIdea(idea)}
-                    aria-label={done ? `Mark "${idea.title}" unreviewed` : `Mark "${idea.title}" reviewed`}
+                    onClick={() => onToggleSlice(slice)}
+                    aria-label={done ? `Mark "${slice.title}" unreviewed` : `Mark "${slice.title}" reviewed`}
                     className={cn(
                       "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px]",
                       done
@@ -938,8 +938,8 @@ function SidebarNav({
                   >
                     {done && <Check className="size-2.5" strokeWidth={3.5} />}
                   </button>
-                  <button type="button" onClick={() => onSelectIdea(idea.id)} className={ideaLabelClass(current)}>
-                    {idea.title}
+                  <button type="button" onClick={() => onSelectSlice(slice.id)} className={sliceLabelClass(current)}>
+                    {slice.title}
                   </button>
                 </li>
               );
@@ -1032,8 +1032,8 @@ function SavedPrRow({
 }) {
   const [confirming, setConfirming] = useState(false);
   const { owner, repo, number, record } = saved;
-  const ideas = record.ideas;
-  const reviewedIdeas = ideas?.filter((idea) => isIdeaReviewed(idea, record.reviewed)).length ?? 0;
+  const slices = record.slices;
+  const reviewedSlices = slices?.filter((slice) => isSliceReviewed(slice, record.reviewed)).length ?? 0;
 
   return (
     <li className="flex items-center gap-4 rounded-lg border border-transparent px-3 py-3 hover:border-border hover:bg-card">
@@ -1051,7 +1051,7 @@ function SavedPrRow({
         </div>
       </button>
       <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-        {ideas ? `${reviewedIdeas}/${ideas.length} ideas` : "No ideas yet"}
+        {slices ? `${reviewedSlices}/${slices.length} slices` : "No slices yet"}
       </span>
       <span className="w-24 shrink-0 text-right text-sm text-muted-foreground">
         {record.lastOpenedAt ? formatRelativeTime(record.lastOpenedAt) : ""}
@@ -1125,7 +1125,7 @@ function StartPage({
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Review a pull request</h1>
           <p className="text-sm text-muted-foreground">
-            Paste a GitHub PR link. It'll be broken into ideas you can review one at a time.
+            Paste a GitHub PR link. It'll be broken into slices you can review one at a time.
           </p>
           <div className="flex gap-2">
             <Input
@@ -1461,7 +1461,7 @@ function LandingView({
   summary,
   conversation,
   onRegenerate,
-  hasIdeas,
+  hasSlices,
   hasProgress,
   onStartReviewing,
 }: {
@@ -1472,7 +1472,7 @@ function LandingView({
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
   onRegenerate: () => void;
-  hasIdeas: boolean;
+  hasSlices: boolean;
   hasProgress: boolean;
   onStartReviewing: () => void;
 }) {
@@ -1502,7 +1502,7 @@ function LandingView({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
-      {/* Same header shape as an idea, so the actions sit where Mark reviewed does. */}
+      {/* Same header shape as a slice, so the actions sit where Mark reviewed does. */}
       <header className="flex shrink-0 justify-end gap-2 border-b border-transparent px-10 pt-10">
         <Button variant="outline" onClick={onRegenerate} disabled={running}>
           {running ? "Generating…" : "Regenerate review"}
@@ -1512,7 +1512,7 @@ function LandingView({
             <Button variant="outline">View in GitHub</Button>
           </a>
         )}
-        {hasIdeas && (
+        {hasSlices && (
           <Button onClick={onStartReviewing} className="bg-reviewed-strong px-4 text-white hover:bg-[#388bfd]">
             {hasProgress ? "Continue reviewing →" : "Start reviewing →"}
           </Button>
@@ -1783,14 +1783,14 @@ function writeStoredSidebarWidth(width: number) {
 }
 
 // The model endpoints answer 502 with {error} when generation fails; without
-// this, a failed ideas call would be saved as "no ideas" for good.
+// this, a failed slices call would be saved as "no slices" for good.
 async function readOk<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
   return body as T;
 }
 
-type View = "landing" | "idea" | "files";
+type View = "landing" | "slice" | "files";
 
 function App() {
   const [prUrl, setPrUrl] = useState("");
@@ -1798,7 +1798,7 @@ function App() {
   const [prMeta, setPrMeta] = useState<PrMeta | null>(null);
   const [files, setFiles] = useState<PrFile[] | null>(null);
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
-  const [ideas, setIdeas] = useState<Idea[] | null>(null);
+  const [slices, setSlices] = useState<Slice[] | null>(null);
   const [summary, setSummary] = useState<PrSummary | null>(null);
   const [conversation, setConversation] = useState<ConversationSummary | null>(null);
   // Non-null while generating, and kept after a failure so the preparation
@@ -1810,7 +1810,7 @@ function App() {
   // half-empty page. A regenerate of an existing review keeps the overview.
   const [preparing, setPreparing] = useState(false);
   const [view, setView] = useState<View>("landing");
-  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
+  const [activeSliceId, setActiveSliceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hideWhitespace, setHideWhitespace] = useState(true);
@@ -1844,45 +1844,45 @@ function App() {
     return counts;
   }, [files]);
 
-  const everythingElse = useMemo((): Idea => {
-    const claimed = new Set((ideas ?? []).flatMap((idea) => idea.hunks));
+  const everythingElse = useMemo((): Slice => {
+    const claimed = new Set((slices ?? []).flatMap((slice) => slice.hunks));
     const hunks = (files ?? []).flatMap((file) =>
       fileHunkKeys(file.filename, fileHunkCounts[file.filename] ?? 0).filter((k) => !claimed.has(k)),
     );
     return {
       id: "everything-else",
       title: "Everything else",
-      summary: "Hunks not covered by any idea above.",
+      summary: "Hunks not covered by any slice above.",
       hunks,
     };
-  }, [files, ideas, fileHunkCounts]);
+  }, [files, slices, fileHunkCounts]);
 
-  const allIdeas = useMemo(() => {
-    if (ideas === null) return [];
-    return everythingElse.hunks.length > 0 ? [...ideas, everythingElse] : ideas;
-  }, [ideas, everythingElse]);
-  const activeIdeaIndex = activeIdeaId ? allIdeas.findIndex((i) => i.id === activeIdeaId) : -1;
-  const activeIdea = activeIdeaIndex >= 0 ? allIdeas[activeIdeaIndex] : null;
+  const allSlices = useMemo(() => {
+    if (slices === null) return [];
+    return everythingElse.hunks.length > 0 ? [...slices, everythingElse] : slices;
+  }, [slices, everythingElse]);
+  const activeSliceIndex = activeSliceId ? allSlices.findIndex((i) => i.id === activeSliceId) : -1;
+  const activeSlice = activeSliceIndex >= 0 ? allSlices[activeSliceIndex] : null;
 
-  async function fetchIdeasFor(ref: PrRef): Promise<Idea[]> {
-    const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/ideas`, {
+  async function fetchSlicesFor(ref: PrRef): Promise<Slice[]> {
+    const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/slices`, {
       method: "POST",
     });
-    const body = await readOk<{ ideas?: Idea[] }>(res);
-    const ideas: Idea[] = body.ideas ?? [];
-    await persistIdeas(ref.owner, ref.repo, ref.number, ideas);
-    return ideas;
+    const body = await readOk<{ slices?: Slice[] }>(res);
+    const slices: Slice[] = body.slices ?? [];
+    await persistSlices(ref.owner, ref.repo, ref.number, slices);
+    return slices;
   }
 
   async function fetchSummaryFor(
     ref: PrRef,
-    ideasForSummary: Idea[],
+    slicesForSummary: Slice[],
     conversationForSummary: ConversationSummary | null,
   ): Promise<PrSummary | null> {
     const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/summary`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ideas: ideasForSummary, conversation: conversationForSummary }),
+      body: JSON.stringify({ slices: slicesForSummary, conversation: conversationForSummary }),
     });
     const body = await readOk<{ summary?: PrSummary }>(res);
     if (!body.summary) return null;
@@ -1913,15 +1913,15 @@ function App() {
       );
     const now = Date.now();
     setPipelineSteps({
-      ideas: { status: "active", startedAt: now },
+      slices: { status: "active", startedAt: now },
       conversation: { status: "active", startedAt: now },
       summary: { status: "pending" },
     });
     try {
-      const [generatedIdeas, generatedConversation] = await Promise.all([
-        fetchIdeasFor(ref).then((result) => {
-          setIdeas(result);
-          mark("ideas", "done");
+      const [generatedSlices, generatedConversation] = await Promise.all([
+        fetchSlicesFor(ref).then((result) => {
+          setSlices(result);
+          mark("slices", "done");
           return result;
         }),
         fetchConversationFor(ref).then((result) => {
@@ -1931,7 +1931,7 @@ function App() {
         }),
       ]);
       mark("summary", "active");
-      setSummary(await fetchSummaryFor(ref, generatedIdeas, generatedConversation));
+      setSummary(await fetchSummaryFor(ref, generatedSlices, generatedConversation));
       setPipelineSteps(null);
       setPreparing(false);
     } catch (err) {
@@ -1947,10 +1947,10 @@ function App() {
     setLoading(true);
     setFiles(null);
     setPrMeta(null);
-    setIdeas(null);
+    setSlices(null);
     setSummary(null);
     setConversation(null);
-    setActiveIdeaId(null);
+    setActiveSliceId(null);
     setView("landing");
 
     try {
@@ -1968,13 +1968,13 @@ function App() {
       setFiles(files);
       setPrMeta(meta ?? null);
       setReviewed(prRecord.reviewed);
-      setIdeas(prRecord.ideas);
+      setSlices(prRecord.slices);
       setSummary(prRecord.summary);
       setConversation(prRecord.conversation);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
-      if (!prRecord.ideas) {
+      if (!prRecord.slices) {
         // Fire and forget - this can take minutes; don't block the initial load on it.
         runFullPipeline(ref, { firstRun: true });
       }
@@ -2012,13 +2012,13 @@ function App() {
     setPrMeta(null);
     setFiles(null);
     setReviewed({});
-    setIdeas(null);
+    setSlices(null);
     setSummary(null);
     setConversation(null);
     setPipelineSteps(null);
     setPipelineError(null);
     setPreparing(false);
-    setActiveIdeaId(null);
+    setActiveSliceId(null);
     setView("landing");
     setError(null);
   }
@@ -2039,48 +2039,48 @@ function App() {
     setHunksReviewed(keys, !currentlyReviewed);
   }
 
-  function toggleIdea(idea: Idea) {
-    setHunksReviewed(idea.hunks, !isIdeaReviewed(idea, reviewed));
+  function toggleSlice(slice: Slice) {
+    setHunksReviewed(slice.hunks, !isSliceReviewed(slice, reviewed));
   }
 
-  // Marking an idea reviewed moves straight on to the next one; Next alone
+  // Marking a slice reviewed moves straight on to the next one; Next alone
   // moves on without marking, which is why there's no separate Skip.
-  function markActiveIdeaReviewed() {
-    if (!activeIdea) return;
-    setHunksReviewed(activeIdea.hunks, true);
-    const next = allIdeas[activeIdeaIndex + 1];
-    if (next) setActiveIdeaId(next.id);
+  function markActiveSliceReviewed() {
+    if (!activeSlice) return;
+    setHunksReviewed(activeSlice.hunks, true);
+    const next = allSlices[activeSliceIndex + 1];
+    if (next) setActiveSliceId(next.id);
   }
 
   useEffect(() => {
-    if (view !== "idea" || !activeIdea) return;
+    if (view !== "slice" || !activeSlice) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Enter" || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, button, a, [role=button], [contenteditable]")) return;
-      if (activeIdea && isIdeaReviewed(activeIdea, reviewed)) return;
+      if (activeSlice && isSliceReviewed(activeSlice, reviewed)) return;
       e.preventDefault();
-      markActiveIdeaReviewed();
+      markActiveSliceReviewed();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-  // The sidebar's file list follows the view: in an idea it lists just that
-  // idea's files and scrolls within the idea; anywhere else it lists every
+  // The sidebar's file list follows the view: in a slice it lists just that
+  // slice's files and scrolls within the slice; anywhere else it lists every
   // file, and picking one opens All files at that file.
-  const fileListMode: "idea" | "all" = view === "idea" && activeIdea ? "idea" : "all";
-  const ideaHunkKeysByFile = useMemo(() => {
+  const fileListMode: "slice" | "all" = view === "slice" && activeSlice ? "slice" : "all";
+  const sliceHunkKeysByFile = useMemo(() => {
     const byFile = new Map<string, string[]>();
-    if (!activeIdea) return byFile;
-    for (const [filename, indices] of groupHunkRefsByFile(activeIdea.hunks)) {
+    if (!activeSlice) return byFile;
+    for (const [filename, indices] of groupHunkRefsByFile(activeSlice.hunks)) {
       byFile.set(filename, indices.map((i) => `${filename}#${i}`));
     }
     return byFile;
-  }, [activeIdea]);
+  }, [activeSlice]);
   const listedFiles =
-    fileListMode === "idea"
-      ? (files ?? []).filter((f) => ideaHunkKeysByFile.has(f.filename))
+    fileListMode === "slice"
+      ? (files ?? []).filter((f) => sliceHunkKeysByFile.has(f.filename))
       : (files ?? []);
 
   const pendingFileScroll = useRef<string | null>(null);
@@ -2092,7 +2092,7 @@ function App() {
   }, [view]);
 
   function selectListedFile(filename: string) {
-    if (view === "idea" || view === "files") {
+    if (view === "slice" || view === "files") {
       scrollToFile(filename);
       return;
     }
@@ -2100,11 +2100,11 @@ function App() {
     setView("files");
   }
 
-  // In an idea, a file's checkbox covers only the hunks that idea shows -
+  // In a slice, a file's checkbox covers only the hunks that slice shows -
   // the same scope as the file's own header - so it agrees with what's on
-  // screen even when the file's other hunks belong to other ideas.
+  // screen even when the file's other hunks belong to other slices.
   function listedFileKeys(filename: string): string[] {
-    if (fileListMode === "idea") return ideaHunkKeysByFile.get(filename) ?? [];
+    if (fileListMode === "slice") return sliceHunkKeysByFile.get(filename) ?? [];
     return fileHunkKeys(filename, fileHunkCounts[filename] ?? 0);
   }
 
@@ -2117,11 +2117,11 @@ function App() {
     setHunksReviewed(listedFileKeys(filename), !isListedFileChecked(filename));
   }
 
-  function resumeIdeas() {
-    const next = allIdeas.find((idea) => !isIdeaReviewed(idea, reviewed)) ?? allIdeas[0];
+  function resumeSlices() {
+    const next = allSlices.find((slice) => !isSliceReviewed(slice, reviewed)) ?? allSlices[0];
     if (!next) return;
-    setActiveIdeaId(next.id);
-    setView("idea");
+    setActiveSliceId(next.id);
+    setView("slice");
   }
 
   const reviewedFileCount = (files ?? []).filter((file) =>
@@ -2156,19 +2156,19 @@ function App() {
       >
         <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-5 pt-8 pb-6">
           <SidebarNav
-            allIdeas={allIdeas}
+            allSlices={allSlices}
             reviewed={reviewed}
-            loading={!pipelineError && pipelineSteps?.ideas.status === "active"}
-            activeIdeaId={view === "idea" ? activeIdeaId : null}
+            loading={!pipelineError && pipelineSteps?.slices.status === "active"}
+            activeSliceId={view === "slice" ? activeSliceId : null}
             overviewActive={view === "landing"}
             allFilesActive={view === "files"}
             onSelectOverview={() => setView("landing")}
-            onResumeIdeas={resumeIdeas}
-            onSelectIdea={(id) => {
-              setActiveIdeaId(id);
-              setView("idea");
+            onResumeSlices={resumeSlices}
+            onSelectSlice={(id) => {
+              setActiveSliceId(id);
+              setView("slice");
             }}
-            onToggleIdea={toggleIdea}
+            onToggleSlice={toggleSlice}
             onSelectAllFiles={() => setView("files")}
           />
 
@@ -2220,22 +2220,22 @@ function App() {
       />
 
       <main className="-ml-1.5 flex h-screen min-w-0 flex-1 flex-col">
-        {view === "idea" && activeIdea ? (
-          <IdeaView
-            key={activeIdea.id}
-            idea={activeIdea}
+        {view === "slice" && activeSlice ? (
+          <SliceView
+            key={activeSlice.id}
+            slice={activeSlice}
             files={files}
             hideWhitespace={hideWhitespace}
             viewOptions={viewOptions}
             prRef={prRef}
             reviewed={reviewed}
-            index={activeIdeaIndex}
-            total={allIdeas.length}
-            onToggleIdea={toggleIdea}
+            index={activeSliceIndex}
+            total={allSlices.length}
+            onToggleSlice={toggleSlice}
             onSetHunksReviewed={setHunksReviewed}
-            onMarkReviewed={markActiveIdeaReviewed}
-            onPrev={() => setActiveIdeaId(allIdeas[activeIdeaIndex - 1]?.id ?? null)}
-            onNext={() => setActiveIdeaId(allIdeas[activeIdeaIndex + 1]?.id ?? null)}
+            onMarkReviewed={markActiveSliceReviewed}
+            onPrev={() => setActiveSliceId(allSlices[activeSliceIndex - 1]?.id ?? null)}
+            onNext={() => setActiveSliceId(allSlices[activeSliceIndex + 1]?.id ?? null)}
           />
         ) : view === "landing" && preparing ? (
           <PreparingView
@@ -2279,9 +2279,9 @@ function App() {
             summary={summary}
             conversation={conversation}
             onRegenerate={() => runFullPipeline(prRef, { firstRun: false })}
-            hasIdeas={ideas !== null && ideas.length > 0}
+            hasSlices={slices !== null && slices.length > 0}
             hasProgress={Object.values(reviewed).some(Boolean)}
-            onStartReviewing={resumeIdeas}
+            onStartReviewing={resumeSlices}
           />
         )}
       </main>

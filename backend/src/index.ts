@@ -7,9 +7,9 @@ import {
   fetchPrFiles,
   fetchPrMeta,
 } from "./github.js";
-import { generateIdeas } from "./ideas.js";
+import { generateSlices } from "./slices.js";
 import { generateConversationSummary, generateSummary } from "./overview.js";
-import type { ConversationSummary, Idea } from "./types.js";
+import type { ConversationSummary, Slice } from "./types.js";
 
 const app = express();
 app.use(express.json());
@@ -72,7 +72,7 @@ app.get("/api/pr/:owner/:repo/:number/old-content", async (req, res) => {
   }
 });
 
-app.post("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
+app.post("/api/pr/:owner/:repo/:number/slices", async (req, res) => {
   const { owner, repo, number } = req.params;
   if (!validParams(owner, repo, number)) {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
@@ -80,8 +80,8 @@ app.post("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
 
   try {
     const files = await fetchPrFiles(owner, repo, number);
-    const ideas = await generateIdeas(files);
-    res.json({ ideas });
+    const slices = await generateSlices(files);
+    res.json({ slices });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }
@@ -93,7 +93,7 @@ app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
 
-  const ideas: Idea[] = Array.isArray(req.body?.ideas) ? req.body.ideas : [];
+  const slices: Slice[] = Array.isArray(req.body?.slices) ? req.body.slices : [];
   const conversation: ConversationSummary | null =
     req.body?.conversation && Array.isArray(req.body.conversation.reviewers)
       ? req.body.conversation
@@ -101,7 +101,7 @@ app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
 
   try {
     const meta = await fetchPrMeta(owner, repo, number);
-    const summary = await generateSummary(meta, ideas, conversation);
+    const summary = await generateSummary(meta, slices, conversation);
     res.json({ summary });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });

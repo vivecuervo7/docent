@@ -2,7 +2,7 @@ import { chatWithTool } from "./modelProvider.js";
 import type { ConversationEntry, PrConversation, PrMeta } from "./github.js";
 import type {
   ConversationSummary,
-  Idea,
+  Slice,
   PrSummary,
   ReplyOutcome,
   ReviewerConversation,
@@ -24,12 +24,12 @@ const SUMMARY_TOOL = {
 };
 
 const SUMMARY_SYSTEM_PROMPT = `You are orienting a reviewer to a pull request. Below is the \
-author's PR description, a breakdown of the change into small ideas (each already grounded in the \
-actual code diff), and a summary of the review conversation so far. The ideas reflect the final \
+author's PR description, a breakdown of the change into small slices (each already grounded in the \
+actual code diff), and a summary of the review conversation so far. The slices reflect the final \
 state of the code and are ground truth. The conversation explains how the PR got there - it often \
 records the author changing something in response to review. The description may have been \
-written before those changes and can be out of date; where it disagrees with the ideas or the \
-conversation, trust the ideas and the conversation. Use the description only as supporting \
+written before those changes and can be out of date; where it disagrees with the slices or the \
+conversation, trust the slices and the conversation. Use the description only as supporting \
 context, not something to audit or critique. Describe the PR as it stands now: do not narrate the \
 review itself ("a reviewer asked...") - that is shown separately. Write a succinct, accurate \
 summary in three parts:
@@ -57,13 +57,13 @@ function formatConversationDigest(conversation: ConversationSummary | null): str
 
 export async function generateSummary(
   meta: PrMeta,
-  ideas: Idea[],
+  slices: Slice[],
   conversation: ConversationSummary | null,
 ): Promise<PrSummary> {
-  const ideasText = ideas.map((idea) => `- ${idea.title}: ${idea.summary}`).join("\n");
+  const slicesText = slices.map((slice) => `- ${slice.title}: ${slice.summary}`).join("\n");
   const userContent = [
     `PR description:\nTitle: ${meta.title}\n${meta.body ?? "(no description provided)"}`,
-    `Ideas derived from the diff:\n${ideasText || "(none generated)"}`,
+    `Slices derived from the diff:\n${slicesText || "(none generated)"}`,
     `Review conversation:\n${formatConversationDigest(conversation)}`,
   ].join("\n\n");
 

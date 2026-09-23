@@ -1,8 +1,8 @@
-// All per-PR state - reviewed hunks, ideas, summary, conversation - lives in
+// All per-PR state - reviewed hunks, slices, summary, conversation - lives in
 // a single IndexedDB row per PR. The backend never persists any of this; it
 // only fetches from GitHub and calls the model, so clearing this one row
 // (or the whole database) is the entire "forget this PR" operation.
-export interface Idea {
+export interface Slice {
   id: string;
   title: string;
   summary: string;
@@ -38,7 +38,7 @@ export interface ConversationSummary {
 
 export interface PrRecord {
   reviewed: Record<string, boolean>;
-  ideas: Idea[] | null;
+  slices: Slice[] | null;
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
   // Written whenever the PR is opened, so the start page can list saved
@@ -59,7 +59,7 @@ const DB_VERSION = 2;
 const STORE = "prs";
 
 function emptyRecord(): PrRecord {
-  return { reviewed: {}, ideas: null, summary: null, conversation: null };
+  return { reviewed: {}, slices: null, summary: null, conversation: null };
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -129,6 +129,9 @@ export async function getPrRecord(
       // Records saved before the per-reviewer summary stored a flat list of
       // per-comment cards; drop those so Regenerate writes the new shape.
       if (Array.isArray(record.conversation)) record.conversation = null;
+      // Records saved before the rename to "slices" stored them as "ideas";
+      // treat those as not generated yet so they regenerate on open.
+      record.slices ??= null;
       resolve(record);
     };
     req.onerror = () => reject(req.error);
@@ -148,16 +151,16 @@ export async function setHunksReviewed(
   return record.reviewed;
 }
 
-export async function saveIdeas(
+export async function saveSlices(
   owner: string,
   repo: string,
   number: string,
-  ideas: Idea[],
-): Promise<Idea[]> {
+  slices: Slice[],
+): Promise<Slice[]> {
   const record = await updateRecord(owner, repo, number, (r) => {
-    r.ideas = ideas;
+    r.slices = slices;
   });
-  return record.ideas ?? [];
+  return record.slices ?? [];
 }
 
 export async function saveSummary(
