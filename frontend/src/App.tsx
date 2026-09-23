@@ -826,7 +826,7 @@ function FeedbackContext({
   const folded = snippet.folded && !unfolded ? snippet.folded : null;
   return (
     // A shade darker than the card around it, as GitHub sets code apart.
-    <div className="overflow-x-auto border-t bg-background text-xs">
+    <div className="feedback-snippet scrollbar-thin overflow-x-auto border-t bg-background text-xs">
       <Diff
         viewType="unified"
         diffType={snippet.diffType}
@@ -1800,6 +1800,7 @@ function SidebarNav({
   yourFeedbackCount,
   agentFeedbackCount,
   busy,
+  reviewState,
 }: {
   allSlices: Slice[];
   reviewed: Record<string, boolean>;
@@ -1818,6 +1819,7 @@ function SidebarNav({
   agentFeedbackCount: number;
   // Feedback steps with work in progress: drafting, reviewing, preparing.
   busy: Partial<Record<FeedbackView, boolean>>;
+  reviewState: "none" | "ready" | "posted";
 }) {
   const rowClass = (active: boolean) =>
     cn(
@@ -1907,6 +1909,15 @@ function SidebarNav({
               </button>
               {busy[id] ? (
                 <Loader2 aria-label="Working" className="mt-0.5 size-3.5 shrink-0 animate-spin text-muted-foreground" />
+              ) : id === "post-review" && reviewState === "posted" ? (
+                <span title="This review has been posted" className="mt-0.5 flex items-center gap-1 text-xs text-reviewed">
+                  <Check className="size-3.5" />
+                  Posted
+                </span>
+              ) : id === "post-review" && reviewState === "ready" ? (
+                <span title="Prepared and ready to post" className="mt-0.5 text-xs text-muted-foreground">
+                  Ready
+                </span>
               ) : (
                 count > 0 && (
                   <span
@@ -3935,6 +3946,7 @@ function App() {
               "agent-feedback": agentReview?.status === "running",
               "post-review": !!prepareStatus.pending,
             }}
+            reviewState={reviewDraft?.posted ? "posted" : reviewDraft ? "ready" : "none"}
           />
 
           {listedFiles.length > 0 && (

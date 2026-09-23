@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { describeLines } from "./noteAnchors";
-import { MessageText } from "./notes";
+import { Markdown } from "./markdown";
 import type { FeedbackDraft, FeedbackItem, Note } from "./prDb";
 
 // The Feedback steps: drafting review comments from your threads and from
@@ -126,7 +126,7 @@ function FeedbackItems({
             {/* Code, then the comment on it, as GitHub and Post review show them. */}
             {renderContext(item)}
             <div className="border-t bg-background px-5 py-4 text-[15px] leading-relaxed">
-              <MessageText text={item.body} />
+              <Markdown text={item.body} />
             </div>
           </div>
         );
@@ -157,7 +157,7 @@ function FeedbackItems({
                 </h4>
                 {item.rationale ? (
                   <div className="text-sm leading-relaxed text-foreground/85">
-                    <MessageText text={item.rationale} />
+                    <Markdown text={item.rationale} small />
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">{reasoning.missing}</p>

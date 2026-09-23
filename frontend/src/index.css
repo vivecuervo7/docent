@@ -188,6 +188,18 @@
   }
 }
 
+/* Code on the feedback and review pages scrolls sideways rather than
+   wrapping, as GitHub's does. */
+.feedback-snippet .diff {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+.feedback-snippet .diff-code {
+  white-space: pre;
+  word-break: normal;
+}
+
 /* Syntax highlighting (refractor/Prism token classes), matching GitHub's dark theme. */
 .diff .token.comment,
 .diff .token.prolog,

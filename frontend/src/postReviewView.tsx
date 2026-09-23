@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DraftButton, DraftPrompt, ErrorLine, type DraftStatus, type RenderContext } from "./feedbackViews";
 import { describeLines } from "./noteAnchors";
-import { MessageText } from "./notes";
+import { Markdown } from "./markdown";
 import type { FeedbackItem, FeedbackKind, ReviewComment, ReviewDraft, ReviewEvent } from "./prDb";
 
 // The last look before posting: the review laid out the way its recipient
@@ -30,59 +30,60 @@ const EVENTS: { event: ReviewEvent; label: string; verb: string }[] = [
   { event: "REQUEST_CHANGES", label: "Request changes", verb: "requested changes" },
 ];
 
-// Shown as it will render, with an Edit button that turns it into a text
-// box. Edits are saved as they're typed.
-function EditableText({
-  value,
-  placeholder,
-  readOnly,
-  onChange,
-}: {
-  value: string;
-  placeholder: string;
-  readOnly: boolean;
-  onChange: (value: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  if (editing && !readOnly) {
-    return (
-      <div className="flex flex-col gap-2">
-        <textarea
-          autoFocus
-          value={value}
-          placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setEditing(false);
+// Text shown rendered, as it will appear on GitHub, with an Edit button the
+// card places in its own header. Editing is in markdown; Done keeps the
+// change and Cancel puts it back as it was.
+function useEditable(value: string, onChange: (value: string) => void, readOnly: boolean, placeholder: string) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const editing = draft !== null && !readOnly;
+
+  const editButton = !readOnly && !editing && (
+    <button
+      type="button"
+      onClick={() => setDraft(value)}
+      aria-label="Edit"
+      title="Edit"
+      className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <Pencil className="size-3.5" />
+    </button>
+  );
+
+  const content = editing ? (
+    <div className="flex flex-col gap-2">
+      <textarea
+        autoFocus
+        value={draft}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setDraft(null);
+        }}
+        className="min-h-24 w-full resize-none rounded-md border bg-card px-3 py-2.5 font-mono text-[13px] leading-relaxed outline-none [field-sizing:content] placeholder:text-muted-foreground focus:border-reviewed"
+      />
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => {
+            onChange(draft);
+            setDraft(null);
           }}
-          className="min-h-20 w-full resize-none rounded-md border bg-background px-3 py-2.5 text-[15px] leading-relaxed outline-none [field-sizing:content] placeholder:text-muted-foreground focus:border-reviewed"
-        />
-        <Button size="sm" variant="outline" className="self-end" onClick={() => setEditing(false)}>
+          className="bg-reviewed-strong text-white hover:bg-[#388bfd]"
+        >
           Done
         </Button>
       </div>
-    );
-  }
-  return (
-    <div className="group/edit relative text-[15px] leading-relaxed">
-      {value.trim() ? (
-        <MessageText text={value} />
-      ) : (
-        <p className="text-muted-foreground italic">{placeholder}</p>
-      )}
-      {!readOnly && (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          aria-label="Edit"
-          title="Edit"
-          className="absolute -top-1 -right-1 grid size-7 place-items-center rounded-md text-muted-foreground opacity-0 group-hover/edit:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100"
-        >
-          <Pencil className="size-3.5" />
-        </button>
-      )}
     </div>
+  ) : value.trim() ? (
+    <Markdown text={value} />
+  ) : (
+    <p className="text-[15px] text-muted-foreground italic">{placeholder}</p>
   );
+
+  return { editButton, content };
 }
 
 function LeaveOutButton({ comment, readOnly, onToggle }: { comment: ReviewComment; readOnly: boolean; onToggle: () => void }) {
@@ -95,6 +96,132 @@ function LeaveOutButton({ comment, readOnly, onToggle }: { comment: ReviewCommen
     >
       {comment.included ? "Leave out" : "Include"}
     </button>
+  );
+}
+
+// What will go out, split the way GitHub shows it: comments on lines, and
+// comments with no lines to sit on, which go in the review's text.
+function tallyLine(inline: number, inBody: number, summary: boolean): string {
+  const parts = [
+    inline > 0 && `${inline} ${inline === 1 ? "comment" : "comments"} on lines`,
+    inBody > 0 && `${inBody} in the review's text`,
+    summary && "a summary",
+  ].filter((p): p is string => !!p);
+  if (parts.length === 0) return "Nothing to post yet";
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+}
+
+function ReviewCard({
+  avatar,
+  viewer,
+  verb,
+  summary,
+  readOnly,
+  onSummary,
+  children,
+}: {
+  avatar: ReactNode;
+  viewer?: string;
+  verb: string;
+  summary: string;
+  readOnly: boolean;
+  onSummary: (summary: string) => void;
+  children: ReactNode;
+}) {
+  const { editButton, content } = useEditable(
+    summary,
+    onSummary,
+    readOnly,
+    "No summary. Add one to say something about the PR overall.",
+  );
+  return (
+    <section className="overflow-hidden rounded-lg border bg-card">
+      <div className="flex items-center gap-2.5 border-b bg-muted/50 px-4 py-2 text-sm">
+        {avatar}
+        <span className="font-semibold">{viewer ?? "You"}</span>
+        <span className="min-w-0 flex-1 text-muted-foreground">{verb}</span>
+        {editButton}
+      </div>
+      <div className="flex flex-col gap-5 bg-background px-5 py-4">
+        {content}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+// A comment GitHub can't place on lines, shown where it will end up: in the
+// review's text.
+function BodyComment({
+  comment,
+  readOnly,
+  onChange,
+}: {
+  comment: ReviewComment;
+  readOnly: boolean;
+  onChange: (change: Partial<ReviewComment>) => void;
+}) {
+  const { editButton, content } = useEditable(
+    comment.body,
+    (body) => onChange({ body }),
+    readOnly,
+    "Empty comments aren't posted.",
+  );
+  return (
+    <div className={cn("flex flex-col gap-1.5 border-t pt-3 transition-opacity", !comment.included && "opacity-40")}>
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+          {location(comment) || "About the PR as a whole"}
+        </span>
+        <LeaveOutButton comment={comment} readOnly={readOnly} onToggle={() => onChange({ included: !comment.included })} />
+        {editButton}
+      </div>
+      {content}
+    </div>
+  );
+}
+
+function InlineComment({
+  comment,
+  avatar,
+  viewer,
+  readOnly,
+  code,
+  onChange,
+}: {
+  comment: ReviewComment;
+  avatar: ReactNode;
+  viewer?: string;
+  readOnly: boolean;
+  code: ReactNode;
+  onChange: (change: Partial<ReviewComment>) => void;
+}) {
+  const { editButton, content } = useEditable(
+    comment.body,
+    (body) => onChange({ body }),
+    readOnly,
+    "Empty comments aren't posted.",
+  );
+  return (
+    <article
+      className={cn("overflow-hidden rounded-lg border bg-card transition-opacity", !comment.included && "opacity-40")}
+    >
+      <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs">{location(comment)}</span>
+        <LeaveOutButton comment={comment} readOnly={readOnly} onToggle={() => onChange({ included: !comment.included })} />
+      </div>
+      {code}
+      <div className="flex gap-3 border-t bg-background px-4 py-3.5">
+        <span className="mt-1 shrink-0">{avatar}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 text-sm font-semibold">{viewer ?? "You"}</span>
+            {editButton}
+          </div>
+          {content}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -193,7 +320,8 @@ export function PostReviewView({
     (draft.basedOn.length !== candidates.length || candidates.some((c) => !draft.basedOn.includes(c.item.id)));
   const inline = draft.comments.filter((c) => isInline(c));
   const inBody = draft.comments.filter((c) => !isInline(c));
-  const kept = draft.comments.filter((c) => c.included);
+  const keptInline = inline.filter((c) => c.included).length;
+  const keptInBody = inBody.filter((c) => c.included).length;
   const event = EVENTS.find((e) => e.event === draft.event) ?? EVENTS[0];
 
   const setComment = (id: string, change: Partial<ReviewComment>) =>
@@ -248,75 +376,37 @@ export function PostReviewView({
       <div className="flex flex-col">
         {/* The review itself: who, the outcome, the summary, and any comments
             GitHub can't place on lines. */}
-        <section className="overflow-hidden rounded-lg border bg-card">
-          <div className="flex items-center gap-2.5 border-b bg-muted/50 px-4 py-2.5 text-sm">
-            {avatar}
-            <span className="font-semibold">{viewer ?? "You"}</span>
-            <span className="text-muted-foreground">{event.verb}</span>
-          </div>
-          <div className="flex flex-col gap-5 bg-background px-5 py-4">
-            <EditableText
-              value={draft.summary}
-              placeholder="No summary. Add one to say something about the PR overall."
+        <ReviewCard
+          avatar={avatar}
+          viewer={viewer}
+          verb={event.verb}
+          summary={draft.summary}
+          readOnly={readOnly}
+          onSummary={(summary) => onUpdate((d) => ({ ...d, summary }))}
+        >
+          {inBody.map((comment) => (
+            <BodyComment
+              key={comment.id}
+              comment={comment}
               readOnly={readOnly}
-              onChange={(summary) => onUpdate((d) => ({ ...d, summary }))}
+              onChange={(change) => setComment(comment.id, change)}
             />
-            {inBody.map((comment) => (
-              <div
-                key={comment.id}
-                className={cn("flex flex-col gap-1.5 border-t pt-4 transition-opacity", !comment.included && "opacity-40")}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                    {location(comment) || "About the PR as a whole"}
-                  </span>
-                  <LeaveOutButton
-                    comment={comment}
-                    readOnly={readOnly}
-                    onToggle={() => setComment(comment.id, { included: !comment.included })}
-                  />
-                </div>
-                <EditableText
-                  value={comment.body}
-                  placeholder="Empty comments aren't posted."
-                  readOnly={readOnly}
-                  onChange={(body) => setComment(comment.id, { body })}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
+          ))}
+        </ReviewCard>
 
         {/* The comments on lines, hanging off the review like a thread. */}
         {inline.length > 0 && (
           <div className="ml-6 flex flex-col gap-5 border-l-2 pt-5 pl-6">
             {inline.map((comment) => (
-              <article
+              <InlineComment
                 key={comment.id}
-                className={cn("overflow-hidden rounded-lg border bg-card transition-opacity", !comment.included && "opacity-40")}
-              >
-                <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2">
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{location(comment)}</span>
-                  <LeaveOutButton
-                    comment={comment}
-                    readOnly={readOnly}
-                    onToggle={() => setComment(comment.id, { included: !comment.included })}
-                  />
-                </div>
-                {renderContext(comment)}
-                <div className="flex gap-3 border-t bg-background px-4 py-4">
-                  <span className="mt-0.5 shrink-0">{avatar}</span>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <span className="text-sm font-semibold">{viewer ?? "You"}</span>
-                    <EditableText
-                      value={comment.body}
-                      placeholder="Empty comments aren't posted."
-                      readOnly={readOnly}
-                      onChange={(body) => setComment(comment.id, { body })}
-                    />
-                  </div>
-                </div>
-              </article>
+                comment={comment}
+                avatar={avatar}
+                viewer={viewer}
+                readOnly={readOnly}
+                code={renderContext(comment)}
+                onChange={(change) => setComment(comment.id, change)}
+              />
             ))}
           </div>
         )}
@@ -374,8 +464,9 @@ export function PostReviewView({
                     as <span className="text-foreground">{viewer}</span>
                   </>
                 )}
-                : {EVENTS.find((e) => e.event === confirming.event)?.label}, with {confirming.comments.length} inline{" "}
-                {confirming.comments.length === 1 ? "comment" : "comments"}. It's visible to everyone on the PR.
+                : {EVENTS.find((e) => e.event === confirming.event)?.label}, with{" "}
+                {tallyLine(confirming.comments.length, keptInBody, !!draft.summary.trim()).toLowerCase()}. It's visible to
+                everyone on the PR.
               </p>
               <ErrorLine error={postError} what="Couldn't post the review" />
               <div className="flex gap-2">
@@ -419,10 +510,7 @@ export function PostReviewView({
                   <Send />
                   Post review
                 </Button>
-                <span className="text-sm text-muted-foreground">
-                  {kept.length} {kept.length === 1 ? "comment" : "comments"}
-                  {draft.summary.trim() ? " and a summary" : ""}
-                </span>
+                <span className="text-sm text-muted-foreground">{tallyLine(keptInline, keptInBody, !!draft.summary.trim())}</span>
               </div>
             </>
           )}
