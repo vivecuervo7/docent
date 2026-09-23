@@ -1,7 +1,7 @@
-// All per-PR state - reviewed hunks, slices, summary, conversation - lives in
-// a single IndexedDB row per PR. The backend never persists any of this; it
-// only fetches from GitHub and calls the model, so clearing this one row
-// (or the whole database) is the entire "forget this PR" operation.
+// All per-PR state - reviewed hunks, slices, summary, threads, feedback, the
+// prepared review - is one record per PR, kept by the backend (see its
+// store.ts) so an agent working over MCP sees the same state as this page.
+// Deleting that record is the entire "forget this PR" operation.
 export interface Slice {
   id: string;
   title: string;
@@ -138,90 +138,80 @@ export interface SavedPr {
   record: PrRecord;
 }
 
-const DB_NAME = "docent";
-const DB_VERSION = 2;
-const STORE = "prs";
-
 function emptyRecord(): PrRecord {
   return { reviewed: {}, slices: null, summary: null, conversation: null, notes: [], feedback: {} };
-}
-
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) {
-        req.result.createObjectStore(STORE);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
 }
 
 function keyFor(owner: string, repo: string, number: string): string {
   return `${owner}/${repo}/${number}`;
 }
 
-// Dev-only: mirror every write to the backend's console so it's visible in
-// /tmp/backend.log - IndexedDB itself is invisible to anyone but the browser
-// that owns it. One-way, log-only; never read back by the app.
-function mirrorToDebugLog(key: string, record: PrRecord) {
-  if (!import.meta.env.DEV) return;
-  fetch("/api/debug/pr-state", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, record }),
-  }).catch(() => {});
+function recordUrl(owner: string, repo: string, number: string): string {
+  return `/api/prs/${owner}/${repo}/${number}`;
 }
 
+// Fills in anything a stored record doesn't have yet, so callers can rely on
+// the current shape.
+function normalize(stored: Partial<PrRecord> | undefined): PrRecord {
+  const record = { ...emptyRecord(), ...stored } as PrRecord;
+  // Records saved before the per-reviewer summary stored a flat list of
+  // per-comment cards; drop those so they're summarised again.
+  if (Array.isArray(record.conversation)) record.conversation = null;
+  record.slices ??= null;
+  record.notes ??= [];
+  record.feedback ??= {};
+  return record;
+}
+
+async function fetchRecord(owner: string, repo: string, number: string): Promise<{ record: PrRecord; version: number }> {
+  const res = await fetch(recordUrl(owner, repo, number));
+  if (!res.ok) throw new Error(`Couldn't load the review (${res.status})`);
+  const { record, version } = (await res.json()) as { record: Partial<PrRecord>; version: number };
+  return { record: normalize(record), version };
+}
+
+// One save at a time per PR from this page, so its own writes never race.
+const saving = new Map<string, Promise<unknown>>();
+
+function oneAtATime<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const run = (saving.get(key) ?? Promise.resolve()).then(work, work);
+  saving.set(key, run.catch(() => {}));
+  return run;
+}
+
+// Reads the record, applies the change, and saves it. If something else
+// saved first (an agent over MCP, say), the backend refuses and hands back
+// the latest copy, and the change is made again on that.
 async function updateRecord(
   owner: string,
   repo: string,
   number: string,
   mutate: (record: PrRecord) => void,
 ): Promise<PrRecord> {
-  const db = await openDb();
-  const key = keyFor(owner, repo, number);
-  const record = await new Promise<PrRecord>((resolve, reject) => {
-    const store = db.transaction(STORE, "readwrite").objectStore(STORE);
-    const getReq = store.get(key);
-    getReq.onsuccess = () => {
-      const record: PrRecord = getReq.result ?? emptyRecord();
+  return oneAtATime(keyFor(owner, repo, number), async () => {
+    let { record, version } = await fetchRecord(owner, repo, number);
+    for (let attempt = 0; attempt < 5; attempt++) {
       mutate(record);
-      const putReq = store.put(record, key);
-      putReq.onsuccess = () => resolve(record);
-      putReq.onerror = () => reject(putReq.error);
-    };
-    getReq.onerror = () => reject(getReq.error);
+      const res = await fetch(recordUrl(owner, repo, number), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record, version }),
+      });
+      if (res.status === 409) {
+        const current = (await res.json()) as { record: Partial<PrRecord>; version: number };
+        record = normalize(current.record);
+        version = current.version;
+        continue;
+      }
+      if (!res.ok) throw new Error(`Couldn't save the review (${res.status})`);
+      return record;
+    }
+    throw new Error("Couldn't save the review: it kept changing underneath.");
   });
-  mirrorToDebugLog(key, record);
-  return record;
 }
 
-export async function getPrRecord(
-  owner: string,
-  repo: string,
-  number: string,
-): Promise<PrRecord> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const req = db.transaction(STORE, "readonly").objectStore(STORE)
-      .get(keyFor(owner, repo, number));
-    req.onsuccess = () => {
-      const record: PrRecord = req.result ?? emptyRecord();
-      // Records saved before the per-reviewer summary stored a flat list of
-      // per-comment cards; drop those so Regenerate writes the new shape.
-      if (Array.isArray(record.conversation)) record.conversation = null;
-      // Records saved before the rename to "slices" stored them as "ideas";
-      // treat those as not generated yet so they regenerate on open.
-      record.slices ??= null;
-      record.notes ??= [];
-      record.feedback ??= {};
-      resolve(record);
-    };
-    req.onerror = () => reject(req.error);
-  });
+export async function getPrRecord(owner: string, repo: string, number: string): Promise<PrRecord> {
+  return (await fetchRecord(owner, repo, number)).record;
 }
 
 export async function setHunksReviewed(
@@ -353,31 +343,13 @@ export async function markPrOpened(
 }
 
 export async function listSavedPrs(): Promise<SavedPr[]> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const saved: SavedPr[] = [];
-    const req = db.transaction(STORE, "readonly").objectStore(STORE).openCursor();
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (!cursor) {
-        resolve(saved);
-        return;
-      }
-      const [owner, repo, number] = String(cursor.key).split("/");
-      if (owner && repo && number) {
-        saved.push({ owner, repo, number, record: cursor.value as PrRecord });
-      }
-      cursor.continue();
-    };
-    req.onerror = () => reject(req.error);
-  });
+  const res = await fetch("/api/prs");
+  if (!res.ok) throw new Error(`Couldn't list saved reviews (${res.status})`);
+  const { prs } = (await res.json()) as { prs: { owner: string; repo: string; number: string; record: Partial<PrRecord> }[] };
+  return prs.map(({ owner, repo, number, record }) => ({ owner, repo, number, record: normalize(record) }));
 }
 
 export async function deleteSavedPr(owner: string, repo: string, number: string): Promise<void> {
-  const db = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const req = db.transaction(STORE, "readwrite").objectStore(STORE).delete(keyFor(owner, repo, number));
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  const res = await fetch(recordUrl(owner, repo, number), { method: "DELETE" });
+  if (!res.ok) throw new Error(`Couldn't delete the review (${res.status})`);
 }

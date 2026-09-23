@@ -28,6 +28,7 @@ import {
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import { modelName, setModelName } from "./config.js";
 import { handleMcpRequest } from "./mcp.js";
+import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
 import { listModels } from "./modelProvider.js";
 import {
   buildReviewPayload,
@@ -43,7 +44,8 @@ import { replyToNote, type NoteContext, type NoteMessage } from "./notes.js";
 import type { ConversationSummary, Slice } from "./types.js";
 
 const app = express();
-app.use(express.json());
+// Whole review records come through here, so allow more than the default.
+app.use(express.json({ limit: "20mb" }));
 
 const OWNER_REPO_RE = /^[A-Za-z0-9._-]+$/;
 const NUMBER_RE = /^[0-9]+$/;
@@ -340,10 +342,52 @@ app.put("/api/models/selected", (req, res) => {
   res.json({ selected: modelName() });
 });
 
-app.post("/api/debug/pr-state", (req, res) => {
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[pr-state]", JSON.stringify(req.body, null, 2));
+// Saved reviews: one record per PR, owned here rather than in the browser so
+// agents can read and write them too. See store.ts.
+app.get("/api/prs", (_req, res) => {
+  res.json({
+    prs: listRecords().flatMap(({ key, record }) => {
+      const [owner, repo, number] = key.split("/");
+      return owner && repo && number ? [{ owner, repo, number, record }] : [];
+    }),
+  });
+});
+
+app.get("/api/prs/:owner/:repo/:number", (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
+  res.json(getRecord(keyFor(owner, repo, number)));
+});
+
+// The version is the one the change was made from; a stale one gets a 409
+// with the record as it is now, to redo the change on.
+app.put("/api/prs/:owner/:repo/:number", (req, res) => {
+  const { owner, repo, number } = req.params;
+  const { record, version } = req.body ?? {};
+  if (
+    !validParams(owner, repo, number) ||
+    typeof record !== "object" ||
+    record === null ||
+    !Number.isInteger(version)
+  ) {
+    return res.status(400).json({ error: "invalid record" });
+  }
+  try {
+    res.json({ version: putRecord(keyFor(owner, repo, number), record, version) });
+  } catch (err) {
+    if (err instanceof VersionConflict) return res.status(409).json(err.current);
+    throw err;
+  }
+});
+
+app.delete("/api/prs/:owner/:repo/:number", (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+  deleteRecord(keyFor(owner, repo, number));
   res.status(204).end();
 });
 

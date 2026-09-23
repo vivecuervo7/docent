@@ -45,11 +45,12 @@ lines, runs on the local model, or on a headless agent that Docent launches
 per task with its MCP server attached. Follow-up questions can resume the
 same headless session so a thread keeps its context.
 
-**State moves to the backend.** Today each PR's state lives in the
-browser's IndexedDB, which agents can't reach. Building the feedback needs
-the reviewer's threads and ticks, so this direction needs per-PR state in a
-store the backend owns, with the browser reading and writing through it. That
-reverses the current "browser only" choice.
+**State moves to the backend.** Done. Building the feedback needs the
+reviewer's threads and ticks, which agents couldn't reach while each PR's
+state lived in the browser's IndexedDB. It now lives in a SQLite store the
+backend owns (`backend/src/store.ts`), which the browser reads and writes
+through the API. Every write names the version it was made from, so an agent
+and the page can't silently undo each other's changes.
 
 **Checks on what agents submit.** The tools check what they receive and
 return errors an agent can act on, the way `submit_finding` already rejects
@@ -60,9 +61,11 @@ means every hunk is covered exactly once by valid `path#index` references.
 findings path, the line checks and the local-model fallback all stay. What
 changes is who runs preparation and feedback, and where state lives.
 
-**First slice when we build it.** "Prepare" tools (`submit_slices`,
-`submit_summary`, `submit_conversation`) together with backend-owned state,
-since neither works without the other.
+**Next slice.** "Prepare" tools (`submit_slices`, `submit_summary`,
+`submit_conversation`), writing into the backend's store. Slices should say
+what they cover by file and line range rather than by hunk index, since an
+agent's own diff won't number hunks the way GitHub's patch does; Docent maps
+the ranges onto its hunks and reports any left uncovered.
 
 **Still to check.** The exact flags for passing an MCP config to
 `claude -p` and for structured output. MCP sampling, which would let Docent

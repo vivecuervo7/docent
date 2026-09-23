@@ -6,8 +6,8 @@ you through them one at a time, starting from an overview of what the PR does,
 why, and what reviewers have already said.
 
 Everything runs on your machine: GitHub is read through the `gh` CLI, and the
-summaries come from a local model. Review progress lives in your browser's
-IndexedDB.
+summaries come from the model you configure. Reviews are saved by the backend,
+in `backend/data/docent.db`.
 
 ## Requirements
 

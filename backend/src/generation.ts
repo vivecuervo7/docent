@@ -7,7 +7,7 @@ import type { ConversationSummary, PrSummary, Slice } from "./types.js";
 // Preparing a PR's review runs here rather than in the browser, so it keeps
 // going when the tab closes and can be checked in on or stopped. Jobs live in
 // memory: they survive as long as this process does. The browser copies each
-// result into its own storage as it appears, so nothing here needs to outlast
+// result into the saved review as it appears, so nothing here needs to outlast
 // a restart.
 
 export type StepName = "slices" | "conversation" | "summary";
@@ -168,6 +168,10 @@ async function run(job: Job) {
     if (generation.status === "running") {
       generation.status = "failed";
       generation.error = (err as Error).message;
+      for (const state of Object.values(generation.steps)) {
+        if (state.status === "active") state.status = "pending";
+      }
+      console.error(`[generation] ${owner}/${repo}#${number} failed: ${generation.error}`);
       // Stop the step still running alongside the one that failed.
       controller.abort();
     }
