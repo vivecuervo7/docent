@@ -36,11 +36,38 @@ export interface ConversationSummary {
   authorNotes?: string;
 }
 
+// A point in the diff, in GitHub's terms: a deleted line lives on the old
+// side, anything else on the new side.
+export interface LineRef {
+  side: "old" | "new";
+  line: number;
+}
+
+export interface NoteMessage {
+  role: "user" | "assistant";
+  text: string;
+  at: number;
+}
+
+// A thread about lines the reviewer selected within one hunk.
+export interface Note {
+  id: string;
+  path: string;
+  hunk: number;
+  start: LineRef;
+  end: LineRef;
+  // The selected lines as they read when the note was made, with +/- markers.
+  code: string;
+  messages: NoteMessage[];
+  createdAt: number;
+}
+
 export interface PrRecord {
   reviewed: Record<string, boolean>;
   slices: Slice[] | null;
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
+  notes: Note[];
   // Written whenever the PR is opened, so the start page can list saved
   // reviews by title and recency. Absent on records from before that.
   title?: string;
@@ -59,7 +86,7 @@ const DB_VERSION = 2;
 const STORE = "prs";
 
 function emptyRecord(): PrRecord {
-  return { reviewed: {}, slices: null, summary: null, conversation: null };
+  return { reviewed: {}, slices: null, summary: null, conversation: null, notes: [] };
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -132,6 +159,7 @@ export async function getPrRecord(
       // Records saved before the rename to "slices" stored them as "ideas";
       // treat those as not generated yet so they regenerate on open.
       record.slices ??= null;
+      record.notes ??= [];
       resolve(record);
     };
     req.onerror = () => reject(req.error);
@@ -185,6 +213,38 @@ export async function saveConversation(
     r.conversation = conversation;
   });
   return record.conversation ?? conversation;
+}
+
+export async function saveNote(owner: string, repo: string, number: string, note: Note): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    r.notes = [...(r.notes ?? []).filter((n) => n.id !== note.id), note];
+  });
+}
+
+// Adds a reply to a note, unless the note was deleted while the reply was
+// on its way. Returns the updated note, or null if it's gone.
+export async function appendNoteMessage(
+  owner: string,
+  repo: string,
+  number: string,
+  id: string,
+  message: NoteMessage,
+): Promise<Note | null> {
+  let updated: Note | null = null;
+  await updateRecord(owner, repo, number, (r) => {
+    r.notes = (r.notes ?? []).map((n) => {
+      if (n.id !== id) return n;
+      updated = { ...n, messages: [...n.messages, message] };
+      return updated;
+    });
+  });
+  return updated;
+}
+
+export async function deleteNote(owner: string, repo: string, number: string, id: string): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    r.notes = (r.notes ?? []).filter((n) => n.id !== id);
+  });
 }
 
 export async function markPrOpened(

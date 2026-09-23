@@ -14,6 +14,7 @@ import {
   stopGeneration,
   type Reuse,
 } from "./generation.js";
+import { replyToNote, type NoteContext, type NoteMessage } from "./notes.js";
 import type { ConversationSummary, Slice } from "./types.js";
 
 const app = express();
@@ -120,6 +121,33 @@ app.delete("/api/pr/:owner/:repo/:number/generation", (req, res) => {
   }
   dismissGeneration(owner, repo, number);
   res.status(204).end();
+});
+
+// Answers a question (or writes up a remark) about lines the reviewer
+// selected. Held open until the model replies; see notes.ts for the lane.
+app.post("/api/pr/:owner/:repo/:number/notes/reply", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const context = req.body?.context as NoteContext | undefined;
+  const messages = req.body?.messages as NoteMessage[] | undefined;
+  if (
+    !validParams(owner, repo, number) ||
+    typeof context?.path !== "string" ||
+    typeof context?.code !== "string" ||
+    !Array.isArray(messages) ||
+    messages.length === 0
+  ) {
+    return res.status(400).json({ error: "invalid note" });
+  }
+
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
+  try {
+    res.json({ text: await replyToNote(context, messages, controller.signal) });
+  } catch (err) {
+    if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
+  }
 });
 
 app.post("/api/debug/pr-state", (req, res) => {

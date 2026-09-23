@@ -132,14 +132,48 @@
   --diff-text-color: var(--foreground);
   --diff-gutter-insert-background-color: rgba(46, 160, 67, 0.3);
   --diff-gutter-delete-background-color: rgba(248, 81, 73, 0.3);
-  --diff-gutter-selected-background-color: rgba(210, 153, 34, 0.25);
+  --diff-gutter-selected-background-color: rgba(68, 147, 248, 0.28);
   --diff-code-insert-background-color: rgba(46, 160, 67, 0.2);
   --diff-code-delete-background-color: rgba(248, 81, 73, 0.2);
   --diff-code-insert-edit-background-color: rgba(63, 185, 80, 0.6);
   --diff-code-delete-edit-background-color: rgba(248, 81, 73, 0.6);
-  --diff-code-selected-background-color: rgba(210, 153, 34, 0.2);
+  --diff-code-selected-background-color: transparent;
   --diff-selection-background-color: rgba(56, 139, 253, 0.35);
   --diff-omit-gutter-line-color: #f85149;
+}
+
+/* Lines selected for a note. Laid over the add/delete colours rather than
+   replacing them, so the selection doesn't hide what kind of change it is. */
+.diff .diff-code-selected {
+  box-shadow: inset 0 0 0 100vmax rgba(68, 147, 248, 0.16);
+}
+
+/* The note panel grows out of its pin, and the pin pulses once as it opens. */
+@keyframes note-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(4px) scale(0.98);
+  }
+}
+.note-panel-in {
+  animation: note-panel-in 150ms ease-out;
+}
+@keyframes note-pin-pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(68, 147, 248, 0.55);
+  }
+  to {
+    box-shadow: 0 0 0 8px rgba(68, 147, 248, 0);
+  }
+}
+.note-pin-pulse {
+  animation: note-pin-pulse 700ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-panel-in,
+  .note-pin-pulse {
+    animation: none;
+  }
 }
 
 /* Syntax highlighting (refractor/Prism token classes), matching GitHub's dark theme. */

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
 import { diffArrays } from "diff";
 import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, SlidersHorizontal, Trash2, Wrench, type LucideIcon } from "lucide-react";
 import {
   Decoration,
   Diff,
+  getChangeKey,
   Hunk,
   markEdits,
   parseDiff,
@@ -23,21 +24,27 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
+  appendNoteMessage,
+  deleteNote as persistDeleteNote,
   deleteSavedPr,
   getPrRecord,
   listSavedPrs,
   markPrOpened,
+  saveNote as persistNote,
   saveConversation as persistConversation,
   saveSlices as persistSlices,
   saveSummary as persistSummary,
   setHunksReviewed as persistReviewedHunks,
   type ConversationSummary,
+  type Note,
   type ReplyOutcome,
   type ReviewerConversation,
   type Slice,
   type PrSummary,
   type SavedPr,
 } from "./prDb";
+import { changeKeys, changesBetween, describeLines, diffLines, lineRefFor, PIN_SIZE } from "./noteAnchors";
+import { NotePanel, NotePin } from "./notes";
 
 // The bundled "common" language set covers most backend languages already;
 // JSX/TSX aren't in it and are registered separately (each pulls in its own
@@ -637,6 +644,27 @@ function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enab
   return { hunks, diffType, tokens };
 }
 
+interface NoteStatus {
+  pending?: boolean;
+  error?: string;
+}
+
+type NoteAnchor = Pick<Note, "path" | "hunk" | "start" | "end" | "code">;
+
+interface NoteControls {
+  status: Record<string, NoteStatus>;
+  // Returns the new note's id.
+  create: (anchor: NoteAnchor, text: string) => string;
+  send: (id: string, text: string) => void;
+  retry: (id: string) => void;
+  remove: (id: string) => void;
+}
+
+const NO_NOTES: Note[] = [];
+
+// The pin for a selection that doesn't have a note yet.
+const DRAFT_PIN = "draft";
+
 function SliceFileSection({
   file,
   hunkIndices,
@@ -644,6 +672,16 @@ function SliceFileSection({
   prRef,
   reviewed,
   onSetHunksReviewed,
+  notes,
+  selectionKeys,
+  draftOpen,
+  openNoteId,
+  noteControls,
+  onOpenNote,
+  onCloseDraft,
+  onCreateNote,
+  unsent,
+  onUnsentChange,
 }: {
   file: PrFile;
   hunkIndices: number[];
@@ -651,6 +689,17 @@ function SliceFileSection({
   prRef: PrRef;
   reviewed: Record<string, boolean>;
   onSetHunksReviewed: (keys: string[], value: boolean) => void;
+  notes: Note[];
+  // The rows being selected in this file, or just selected when draftOpen.
+  selectionKeys: string[] | null;
+  draftOpen: boolean;
+  openNoteId: string | null;
+  noteControls: NoteControls;
+  onOpenNote: (id: string | null) => void;
+  onCloseDraft: () => void;
+  onCreateNote: (anchor: NoteAnchor, text: string) => void;
+  unsent: Record<string, string>;
+  onUnsentChange: (id: string, text: string) => void;
 }) {
   const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, true);
   const hunkKey = (index: number) => `${file.filename}#${index}`;
@@ -677,75 +726,257 @@ function SliceFileSection({
       .filter((h): h is { index: number; hunk: HunkData } => !!h.hunk);
   }, [hunks, hunkIndices]);
 
-  return (
-    <Card id={fileElementId(file.filename)} className="scroll-mt-4 gap-0 overflow-hidden py-0">
-      <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2.5">
-        <button
-          type="button"
-          onClick={() => setFileCollapsed((c) => !c)}
-          aria-label={fileCollapsed ? "Expand file" : "Collapse file"}
-          className="shrink-0 rounded text-muted-foreground hover:text-foreground"
-        >
-          {fileCollapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
-        </button>
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate font-mono text-xs font-medium",
-            fileReviewed && "text-muted-foreground",
-          )}
-        >
-          {file.filename}
-        </span>
-        <span
-          title={`This slice shows ${hunkIndices.length} of this file's ${hunks?.length ?? hunkIndices.length} hunks`}
-          className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
-        >
-          {hunkIndices.length}/{hunks?.length ?? hunkIndices.length} hunks
-        </span>
-        <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-          <Checkbox
-            checked={fileReviewed}
-            onCheckedChange={() => onSetHunksReviewed(keys, !fileReviewed)}
-          />
-          Reviewed
-        </label>
-      </div>
-      {!fileCollapsed &&
-        (displayed.length > 0 ? (
-          <div className="overflow-x-auto text-xs">
-            <Diff
-              viewType="unified"
-              diffType={diffType}
-              hunks={displayed.map((d) => d.hunk)}
-              tokens={tokens}
-            >
-              {() =>
-                displayed.flatMap(({ index, hunk }) => {
-                  const key = hunkKey(index);
-                  const isReviewed = !!reviewed[key];
-                  return [
-                    <Decoration key={`decoration-${key}`}>
-                      <div
-                        className={cn(
-                          "flex items-center gap-2 bg-[rgba(56,139,253,0.08)] px-4 py-1.5 font-mono text-xs",
-                          isReviewed ? "text-muted-foreground" : "text-[#79c0ff]",
-                        )}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{hunk.content}</span>
-                        {isReviewed && <Check className="size-3.5 shrink-0 text-reviewed" />}
-                      </div>
-                    </Decoration>,
-                    <Hunk key={key} hunk={hunk} />,
-                  ];
-                })
-              }
-            </Diff>
-          </div>
-        ) : (
-          <div className="p-4 text-sm italic text-muted-foreground">No matching hunks.</div>
-        ))}
-    </Card>
+  const selection = useMemo(() => {
+    if (!selectionKeys?.length) return null;
+    const wanted = new Set(selectionKeys);
+    const found = displayed
+      .map(({ index, hunk }) => ({ hunk: index, changes: hunk.changes.filter((c) => wanted.has(getChangeKey(c))) }))
+      .find((s) => s.changes.length > 0);
+    return found ?? null;
+  }, [selectionKeys, displayed]);
+
+  const placedNotes = useMemo(
+    () =>
+      notes.flatMap((note) => {
+        const shown = displayed.find((d) => d.index === note.hunk);
+        const changes = shown ? changesBetween(shown.hunk, note.start, note.end) : [];
+        return changes.length > 0 ? [{ note, keys: changeKeys(changes) }] : [];
+      }),
+    [notes, displayed],
   );
+
+  const openNote = placedNotes.find((p) => p.note.id === openNoteId);
+  const selectedChanges = useMemo(
+    () => (selection ? changeKeys(selection.changes) : (openNote?.keys ?? [])),
+    [selection, openNote],
+  );
+
+  // Each pin sits level with the first line it's about. Rows can wrap, so
+  // positions are measured rather than computed, and re-measured on resize.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [pinTops, setPinTops] = useState<Record<string, number>>({});
+  const [outline, setOutline] = useState<{ top: number; height: number } | null>(null);
+  const pinAnchors = useMemo(() => {
+    const anchors = placedNotes.map((p) => ({ id: p.note.id, key: p.keys[0] }));
+    if (selection && draftOpen) anchors.push({ id: DRAFT_PIN, key: getChangeKey(selection.changes[0]) });
+    return anchors;
+  }, [placedNotes, selection, draftOpen]);
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    function measure() {
+      const base = wrapper!.getBoundingClientRect().top;
+      const found = pinAnchors
+        .flatMap(({ id, key }) => {
+          const cell = wrapper!.querySelector(`td[data-change-key="${key}"]`);
+          return cell ? [{ id, top: cell.getBoundingClientRect().top - base }] : [];
+        })
+        .sort((a, b) => a.top - b.top);
+      // Notes on the same or neighbouring lines stack rather than overlap.
+      const next: Record<string, number> = {};
+      let floor = -Infinity;
+      for (const { id, top } of found) {
+        next[id] = Math.max(top, floor);
+        floor = next[id] + PIN_SIZE;
+      }
+      setPinTops((prev) => {
+        const same =
+          Object.keys(prev).length === found.length && found.every(({ id }) => prev[id] === next[id]);
+        return same ? prev : next;
+      });
+
+      // An outline around the selected lines, which a tint alone can't do on
+      // rows that are already coloured as added or deleted.
+      const first = selectedChanges[0] && wrapper!.querySelector(`td[data-change-key="${selectedChanges[0]}"]`);
+      const last =
+        selectedChanges.length > 0 &&
+        wrapper!.querySelector(`td[data-change-key="${selectedChanges[selectedChanges.length - 1]}"]`);
+      if (first && last) {
+        const top = first.getBoundingClientRect().top - base;
+        const height = last.getBoundingClientRect().bottom - base - top;
+        setOutline((prev) => (prev?.top === top && prev.height === height ? prev : { top, height }));
+      } else {
+        setOutline(null);
+      }
+    }
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, [pinAnchors, selectedChanges, fileCollapsed, tokens]);
+
+  function panelTitle(lines: string) {
+    return (
+      <span title={file.filename}>
+        {file.filename.split("/").pop()} · {lines}
+      </span>
+    );
+  }
+
+  function renderPanel(id: string) {
+    if (id === DRAFT_PIN) {
+      if (!selection) return null;
+      const start = lineRefFor(selection.changes[0]);
+      const end = lineRefFor(selection.changes[selection.changes.length - 1]);
+      return (
+        <NotePanel
+          title={panelTitle(describeLines(start, end))}
+          draft={unsent[DRAFT_PIN] ?? ""}
+          onDraftChange={(text) => onUnsentChange(DRAFT_PIN, text)}
+          messages={[]}
+          pending={false}
+          onSend={(text) =>
+            onCreateNote(
+              { path: file.filename, hunk: selection.hunk, start, end, code: diffLines(selection.changes) },
+              text,
+            )
+          }
+          onRetry={() => {}}
+          onClose={onCloseDraft}
+        />
+      );
+    }
+    const note = placedNotes.find((p) => p.note.id === id)?.note;
+    if (!note) return null;
+    const status = noteControls.status[id] ?? {};
+    return (
+      <NotePanel
+        title={panelTitle(describeLines(note.start, note.end))}
+        draft={unsent[id] ?? ""}
+        onDraftChange={(text) => onUnsentChange(id, text)}
+        messages={note.messages}
+        pending={!!status.pending}
+        error={status.error}
+        onSend={(text) => noteControls.send(id, text)}
+        onRetry={() => noteControls.retry(id)}
+        onClose={() => onOpenNote(null)}
+        onDelete={() => {
+          noteControls.remove(id);
+          onOpenNote(null);
+        }}
+      />
+    );
+  }
+
+  return (
+    <div ref={wrapperRef} data-note-path={file.filename} className="relative">
+      <Card id={fileElementId(file.filename)} className="scroll-mt-4 gap-0 overflow-hidden py-0">
+        <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2.5">
+          <button
+            type="button"
+            onClick={() => setFileCollapsed((c) => !c)}
+            aria-label={fileCollapsed ? "Expand file" : "Collapse file"}
+            className="shrink-0 rounded text-muted-foreground hover:text-foreground"
+          >
+            {fileCollapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
+          </button>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate font-mono text-xs font-medium",
+              fileReviewed && "text-muted-foreground",
+            )}
+          >
+            {file.filename}
+          </span>
+          <span
+            title={`This slice shows ${hunkIndices.length} of this file's ${hunks?.length ?? hunkIndices.length} hunks`}
+            className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
+          >
+            {hunkIndices.length}/{hunks?.length ?? hunkIndices.length} hunks
+          </span>
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox
+              checked={fileReviewed}
+              onCheckedChange={() => onSetHunksReviewed(keys, !fileReviewed)}
+            />
+            Reviewed
+          </label>
+        </div>
+        {!fileCollapsed &&
+          (displayed.length > 0 ? (
+            <div className="overflow-x-auto text-xs">
+              <Diff
+                viewType="unified"
+                diffType={diffType}
+                hunks={displayed.map((d) => d.hunk)}
+                tokens={tokens}
+                selectedChanges={selectedChanges}
+              >
+                {() =>
+                  displayed.flatMap(({ index, hunk }) => {
+                    const key = hunkKey(index);
+                    const isReviewed = !!reviewed[key];
+                    return [
+                      <Decoration key={`decoration-${key}`}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-2 bg-[rgba(56,139,253,0.08)] px-4 py-1.5 font-mono text-xs",
+                            isReviewed ? "text-muted-foreground" : "text-[#79c0ff]",
+                          )}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{hunk.content}</span>
+                          {isReviewed && <Check className="size-3.5 shrink-0 text-reviewed" />}
+                        </div>
+                      </Decoration>,
+                      <Hunk key={key} hunk={hunk} />,
+                    ];
+                  })
+                }
+              </Diff>
+            </div>
+          ) : (
+            <div className="p-4 text-sm italic text-muted-foreground">No matching hunks.</div>
+          ))}
+      </Card>
+      {!fileCollapsed && outline && (
+        <div
+          aria-hidden
+          style={{ top: outline.top - 2, height: outline.height + 4 }}
+          className="pointer-events-none absolute -inset-x-0.5 z-10 rounded-[4px] border-[1.5px] border-reviewed shadow-[0_0_0_4px_rgba(68,147,248,0.14)]"
+        />
+      )}
+      {!fileCollapsed &&
+        Object.entries(pinTops).map(([id, top]) => {
+          const open = id === DRAFT_PIN || id === openNoteId;
+          return (
+            <div key={id} data-note-layer className="absolute left-full ml-2" style={{ top: top - 2 }}>
+              <NotePin
+                active={open}
+                onClick={() => (id === DRAFT_PIN ? onCloseDraft() : onOpenNote(open ? null : id))}
+              />
+              {open && renderPanel(id)}
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+// The rows a dragged rectangle covers, snapped to whole lines and kept to a
+// single hunk - the one it covers most - since that's all a GitHub review
+// comment can span.
+function rowsInRect(
+  container: HTMLElement,
+  rect: { left: number; top: number; right: number; bottom: number },
+): { path: string; keys: string[] } | null {
+  let best: { path: string; keys: string[] } | null = null;
+  for (const tbody of container.querySelectorAll<HTMLElement>("tbody.diff-hunk")) {
+    const box = tbody.getBoundingClientRect();
+    if (box.bottom < rect.top || box.top > rect.bottom || box.right < rect.left || box.left > rect.right) {
+      continue;
+    }
+    const path = tbody.closest<HTMLElement>("[data-note-path]")?.dataset.notePath;
+    if (!path) continue;
+    const keys = [...tbody.querySelectorAll<HTMLElement>("tr.diff-line")].flatMap((row) => {
+      const r = row.getBoundingClientRect();
+      if (r.bottom <= rect.top || r.top >= rect.bottom) return [];
+      const key = row.querySelector<HTMLElement>("[data-change-key]")?.dataset.changeKey;
+      return key ? [key] : [];
+    });
+    if (keys.length > (best?.keys.length ?? 0)) best = { path, keys };
+  }
+  return best;
 }
 
 function SliceView({
@@ -762,6 +993,8 @@ function SliceView({
   onMarkReviewed,
   onPrev,
   onNext,
+  notes,
+  noteControls,
 }: {
   slice: Slice;
   files: PrFile[];
@@ -776,8 +1009,86 @@ function SliceView({
   onMarkReviewed: () => void;
   onPrev: () => void;
   onNext: () => void;
+  notes: Note[];
+  noteControls: NoteControls;
 }) {
   const byFile = useMemo(() => groupHunkRefsByFile(slice.hunks), [slice]);
+  const notesByFile = useMemo(() => {
+    const grouped = new Map<string, Note[]>();
+    for (const note of notes) grouped.set(note.path, [...(grouped.get(note.path) ?? []), note]);
+    return grouped;
+  }, [notes]);
+
+  // ⌥-drag draws a rectangle over the diff; it snaps to the lines it covers,
+  // and letting go opens a panel to ask or comment about them.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [dragRect, setDragRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [selection, setSelection] = useState<{ path: string; keys: string[]; done: boolean } | null>(null);
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
+  // Typed but not yet sent, by note id (or DRAFT_PIN for a new selection).
+  const [unsent, setUnsent] = useState<Record<string, string>>({});
+
+  function startSelecting(e: ReactPointerEvent<HTMLDivElement>) {
+    const content = contentRef.current;
+    if (!e.altKey || e.button !== 0 || !content) return;
+    e.preventDefault();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let dragging = false;
+    let latest: { path: string; keys: string[] } | null = null;
+    function onMove(ev: PointerEvent) {
+      // A plain ⌥-click isn't a selection.
+      if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
+      dragging = true;
+      const rect = {
+        left: Math.min(x0, ev.clientX),
+        top: Math.min(y0, ev.clientY),
+        right: Math.max(x0, ev.clientX),
+        bottom: Math.max(y0, ev.clientY),
+      };
+      setDragRect({ left: rect.left, top: rect.top, width: rect.right - rect.left, height: rect.bottom - rect.top });
+      latest = rowsInRect(content!, rect);
+      setSelection(latest && { ...latest, done: false });
+      setOpenNoteId(null);
+      setUnsent((prev) => ({ ...prev, [DRAFT_PIN]: "" }));
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+      setDragRect(null);
+      if (dragging) setSelection(latest && { ...latest, done: true });
+    }
+    document.body.style.cursor = "crosshair";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  useEffect(() => {
+    if (!openNoteId && !selection) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setOpenNoteId(null);
+      setSelection(null);
+    }
+    // Clicking away closes the panel too. A note keeps anything typed for
+    // when it's reopened; a new selection with text typed stays open, since
+    // closing it would lose the selection. ⌥-drag makes its own selection.
+    function onPointerDown(e: PointerEvent) {
+      if (e.altKey || (e.target as Element).closest("[data-note-layer]")) return;
+      if (selection?.done && unsent[DRAFT_PIN]?.trim()) return;
+      setOpenNoteId(null);
+      setSelection(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [openNoteId, selection, unsent]);
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
   const done = isSliceReviewed(slice, reviewed);
   const [compact, setCompact] = useState(false);
@@ -855,11 +1166,18 @@ function SliceView({
         )}
       </header>
       <div
+        data-note-scroller
         onScroll={onScroll}
         className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]"
       >
-        <div className="flex flex-col gap-6">
-          <div className="-mb-2 flex justify-end">{viewOptions}</div>
+        <div ref={contentRef} onPointerDown={startSelecting} className="flex flex-col gap-6">
+          <div className="-mb-2 flex items-center justify-between gap-4">
+            <span className="text-xs text-muted-foreground">
+              <kbd className="rounded border px-1 font-mono text-[11px]">⌥</kbd> drag over code to ask
+              or comment
+            </span>
+            {viewOptions}
+          </div>
           {orderedFileGroups.map(([filename, hunkIndices]) => {
             const file = files.find((f) => f.filename === filename);
             if (!file) return null;
@@ -872,11 +1190,34 @@ function SliceView({
                 prRef={prRef}
                 reviewed={reviewed}
                 onSetHunksReviewed={onSetHunksReviewed}
+                notes={notesByFile.get(filename) ?? NO_NOTES}
+                selectionKeys={selection?.path === filename ? selection.keys : null}
+                draftOpen={!!selection?.done}
+                openNoteId={openNoteId}
+                noteControls={noteControls}
+                onOpenNote={(id) => {
+                  setSelection(null);
+                  setOpenNoteId(id);
+                }}
+                onCloseDraft={() => setSelection(null)}
+                onCreateNote={(anchor, text) => {
+                  setSelection(null);
+                  setOpenNoteId(noteControls.create(anchor, text));
+                }}
+                unsent={unsent}
+                onUnsentChange={(id, text) => setUnsent((prev) => ({ ...prev, [id]: text }))}
               />
             );
           })}
         </div>
       </div>
+      {dragRect && (
+        <div
+          aria-hidden
+          style={dragRect}
+          className="pointer-events-none fixed z-40 rounded-sm border-[1.5px] border-dashed border-[rgba(145,152,161,0.6)]"
+        />
+      )}
     </div>
   );
 }
@@ -1203,7 +1544,7 @@ function StartPage({
     // A generation can exist for a PR with no saved row yet.
     for (const { owner, repo, number } of listed) {
       if (!list.some((s) => s.owner === owner && s.repo === repo && s.number === number)) {
-        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null } });
+        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null, notes: [] } });
       }
     }
     setSaved(list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0)));
@@ -1958,6 +2299,10 @@ function App() {
   const [slices, setSlices] = useState<Slice[] | null>(null);
   const [summary, setSummary] = useState<PrSummary | null>(null);
   const [conversation, setConversation] = useState<ConversationSummary | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  // Replies in flight and failed ones, by note id. Not saved: a reply lost
+  // to a reload is retried by asking again.
+  const [noteStatus, setNoteStatus] = useState<Record<string, NoteStatus>>({});
   // The latest status of this PR's background generation, if it has one
   // that hasn't been collected yet (running, queued, stopped or failed).
   const [generation, setGeneration] = useState<Generation | null>(null);
@@ -2133,6 +2478,8 @@ function App() {
     setSlices(null);
     setSummary(null);
     setConversation(null);
+    setNotes([]);
+    setNoteStatus({});
     setActiveSliceId(null);
     setView("landing");
 
@@ -2157,6 +2504,7 @@ function App() {
       setSlices(prRecord.slices);
       setSummary(prRecord.summary);
       setConversation(prRecord.conversation);
+      setNotes(prRecord.notes);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
@@ -2209,12 +2557,99 @@ function App() {
     setSlices(null);
     setSummary(null);
     setConversation(null);
+    setNotes([]);
+    setNoteStatus({});
     setGeneration(null);
     setPreparing(false);
     setActiveSliceId(null);
     setView("landing");
     setError(null);
   }
+
+  // Replies can land after the reviewer has moved to another PR; they're
+  // saved either way, but only shown if this PR is still open.
+  const openPrKey = useRef<string | null>(null);
+  useEffect(() => {
+    openPrKey.current = prRef ? `${prRef.owner}/${prRef.repo}/${prRef.number}` : null;
+  }, [prRef]);
+
+  function noteReplyContext(note: Note) {
+    const file = files?.find((f) => f.filename === note.path);
+    const slice = allSlices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
+    return {
+      path: note.path,
+      lines: describeLines(note.start, note.end),
+      code: note.code,
+      fileDiff: file?.patch ?? note.code,
+      prTitle: prMeta?.title,
+      prWhat: summary?.what,
+      sliceTitle: slice?.title,
+      sliceSummary: slice?.summary,
+    };
+  }
+
+  async function requestNoteReply(ref: PrRef, note: Note) {
+    const key = `${ref.owner}/${ref.repo}/${ref.number}`;
+    const setStatus = (status: NoteStatus) => {
+      if (openPrKey.current === key) setNoteStatus((prev) => ({ ...prev, [note.id]: status }));
+    };
+    setStatus({ pending: true });
+    try {
+      const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/notes/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: noteReplyContext(note),
+          messages: note.messages.map(({ role, text }) => ({ role, text })),
+        }),
+      });
+      const { text } = await readOk<{ text: string }>(res);
+      const updated = await appendNoteMessage(ref.owner, ref.repo, ref.number, note.id, {
+        role: "assistant",
+        text,
+        at: Date.now(),
+      });
+      if (updated && openPrKey.current === key) {
+        setNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+      }
+      setStatus({});
+    } catch (err) {
+      setStatus({ error: (err as Error).message });
+    }
+  }
+
+  const noteControls: NoteControls = {
+    status: noteStatus,
+    create(anchor, text) {
+      const now = Date.now();
+      const note: Note = { id: crypto.randomUUID(), ...anchor, messages: [{ role: "user", text, at: now }], createdAt: now };
+      if (prRef) {
+        setNotes((prev) => [...prev, note]);
+        persistNote(prRef.owner, prRef.repo, prRef.number, note)
+          .then(() => requestNoteReply(prRef, note))
+          .catch((err) => setNoteStatus((prev) => ({ ...prev, [note.id]: { error: (err as Error).message } })));
+      }
+      return note.id;
+    },
+    send(id, text) {
+      const note = notes.find((n) => n.id === id);
+      if (!prRef || !note) return;
+      const updated = { ...note, messages: [...note.messages, { role: "user" as const, text, at: Date.now() }] };
+      setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
+      persistNote(prRef.owner, prRef.repo, prRef.number, updated)
+        .then(() => requestNoteReply(prRef, updated))
+        .catch((err) => setNoteStatus((prev) => ({ ...prev, [id]: { error: (err as Error).message } })));
+    },
+    retry(id) {
+      const note = notes.find((n) => n.id === id);
+      if (prRef && note) requestNoteReply(prRef, note);
+    },
+    remove(id) {
+      if (!prRef) return;
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+      persistDeleteNote(prRef.owner, prRef.repo, prRef.number, id).catch(() => {});
+    },
+  };
 
   async function setHunksReviewed(keys: string[], value: boolean) {
     if (!prRef || keys.length === 0) return;
@@ -2431,6 +2866,8 @@ function App() {
             onMarkReviewed={markActiveSliceReviewed}
             onPrev={() => setActiveSliceId(allSlices[activeSliceIndex - 1]?.id ?? null)}
             onNext={() => setActiveSliceId(allSlices[activeSliceIndex + 1]?.id ?? null)}
+            notes={notes}
+            noteControls={noteControls}
           />
         ) : view === "landing" && preparing ? (
           <PreparingView

@@ -79,3 +79,21 @@ export async function chatWithTool(
 
   return { name: call.function.name, arguments: JSON.parse(call.function.arguments) };
 }
+
+// For free-form replies, where a tool call adds nothing: the model answers
+// in the message content.
+export async function chat(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+  const res = await postJson(`${OMLX_BASE_URL}/chat/completions`, { model: MODEL, messages }, signal);
+
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`model backend returned ${res.status}`);
+  }
+
+  const data = JSON.parse(res.text) as { choices?: { message?: { content?: string } }[] };
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error("model returned an empty reply");
+  }
+
+  return content;
+}
