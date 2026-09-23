@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getReviewState, setHunksReviewed as persistReviewedHunks } from "./reviewDb";
 
 // The bundled "common" language set covers most backend languages already;
 // JSX/TSX aren't in it and are registered separately (each pulls in its own
@@ -1235,18 +1236,17 @@ function App() {
     setView("landing");
 
     try {
-      const [filesRes, reviewRes, ideasRes, overviewRes] = await Promise.all([
+      const [filesRes, ideasRes, overviewRes, reviewState] = await Promise.all([
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}`),
-        fetch(`/api/review/${ref.owner}/${ref.repo}/${ref.number}`),
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/ideas`),
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview`),
+        getReviewState(ref.owner, ref.repo, ref.number),
       ]);
       if (!filesRes.ok) {
         const body = await filesRes.json();
         throw new Error(body.error ?? "Failed to fetch PR");
       }
       const { files, meta } = await filesRes.json();
-      const reviewState = await reviewRes.json();
       const ideasState = await ideasRes.json();
       const overviewState = await overviewRes.json();
 
@@ -1313,11 +1313,7 @@ function App() {
       for (const key of keys) next[key] = value;
       return next;
     });
-    await fetch(`/api/review/${prRef.owner}/${prRef.repo}/${prRef.number}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keys, reviewed: value }),
-    });
+    await persistReviewedHunks(prRef.owner, prRef.repo, prRef.number, keys, value);
   }
 
   function toggleFile(filename: string) {

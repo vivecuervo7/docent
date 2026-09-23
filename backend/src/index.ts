@@ -7,7 +7,6 @@ import {
   fetchPrFiles,
   fetchPrMeta,
 } from "./github.js";
-import { readReviewState, setHunksReviewed } from "./reviewStore.js";
 import { generateIdeas } from "./ideas.js";
 import { readIdeas, writeIdeas } from "./ideaStore.js";
 import { generateConversationCards, generateSummary } from "./overview.js";
@@ -72,31 +71,6 @@ app.get("/api/pr/:owner/:repo/:number/old-content", async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }
-});
-
-app.get("/api/review/:owner/:repo/:number", async (req, res) => {
-  const { owner, repo, number } = req.params;
-  if (!validParams(owner, repo, number)) {
-    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
-  }
-
-  const state = await readReviewState(owner, repo, number);
-  res.json(state);
-});
-
-app.post("/api/review/:owner/:repo/:number", async (req, res) => {
-  const { owner, repo, number } = req.params;
-  if (!validParams(owner, repo, number)) {
-    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
-  }
-
-  const { keys, reviewed } = req.body as { keys?: string[]; reviewed?: boolean };
-  if (!Array.isArray(keys) || !keys.every((k) => typeof k === "string") || typeof reviewed !== "boolean") {
-    return res.status(400).json({ error: "expected { keys: string[], reviewed: boolean }" });
-  }
-
-  const state = await setHunksReviewed(owner, repo, number, keys, reviewed);
-  res.json(state);
 });
 
 app.get("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
