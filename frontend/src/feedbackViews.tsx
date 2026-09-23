@@ -425,8 +425,29 @@ export function AgentFeedbackView({
 
       {running && review.source === "external" && (
         <div className="flex flex-col gap-5 rounded-xl border bg-card px-8 py-7">
-          <CopyBlock label="Connect your agent to Docent's MCP server" value={MCP_URL} />
-          <CopyBlock label="Then ask it" value={agentPrompt(pr)} />
+          <h3 className="text-base font-semibold">With Claude Code</h3>
+          <CopyBlock
+            label="Add Docent once, for every project"
+            value={`claude mcp add --scope user --transport http docent ${MCP_URL}`}
+          />
+          <CopyBlock
+            label="Then review the PR your usual way, and send the findings here"
+            value={`/mcp__docent__review ${pr}`}
+          />
+          <CopyBlock
+            label="Or, after a review you've already run in the session, send its findings"
+            value={`/mcp__docent__submit ${pr}`}
+          />
+          <details className="group/other flex flex-col gap-4">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+              <ChevronRight className="size-4 group-open/other:rotate-90" />
+              Other agents
+            </summary>
+            <div className="mt-4 flex flex-col gap-5">
+              <CopyBlock label="Connect your agent to Docent's MCP server (Streamable HTTP)" value={MCP_URL} />
+              <CopyBlock label="Then ask it" value={agentPrompt(pr)} />
+            </div>
+          </details>
           <div className="flex items-center gap-3 text-[15px]">
             <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
             <span className="min-w-0 flex-1 text-muted-foreground">

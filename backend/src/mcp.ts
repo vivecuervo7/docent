@@ -209,6 +209,57 @@ function buildServer(): McpServer {
     },
   );
 
+  // Prompts, which clients like Claude Code offer as commands: one to review
+  // a PR your usual way and send the findings here, one to send findings
+  // from a review you've already done.
+  const findingFormat = `For each finding, call submit_finding with:
+- body: the comment for the PR's author - a sentence or two, specific, with a suggestion where there is one. Start a minor point with "Nit: ".
+- rationale: for the reviewer deciding whether to post it (the author never sees it) - why it matters, what in the code shows it, and how sure you are.
+- path, start_line and end_line: the few lines the point is about, as new-file line numbers from get_diff. Leave the lines out for a point about a whole file, and the path too for the PR as a whole.
+If submit_finding rejects the lines, it lists the lines that are in the diff; pick from those. When every finding is in, call finish_review.`;
+
+  server.registerPrompt(
+    "review",
+    {
+      description: "Review a PR your usual way, and send the findings to Docent.",
+      argsSchema: { pr: z.string().describe("The pull request, as owner/repo#123 or its GitHub URL.") },
+    },
+    ({ pr }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Review the pull request ${pr} the way you usually review code: your own review skills, conventions and judgement, reading the repository wherever that helps. Docent's tools give you its context - start with get_review_context, read the diff with get_diff, and check get_existing_comments so you don't repeat what's already been said. Report real problems the author should act on or answer, not observations that the code is fine.
+
+${findingFormat}`,
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    "submit",
+    {
+      description: "Send the findings from a review you've already done in this conversation to Docent.",
+      argsSchema: { pr: z.string().describe("The pull request, as owner/repo#123 or its GitHub URL.") },
+    },
+    ({ pr }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Send the review findings from this conversation so far to Docent, for the pull request ${pr}. Don't review it again: take the findings as they are, one submit_finding call each, using get_diff to find the right line numbers.
+
+${findingFormat}`,
+          },
+        },
+      ],
+    }),
+  );
+
   return server;
 }
 

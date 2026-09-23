@@ -65,6 +65,7 @@ changes is who runs preparation and feedback, and where state lives.
 since neither works without the other.
 
 **Still to check.** The exact flags for passing an MCP config to
-`claude -p` and for structured output, and whether Claude Code or Codex
-support MCP sampling, which would let Docent ask the agent's model for
-completions directly.
+`claude -p` and for structured output. MCP sampling, which would let Docent
+ask the agent's model for completions directly, isn't supported by Claude
+Code (its feature request, anthropics/claude-code#1785, is still open); Codex
+is unchecked.
