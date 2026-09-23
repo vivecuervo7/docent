@@ -196,6 +196,21 @@ export async function fetchPrBaseSha(
   return stdout.trim();
 }
 
+export async function fetchPrHeadSha(
+  owner: string,
+  repo: string,
+  number: string,
+): Promise<string> {
+  const { stdout } = await execFileAsync("gh", [
+    "api",
+    `repos/${owner}/${repo}/pulls/${number}`,
+    "--jq",
+    ".head.sha",
+  ]);
+
+  return stdout.trim();
+}
+
 export async function fetchFileContentAtRef(
   owner: string,
   repo: string,

@@ -1,9 +1,8 @@
 import { chatWithTool } from "./modelProvider.js";
 import { inLane, type NoteMessage } from "./notes.js";
 
-// Turning review material into comments worth posting. Your feedback is
-// drafted from the threads you had on selected lines; the agent review runs
-// over the whole PR.
+// Drafting your feedback: review comments worth posting, from the threads
+// you had on selected lines. The agent review is in agentReview.ts.
 
 export interface ThreadForFeedback {
   path: string;
@@ -54,8 +53,8 @@ the reviewer made is feedback, written up properly.
 Comments don't map one-to-one to threads: combine threads that raise the same point into one \
 comment, and split a thread that raises several points into several comments.
 Each comment is addressed to the author, written as the reviewer, specific to the lines, and \
-short: a sentence or two, with a suggestion where there is one. Don't mention the assistant or \
-the thread. Put code in backticks. Report no comments if nothing is worth posting.`;
+short: a sentence or two, with a suggestion where there is one. Start a minor point with \
+"Nit: ", as reviewers do. Don't mention the assistant or the thread. Put code in backticks. Report no comments if nothing is worth posting.`;
 
 function threadText(thread: ThreadForFeedback, index: number): string {
   const code = thread.code
@@ -97,15 +96,4 @@ export function draftYourFeedback(
       return [{ threads: indices, body: body.trim() }];
     });
   });
-}
-
-export interface AgentComment {
-  path?: string;
-  line?: number;
-  body: string;
-}
-
-// Placeholder: the agent review returns an empty review until it's built.
-export async function runAgentReview(): Promise<AgentComment[]> {
-  return [];
 }

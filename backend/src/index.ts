@@ -14,7 +14,18 @@ import {
   stopGeneration,
   type Reuse,
 } from "./generation.js";
-import { draftYourFeedback, runAgentReview, type ThreadForFeedback } from "./feedback.js";
+import { localhostHostValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
+import {
+  dismissAgentReview,
+  finishAgentReview,
+  getAgentReview,
+  openExternalReview,
+  startBuiltinReview,
+  stopAgentReview,
+  type ReviewContext,
+} from "./agentReview.js";
+import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
+import { handleMcpRequest } from "./mcp.js";
 import { replyToNote, type NoteContext, type NoteMessage } from "./notes.js";
 import type { ConversationSummary, Slice } from "./types.js";
 
@@ -172,12 +183,58 @@ app.post("/api/pr/:owner/:repo/:number/feedback/yours", async (req, res) => {
   }
 });
 
-app.post("/api/pr/:owner/:repo/:number/feedback/agent", async (req, res) => {
+// The agent review: Docent's own reviewer ("builtin"), or waiting for the
+// reviewer's own agent to submit findings over MCP ("external").
+app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
+  const { owner, repo, number } = req.params;
+  const mode = req.body?.mode;
+  if (!validParams(owner, repo, number) || (mode !== "builtin" && mode !== "external")) {
+    return res.status(400).json({ error: "invalid PR or mode" });
+  }
+  const context: ReviewContext = {
+    title: typeof req.body?.context?.title === "string" ? req.body.context.title : undefined,
+    summary: req.body?.context?.summary ?? null,
+    slices: Array.isArray(req.body?.context?.slices) ? (req.body.context.slices as Slice[]) : null,
+  };
+  const review =
+    mode === "builtin"
+      ? startBuiltinReview(owner, repo, number, context)
+      : openExternalReview(owner, repo, number, context);
+  res.json({ review });
+});
+
+app.get("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   const { owner, repo, number } = req.params;
   if (!validParams(owner, repo, number)) {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
-  res.json({ comments: await runAgentReview() });
+  res.json({ review: getAgentReview(owner, repo, number) });
+});
+
+app.post("/api/pr/:owner/:repo/:number/agent-review/:action", (req, res) => {
+  const { owner, repo, number, action } = req.params;
+  if (!validParams(owner, repo, number) || (action !== "stop" && action !== "finish")) {
+    return res.status(400).json({ error: "invalid PR or action" });
+  }
+  const review =
+    action === "stop" ? stopAgentReview(owner, repo, number) : finishAgentReview(owner, repo, number);
+  res.json({ review });
+});
+
+app.delete("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+  dismissAgentReview(owner, repo, number);
+  res.status(204).end();
+});
+
+// MCP, for the reviewer's own agent. Local only: the host check stops other
+// sites the browser has open from reaching it.
+app.post("/mcp", localhostHostValidation(), handleMcpRequest);
+app.all("/mcp", (_req, res) => {
+  res.status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null });
 });
 
 app.post("/api/debug/pr-state", (req, res) => {

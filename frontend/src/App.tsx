@@ -41,6 +41,7 @@ import {
   type FeedbackDraft,
   type FeedbackItem,
   type FeedbackKind,
+  type LineRef,
   type Note,
   type ReplyOutcome,
   type ReviewerConversation,
@@ -59,8 +60,14 @@ import {
   type Expansion,
   type ShownHunk,
 } from "./hunkExpansion";
-import { changeKeys, changesBetween, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
-import { AgentFeedbackView, PostReviewView, YourFeedbackView, type DraftStatus } from "./feedbackViews";
+import { changeKeys, changesBetween, matches, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
+import {
+  AgentFeedbackView,
+  PostReviewView,
+  YourFeedbackView,
+  type AgentReviewState,
+  type DraftStatus,
+} from "./feedbackViews";
 import { NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
 
 // The bundled "common" language set covers most backend languages already;
@@ -748,6 +755,109 @@ function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enab
 
 type Expander = NonNullable<ReturnType<typeof useDiffRender>["expander"]>;
 
+// How many lines above a comment's own to show, as GitHub does.
+const COMMENT_CONTEXT_LINES = 3;
+// A comment on more lines than this shows only the ends of its range, with
+// the middle folded away until asked for.
+const COMMENT_LONG_RANGE = 10;
+const COMMENT_RANGE_ENDS = 3;
+
+// The snippet of diff a feedback comment sits on: its lines, highlighted,
+// with a few above for context - kept within the hunk they start in.
+function FeedbackContext({
+  file,
+  start,
+  end,
+  hideWhitespace,
+}: {
+  file: PrFile;
+  start: LineRef;
+  end: LineRef;
+  hideWhitespace: boolean;
+}) {
+  const snippet = useMemo(() => {
+    if (!file.patch) return null;
+    try {
+      const [parsed] = parseDiff(buildDiffText(file));
+      let hunks = parsed?.hunks ?? [];
+      if (hideWhitespace) hunks = collapseWhitespaceOnlyChanges(hunks);
+      const flat = hunks.flatMap((hunk, h) => hunk.changes.map((change) => ({ change, h })));
+      const from = flat.findIndex(({ change }) => matches(change, start));
+      if (from < 0) return null;
+      const found = flat.findIndex(({ change }, i) => i >= from && matches(change, end));
+      const to = found < 0 ? from : found;
+      const firstInHunk = flat.findIndex(({ h }) => h === flat[from].h);
+      const shown = flat.slice(Math.max(firstInHunk, from - COMMENT_CONTEXT_LINES), to + 1).map(({ change }) => change);
+      const hunk: HunkData = { ...hunks[flat[from].h], changes: shown };
+      const rangeLength = to - from + 1;
+      const hidden = rangeLength > COMMENT_LONG_RANGE ? rangeLength - 2 * COMMENT_RANGE_ENDS : 0;
+      const language = languageForFilename(file.filename);
+      let tokens;
+      try {
+        const enhancers = [markEdits([hunk], { type: "block" })];
+        tokens = language
+          ? tokenize([hunk], { highlight: true, refractor, language, enhancers })
+          : tokenize([hunk], { highlight: false, enhancers });
+      } catch {
+        tokens = undefined;
+      }
+      // The folded version: context and the range's first lines, then its
+      // last lines. Split by change count, from the end of `shown`.
+      const tailStart = shown.length - COMMENT_RANGE_ENDS;
+      const folded = hidden
+        ? [
+            { ...hunk, changes: shown.slice(0, tailStart - hidden) },
+            { ...hunk, changes: shown.slice(tailStart) },
+          ]
+        : null;
+      return {
+        hunk,
+        folded,
+        hidden,
+        tokens,
+        selected: changeKeys(flat.slice(from, to + 1).map(({ change }) => change)),
+        diffType: (parsed?.type as DiffType) ?? "modify",
+      };
+    } catch {
+      return null;
+    }
+  }, [file, start, end, hideWhitespace]);
+  const [unfolded, setUnfolded] = useState(false);
+
+  if (!snippet) return null;
+  const folded = snippet.folded && !unfolded ? snippet.folded : null;
+  return (
+    <div className="overflow-x-auto border-t text-xs">
+      <Diff
+        viewType="unified"
+        diffType={snippet.diffType}
+        hunks={folded ?? [snippet.hunk]}
+        tokens={snippet.tokens}
+        selectedChanges={snippet.selected}
+      >
+        {() =>
+          folded
+            ? [
+                <Hunk key="head" hunk={folded[0]} />,
+                <Decoration key="fold">
+                  <button
+                    type="button"
+                    onClick={() => setUnfolded(true)}
+                    className="flex w-full items-center gap-2 bg-[rgba(56,139,253,0.08)] px-4 py-1.5 text-left font-mono text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronsUpDown className="size-3.5" />
+                    Show {snippet.hidden} more lines
+                  </button>
+                </Decoration>,
+                <Hunk key="tail" hunk={folded[1]} />,
+              ]
+            : [<Hunk key="snippet" hunk={snippet.hunk} />]
+        }
+      </Diff>
+    </div>
+  );
+}
+
 // GitHub-style controls for showing unchanged lines: in a hunk's header for
 // the gap above it, and after a hunk for the gap below it when the next hunk
 // isn't shown here. ↓ grows the hunk above the gap, ↑ the one below it.
@@ -825,6 +935,19 @@ const NO_KEYS: string[] = [];
 
 // A file picked in the sidebar, for the view to expand - and, when the pick
 // was an unread reply, the note to open. Cleared once it's been scrolled to.
+// An agent review as the backend returns it.
+interface AgentReviewBody extends Omit<AgentReviewState, "findingCount"> {
+  id: string;
+  findings: {
+    id: string;
+    path?: string;
+    startLine?: number;
+    endLine?: number;
+    body: string;
+    rationale?: string;
+  }[];
+}
+
 interface RevealedFile {
   filename: string;
   noteId?: string;
@@ -2930,6 +3053,8 @@ function App() {
   const [revealedFile, setRevealedFile] = useState<RevealedFile | null>(null);
   const [feedback, setFeedback] = useState<Partial<Record<FeedbackKind, FeedbackDraft>>>({});
   const [draftStatus, setDraftStatus] = useState<Partial<Record<FeedbackKind, DraftStatus>>>({});
+  const [agentReview, setAgentReview] = useState<AgentReviewState | null>(null);
+  const [agentError, setAgentError] = useState<string | undefined>(undefined);
   // Replies in flight and failed ones, by note id. Not saved: a reply lost
   // to a reload is retried by asking again.
   const [noteStatus, setNoteStatus] = useState<Record<string, NoteStatus>>({});
@@ -3112,6 +3237,9 @@ function App() {
     setNoteStatus({});
     setFeedback({});
     setDraftStatus({});
+    setAgentReview(null);
+    setAgentError(undefined);
+    agentCollected.current = null;
     setActiveSliceId(null);
     setView("landing");
 
@@ -3138,6 +3266,10 @@ function App() {
       setConversation(prRecord.conversation);
       setNotes(prRecord.notes);
       setFeedback(prRecord.feedback);
+      fetch(agentReviewUrl(ref))
+        .then((res) => readOk<{ review: AgentReviewBody | null }>(res))
+        .then(({ review }) => review && collectAgentReview(ref, review))
+        .catch(() => {});
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
@@ -3194,6 +3326,9 @@ function App() {
     setNoteStatus({});
     setFeedback({});
     setDraftStatus({});
+    setAgentReview(null);
+    setAgentError(undefined);
+    agentCollected.current = null;
     setGeneration(null);
     setPreparing(false);
     setActiveSliceId(null);
@@ -3426,18 +3561,7 @@ function App() {
           basedOn: Object.fromEntries(threads.map((n) => [n.id, n.messages.length])),
         };
       } else {
-        const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/feedback/agent`, { method: "POST" });
-        const { comments } = await readOk<{ comments: { path?: string; line?: number; body: string }[] }>(res);
-        draft = {
-          items: comments.map(({ path, line, body }) => ({
-            id: crypto.randomUUID(),
-            body,
-            included: true,
-            path,
-            ...(line ? { start: { side: "new" as const, line }, end: { side: "new" as const, line } } : {}),
-          })),
-          draftedAt: Date.now(),
-        };
+        return;
       }
       await persistFeedback(ref.owner, ref.repo, ref.number, kind, draft);
       if (here()) {
@@ -3447,6 +3571,106 @@ function App() {
     } catch (err) {
       if (here()) setDraftStatus((prev) => ({ ...prev, [kind]: { error: (err as Error).message } }));
     }
+  }
+
+  const agentReviewUrl = (ref: PrRef) => `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/agent-review`;
+  // The findings already copied into the agent draft, by review.
+  const agentCollected = useRef<{ id: string; count: number } | null>(null);
+
+  // Copies an agent review's findings into the agent draft as they arrive,
+  // keeping any the reviewer has already unticked, and lets the backend
+  // forget the review once it's over.
+  function collectAgentReview(ref: PrRef, review: AgentReviewBody) {
+    setAgentReview({
+      source: review.source,
+      status: review.status,
+      progress: review.progress,
+      findingCount: review.findings.length,
+      error: review.error,
+    });
+    const seen = agentCollected.current;
+    const fresh = seen?.id !== review.id || seen.count !== review.findings.length;
+    if (fresh) {
+      agentCollected.current = { id: review.id, count: review.findings.length };
+      setFeedback((prev) => {
+        const included = new Map((prev.agent?.items ?? []).map((i) => [i.id, i.included]));
+        const draft: FeedbackDraft = {
+          items: review.findings.map((f) => ({
+            id: f.id,
+            body: f.body,
+            rationale: f.rationale,
+            included: included.get(f.id) ?? true,
+            path: f.path,
+            ...(f.startLine
+              ? {
+                  start: { side: "new" as const, line: f.startLine },
+                  end: { side: "new" as const, line: f.endLine ?? f.startLine },
+                }
+              : {}),
+          })),
+          draftedAt: Date.now(),
+        };
+        persistFeedback(ref.owner, ref.repo, ref.number, "agent", draft).catch(() => {});
+        return { ...prev, agent: draft };
+      });
+    }
+    if (review.status !== "running") fetch(agentReviewUrl(ref), { method: "DELETE" }).catch(() => {});
+  }
+
+  async function startAgentReview(mode: "builtin" | "external") {
+    if (!prRef) return;
+    const ref = prRef;
+    setAgentError(undefined);
+    try {
+      const res = await fetch(agentReviewUrl(ref), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, context: { title: prMeta?.title, summary, slices: allSlices } }),
+      });
+      const { review } = await readOk<{ review: AgentReviewBody }>(res);
+      agentCollected.current = null;
+      collectAgentReview(ref, review);
+    } catch (err) {
+      setAgentError((err as Error).message);
+    }
+  }
+
+  async function endAgentReview(action: "stop" | "finish") {
+    if (!prRef) return;
+    try {
+      const res = await fetch(`${agentReviewUrl(prRef)}/${action}`, { method: "POST" });
+      const { review } = await readOk<{ review: AgentReviewBody | null }>(res);
+      if (review) collectAgentReview(prRef, review);
+    } catch {
+      // The next check-in shows whatever state it's really in.
+    }
+  }
+
+  const agentRunning = agentReview?.status === "running";
+  useEffect(() => {
+    if (!prRef || !agentRunning) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const { review } = await readOk<{ review: AgentReviewBody | null }>(await fetch(agentReviewUrl(prRef)));
+        if (cancelled) return;
+        if (review) collectAgentReview(prRef, review);
+        else setAgentReview((prev) => prev && { ...prev, status: "failed", error: "The backend restarted, so this review was lost." });
+      } catch {
+        // A missed check-in is fine; the next one catches up.
+      }
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [prRef, agentRunning]);
+
+  function renderFeedbackContext(item: FeedbackItem) {
+    const file = item.path ? files?.find((f) => f.filename === item.path) : undefined;
+    return file && item.start && item.end ? (
+      <FeedbackContext file={file} start={item.start} end={item.end} hideWhitespace={hideWhitespace} />
+    ) : null;
   }
 
   function toggleFeedbackItem(kind: FeedbackKind, id: string) {
@@ -3641,13 +3865,21 @@ function App() {
             onDraft={() => draftFeedback("yours")}
             onToggle={(id) => toggleFeedbackItem("yours", id)}
             onOpenNote={openListedNote}
+            renderContext={renderFeedbackContext}
           />
         ) : view === "agent-feedback" ? (
           <AgentFeedbackView
+            pr={`${prRef.owner}/${prRef.repo}#${prRef.number}`}
             draft={feedback.agent}
-            status={draftStatus.agent ?? {}}
-            onRun={() => draftFeedback("agent")}
+            review={agentReview}
+            error={agentError}
+            onRunBuiltin={() => startAgentReview("builtin")}
+            onUseOwnAgent={() => startAgentReview("external")}
+            onStop={() => endAgentReview("stop")}
+            onFinish={() => endAgentReview("finish")}
             onToggle={(id) => toggleFeedbackItem("agent", id)}
+            onOpen={(item) => item.path && revealFile(item.path)}
+            renderContext={renderFeedbackContext}
           />
         ) : view === "post-review" ? (
           <PostReviewView

@@ -26,3 +26,12 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
 Open http://localhost:5173 and paste a GitHub PR URL.
+
+## Using your own agent for the agent review
+
+The backend serves an MCP server at `http://localhost:3001/mcp` (Streamable
+HTTP, local connections only). Point any MCP-capable agent at it, then choose
+"Use your own agent" on a PR's Agent feedback page, which shows a prompt to
+give it. The agent reads the PR through `get_review_context`, `get_diff`,
+`read_file` and `get_existing_comments`, and its `submit_finding` calls appear
+on the page as they arrive.

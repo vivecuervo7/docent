@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Loader2, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Loader2, Plug, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -38,7 +38,7 @@ function FeedbackPage({
         </div>
       </header>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]">
-        <div className="flex max-w-[860px] flex-col gap-8">{children}</div>
+        <div className="flex flex-col gap-8">{children}</div>
       </div>
     </div>
   );
@@ -69,42 +69,69 @@ function location(item: { path?: string; start?: Note["start"]; end?: Note["end"
   return item.start && item.end ? `${file} · ${describeLines(item.start, item.end)}` : file;
 }
 
+// The code a comment is about, as GitHub shows it beside a review comment.
+// Drawn by the app, which has the diffs.
+export type RenderContext = (item: FeedbackItem) => ReactNode;
+
 function FeedbackItems({
   items,
   onToggle,
   onOpen,
+  renderContext,
 }: {
   items: FeedbackItem[];
   onToggle: (id: string) => void;
   onOpen?: (item: FeedbackItem) => void;
+  renderContext: RenderContext;
 }) {
   return (
-    <ul className="flex flex-col divide-y rounded-lg border">
+    <ul className="flex flex-col gap-4">
       {items.map((item) => (
-        <li key={item.id} className={cn("flex items-start gap-4 px-4 py-3.5", !item.included && "opacity-55")}>
-          <Checkbox
-            checked={item.included}
-            onCheckedChange={() => onToggle(item.id)}
-            aria-label={item.included ? "Leave this out of the review" : "Include this in the review"}
-            className="mt-0.5"
-          />
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <li
+          key={item.id}
+          className={cn(
+            "overflow-hidden rounded-lg border transition-opacity",
+            !item.included && "opacity-55",
+          )}
+        >
+          <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2.5">
+            <Checkbox
+              checked={item.included}
+              onCheckedChange={() => onToggle(item.id)}
+              aria-label={item.included ? "Leave this out of the review" : "Include this in the review"}
+            />
             {onOpen && item.path ? (
               <button
                 type="button"
                 onClick={() => onOpen(item)}
                 title={`Go to ${item.path}`}
-                className="self-start font-mono text-[11.5px] text-muted-foreground hover:text-foreground"
+                className="min-w-0 truncate font-mono text-xs font-medium hover:text-reviewed"
               >
-                {location(item)}
+                {item.path}
+                {item.start && item.end && (
+                  <span className="text-muted-foreground"> · {describeLines(item.start, item.end)}</span>
+                )}
               </button>
             ) : (
-              <span className="font-mono text-[11.5px] text-muted-foreground">{location(item)}</span>
+              <span className="min-w-0 truncate font-mono text-xs font-medium">
+                {item.path ?? "The whole PR"}
+                {item.start && item.end && (
+                  <span className="text-muted-foreground"> · {describeLines(item.start, item.end)}</span>
+                )}
+              </span>
             )}
+          </div>
+          <div className="flex flex-col gap-2.5 px-4 py-3.5">
             <div className="text-[15px] leading-relaxed">
               <MessageText text={item.body} />
             </div>
+            {item.rationale && (
+              <div className="text-[13px] leading-relaxed text-muted-foreground">
+                <MessageText text={item.rationale} />
+              </div>
+            )}
           </div>
+          {renderContext(item)}
         </li>
       ))}
     </ul>
@@ -167,6 +194,7 @@ export function YourFeedbackView({
   onDraft,
   onToggle,
   onOpenNote,
+  renderContext,
 }: {
   notes: Note[];
   draft: FeedbackDraft | undefined;
@@ -174,6 +202,7 @@ export function YourFeedbackView({
   onDraft: () => void;
   onToggle: (id: string) => void;
   onOpenNote: (note: Note) => void;
+  renderContext: RenderContext;
 }) {
   const [showDiscarded, setShowDiscarded] = useState(false);
   const stale = isStale(draft, notes);
@@ -219,7 +248,7 @@ export function YourFeedbackView({
               Nothing you asked or commented on looked worth raising with the author.
             </p>
           ) : (
-            <FeedbackItems items={draft.items} onToggle={onToggle} onOpen={openItem} />
+            <FeedbackItems items={draft.items} onToggle={onToggle} onOpen={openItem} renderContext={renderContext} />
           )}
           {discarded.length > 0 && (
             <section className="flex flex-col gap-2">
@@ -253,41 +282,178 @@ export function YourFeedbackView({
   );
 }
 
+// The review as the backend reports it, while it's running or just ended.
+export interface AgentReviewState {
+  source: "builtin" | "external";
+  status: "running" | "done" | "failed" | "stopped";
+  progress?: { done: number; total: number; current?: string };
+  findingCount: number;
+  error?: string;
+}
+
+// Where the reviewer's own agent connects. The backend's address, not the
+// frontend's: agents talk to it directly.
+const MCP_URL = "http://localhost:3001/mcp";
+
+function CopyBlock({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="relative">
+        <pre className="scrollbar-thin overflow-x-auto rounded-md border bg-background px-3 py-2.5 pr-11 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap">
+          {value}
+        </pre>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(value).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            });
+          }}
+          aria-label={`Copy ${label.toLowerCase()}`}
+          title="Copy"
+          className="absolute top-2 right-2 grid size-7 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          {copied ? <Check className="size-4 text-reviewed" /> : <Copy className="size-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function agentPrompt(pr: string): string {
+  return `Review the pull request ${pr} using the docent MCP tools. Start with get_review_context, then read each slice with get_diff, using read_file where you need more context. Check get_existing_comments so you don't repeat what's already been said. Submit each problem worth raising with submit_finding, on lines from get_diff, then call finish_review.`;
+}
+
 export function AgentFeedbackView({
+  pr,
   draft,
-  status,
-  onRun,
+  review,
+  error,
+  onRunBuiltin,
+  onUseOwnAgent,
+  onStop,
+  onFinish,
   onToggle,
+  onOpen,
+  renderContext,
 }: {
+  pr: string;
   draft: FeedbackDraft | undefined;
-  status: DraftStatus;
-  onRun: () => void;
+  review: AgentReviewState | null;
+  error?: string;
+  onRunBuiltin: () => void;
+  onUseOwnAgent: () => void;
+  onStop: () => void;
+  onFinish: () => void;
   onToggle: (id: string) => void;
+  onOpen: (item: FeedbackItem) => void;
+  renderContext: RenderContext;
 }) {
+  const [choosing, setChoosing] = useState(false);
+  const running = review?.status === "running";
+  const items = draft?.items ?? [];
+  const showChoice = !running && (!draft || choosing);
+
+  const choice = (
+    <div className="flex flex-col gap-5 rounded-xl border bg-card px-8 py-8">
+      <div className="flex flex-col gap-1.5">
+        <h3 className="text-lg font-semibold">{draft ? "Run the agent review again" : "Run an agent review"}</h3>
+        <p className="max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
+          An agent reviews the whole PR and drafts comments of its own. Use Docent's reviewer, or connect your
+          own agent - any model or harness that speaks MCP.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <Button
+          size="lg"
+          onClick={() => {
+            setChoosing(false);
+            onRunBuiltin();
+          }}
+          className="bg-reviewed-strong px-5 text-white hover:bg-[#388bfd]"
+        >
+          <Sparkles />
+          Run Docent's reviewer
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          onClick={() => {
+            setChoosing(false);
+            onUseOwnAgent();
+          }}
+        >
+          <Plug />
+          Use your own agent
+        </Button>
+        {draft && (
+          <Button size="lg" variant="ghost" onClick={() => setChoosing(false)}>
+            Cancel
+          </Button>
+        )}
+      </div>
+      <ErrorLine error={error} />
+    </div>
+  );
+
   return (
     <FeedbackPage
       title="Agent feedback"
       subtitle="An optional review of the whole PR by an agent. Tick the comments to include alongside yours."
-      action={draft && <DraftButton label="Run again" status={status} onClick={onRun} />}
+      action={
+        draft && !running && !choosing && <DraftButton label="Run again" status={{}} onClick={() => setChoosing(true)} />
+      }
     >
-      {draft && <ErrorLine error={status.error} />}
-      {draft ? (
-        draft.items.length === 0 ? (
-          <p className="text-[15px] leading-relaxed text-muted-foreground">
-            The agent review returned nothing. It isn't built yet, so for now it always returns an empty
-            review.
-          </p>
-        ) : (
-          <FeedbackItems items={draft.items} onToggle={onToggle} />
-        )
+      {showChoice && choice}
+
+      {running && review.source === "builtin" && (
+        <div className="flex items-center gap-3 rounded-lg border px-4 py-3 text-[15px]">
+          <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate">
+            {review.progress && review.progress.total > 0
+              ? `Reviewing ${review.progress.current ?? "…"} (${Math.min(review.progress.done + 1, review.progress.total)} of ${review.progress.total})`
+              : "Starting the review…"}
+          </span>
+          <Button variant="outline" size="sm" onClick={onStop}>
+            Stop
+          </Button>
+        </div>
+      )}
+
+      {running && review.source === "external" && (
+        <div className="flex flex-col gap-5 rounded-xl border bg-card px-8 py-7">
+          <CopyBlock label="Connect your agent to Docent's MCP server" value={MCP_URL} />
+          <CopyBlock label="Then ask it" value={agentPrompt(pr)} />
+          <div className="flex items-center gap-3 text-[15px]">
+            <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+            <span className="min-w-0 flex-1 text-muted-foreground">
+              Waiting for findings
+              {review.findingCount > 0 && ` · ${review.findingCount} so far`}
+            </span>
+            <Button variant="outline" size="sm" onClick={onStop}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={onFinish} className="bg-reviewed-strong text-white hover:bg-[#388bfd]">
+              Finish
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {review?.status === "failed" && (
+        <p className="text-sm text-[#f85149]">The review stopped with an error: {review.error}</p>
+      )}
+      {review?.status === "stopped" && <p className="text-sm text-muted-foreground">The review was stopped.</p>}
+
+      {items.length > 0 ? (
+        <FeedbackItems items={items} onToggle={onToggle} onOpen={onOpen} renderContext={renderContext} />
       ) : (
-        <DraftPrompt
-          heading="Run an agent review"
-          body="An agent reviews the whole PR and drafts comments of its own. It's optional, and you choose which of its comments to keep."
-          label="Run agent review"
-          status={status}
-          onClick={onRun}
-        />
+        draft &&
+        !running &&
+        !showChoice && <p className="text-[15px] text-muted-foreground">The agent didn't find anything to raise.</p>
       )}
     </FeedbackPage>
   );

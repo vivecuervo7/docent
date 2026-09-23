@@ -16,7 +16,7 @@ export function lineRefFor(change: ChangeData): LineRef {
   return { side: "new", line: change.newLineNumber };
 }
 
-function matches(change: ChangeData, ref: LineRef): boolean {
+export function matches(change: ChangeData, ref: LineRef): boolean {
   if (isNormal(change)) {
     return ref.side === "old" ? change.oldLineNumber === ref.line : change.newLineNumber === ref.line;
   }
