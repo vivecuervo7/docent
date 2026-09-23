@@ -90,6 +90,33 @@ export interface FeedbackDraft {
 
 export type FeedbackKind = "yours" | "agent";
 
+export type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
+
+// A comment in the review to post: one or more kept feedback items,
+// combined, and editable before posting.
+export interface ReviewComment {
+  id: string;
+  body: string;
+  included: boolean;
+  // The feedback items it covers.
+  from: string[];
+  path?: string;
+  start?: LineRef;
+  end?: LineRef;
+}
+
+export interface ReviewDraft {
+  preparedAt: number;
+  // The feedback items that were ticked when it was prepared.
+  basedOn: string[];
+  comments: ReviewComment[];
+  // Ticked feedback left out, with why - usually that someone already said it.
+  dropped: { from: string[]; reason: string }[];
+  summary: string;
+  event: ReviewEvent;
+  posted?: { at: number; url: string };
+}
+
 export interface PrRecord {
   reviewed: Record<string, boolean>;
   slices: Slice[] | null;
@@ -97,6 +124,7 @@ export interface PrRecord {
   conversation: ConversationSummary | null;
   notes: Note[];
   feedback: Partial<Record<FeedbackKind, FeedbackDraft>>;
+  review?: ReviewDraft;
   // Written whenever the PR is opened, so the start page can list saved
   // reviews by title and recency. Absent on records from before that.
   title?: string;
@@ -298,6 +326,17 @@ export async function saveFeedback(
 ): Promise<void> {
   await updateRecord(owner, repo, number, (r) => {
     r.feedback = { ...r.feedback, [kind]: draft };
+  });
+}
+
+export async function saveReviewDraft(
+  owner: string,
+  repo: string,
+  number: string,
+  review: ReviewDraft | undefined,
+): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    r.review = review;
   });
 }
 

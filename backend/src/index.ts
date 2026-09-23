@@ -1,6 +1,7 @@
 import express from "express";
 import {
   fetchAttachment,
+  fetchPrConversation,
   fetchFileContentAtRef,
   fetchPrBaseSha,
   fetchPrFiles,
@@ -26,6 +27,15 @@ import {
 } from "./agentReview.js";
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import { handleMcpRequest } from "./mcp.js";
+import {
+  buildReviewPayload,
+  fetchViewer,
+  postReviewPayload,
+  prepareReview,
+  type Candidate,
+  type CommentToPost,
+  type ReviewEvent,
+} from "./postReview.js";
 import { replyToNote, type NoteContext, type NoteMessage } from "./notes.js";
 import type { ConversationSummary, Slice } from "./types.js";
 
@@ -228,6 +238,65 @@ app.delete("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   }
   dismissAgentReview(owner, repo, number);
   res.status(204).end();
+});
+
+// Post review: who's reviewing (GitHub won't let you approve or request
+// changes on your own PR), preparing the review, and posting it.
+app.get("/api/pr/:owner/:repo/:number/review/viewer", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+  try {
+    const [viewer, author] = await Promise.all([
+      fetchViewer(),
+      fetchPrConversation(owner, repo, number).then((c) => c.prAuthor),
+    ]);
+    res.json({ viewer, author });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.post("/api/pr/:owner/:repo/:number/review/prepare", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const candidates = req.body?.candidates as Candidate[] | undefined;
+  if (!validParams(owner, repo, number) || !Array.isArray(candidates)) {
+    return res.status(400).json({ error: "invalid candidates" });
+  }
+  if (candidates.length === 0) return res.json({ comments: [], dropped: [], summary: "" });
+
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
+  try {
+    res.json(await prepareReview(owner, repo, number, candidates, controller.signal));
+  } catch (err) {
+    if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+// With dryRun, returns exactly what would be sent without sending it.
+app.post("/api/pr/:owner/:repo/:number/review/post", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const event = req.body?.event as ReviewEvent | undefined;
+  const comments = req.body?.comments as CommentToPost[] | undefined;
+  if (
+    !validParams(owner, repo, number) ||
+    (event !== "COMMENT" && event !== "APPROVE" && event !== "REQUEST_CHANGES") ||
+    !Array.isArray(comments)
+  ) {
+    return res.status(400).json({ error: "invalid review" });
+  }
+  try {
+    const summary = typeof req.body?.summary === "string" ? req.body.summary : "";
+    const payload = await buildReviewPayload(owner, repo, number, event, summary, comments);
+    if (req.body?.dryRun) return res.json({ payload });
+    res.json({ payload, ...(await postReviewPayload(owner, repo, number, payload)) });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
 });
 
 // MCP, for the reviewer's own agent. Local only: the host check stops other

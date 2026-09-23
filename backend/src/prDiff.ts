@@ -47,6 +47,29 @@ export function linesInDiff(file: PrFile): Set<number> {
   return lines;
 }
 
+// Both sides' lines that appear in a file's diff: a GitHub review comment
+// can sit on a deleted line (the old side) or any other (the new side).
+export function commentableLines(file: PrFile): { old: Set<number>; new: Set<number> } {
+  const lines = { old: new Set<number>(), new: new Set<number>() };
+  if (!file.patch) return lines;
+  for (const hunk of splitPatchIntoHunks(file.patch)) {
+    const [header, ...rest] = hunk.split("\n");
+    const match = header.match(/-(\d+)(?:,\d+)? \+(\d+)/);
+    let oldLine = match ? Number(match[1]) : 1;
+    let newLine = match ? Number(match[2]) : 1;
+    for (const line of rest) {
+      if (line.startsWith("\\")) continue;
+      if (line.startsWith("-")) lines.old.add(oldLine++);
+      else if (line.startsWith("+")) lines.new.add(newLine++);
+      else {
+        lines.old.add(oldLine++);
+        lines.new.add(newLine++);
+      }
+    }
+  }
+  return lines;
+}
+
 // Ranges of lines, for telling a reviewer which lines are commentable.
 export function describeRanges(lines: Set<number>): string {
   const sorted = [...lines].sort((a, b) => a - b);

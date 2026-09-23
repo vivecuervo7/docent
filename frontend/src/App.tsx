@@ -33,6 +33,7 @@ import {
   markPrOpened,
   saveFeedback as persistFeedback,
   saveNote as persistNote,
+  saveReviewDraft as persistReviewDraft,
   saveConversation as persistConversation,
   saveSlices as persistSlices,
   saveSummary as persistSummary,
@@ -43,6 +44,8 @@ import {
   type FeedbackKind,
   type LineRef,
   type Note,
+  type ReviewComment,
+  type ReviewDraft,
   type ReplyOutcome,
   type ReviewerConversation,
   type Slice,
@@ -61,13 +64,8 @@ import {
   type ShownHunk,
 } from "./hunkExpansion";
 import { changeKeys, changesBetween, matches, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
-import {
-  AgentFeedbackView,
-  PostReviewView,
-  YourFeedbackView,
-  type AgentReviewState,
-  type DraftStatus,
-} from "./feedbackViews";
+import { AgentFeedbackView, YourFeedbackView, type AgentReviewState, type DraftStatus } from "./feedbackViews";
+import { PostReviewView, type ReviewCandidate, type ReviewPayload } from "./postReviewView";
 import { NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
 
 // The bundled "common" language set covers most backend languages already;
@@ -827,7 +825,8 @@ function FeedbackContext({
   if (!snippet) return null;
   const folded = snippet.folded && !unfolded ? snippet.folded : null;
   return (
-    <div className="overflow-x-auto border-t text-xs">
+    // A shade darker than the card around it, as GitHub sets code apart.
+    <div className="overflow-x-auto border-t bg-background text-xs">
       <Diff
         viewType="unified"
         diffType={snippet.diffType}
@@ -1800,6 +1799,7 @@ function SidebarNav({
   onSelectView,
   yourFeedbackCount,
   agentFeedbackCount,
+  busy,
 }: {
   allSlices: Slice[];
   reviewed: Record<string, boolean>;
@@ -1816,6 +1816,8 @@ function SidebarNav({
   // How many drafted comments are ticked to include.
   yourFeedbackCount: number;
   agentFeedbackCount: number;
+  // Feedback steps with work in progress: drafting, reviewing, preparing.
+  busy: Partial<Record<FeedbackView, boolean>>;
 }) {
   const rowClass = (active: boolean) =>
     cn(
@@ -1903,13 +1905,17 @@ function SidebarNav({
               <button type="button" onClick={() => onSelectView(id)} className={sliceLabelClass(activeView === id)}>
                 {label}
               </button>
-              {count > 0 && (
-                <span
-                  title={`${count} ticked to include`}
-                  className="mt-0.5 text-xs text-muted-foreground tabular-nums"
-                >
-                  {count}
-                </span>
+              {busy[id] ? (
+                <Loader2 aria-label="Working" className="mt-0.5 size-3.5 shrink-0 animate-spin text-muted-foreground" />
+              ) : (
+                count > 0 && (
+                  <span
+                    title={`${count} ticked to include`}
+                    className="mt-0.5 text-xs text-muted-foreground tabular-nums"
+                  >
+                    {count}
+                  </span>
+                )
               )}
             </li>
           ))}
@@ -3045,6 +3051,9 @@ function App() {
   const [draftStatus, setDraftStatus] = useState<Partial<Record<FeedbackKind, DraftStatus>>>({});
   const [agentReview, setAgentReview] = useState<AgentReviewState | null>(null);
   const [agentError, setAgentError] = useState<string | undefined>(undefined);
+  const [reviewDraft, setReviewDraft] = useState<ReviewDraft | undefined>(undefined);
+  const [prepareStatus, setPrepareStatus] = useState<DraftStatus>({});
+  const [reviewer, setReviewer] = useState<{ viewer: string; author: string } | null>(null);
   // Replies in flight and failed ones, by note id. Not saved: a reply lost
   // to a reload is retried by asking again.
   const [noteStatus, setNoteStatus] = useState<Record<string, NoteStatus>>({});
@@ -3230,6 +3239,9 @@ function App() {
     setAgentReview(null);
     setAgentError(undefined);
     agentCollected.current = null;
+    setReviewDraft(undefined);
+    setPrepareStatus({});
+    setReviewer(null);
     setActiveSliceId(null);
     setView("landing");
 
@@ -3256,6 +3268,7 @@ function App() {
       setConversation(prRecord.conversation);
       setNotes(prRecord.notes);
       setFeedback(prRecord.feedback);
+      setReviewDraft(prRecord.review);
       fetch(agentReviewUrl(ref))
         .then((res) => readOk<{ review: AgentReviewBody | null }>(res))
         .then(({ review }) => review && collectAgentReview(ref, review))
@@ -3319,6 +3332,9 @@ function App() {
     setAgentReview(null);
     setAgentError(undefined);
     agentCollected.current = null;
+    setReviewDraft(undefined);
+    setPrepareStatus({});
+    setReviewer(null);
     setGeneration(null);
     setPreparing(false);
     setActiveSliceId(null);
@@ -3657,12 +3673,160 @@ function App() {
     };
   }, [prRef, agentRunning]);
 
-  function renderFeedbackContext(item: FeedbackItem) {
+  function renderFeedbackContext(item: Pick<FeedbackItem, "path" | "start" | "end">) {
     const file = item.path ? files?.find((f) => f.filename === item.path) : undefined;
     return file && item.start && item.end ? (
       <FeedbackContext file={file} start={item.start} end={item.end} hideWhitespace={hideWhitespace} />
     ) : null;
   }
+
+  // Everything ticked in the two Feedback steps: what a review is made from.
+  const reviewCandidates = useMemo(
+    (): ReviewCandidate[] =>
+      (["yours", "agent"] as const).flatMap((source) =>
+        (feedback[source]?.items ?? []).filter((item) => item.included).map((item) => ({ item, source })),
+      ),
+    [feedback],
+  );
+
+  function saveReview(next: ReviewDraft | undefined) {
+    if (!prRef) return;
+    setReviewDraft(next);
+    persistReviewDraft(prRef.owner, prRef.repo, prRef.number, next).catch(() => {});
+  }
+
+  async function prepareReview() {
+    if (!prRef) return;
+    const ref = prRef;
+    const candidates = reviewCandidates;
+    setPrepareStatus({ pending: true });
+    try {
+      const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/review/prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          candidates: candidates.map(({ item, source }) => ({
+            id: item.id,
+            source,
+            location: item.path
+              ? `${item.path}${item.start && item.end ? ` ${describeLines(item.start, item.end)}` : ""}`
+              : "the PR as a whole",
+            body: item.body,
+          })),
+        }),
+      });
+      const prepared = await readOk<{
+        comments: { from: string[]; body: string }[];
+        dropped: { from: string[]; reason: string }[];
+        summary: string;
+      }>(res);
+      const byId = new Map(candidates.map((c) => [c.item.id, c.item]));
+      const next: ReviewDraft = {
+        preparedAt: Date.now(),
+        basedOn: candidates.map((c) => c.item.id),
+        // A combined comment sits on the lines of the first item it came
+        // from that has any.
+        comments: prepared.comments.map(({ from, body }) => {
+          const anchor = from.map((id) => byId.get(id)).find((item) => item?.path);
+          return {
+            id: crypto.randomUUID(),
+            body,
+            included: true,
+            from,
+            path: anchor?.path,
+            start: anchor?.start,
+            end: anchor?.end,
+          };
+        }),
+        dropped: prepared.dropped,
+        summary: prepared.summary,
+        event: reviewDraft?.event ?? "COMMENT",
+      };
+      if (openPrKey.current === `${ref.owner}/${ref.repo}/${ref.number}`) {
+        saveReview(next);
+        setPrepareStatus({});
+      }
+    } catch (err) {
+      setPrepareStatus({ error: (err as Error).message });
+    }
+  }
+
+  function reviewRequest(draft: ReviewDraft, dryRun: boolean) {
+    if (!prRef) throw new Error("No PR open.");
+    return fetch(`/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/review/post`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dryRun,
+        event: draft.event,
+        summary: draft.summary,
+        comments: draft.comments
+          .filter((c) => c.included && c.body.trim())
+          .map(({ body, path, start, end }) => ({ body, path, start, end })),
+      }),
+    });
+  }
+
+  async function previewReview(): Promise<ReviewPayload> {
+    if (!reviewDraft) throw new Error("Nothing prepared yet.");
+    const { payload } = await readOk<{ payload: ReviewPayload }>(await reviewRequest(reviewDraft, true));
+    return payload;
+  }
+
+  async function postReview() {
+    if (!reviewDraft) return;
+    const { url } = await readOk<{ url: string }>(await reviewRequest(reviewDraft, false));
+    saveReview({ ...reviewDraft, posted: { at: Date.now(), url } });
+  }
+
+  // GitHub takes a comment on lines only if they're in the PR's diff as it
+  // stands - not lines the reviewer expanded, and not a whole file.
+  function isInlineComment(comment: ReviewComment): boolean {
+    const file = comment.path ? files?.find((f) => f.filename === comment.path) : undefined;
+    const { start, end } = comment;
+    if (!file?.patch || !start || !end) return false;
+    try {
+      const changes = (parseDiff(buildDiffText(file))[0]?.hunks ?? []).flatMap((h) => h.changes);
+      return changes.some((c) => matches(c, start)) && changes.some((c) => matches(c, end));
+    } catch {
+      return false;
+    }
+  }
+
+  // A comment set aside as already said, back in the review as it was.
+  function restoreDropped(index: number) {
+    if (!reviewDraft) return;
+    const dropped = reviewDraft.dropped[index];
+    const items = new Map(reviewCandidates.map((c) => [c.item.id, c.item]));
+    const sources = dropped.from.map((id) => items.get(id)).filter((i): i is FeedbackItem => !!i);
+    if (sources.length === 0) return;
+    const anchor = sources.find((i) => i.path);
+    saveReview({
+      ...reviewDraft,
+      dropped: reviewDraft.dropped.filter((_, i) => i !== index),
+      comments: [
+        ...reviewDraft.comments,
+        {
+          id: crypto.randomUUID(),
+          body: sources.map((i) => i.body).join("\n\n"),
+          included: true,
+          from: dropped.from,
+          path: anchor?.path,
+          start: anchor?.start,
+          end: anchor?.end,
+        },
+      ],
+    });
+  }
+
+  // Who's reviewing, to know whether this is their own PR.
+  useEffect(() => {
+    if (view !== "post-review" || !prRef || reviewer) return;
+    fetch(`/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/review/viewer`)
+      .then((res) => readOk<{ viewer: string; author: string }>(res))
+      .then(setReviewer)
+      .catch(() => {});
+  }, [view, prRef, reviewer]);
 
   function toggleFeedbackItem(kind: FeedbackKind, id: string) {
     const draft = feedback[kind];
@@ -3766,6 +3930,11 @@ function App() {
             onSelectView={setView}
             yourFeedbackCount={feedback.yours?.items.filter((i) => i.included).length ?? 0}
             agentFeedbackCount={feedback.agent?.items.filter((i) => i.included).length ?? 0}
+            busy={{
+              "your-feedback": !!draftStatus.yours?.pending,
+              "agent-feedback": agentReview?.status === "running",
+              "post-review": !!prepareStatus.pending,
+            }}
           />
 
           {listedFiles.length > 0 && (
@@ -3874,8 +4043,21 @@ function App() {
           />
         ) : view === "post-review" ? (
           <PostReviewView
-            yours={feedback.yours?.items.filter((i) => i.included).length ?? 0}
-            agent={feedback.agent?.items.filter((i) => i.included).length ?? 0}
+            pr={`${prRef.owner}/${prRef.repo}#${prRef.number}`}
+            candidates={reviewCandidates}
+            draft={reviewDraft}
+            status={prepareStatus}
+            viewer={reviewer?.viewer}
+            isOwnPr={!!reviewer && reviewer.viewer === reviewer.author}
+            onPrepare={prepareReview}
+            onUpdate={(update) => reviewDraft && saveReview(update(reviewDraft))}
+            avatar={reviewer ? <Avatar login={reviewer.viewer} size="sm" /> : null}
+            isInline={isInlineComment}
+            onRestore={restoreDropped}
+            onPreview={previewReview}
+            onPost={postReview}
+            onStartOver={() => saveReview(undefined)}
+            renderContext={renderFeedbackContext}
           />
         ) : view === "files" ? (
           <AllFilesView

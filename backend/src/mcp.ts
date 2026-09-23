@@ -11,6 +11,7 @@ import {
   fetchPrHeadSha,
   fetchPrMeta,
 } from "./github.js";
+import { conversationText } from "./postReview.js";
 import { numberedFileDiff } from "./prDiff.js";
 
 // Docent over MCP, so a reviewer can run their own agent - any model, any
@@ -144,15 +145,7 @@ function buildServer(): McpServer {
     async ({ pr }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
-        const conversation = await fetchPrConversation(owner, repo, number);
-        const parts = [
-          ...conversation.reviews.filter((r) => r.body).map((r) => `Review by ${r.author} (${r.state}):\n${r.body}`),
-          ...conversation.comments.map((c) => `Comment by ${c.author}:\n${c.body}`),
-          ...conversation.threads.map(
-            (t) => `Thread on ${t.path}:\n${t.entries.map((e) => `${e.author}: ${e.body}`).join("\n")}`,
-          ),
-        ];
-        return text(parts.length > 0 ? parts.join("\n\n") : "Nothing's been said on this PR yet.");
+        return text(conversationText(await fetchPrConversation(owner, repo, number)));
       } catch (err) {
         return failure(err);
       }

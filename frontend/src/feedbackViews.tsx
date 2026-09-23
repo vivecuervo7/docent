@@ -44,7 +44,7 @@ function FeedbackPage({
   );
 }
 
-function DraftButton({
+export function DraftButton({
   label,
   status,
   onClick,
@@ -71,7 +71,7 @@ function location(item: { path?: string; start?: Note["start"]; end?: Note["end"
 
 // The code a comment is about, as GitHub shows it beside a review comment.
 // Drawn by the app, which has the diffs.
-export type RenderContext = (item: FeedbackItem) => ReactNode;
+export type RenderContext = (anchor: Pick<FeedbackItem, "path" | "start" | "end">) => ReactNode;
 
 function FeedbackItems({
   items,
@@ -123,10 +123,11 @@ function FeedbackItems({
                 <span className="min-w-0 truncate font-mono text-xs font-medium">{location(item)}</span>
               )}
             </div>
-            <div className="px-5 py-4 text-[15px] leading-relaxed">
+            {/* Code, then the comment on it, as GitHub and Post review show them. */}
+            {renderContext(item)}
+            <div className="border-t bg-background px-5 py-4 text-[15px] leading-relaxed">
               <MessageText text={item.body} />
             </div>
-            {renderContext(item)}
           </div>
         );
 
@@ -170,8 +171,12 @@ function FeedbackItems({
   );
 }
 
-function ErrorLine({ error }: { error?: string }) {
-  return error ? <p className="text-sm text-[#f85149]">Couldn't draft feedback: {error}</p> : null;
+export function ErrorLine({ error, what = "Couldn't draft feedback" }: { error?: string; what?: string }) {
+  return error ? (
+    <p className="text-sm text-[#f85149]">
+      {what}: {error}
+    </p>
+  ) : null;
 }
 
 // Threads count as changed since a draft when one was added, removed, or has
@@ -186,7 +191,7 @@ function isStale(draft: FeedbackDraft | undefined, notes: Note[]): boolean {
 
 // Before anything's drafted, drafting is the only thing to do here, so it's
 // the whole page.
-function DraftPrompt({
+export function DraftPrompt({
   heading,
   body,
   label,
@@ -522,26 +527,6 @@ export function AgentFeedbackView({
         !running &&
         !showChoice && <p className="text-[15px] text-muted-foreground">The agent didn't find anything to raise.</p>
       )}
-    </FeedbackPage>
-  );
-}
-
-export function PostReviewView({ yours, agent }: { yours: number; agent: number }) {
-  return (
-    <FeedbackPage
-      title="Post review"
-      subtitle="Where your feedback and the agent's come together to be posted to the PR."
-    >
-      <div className="flex flex-col gap-3 text-[15px] leading-relaxed text-muted-foreground">
-        <p>
-          Coming next. This step will combine the comments you've ticked, check them against what's already
-          been said on the PR so nothing is raised twice, and let you reword them and choose an outcome
-          (comment, approve, or request changes) before posting.
-        </p>
-        <p className="text-foreground/80">
-          Ticked so far: {yours} of your comments and {agent} from the agent.
-        </p>
-      </div>
     </FeedbackPage>
   );
 }
