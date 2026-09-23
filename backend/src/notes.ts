@@ -1,9 +1,10 @@
+import { maxConcurrentRequests } from "./config.js";
 import { chat, type ChatMessage } from "./modelProvider.js";
 
 // Replies to notes left on selected lines. These run in their own lane,
 // apart from the generation queue, so a question isn't stuck behind a PR
-// that's being prepared - but one at a time, so a burst of questions doesn't
-// pile onto the model at once.
+// that's being prepared - but only as many at once as the model allows, so
+// a burst of questions doesn't pile onto a local model.
 
 export interface NoteMessage {
   role: "user" | "assistant";
@@ -43,13 +44,28 @@ function contextMessage(context: NoteContext): string {
   return parts.join("\n\n");
 }
 
-let tail: Promise<unknown> = Promise.resolve();
+let active = 0;
+const waiting: (() => void)[] = [];
 
-// Shared by the other interactive model calls, such as drafting feedback.
+function admit() {
+  while (active < maxConcurrentRequests() && waiting.length > 0) {
+    active++;
+    waiting.shift()!();
+  }
+}
+
+// Shared by the other interactive model calls, such as drafting feedback:
+// as many run at once as the model allows, and the rest wait their turn.
 export function inLane<T>(work: () => Promise<T>): Promise<T> {
-  const run = tail.then(work, work);
-  tail = run.catch(() => {});
-  return run;
+  return new Promise<void>((start) => {
+    waiting.push(start);
+    admit();
+  })
+    .then(work)
+    .finally(() => {
+      active--;
+      admit();
+    });
 }
 
 export function replyToNote(

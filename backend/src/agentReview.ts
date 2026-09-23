@@ -199,8 +199,8 @@ function hunkIndicesByFile(slice: Slice): Map<string, number[]> {
 
 // Docent's own reviewer: one focused pass per slice with the configured
 // model, rather than open-ended exploring, which a small local model does
-// poorly. Each pass takes a turn in the interactive lane, so questions asked
-// meanwhile only wait for the current slice.
+// poorly. The passes share the interactive lane, so questions asked meanwhile
+// only wait for a free turn, not the whole review.
 export function startBuiltinReview(owner: string, repo: string, number: string, context: ReviewContext) {
   const entry = begin(owner, repo, number, "builtin", context);
   void runBuiltin(owner, repo, number, context, entry);
@@ -234,42 +234,45 @@ async function runBuiltin(owner: string, repo: string, number: string, context: 
       .filter(Boolean)
       .join("\n");
 
-    for (const part of parts) {
-      if (signal.aborted) return;
-      review.progress = { ...review.progress, current: part.title };
-      const call = await inLane(async () => {
-        signal.throwIfAborted();
-        return chatWithTool(
-          [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: `${about}\n\nThis part: ${part.title}\n\n${part.diff}` },
-          ],
-          REPORT_FINDINGS_TOOL,
-          signal,
-        );
-      });
-      const raw = (call.arguments as { findings?: unknown }).findings;
-      for (const item of Array.isArray(raw) ? raw : []) {
-        const { path, start_line, end_line, body, rationale } = (item ?? {}) as Record<string, unknown>;
-        if (typeof body !== "string") continue;
-        const finding: SubmittedFinding = {
-          path: typeof path === "string" ? path : undefined,
-          startLine: typeof start_line === "number" ? start_line : undefined,
-          endLine: typeof end_line === "number" ? end_line : undefined,
-          body,
-          rationale: typeof rationale === "string" ? rationale : undefined,
-        };
-        try {
-          await submitFinding(owner, repo, number, finding, files);
-        } catch {
-          // Lines outside the diff: keep the point, on the file as a whole.
-          if (finding.path) {
-            await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files).catch(() => {});
+    // Slices are reviewed side by side, as many at once as the model allows.
+    await Promise.all(
+      parts.map(async (part) => {
+        const call = await inLane(async () => {
+          signal.throwIfAborted();
+          review.progress = { ...review.progress!, current: part.title };
+          return chatWithTool(
+            [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: `${about}\n\nThis part: ${part.title}\n\n${part.diff}` },
+            ],
+            REPORT_FINDINGS_TOOL,
+            signal,
+          );
+        });
+        if (review.status !== "running") return;
+        const raw = (call.arguments as { findings?: unknown }).findings;
+        for (const item of Array.isArray(raw) ? raw : []) {
+          const { path, start_line, end_line, body, rationale } = (item ?? {}) as Record<string, unknown>;
+          if (typeof body !== "string") continue;
+          const finding: SubmittedFinding = {
+            path: typeof path === "string" ? path : undefined,
+            startLine: typeof start_line === "number" ? start_line : undefined,
+            endLine: typeof end_line === "number" ? end_line : undefined,
+            body,
+            rationale: typeof rationale === "string" ? rationale : undefined,
+          };
+          try {
+            await submitFinding(owner, repo, number, finding, files);
+          } catch {
+            // Lines outside the diff: keep the point, on the file as a whole.
+            if (finding.path) {
+              await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files).catch(() => {});
+            }
           }
         }
-      }
-      review.progress = { ...review.progress, done: review.progress.done + 1 };
-    }
+        review.progress = { ...review.progress!, done: review.progress!.done + 1 };
+      }),
+    );
     if (review.status === "running") review.status = "done";
   } catch (err) {
     if (review.status === "running") {

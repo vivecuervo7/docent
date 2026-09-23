@@ -46,10 +46,30 @@ export function setModelName(model: string): void {
   writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), model }, null, 2), { mode: 0o600 });
 }
 
-// How many PRs may be prepared at once; the rest wait in a queue. A local
-// model serves one request at a time, so running more only makes each one
-// slower. A hosted one can take more.
+// Claude Code models are picked with this prefix (see modelProvider.ts).
+export function usingClaudeCode(): boolean {
+  return modelName().startsWith("claude-code:");
+}
+
+function positiveInt(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+// How much runs at once depends on the model. A local model serves one
+// request at a time, so running more only makes each slower; a hosted
+// endpoint can take more, set in .env. Claude Code calls are separate
+// processes, so several run side by side - a few, to leave the reviewer's
+// own sessions room. Read on every call, so picking another model applies
+// straight away.
+
+// PRs being prepared at once; the rest wait in a queue.
 export function maxConcurrentGenerations(): number {
-  const value = Number(process.env.DOCENT_MAX_CONCURRENT_GENERATIONS);
-  return Number.isInteger(value) && value > 0 ? value : 1;
+  return usingClaudeCode() ? 3 : positiveInt(process.env.DOCENT_MAX_CONCURRENT_GENERATIONS, 1);
+}
+
+// Other model calls at once: question replies, drafting, the agent review
+// and preparing the review.
+export function maxConcurrentRequests(): number {
+  return usingClaudeCode() ? 4 : positiveInt(process.env.DOCENT_MAX_CONCURRENT_REQUESTS, 1);
 }
