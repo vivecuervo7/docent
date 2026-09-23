@@ -53,6 +53,18 @@ function keyFor(owner: string, repo: string, number: string): string {
   return `${owner}/${repo}/${number}`;
 }
 
+// Dev-only: mirror every write to the backend's console so it's visible in
+// /tmp/backend.log - IndexedDB itself is invisible to anyone but the browser
+// that owns it. One-way, log-only; never read back by the app.
+function mirrorToDebugLog(key: string, record: PrRecord) {
+  if (!import.meta.env.DEV) return;
+  fetch("/api/debug/pr-state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, record }),
+  }).catch(() => {});
+}
+
 async function updateRecord(
   owner: string,
   repo: string,
@@ -61,7 +73,7 @@ async function updateRecord(
 ): Promise<PrRecord> {
   const db = await openDb();
   const key = keyFor(owner, repo, number);
-  return new Promise((resolve, reject) => {
+  const record = await new Promise<PrRecord>((resolve, reject) => {
     const store = db.transaction(STORE, "readwrite").objectStore(STORE);
     const getReq = store.get(key);
     getReq.onsuccess = () => {
@@ -73,6 +85,8 @@ async function updateRecord(
     };
     getReq.onerror = () => reject(getReq.error);
   });
+  mirrorToDebugLog(key, record);
+  return record;
 }
 
 export async function getPrRecord(

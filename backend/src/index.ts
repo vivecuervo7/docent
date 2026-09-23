@@ -119,6 +119,13 @@ app.post("/api/pr/:owner/:repo/:number/overview/conversation", async (req, res) 
   }
 });
 
+app.post("/api/debug/pr-state", (req, res) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[pr-state]", JSON.stringify(req.body, null, 2));
+  }
+  res.status(204).end();
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`codetour-pr backend listening on http://localhost:${PORT}`);
