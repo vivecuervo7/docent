@@ -170,6 +170,28 @@ function extractLinks(body: string | null): Link[] {
 type PipelineStep = "slices" | "conversation" | "summary";
 type PipelineSteps = Record<PipelineStep, { status: "pending" | "active" | "done"; startedAt?: number }>;
 
+// A background generation on the backend (see backend/src/generation.ts).
+interface Generation {
+  id: string;
+  status: "queued" | "running" | "done" | "failed" | "stopped";
+  steps: PipelineSteps;
+  results: { slices?: Slice[]; conversation?: ConversationSummary; summary?: PrSummary };
+  error?: string;
+}
+
+function emptyGeneration(): Generation {
+  return {
+    id: "",
+    status: "queued",
+    steps: { slices: { status: "pending" }, conversation: { status: "pending" }, summary: { status: "pending" } },
+    results: {},
+  };
+}
+
+function isGenerating(generation: Generation | null): boolean {
+  return generation?.status === "queued" || generation?.status === "running";
+}
+
 const PIPELINE_STEPS: { step: PipelineStep; label: string }[] = [
   { step: "slices", label: "Breaking the PR into slices" },
   { step: "conversation", label: "Reading the review conversation" },
@@ -1346,18 +1368,22 @@ function PreparingView({
   prRef,
   title,
   fileCount,
-  steps,
-  error,
-  onRetry,
+  generation,
+  onStop,
+  onResume,
 }: {
   prRef: PrRef;
   title: string | undefined;
   fileCount: number;
-  steps: PipelineSteps | null;
-  error: string | null;
-  onRetry: () => void;
+  generation: Generation | null;
+  onStop: () => void;
+  onResume: () => void;
 }) {
-  const running = steps !== null && !error;
+  const steps = generation?.steps ?? null;
+  const error = generation?.status === "failed" ? (generation.error ?? "Something went wrong.") : null;
+  const stopped = generation?.status === "stopped";
+  const queued = generation?.status === "queued";
+  const running = isGenerating(generation);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!running) return;
@@ -1370,7 +1396,13 @@ function PreparingView({
       <div className="flex w-full max-w-lg flex-col gap-8">
         <div>
           <div className="text-sm font-medium text-reviewed">
-            {error ? "Preparing this review stopped" : "Preparing your review"}
+            {error
+              ? "Preparing this review failed"
+              : stopped
+                ? "You stopped preparing this review"
+                : queued
+                  ? "Waiting for another review to finish"
+                  : "Preparing your review"}
           </div>
           <h1 className="mt-3 text-[26px] leading-[1.2] font-semibold tracking-tight text-balance">
             {title ?? "Pull request"}
@@ -1430,14 +1462,26 @@ function PreparingView({
                 Generation failed. <span className="text-muted-foreground">{error}</span>
               </span>
             </div>
-            <Button variant="outline" onClick={onRetry} className="self-start">
+            <Button variant="outline" onClick={onResume} className="self-start">
               Try again
             </Button>
           </div>
+        ) : stopped ? (
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={onResume}>
+              Resume
+            </Button>
+            <span className="text-sm text-muted-foreground">Steps that already finished are kept.</span>
+          </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            You can browse the files from the sidebar in the meantime.
-          </p>
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={onStop}>
+              Stop
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              This keeps going if you leave. You can browse the files from the sidebar in the meantime.
+            </span>
+          </div>
         )}
       </div>
     </div>
@@ -1447,8 +1491,8 @@ function PreparingView({
 function LandingView({
   prRef,
   prMeta,
-  pipelineSteps,
-  pipelineError,
+  generation,
+  onStopGeneration,
   summary,
   conversation,
   onRegenerate,
@@ -1458,8 +1502,8 @@ function LandingView({
 }: {
   prRef: PrRef;
   prMeta: PrMeta | null;
-  pipelineSteps: PipelineSteps | null;
-  pipelineError: string | null;
+  generation: Generation | null;
+  onStopGeneration: () => void;
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
   onRegenerate: () => void;
@@ -1467,12 +1511,16 @@ function LandingView({
   hasProgress: boolean;
   onStartReviewing: () => void;
 }) {
-  const running = pipelineSteps !== null && !pipelineError;
-  const stageLabel = running
-    ? PIPELINE_STEPS.filter(({ step }) => pipelineSteps[step].status === "active")
-        .map(({ label }) => label)
-        .join(" and ") + "…"
-    : null;
+  const running = isGenerating(generation);
+  const pipelineError = generation?.status === "failed" ? (generation.error ?? "Something went wrong.") : null;
+  const stageLabel =
+    generation?.status === "queued"
+      ? "Waiting for another review to finish…"
+      : generation?.status === "running"
+        ? PIPELINE_STEPS.filter(({ step }) => generation.steps[step].status === "active")
+            .map(({ label }) => label)
+            .join(" and ") + "…"
+        : null;
 
   const links = useMemo(() => extractLinks(prMeta?.body ?? null), [prMeta]);
   const imageLinks = useMemo(() => links.filter((l) => l.isImage), [links]);
@@ -1522,9 +1570,12 @@ function LandingView({
           {stageLabel && (
             <div className="mt-8 flex items-center gap-3 rounded-lg border border-reviewed/40 bg-reviewed/10 px-4 py-3 text-[15px]">
               <Loader2 className="size-4 shrink-0 animate-spin text-reviewed motion-reduce:animate-none" />
-              <span>
+              <span className="flex-1">
                 Regenerating the review · <span className="text-muted-foreground">{stageLabel}</span>
               </span>
+              <Button variant="ghost" size="sm" onClick={onStopGeneration}>
+                Stop
+              </Button>
             </div>
           )}
           {pipelineError && !stageLabel && (
@@ -1773,8 +1824,6 @@ function writeStoredSidebarWidth(width: number) {
   }
 }
 
-// The model endpoints answer 502 with {error} when generation fails; without
-// this, a failed slices call would be saved as "no slices" for good.
 async function readOk<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -1792,10 +1841,9 @@ function App() {
   const [slices, setSlices] = useState<Slice[] | null>(null);
   const [summary, setSummary] = useState<PrSummary | null>(null);
   const [conversation, setConversation] = useState<ConversationSummary | null>(null);
-  // Non-null while generating, and kept after a failure so the preparation
-  // screen can show which step stopped.
-  const [pipelineSteps, setPipelineSteps] = useState<PipelineSteps | null>(null);
-  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  // The latest status of this PR's background generation, if it has one
+  // that hasn't been collected yet (running, queued, stopped or failed).
+  const [generation, setGeneration] = useState<Generation | null>(null);
   // True while a PR is being generated for the first time (or retried after
   // that failed): the overview shows the preparation screen instead of a
   // half-empty page. A regenerate of an existing review keeps the overview.
@@ -1855,51 +1903,44 @@ function App() {
   const activeSliceIndex = activeSliceId ? allSlices.findIndex((i) => i.id === activeSliceId) : -1;
   const activeSlice = activeSliceIndex >= 0 ? allSlices[activeSliceIndex] : null;
 
-  async function fetchSlicesFor(ref: PrRef): Promise<Slice[]> {
-    const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/slices`, {
-      method: "POST",
-    });
-    const body = await readOk<{ slices?: Slice[] }>(res);
-    const slices: Slice[] = body.slices ?? [];
-    await persistSlices(ref.owner, ref.repo, ref.number, slices);
-    return slices;
+  const generationUrl = (ref: PrRef) => `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/generation`;
+
+  // Results the browser has already copied out of the current generation, so
+  // each one is saved once however many times it's polled.
+  const collected = useRef<{ id: string; steps: Set<PipelineStep> } | null>(null);
+
+  function collectGeneration(ref: PrRef, next: Generation) {
+    if (collected.current?.id !== next.id) collected.current = { id: next.id, steps: new Set() };
+    const done = collected.current.steps;
+    const { slices, conversation, summary } = next.results;
+    if (slices && !done.has("slices")) {
+      done.add("slices");
+      setSlices(slices);
+      persistSlices(ref.owner, ref.repo, ref.number, slices);
+    }
+    if (conversation && !done.has("conversation")) {
+      done.add("conversation");
+      setConversation(conversation);
+      persistConversation(ref.owner, ref.repo, ref.number, conversation);
+    }
+    if (summary && !done.has("summary")) {
+      done.add("summary");
+      setSummary(summary);
+      persistSummary(ref.owner, ref.repo, ref.number, summary);
+    }
+    if (next.status === "done") {
+      setGeneration(null);
+      setPreparing(false);
+      fetch(generationUrl(ref), { method: "DELETE" }).catch(() => {});
+    } else {
+      setGeneration(next);
+    }
   }
 
-  async function fetchSummaryFor(
-    ref: PrRef,
-    slicesForSummary: Slice[],
-    conversationForSummary: ConversationSummary | null,
-  ): Promise<PrSummary | null> {
-    const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/summary`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slices: slicesForSummary, conversation: conversationForSummary }),
-    });
-    const body = await readOk<{ summary?: PrSummary }>(res);
-    if (!body.summary) return null;
-    const { what, why, how } = body.summary;
-    const summary = { what, why, how };
-    await persistSummary(ref.owner, ref.repo, ref.number, summary);
-    return summary;
-  }
-
-  async function fetchConversationFor(ref: PrRef): Promise<ConversationSummary | null> {
-    const res = await fetch(
-      `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/conversation`,
-      { method: "POST" },
-    );
-    const body = await readOk<{ conversation?: ConversationSummary }>(res);
-    const conversation: ConversationSummary | undefined = body.conversation;
-    if (!conversation) return null;
-    await persistConversation(ref.owner, ref.repo, ref.number, conversation);
-    return conversation;
-  }
-
-  // Each step saves its result as soon as it finishes, so a run that stopped
-  // part way (a failure, a reload) can pass what it already has as `reuse`
-  // and only redo the rest. The summary is always rewritten, since it's
-  // written from the other two.
-  async function runPipeline(
+  // Starts a background generation, or attaches to one already running for
+  // this PR. Steps with a result in `reuse` are skipped; the summary is always
+  // rewritten, since it's written from the other two.
+  async function startGeneration(
     ref: PrRef,
     {
       firstRun,
@@ -1910,47 +1951,64 @@ function App() {
     },
   ) {
     setPreparing(firstRun);
-    setPipelineError(null);
-    const mark = (step: PipelineStep, status: "active" | "done") =>
-      setPipelineSteps((prev) =>
-        prev && { ...prev, [step]: { status, startedAt: status === "active" ? Date.now() : undefined } },
-      );
-    const reusedSlices = reuse?.slices ?? null;
-    const reusedConversation = reuse?.conversation ?? null;
-    const now = Date.now();
-    setPipelineSteps({
-      slices: reusedSlices ? { status: "done" } : { status: "active", startedAt: now },
-      conversation: reusedConversation ? { status: "done" } : { status: "active", startedAt: now },
-      summary: { status: "pending" },
-    });
     try {
-      const [generatedSlices, generatedConversation] = await Promise.all([
-        reusedSlices ??
-          fetchSlicesFor(ref).then((result) => {
-            setSlices(result);
-            mark("slices", "done");
-            return result;
-          }),
-        reusedConversation ??
-          fetchConversationFor(ref).then((result) => {
-            setConversation(result);
-            mark("conversation", "done");
-            return result;
-          }),
-      ]);
-      mark("summary", "active");
-      setSummary(await fetchSummaryFor(ref, generatedSlices, generatedConversation));
-      setPipelineSteps(null);
-      setPreparing(false);
+      const res = await fetch(generationUrl(ref), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reuse: { slices: reuse?.slices, conversation: reuse?.conversation } }),
+      });
+      const body = await readOk<{ generation: Generation }>(res);
+      collectGeneration(ref, body.generation);
     } catch (err) {
-      setPipelineError((err as Error).message);
+      setGeneration((prev) => ({
+        ...(prev ?? emptyGeneration()),
+        status: "failed",
+        error: (err as Error).message,
+      }));
     }
   }
 
+  async function stopGeneration(ref: PrRef) {
+    try {
+      const res = await fetch(`${generationUrl(ref)}/stop`, { method: "POST" });
+      const body = await readOk<{ generation: Generation | null }>(res);
+      if (body.generation) setGeneration(body.generation);
+    } catch {
+      // The next check-in will show whatever state it's really in.
+    }
+  }
+
+  const generationActive = isGenerating(generation);
+  useEffect(() => {
+    if (!prRef || !generationActive) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(generationUrl(prRef));
+        const body = await readOk<{ generation: Generation | null }>(res);
+        if (cancelled) return;
+        if (body.generation) {
+          collectGeneration(prRef, body.generation);
+        } else {
+          // Jobs only live as long as the backend process.
+          setGeneration((prev) =>
+            prev && { ...prev, status: "failed", error: "The backend restarted, so this run was lost." },
+          );
+        }
+      } catch {
+        // A missed check-in is fine; the next one catches up.
+      }
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+    // Re-arm when the PR changes or a new generation starts.
+  }, [prRef, generationActive, generation?.id]);
+
   async function loadPrByRef(ref: PrRef) {
     setError(null);
-    setPipelineError(null);
-    setPipelineSteps(null);
+    setGeneration(null);
     setPreparing(false);
     setLoading(true);
     setFiles(null);
@@ -1962,9 +2020,12 @@ function App() {
     setView("landing");
 
     try {
-      const [filesRes, prRecord] = await Promise.all([
+      const [filesRes, prRecord, generationRes] = await Promise.all([
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}`),
         getPrRecord(ref.owner, ref.repo, ref.number),
+        fetch(generationUrl(ref))
+          .then((res) => readOk<{ generation: Generation | null }>(res))
+          .catch(() => ({ generation: null })),
       ]);
       if (!filesRes.ok) {
         const body = await filesRes.json();
@@ -1982,9 +2043,14 @@ function App() {
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
-      if (!prRecord.slices || !prRecord.conversation || !prRecord.summary) {
-        // Fire and forget - this can take minutes; don't block the initial load on it.
-        runPipeline(ref, {
+      const existing = generationRes.generation;
+      if (existing) {
+        // A generation from an earlier visit: pick up what it finished while
+        // we were away. A stopped or failed one stays that way until resumed.
+        setPreparing(!prRecord.summary && !existing.results.summary);
+        collectGeneration(ref, existing);
+      } else if (!prRecord.slices || !prRecord.conversation || !prRecord.summary) {
+        startGeneration(ref, {
           firstRun: !prRecord.summary,
           reuse: { slices: prRecord.slices, conversation: prRecord.conversation },
         });
@@ -2026,8 +2092,7 @@ function App() {
     setSlices(null);
     setSummary(null);
     setConversation(null);
-    setPipelineSteps(null);
-    setPipelineError(null);
+    setGeneration(null);
     setPreparing(false);
     setActiveSliceId(null);
     setView("landing");
@@ -2255,9 +2320,9 @@ function App() {
             prRef={prRef}
             title={prMeta?.title}
             fileCount={files.length}
-            steps={pipelineSteps}
-            error={pipelineError}
-            onRetry={() => runPipeline(prRef, { firstRun: true, reuse: { slices, conversation } })}
+            generation={generation}
+            onStop={() => stopGeneration(prRef)}
+            onResume={() => startGeneration(prRef, { firstRun: true, reuse: { slices, conversation } })}
           />
         ) : view === "files" ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -2287,11 +2352,11 @@ function App() {
           <LandingView
             prRef={prRef}
             prMeta={prMeta}
-            pipelineSteps={pipelineSteps}
-            pipelineError={pipelineError}
+            generation={generation}
+            onStopGeneration={() => stopGeneration(prRef)}
             summary={summary}
             conversation={conversation}
-            onRegenerate={() => runPipeline(prRef, { firstRun: false })}
+            onRegenerate={() => startGeneration(prRef, { firstRun: false })}
             hasSlices={slices !== null && slices.length > 0}
             hasProgress={Object.values(reviewed).some(Boolean)}
             onStartReviewing={resumeSlices}

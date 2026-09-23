@@ -59,6 +59,7 @@ export async function generateSummary(
   meta: PrMeta,
   slices: Slice[],
   conversation: ConversationSummary | null,
+  signal?: AbortSignal,
 ): Promise<PrSummary> {
   const slicesText = slices.map((slice) => `- ${slice.title}: ${slice.summary}`).join("\n");
   const userContent = [
@@ -73,6 +74,7 @@ export async function generateSummary(
       { role: "user", content: userContent },
     ],
     SUMMARY_TOOL,
+    signal,
   );
 
   const raw = result.arguments as { what?: unknown; why?: unknown; how?: unknown };
@@ -211,6 +213,7 @@ function parseReplies(raw: unknown): ThreadReply[] {
 
 export async function generateConversationSummary(
   conversation: PrConversation,
+  signal?: AbortSignal,
 ): Promise<ConversationSummary> {
   const empty: ConversationSummary = { prAuthor: conversation.prAuthor, reviewers: [] };
   const { reviews, comments, threads } = conversation;
@@ -222,6 +225,7 @@ export async function generateConversationSummary(
       { role: "user", content: formatConversation(conversation) },
     ],
     CONVERSATION_TOOL,
+    signal,
   );
 
   const raw = result.arguments as { reviewers?: unknown; authorNotes?: unknown };

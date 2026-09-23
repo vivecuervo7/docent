@@ -3,12 +3,16 @@ import {
   fetchAttachment,
   fetchFileContentAtRef,
   fetchPrBaseSha,
-  fetchPrConversation,
   fetchPrFiles,
   fetchPrMeta,
 } from "./github.js";
-import { generateSlices } from "./slices.js";
-import { generateConversationSummary, generateSummary } from "./overview.js";
+import {
+  dismissGeneration,
+  getGeneration,
+  startGeneration,
+  stopGeneration,
+  type Reuse,
+} from "./generation.js";
 import type { ConversationSummary, Slice } from "./types.js";
 
 const app = express();
@@ -72,54 +76,45 @@ app.get("/api/pr/:owner/:repo/:number/old-content", async (req, res) => {
   }
 });
 
-app.post("/api/pr/:owner/:repo/:number/slices", async (req, res) => {
+// Preparing a PR's review (slices, conversation, summary) runs as a
+// background generation; see generation.ts.
+app.post("/api/pr/:owner/:repo/:number/generation", (req, res) => {
   const { owner, repo, number } = req.params;
   if (!validParams(owner, repo, number)) {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
 
-  try {
-    const files = await fetchPrFiles(owner, repo, number);
-    const slices = await generateSlices(files);
-    res.json({ slices });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
+  const reuse: Reuse = {};
+  if (Array.isArray(req.body?.reuse?.slices)) reuse.slices = req.body.reuse.slices as Slice[];
+  if (Array.isArray(req.body?.reuse?.conversation?.reviewers)) {
+    reuse.conversation = req.body.reuse.conversation as ConversationSummary;
   }
+  res.json({ generation: startGeneration(owner, repo, number, reuse) });
 });
 
-app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
+app.get("/api/pr/:owner/:repo/:number/generation", (req, res) => {
   const { owner, repo, number } = req.params;
   if (!validParams(owner, repo, number)) {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
-
-  const slices: Slice[] = Array.isArray(req.body?.slices) ? req.body.slices : [];
-  const conversation: ConversationSummary | null =
-    req.body?.conversation && Array.isArray(req.body.conversation.reviewers)
-      ? req.body.conversation
-      : null;
-
-  try {
-    const meta = await fetchPrMeta(owner, repo, number);
-    const summary = await generateSummary(meta, slices, conversation);
-    res.json({ summary });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
-  }
+  res.json({ generation: getGeneration(owner, repo, number) });
 });
 
-app.post("/api/pr/:owner/:repo/:number/overview/conversation", async (req, res) => {
+app.post("/api/pr/:owner/:repo/:number/generation/stop", (req, res) => {
   const { owner, repo, number } = req.params;
   if (!validParams(owner, repo, number)) {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
+  res.json({ generation: stopGeneration(owner, repo, number) });
+});
 
-  try {
-    const conversation = await fetchPrConversation(owner, repo, number);
-    res.json({ conversation: await generateConversationSummary(conversation) });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
+app.delete("/api/pr/:owner/:repo/:number/generation", (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
+  dismissGeneration(owner, repo, number);
+  res.status(204).end();
 });
 
 app.post("/api/debug/pr-state", (req, res) => {

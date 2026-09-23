@@ -73,7 +73,7 @@ don't fit anywhere. For each slice, give a short title, a 1-2 sentence summary o
 why it matters for review, and the exact hunk references (format "path#index") it covers. Call \
 report_slices with the result.`;
 
-export async function generateSlices(files: PrFile[]): Promise<Slice[]> {
+export async function generateSlices(files: PrFile[], signal?: AbortSignal): Promise<Slice[]> {
   const refs = buildHunkRefs(files);
   if (refs.size === 0) return [];
 
@@ -83,6 +83,7 @@ export async function generateSlices(files: PrFile[]): Promise<Slice[]> {
       { role: "user", content: buildPrompt(refs) },
     ],
     REPORT_SLICES_TOOL,
+    signal,
   );
 
   const raw = result.arguments as { slices?: unknown };
