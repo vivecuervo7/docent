@@ -1,5 +1,5 @@
 import { fetchPrConversation, fetchPrFiles, fetchPrMeta } from "./github.js";
-import { MAX_CONCURRENT_GENERATIONS } from "./modelProvider.js";
+import { maxConcurrentGenerations } from "./config.js";
 import { generateConversationSummary, generateSummary } from "./overview.js";
 import { generateSlices } from "./slices.js";
 import type { ConversationSummary, PrSummary, Slice } from "./types.js";
@@ -118,7 +118,7 @@ export function dismissGeneration(owner: string, repo: string, number: string): 
 }
 
 function pump() {
-  while (running < MAX_CONCURRENT_GENERATIONS && queue.length > 0) {
+  while (running < maxConcurrentGenerations() && queue.length > 0) {
     const job = jobs.get(queue.shift()!);
     if (!job || job.generation.status !== "queued") continue;
     running++;

@@ -26,7 +26,9 @@ import {
   type ReviewContext,
 } from "./agentReview.js";
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
+import { modelName, setModelName } from "./config.js";
 import { handleMcpRequest } from "./mcp.js";
+import { listModels } from "./modelProvider.js";
 import {
   buildReviewPayload,
   fetchViewer,
@@ -318,6 +320,24 @@ app.post("/api/pr/:owner/:repo/:number/review/post", async (req, res) => {
 app.post("/mcp", localhostHostValidation(), handleMcpRequest);
 app.all("/mcp", (_req, res) => {
   res.status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null });
+});
+
+// The models the endpoint offers, and which one Docent uses.
+app.get("/api/models", async (_req, res) => {
+  try {
+    res.json({ models: await listModels(), selected: modelName() });
+  } catch (err) {
+    res.json({ models: [], selected: modelName(), error: (err as Error).message });
+  }
+});
+
+app.put("/api/models/selected", (req, res) => {
+  const model = req.body?.model;
+  if (typeof model !== "string" || !model.trim()) {
+    return res.status(400).json({ error: "invalid model" });
+  }
+  setModelName(model.trim());
+  res.json({ selected: modelName() });
 });
 
 app.post("/api/debug/pr-state", (req, res) => {

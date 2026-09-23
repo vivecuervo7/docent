@@ -14,9 +14,13 @@ IndexedDB.
 - A recent Node.js (the frontend is built with Vite 8)
 - [GitHub CLI](https://cli.github.com/), authenticated (`gh auth login`) with
   access to the repos you want to review
-- A local OpenAI-compatible chat endpoint at `http://127.0.0.1:8000/v1`, such
-  as oMLX. The endpoint and model name are set in
-  `backend/src/modelProvider.ts`.
+- An OpenAI-compatible chat endpoint: a local server such as oMLX, or a hosted
+  proxy such as LiteLLM. Copy `backend/.env.example` to `backend/.env` and set
+  the endpoint, API key (if it needs one) and model there. The key stays in
+  that file on your machine. Restart the backend after changing it.
+
+The model can also be switched from the start page, which lists the models
+the endpoint offers.
 
 ## Running
 

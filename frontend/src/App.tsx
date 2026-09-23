@@ -1,3 +1,4 @@
+import { matchPath, useLocation, useNavigate } from "react-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type UIEvent } from "react";
 import { diffArrays } from "diff";
 import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Bot, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, Send, SlidersHorizontal, Trash2, User, Wrench, type LucideIcon } from "lucide-react";
@@ -2208,7 +2209,10 @@ function StartPage({
   }
 
   return (
-    <div className="scrollbar-thin h-screen overflow-y-auto px-6 [scrollbar-gutter:stable]">
+    <div className="scrollbar-thin relative h-screen overflow-y-auto px-6 [scrollbar-gutter:stable]">
+      <div className="absolute top-5 right-6 w-72">
+        <ModelPicker />
+      </div>
       <div className="mx-auto flex max-w-3xl flex-col gap-12 pt-[18vh] pb-16">
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Review a pull request</h1>
@@ -2249,6 +2253,66 @@ function StartPage({
           </section>
         )}
       </div>
+    </div>
+  );
+}
+
+// Which model Docent uses, from those the endpoint in backend/.env offers.
+// The choice is saved by the backend and applies from the next model call.
+function ModelPicker() {
+  const [state, setState] = useState<{ models: string[]; selected: string; error?: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/models")
+      .then((res) => readOk<{ models: string[]; selected: string; error?: string }>(res))
+      .then(setState)
+      .catch((err) => setState({ models: [], selected: "", error: (err as Error).message }));
+  }, []);
+
+  async function choose(model: string) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/models/selected", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      const { selected } = await readOk<{ selected: string }>(res);
+      setState((prev) => prev && { ...prev, selected });
+    } catch (err) {
+      setState((prev) => prev && { ...prev, error: (err as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!state) return null;
+  // The one in use stays listed even if the endpoint doesn't offer it (or
+  // can't be reached), so it's clear what Docent is set to.
+  const options = state.selected && !state.models.includes(state.selected) ? [state.selected, ...state.models] : state.models;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex items-center gap-3 text-sm">
+        <span className="text-muted-foreground">Model</span>
+        <select
+          value={state.selected}
+          disabled={saving || options.length === 0}
+          onChange={(e) => choose(e.target.value)}
+          className="min-w-0 flex-1 rounded-md border bg-card px-2.5 py-1.5 font-mono text-[13px] outline-none focus:border-reviewed disabled:opacity-60"
+        >
+          {options.map((model) => (
+            <option key={model} value={model}>
+              {model}
+            </option>
+          ))}
+        </select>
+      </label>
+      {state.error && (
+        <p className="text-right text-xs text-muted-foreground">
+          Couldn't list the endpoint's models ({state.error}). Check it's running, and the settings in backend/.env.
+        </p>
+      )}
     </div>
   );
 }
@@ -2986,32 +3050,6 @@ function parsePrUrl(url: string): PrRef | null {
   return { owner, repo, number };
 }
 
-const STORAGE_KEY = "docent:last-pr-url";
-
-function readStoredPrUrl(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredPrUrl(url: string) {
-  try {
-    localStorage.setItem(STORAGE_KEY, url);
-  } catch {
-    // ignore, e.g. private browsing
-  }
-}
-
-function clearStoredPrUrl() {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
-  }
-}
-
 const SIDEBAR_WIDTH_KEY = "docent:sidebar-width";
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 520;
@@ -3047,6 +3085,39 @@ async function readOk<T>(res: Response): Promise<T> {
 type FeedbackView = "your-feedback" | "agent-feedback" | "post-review";
 type View = "landing" | "slice" | "files" | FeedbackView;
 
+// Each view has its own address, so reload, Back and links all land where
+// they should: /pr/owner/repo/123 is the Overview, and the rest hang off it.
+const VIEW_PATHS: Record<Exclude<View, "landing" | "slice">, string> = {
+  files: "files",
+  "your-feedback": "feedback/yours",
+  "agent-feedback": "feedback/agent",
+  "post-review": "review",
+};
+
+interface Route {
+  prRef: PrRef | null;
+  view: View;
+  sliceId: string | null;
+}
+
+function parseRoute(pathname: string): Route {
+  const pr = matchPath({ path: "/pr/:owner/:repo/:number/*" }, pathname);
+  if (!pr?.params.owner || !pr.params.repo || !pr.params.number) return { prRef: null, view: "landing", sliceId: null };
+  const prRef = { owner: pr.params.owner, repo: pr.params.repo, number: pr.params.number };
+  const rest = pr.params["*"] ?? "";
+  const slice = rest.match(/^slices\/([^/]+)$/);
+  if (slice) return { prRef, view: "slice", sliceId: decodeURIComponent(slice[1]) };
+  const view = (Object.keys(VIEW_PATHS) as (keyof typeof VIEW_PATHS)[]).find((v) => VIEW_PATHS[v] === rest);
+  return { prRef, view: view ?? "landing", sliceId: null };
+}
+
+function pathFor(ref: PrRef, view: View, sliceId?: string): string {
+  const base = `/pr/${ref.owner}/${ref.repo}/${ref.number}`;
+  if (view === "slice" && sliceId) return `${base}/slices/${encodeURIComponent(sliceId)}`;
+  if (view === "landing" || view === "slice") return base;
+  return `${base}/${VIEW_PATHS[view]}`;
+}
+
 function App() {
   const [prUrl, setPrUrl] = useState("");
   const [prRef, setPrRef] = useState<PrRef | null>(null);
@@ -3075,8 +3146,19 @@ function App() {
   // that failed): the overview shows the preparation screen instead of a
   // half-empty page. A regenerate of an existing review keeps the overview.
   const [preparing, setPreparing] = useState(false);
-  const [view, setView] = useState<View>("landing");
-  const [activeSliceId, setActiveSliceId] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const route = useMemo(() => parseRoute(location.pathname), [location.pathname]);
+  const view = route.view;
+  const activeSliceId = route.sliceId;
+
+  function setView(next: View) {
+    if (prRef) navigate(pathFor(prRef, next));
+  }
+
+  function openSlice(id: string | null | undefined) {
+    if (prRef && id) navigate(pathFor(prRef, "slice", id));
+  }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hideWhitespace, setHideWhitespace] = useState(true);
@@ -3253,8 +3335,6 @@ function App() {
     setReviewDraft(undefined);
     setPrepareStatus({});
     setReviewer(null);
-    setActiveSliceId(null);
-    setView("landing");
 
     try {
       const [filesRes, prRecord, generationRes] = await Promise.all([
@@ -3284,7 +3364,6 @@ function App() {
         .then((res) => readOk<{ review: AgentReviewBody | null }>(res))
         .then(({ review }) => review && collectAgentReview(ref, review))
         .catch(() => {});
-      writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
       const existing = generationRes.generation;
@@ -3306,28 +3385,31 @@ function App() {
     }
   }
 
-  async function loadPr(e: FormEvent) {
+  function loadPr(e: FormEvent) {
     e.preventDefault();
     const ref = parsePrUrl(prUrl);
     if (!ref) {
       setError("Enter a GitHub PR URL, e.g. https://github.com/owner/repo/pull/123");
       return;
     }
-    await loadPrByRef(ref);
+    navigate(pathFor(ref, "landing"));
   }
 
+  // The PR in the address is the one that's open: going to a PR's address
+  // loads it, and leaving for the start page closes it.
+  const routePrKey = route.prRef ? `${route.prRef.owner}/${route.prRef.repo}/${route.prRef.number}` : null;
   useEffect(() => {
-    const stored = readStoredPrUrl();
-    if (!stored) return;
-    const ref = parsePrUrl(stored);
-    if (!ref) return;
-    setPrUrl(stored);
-    loadPrByRef(ref);
-    // Only ever run once, on mount, to restore the last loaded PR.
-  }, []);
+    if (!route.prRef) {
+      clearPr();
+      return;
+    }
+    setPrUrl(`https://github.com/${route.prRef.owner}/${route.prRef.repo}/pull/${route.prRef.number}`);
+    loadPrByRef(route.prRef);
+    // Keyed on the PR, not the view: moving between a PR's views keeps it open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routePrKey]);
 
   function clearPr() {
-    clearStoredPrUrl();
     setPrUrl("");
     setPrRef(null);
     setPrMeta(null);
@@ -3348,8 +3430,6 @@ function App() {
     setReviewer(null);
     setGeneration(null);
     setPreparing(false);
-    setActiveSliceId(null);
-    setView("landing");
     setError(null);
   }
 
@@ -3471,7 +3551,7 @@ function App() {
     if (!activeSlice) return;
     setHunksReviewed(activeSlice.hunks, true);
     const next = allSlices[activeSliceIndex + 1];
-    if (next) setActiveSliceId(next.id);
+    if (next) openSlice(next.id);
   }
 
   useEffect(() => {
@@ -3534,8 +3614,7 @@ function App() {
   function openListedNote(note: Note) {
     const slice = allSlices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
     if (slice) {
-      setActiveSliceId(slice.id);
-      setView("slice");
+      openSlice(slice.id);
     } else {
       setView("files");
     }
@@ -3913,8 +3992,7 @@ function App() {
       setView("landing");
       return;
     }
-    setActiveSliceId(next.id);
-    setView("slice");
+    openSlice(next.id);
   }
 
   const reviewedFileCount = (files ?? []).filter((file) =>
@@ -3927,10 +4005,7 @@ function App() {
         prUrl={prUrl}
         onPrUrlChange={setPrUrl}
         onSubmit={loadPr}
-        onOpenSaved={(ref) => {
-          setPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
-          loadPrByRef(ref);
-        }}
+        onOpenSaved={(ref) => navigate(pathFor(ref, "landing"))}
         loading={loading}
         error={error}
       />
@@ -3956,10 +4031,7 @@ function App() {
             allFilesActive={view === "files"}
             onSelectOverview={() => setView("landing")}
             onResumeSlices={resumeSlices}
-            onSelectSlice={(id) => {
-              setActiveSliceId(id);
-              setView("slice");
-            }}
+            onSelectSlice={openSlice}
             onToggleSlice={toggleSlice}
             onSelectAllFiles={() => setView("files")}
             activeView={view}
@@ -3991,7 +4063,7 @@ function App() {
         <footer className="shrink-0 border-t p-2">
           <button
             type="button"
-            onClick={clearPr}
+            onClick={() => navigate("/")}
             title="Leave this PR and go back to the start page. Your progress is kept."
             className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[15px] font-medium text-foreground/80 hover:bg-muted hover:text-foreground"
           >
@@ -4038,8 +4110,8 @@ function App() {
             onToggleSlice={toggleSlice}
             onSetHunksReviewed={setHunksReviewed}
             onMarkReviewed={markActiveSliceReviewed}
-            onPrev={() => setActiveSliceId(allSlices[activeSliceIndex - 1]?.id ?? null)}
-            onNext={() => setActiveSliceId(allSlices[activeSliceIndex + 1]?.id ?? null)}
+            onPrev={() => openSlice(allSlices[activeSliceIndex - 1]?.id)}
+            onNext={() => openSlice(allSlices[activeSliceIndex + 1]?.id)}
             notes={notes}
             noteControls={noteControls}
             revealedFile={revealedFile}
