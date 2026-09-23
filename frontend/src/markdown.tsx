@@ -34,9 +34,23 @@ const components: Components = {
   ),
 };
 
-export function Markdown({ text, small = false }: { text: string; small?: boolean }) {
+const SIZES = {
+  sm: "flex flex-col gap-2 text-sm",
+  base: "flex flex-col gap-3 text-[15px]",
+  lg: "flex flex-col gap-3 text-[17px] leading-[1.65]",
+};
+
+export function Markdown({
+  text,
+  small = false,
+  size = small ? "sm" : "base",
+}: {
+  text: string;
+  small?: boolean;
+  size?: keyof typeof SIZES;
+}) {
   return (
-    <div className={small ? "flex flex-col gap-2 text-sm" : "flex flex-col gap-3 text-[15px]"}>
+    <div className={SIZES[size]}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {text}
       </ReactMarkdown>

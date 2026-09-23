@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, Loader2, MessageSquare, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Markdown } from "./markdown";
 import { PIN_SIZE } from "./noteAnchors";
 import type { NoteMessage } from "./prDb";
 
@@ -13,40 +14,6 @@ const PANEL_WIDTH = 380;
 // panel's input lands above the selection instead of on it.
 const PANEL_OFFSET = 20;
 const ARROW_INSET = PANEL_OFFSET + 5;
-
-// Just enough formatting for model replies: fenced code blocks and inline
-// code. Everything else is shown as written.
-export function MessageText({ text }: { text: string }) {
-  const blocks = text.split(/```[^\n]*\n?/);
-  return (
-    <div className="flex flex-col gap-2">
-      {blocks.map((block, i) =>
-        i % 2 === 1 ? (
-          <pre
-            key={i}
-            className="scrollbar-thin overflow-x-auto rounded-md bg-background px-2.5 py-2 font-mono text-[12px] leading-relaxed"
-          >
-            {block.replace(/\n$/, "")}
-          </pre>
-        ) : (
-          block.trim() && (
-            <p key={i} className="whitespace-pre-wrap">
-              {block.trim().split(/(`[^`\n]+`)/).map((part, j) =>
-                part.startsWith("`") && part.endsWith("`") && part.length > 1 ? (
-                  <code key={j} className="rounded bg-secondary px-1 py-px font-mono text-[12px]">
-                    {part.slice(1, -1)}
-                  </code>
-                ) : (
-                  part
-                ),
-              )}
-            </p>
-          )
-        ),
-      )}
-    </div>
-  );
-}
 
 // A reply that hasn't been seen yet, centred on the icon's top-right corner.
 // `ring` matches the surface behind it, so it reads as cut out of the icon.
@@ -334,7 +301,7 @@ export function NotePanel({
               <span className="text-[11.5px] text-muted-foreground">
                 {message.role === "user" ? "You" : "Docent"}
               </span>
-              <MessageText text={message.text} />
+              <Markdown text={message.text} small />
             </div>
           ))}
           {pending && (

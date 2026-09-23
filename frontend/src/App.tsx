@@ -67,7 +67,9 @@ import {
 import { changeKeys, changesBetween, matches, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
 import { AgentFeedbackView, YourFeedbackView, type AgentReviewState, type DraftStatus } from "./feedbackViews";
 import { PostReviewView, type ReviewCandidate, type ReviewPayload } from "./postReviewView";
+import { Markdown } from "./markdown";
 import { NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
+import { plainText } from "./plainText";
 
 // The bundled "common" language set covers most backend languages already;
 // JSX/TSX aren't in it and are registered separately (each pulls in its own
@@ -1726,7 +1728,7 @@ function SliceView({
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-base font-semibold">{slice.title}</h2>
               {slice.summary && (
-                <p className="truncate text-sm text-muted-foreground">{slice.summary}</p>
+                <p className="truncate text-sm text-muted-foreground">{plainText(slice.summary)}</p>
               )}
             </div>
             {actions}
@@ -1738,9 +1740,9 @@ function SliceView({
               {slice.title}
             </h2>
             {slice.summary && (
-              <p className="mt-4 text-[17px] leading-[1.65] text-foreground">
-                {slice.summary}
-              </p>
+              <div className="mt-4 text-foreground">
+                <Markdown text={slice.summary} size="lg" />
+              </div>
             )}
           </>
         )}
@@ -2257,17 +2259,24 @@ function StartPage({
   );
 }
 
-// Which model Docent uses, from those the endpoint in backend/.env offers.
-// The choice is saved by the backend and applies from the next model call.
+interface ModelOption {
+  id: string;
+  label: string;
+  group: "endpoint" | "claude-code";
+}
+
+// Which model Docent uses: one the endpoint in backend/.env offers, or one of
+// Claude Code's when it's installed, which runs calls through `claude -p`
+// on the reviewer's own login. Saved by the backend, used from the next call.
 function ModelPicker() {
-  const [state, setState] = useState<{ models: string[]; selected: string; error?: string } | null>(null);
+  const [state, setState] = useState<{ options: ModelOption[]; selected: string; error?: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch("/api/models")
-      .then((res) => readOk<{ models: string[]; selected: string; error?: string }>(res))
+      .then((res) => readOk<{ options: ModelOption[]; selected: string; error?: string }>(res))
       .then(setState)
-      .catch((err) => setState({ models: [], selected: "", error: (err as Error).message }));
+      .catch((err) => setState({ options: [], selected: "", error: (err as Error).message }));
   }, []);
 
   async function choose(model: string) {
@@ -2288,24 +2297,40 @@ function ModelPicker() {
   }
 
   if (!state) return null;
-  // The one in use stays listed even if the endpoint doesn't offer it (or
-  // can't be reached), so it's clear what Docent is set to.
-  const options = state.selected && !state.models.includes(state.selected) ? [state.selected, ...state.models] : state.models;
+  const endpoint = state.options.filter((o) => o.group === "endpoint");
+  const claude = state.options.filter((o) => o.group === "claude-code");
+  // The one in use stays listed even if nothing offers it now (the endpoint
+  // is down, say), so it's clear what Docent is set to.
+  const missing = state.selected && !state.options.some((o) => o.id === state.selected);
   return (
     <div className="flex flex-col gap-1.5">
       <label className="flex items-center gap-3 text-sm">
         <span className="text-muted-foreground">Model</span>
         <select
           value={state.selected}
-          disabled={saving || options.length === 0}
+          disabled={saving || state.options.length + (missing ? 1 : 0) === 0}
           onChange={(e) => choose(e.target.value)}
           className="min-w-0 flex-1 rounded-md border bg-card px-2.5 py-1.5 font-mono text-[13px] outline-none focus:border-reviewed disabled:opacity-60"
         >
-          {options.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
+          {missing && <option value={state.selected}>{state.selected} (unavailable)</option>}
+          {endpoint.length > 0 && (
+            <optgroup label="Endpoint (backend/.env)">
+              {endpoint.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {claude.length > 0 && (
+            <optgroup label="Claude Code (your login)">
+              {claude.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </label>
       {state.error && (
@@ -2442,9 +2467,9 @@ function Bubble({
           {label && <span className="text-muted-foreground">{label}</span>}
           {tag}
         </div>
-        <p className={cn("mt-1 text-[15px] leading-relaxed", muted && "text-muted-foreground")}>
+        <div className={cn("mt-1 text-[15px] leading-relaxed", muted && "text-muted-foreground")}>
           {children}
-        </p>
+        </div>
       </div>
     </article>
   );
@@ -2460,7 +2485,7 @@ function ConversationThread({ entry, prAuthor }: { entry: ReviewerConversation; 
         login={entry.reviewer}
         tag={entry.verdict && <Tag className={VERDICT_STYLES[entry.verdict]}>{entry.verdict}</Tag>}
       >
-        {entry.summary}
+        <Markdown text={entry.summary} />
       </Bubble>
       {entry.replies.length > 0 ? (
         <div className="flex flex-col gap-3 pl-14">
@@ -2482,7 +2507,7 @@ function ConversationThread({ entry, prAuthor }: { entry: ReviewerConversation; 
                   tag={reply.outcome && <Tag className={OUTCOME_STYLES[reply.outcome]}>{reply.outcome}</Tag>}
                   muted
                 >
-                  {reply.summary}
+                  <Markdown text={reply.summary} />
                 </Bubble>
               </div>
             );
@@ -2734,7 +2759,9 @@ function LandingView({
                       <section.Icon className="size-5" strokeWidth={2.25} />
                       {section.heading}
                     </h2>
-                    <p className="mt-3 text-[17px] leading-[1.65]">{section.body}</p>
+                    <div className="mt-3">
+                      <Markdown text={section.body} size="lg" />
+                    </div>
                   </section>
                 ))
               : !running && (
@@ -2796,7 +2823,7 @@ function LandingView({
                   ))}
                   {conversation.authorNotes && (
                     <Bubble login={conversation.prAuthor} label="author notes" muted>
-                      {conversation.authorNotes}
+                      <Markdown text={conversation.authorNotes} />
                     </Bubble>
                   )}
                 </div>
