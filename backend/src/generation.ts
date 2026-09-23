@@ -1,8 +1,9 @@
 import { fetchPrConversation, fetchPrFiles, fetchPrMeta } from "./github.js";
 import { maxConcurrentGenerations } from "./config.js";
 import { generateConversationSummary, generateSummary } from "./overview.js";
+import { generateFileNotes } from "./fileNotes.js";
 import { generateSlices } from "./slices.js";
-import type { ConversationSummary, PrSummary, Slice } from "./types.js";
+import type { ConversationSummary, FileNote, PrSummary, Slice } from "./types.js";
 
 // Preparing a PR's review runs here rather than in the browser, so it keeps
 // going when the tab closes and can be checked in on or stopped. Jobs live in
@@ -10,7 +11,7 @@ import type { ConversationSummary, PrSummary, Slice } from "./types.js";
 // result into the saved review as it appears, so nothing here needs to outlast
 // a restart.
 
-export type StepName = "slices" | "conversation" | "summary";
+export type StepName = "slices" | "conversation" | "summary" | "notes";
 
 export interface StepState {
   status: "pending" | "active" | "done";
@@ -21,13 +22,20 @@ export interface Generation {
   id: string;
   status: "queued" | "running" | "done" | "failed" | "stopped";
   steps: Record<StepName, StepState>;
-  results: { slices?: Slice[]; conversation?: ConversationSummary; summary?: PrSummary };
+  results: {
+    slices?: Slice[];
+    conversation?: ConversationSummary;
+    summary?: PrSummary;
+    fileNotes?: Record<string, FileNote[]>;
+  };
   error?: string;
 }
 
 export interface Reuse {
   slices?: Slice[];
   conversation?: ConversationSummary;
+  // Only reused along with the slices they were written for.
+  fileNotes?: Record<string, FileNote[]>;
 }
 
 interface Job {
@@ -86,6 +94,7 @@ export function startGeneration(owner: string, repo: string, number: string, reu
       slices: { status: reuse.slices ? "done" : "pending" },
       conversation: { status: reuse.conversation ? "done" : "pending" },
       summary: { status: "pending" },
+      notes: { status: reuse.slices && reuse.fileNotes ? "done" : "pending" },
     },
     results: {},
   };
@@ -157,10 +166,19 @@ async function run(job: Job) {
           return conversation;
         }),
     ]);
-    await step("summary", async () => {
-      const meta = await fetchPrMeta(owner, repo, number);
-      generation.results.summary = await generateSummary(meta, slices, conversation, signal);
-    });
+    // The summary and the file notes both build on the slices, and not on
+    // each other, so they run side by side.
+    await Promise.all([
+      step("summary", async () => {
+        const meta = await fetchPrMeta(owner, repo, number);
+        generation.results.summary = await generateSummary(meta, slices, conversation, signal);
+      }),
+      reuse.slices && reuse.fileNotes
+        ? undefined
+        : step("notes", async () => {
+            generation.results.fileNotes = await generateFileNotes(await fetchPrFiles(owner, repo, number), slices, signal);
+          }),
+    ]);
     generation.status = "done";
   } catch (err) {
     // A stop aborts the in-flight model calls, which surfaces here as an

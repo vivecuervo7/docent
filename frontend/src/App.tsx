@@ -1,7 +1,7 @@
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type UIEvent } from "react";
 import { diffArrays } from "diff";
-import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Bot, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, Send, SlidersHorizontal, Trash2, User, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Bot, Files, FlaskConical, Folder, Info, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, Send, SlidersHorizontal, Trash2, User, Wrench, type LucideIcon } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -36,12 +36,14 @@ import {
   saveNote as persistNote,
   saveReviewDraft as persistReviewDraft,
   saveConversation as persistConversation,
+  saveFileNotes as persistFileNotes,
   saveSlices as persistSlices,
   saveSummary as persistSummary,
   setHunksReviewed as persistReviewedHunks,
   type ConversationSummary,
   type FeedbackDraft,
   type FeedbackItem,
+  type FileNote,
   type FeedbackKind,
   type LineRef,
   type Note,
@@ -198,8 +200,9 @@ function extractLinks(body: string | null): Link[] {
 }
 
 // Slices and the conversation don't depend on each other and run together;
-// the summary waits for both so it can prefer them over a stale description.
-type PipelineStep = "slices" | "conversation" | "summary";
+// the summary waits for both so it can prefer them over a stale description,
+// and the file notes, written per slice, run alongside it.
+type PipelineStep = "slices" | "conversation" | "summary" | "notes";
 type PipelineSteps = Record<PipelineStep, { status: "pending" | "active" | "done"; startedAt?: number }>;
 
 // A background generation on the backend (see backend/src/generation.ts).
@@ -207,7 +210,12 @@ interface Generation {
   id: string;
   status: "queued" | "running" | "done" | "failed" | "stopped";
   steps: PipelineSteps;
-  results: { slices?: Slice[]; conversation?: ConversationSummary; summary?: PrSummary };
+  results: {
+    slices?: Slice[];
+    conversation?: ConversationSummary;
+    summary?: PrSummary;
+    fileNotes?: Record<string, FileNote[]>;
+  };
   error?: string;
 }
 
@@ -215,7 +223,12 @@ function emptyGeneration(): Generation {
   return {
     id: "",
     status: "queued",
-    steps: { slices: { status: "pending" }, conversation: { status: "pending" }, summary: { status: "pending" } },
+    steps: {
+      slices: { status: "pending" },
+      conversation: { status: "pending" },
+      summary: { status: "pending" },
+      notes: { status: "pending" },
+    },
     results: {},
   };
 }
@@ -239,6 +252,7 @@ const PIPELINE_STEPS: { step: PipelineStep; label: string }[] = [
   { step: "slices", label: "Breaking the PR into slices" },
   { step: "conversation", label: "Reading the review conversation" },
   { step: "summary", label: "Writing the summary" },
+  { step: "notes", label: "Writing notes on tests and larger files" },
 ];
 
 // Every hunk-addressable unit is keyed "filename#index"; files with no
@@ -921,6 +935,27 @@ interface NoteControls {
 }
 
 const NO_NOTES: Note[] = [];
+const NO_FILE_NOTES: FileNote[] = [];
+
+// A file's note, at the top of its card so it's there even when the file is
+// collapsed: what a test file tests, or what a large change amounts to.
+function FileNoteBlock({ note }: { note: FileNote }) {
+  const tests = note.kind === "tests";
+  return (
+    <div className="flex flex-col gap-2 border-b bg-background px-4 py-3">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        {tests ? <FlaskConical className="size-3.5" /> : <Info className="size-3.5" />}
+        {tests ? "What's tested" : "About these changes"}
+      </span>
+      <Markdown text={note.note} small />
+      {note.quality && (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          <span className="font-medium">Test quality:</span> {note.quality}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // Where a drafted comment sits: on the lines of the threads it came from
 // when they're all in one file (spanning them if there are several), and on
@@ -1445,6 +1480,8 @@ function SliceFileSection({
   onSetHunksReviewed,
   noteProps,
   revealAt,
+  note,
+  autoReviewed,
 }: {
   file: PrFile;
   hunkIndices: number[];
@@ -1455,6 +1492,9 @@ function SliceFileSection({
   noteProps: FileNoteProps;
   // When this file was last picked in the sidebar, or 0.
   revealAt: number;
+  note?: FileNote;
+  // Counted as reviewed because its note says what it tests.
+  autoReviewed: boolean;
 }) {
   const { hunks, diffType, tokens, expander } = useDiffRender(file, hideWhitespace, prRef, true, noteProps.notes);
   const hunkKey = (index: number) => `${file.filename}#${index}`;
@@ -1529,14 +1569,18 @@ function SliceFileSection({
           >
             {hunkIndices.length}/{hunks?.length ?? hunkIndices.length} hunks
           </span>
-          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <label
+            title={autoReviewed ? "Auto-reviewed: its note below says what it tests" : undefined}
+            className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+          >
             <Checkbox
               checked={fileReviewed}
               onCheckedChange={() => onSetHunksReviewed(keys, !fileReviewed)}
             />
-            Reviewed
+            {autoReviewed ? "Auto-reviewed" : "Reviewed"}
           </label>
         </div>
+        {note && <FileNoteBlock note={note} />}
         {!fileCollapsed &&
           (displayed.length > 0 ? (
             <div className="overflow-x-auto text-xs">
@@ -1640,6 +1684,8 @@ function SliceView({
   noteControls,
   revealedFile,
   onRevealNote,
+  fileNotes,
+  autoReviewedKeys,
 }: {
   slice: Slice;
   files: PrFile[];
@@ -1658,6 +1704,10 @@ function SliceView({
   noteControls: NoteControls;
   revealedFile: RevealedFile | null;
   onRevealNote: (note: Note) => void;
+  fileNotes: FileNote[];
+  // Hunks counting as reviewed only because their test file's note says what
+  // it tests.
+  autoReviewedKeys: Set<string>;
 }) {
   const byFile = useMemo(() => groupHunkRefsByFile(slice.hunks), [slice]);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -1776,6 +1826,8 @@ function SliceView({
                 onSetHunksReviewed={onSetHunksReviewed}
                 noteProps={fileNoteProps(filename)}
                 revealAt={revealedFile?.filename === filename ? revealedFile.at : 0}
+                note={fileNotes.find((n) => n.path === filename)}
+                autoReviewed={hunkIndices.every((i) => autoReviewedKeys.has(`${filename}#${i}`))}
               />
             );
           })}
@@ -1949,9 +2001,13 @@ function SidebarNav({
 function ViewOptions({
   hideWhitespace,
   onHideWhitespaceChange,
+  autoReviewTests,
+  onAutoReviewTestsChange,
 }: {
   hideWhitespace: boolean;
   onHideWhitespaceChange: (value: boolean) => void;
+  autoReviewTests: boolean;
+  onAutoReviewTestsChange: (value: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1986,10 +2042,17 @@ function ViewOptions({
         <ChevronDown />
       </Button>
       {open && (
-        <div className="absolute top-full right-0 z-20 mt-1 w-48 rounded-lg border bg-popover p-1.5 shadow-lg">
+        <div className="absolute top-full right-0 z-20 mt-1 w-56 rounded-lg border bg-popover p-1.5 shadow-lg">
           <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
             <Checkbox checked={hideWhitespace} onCheckedChange={onHideWhitespaceChange} />
             Hide whitespace
+          </label>
+          <label
+            title="Count test files as reviewed once their note says what they test. Your own ticks always win."
+            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+          >
+            <Checkbox checked={autoReviewTests} onCheckedChange={onAutoReviewTestsChange} />
+            Auto-review tests
           </label>
         </div>
       )}
@@ -2167,7 +2230,7 @@ function StartPage({
     // A generation can exist for a PR with no saved row yet.
     for (const { owner, repo, number } of listed) {
       if (!list.some((s) => s.owner === owner && s.repo === repo && s.number === number)) {
-        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null, notes: [], feedback: {} } });
+        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null, fileNotes: null, notes: [], feedback: {} } });
       }
     }
     setSaved(list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0)));
@@ -3077,6 +3140,25 @@ function parsePrUrl(url: string): PrRef | null {
   return { owner, repo, number };
 }
 
+const AUTO_REVIEW_TESTS_KEY = "docent:auto-review-tests";
+
+// On unless turned off.
+function readAutoReviewTests(): boolean {
+  try {
+    return localStorage.getItem(AUTO_REVIEW_TESTS_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function writeAutoReviewTests(value: boolean) {
+  try {
+    localStorage.setItem(AUTO_REVIEW_TESTS_KEY, String(value));
+  } catch {
+    // ignore, e.g. private browsing
+  }
+}
+
 const SIDEBAR_WIDTH_KEY = "docent:sidebar-width";
 const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 520;
@@ -3150,7 +3232,11 @@ function App() {
   const [prRef, setPrRef] = useState<PrRef | null>(null);
   const [prMeta, setPrMeta] = useState<PrMeta | null>(null);
   const [files, setFiles] = useState<PrFile[] | null>(null);
-  const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
+  // What the reviewer ticked. What counts as reviewed also includes test
+  // files auto-reviewed from their notes; see `reviewed` below.
+  const [storedReviewed, setReviewed] = useState<Record<string, boolean>>({});
+  const [fileNotes, setFileNotes] = useState<Record<string, FileNote[]> | null>(null);
+  const [autoReviewTests, setAutoReviewTests] = useState(readAutoReviewTests);
   const [slices, setSlices] = useState<Slice[] | null>(null);
   const [summary, setSummary] = useState<PrSummary | null>(null);
   const [conversation, setConversation] = useState<ConversationSummary | null>(null);
@@ -3236,6 +3322,31 @@ function App() {
     if (slices === null) return [];
     return everythingElse.hunks.length > 0 ? [...slices, everythingElse] : slices;
   }, [slices, everythingElse]);
+  // Test files with a note saying what they test count as reviewed while
+  // "Auto-review tests" is on - unless the reviewer has ticked or unticked
+  // them, which always wins. Worked out here, never saved, so turning the
+  // option off brings them straight back.
+  const autoReviewedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (!autoReviewTests || !fileNotes) return keys;
+    for (const slice of slices ?? []) {
+      for (const note of fileNotes[slice.id] ?? []) {
+        if (note.kind !== "tests") continue;
+        for (const hunk of slice.hunks) {
+          if (hunk.startsWith(`${note.path}#`) && !(hunk in storedReviewed)) keys.add(hunk);
+        }
+      }
+    }
+    return keys;
+  }, [autoReviewTests, fileNotes, slices, storedReviewed]);
+
+  const reviewed = useMemo(() => {
+    if (autoReviewedKeys.size === 0) return storedReviewed;
+    const merged = { ...storedReviewed };
+    for (const key of autoReviewedKeys) merged[key] = true;
+    return merged;
+  }, [storedReviewed, autoReviewedKeys]);
+
   const activeSliceIndex = activeSliceId ? allSlices.findIndex((i) => i.id === activeSliceId) : -1;
   const activeSlice = activeSliceIndex >= 0 ? allSlices[activeSliceIndex] : null;
 
@@ -3248,7 +3359,12 @@ function App() {
   function collectGeneration(ref: PrRef, next: Generation) {
     if (collected.current?.id !== next.id) collected.current = { id: next.id, steps: new Set() };
     const done = collected.current.steps;
-    const { slices, conversation, summary } = next.results;
+    const { slices, conversation, summary, fileNotes } = next.results;
+    if (fileNotes && !done.has("notes")) {
+      done.add("notes");
+      setFileNotes(fileNotes);
+      persistFileNotes(ref.owner, ref.repo, ref.number, fileNotes);
+    }
     if (slices && !done.has("slices")) {
       done.add("slices");
       setSlices(slices);
@@ -3283,7 +3399,11 @@ function App() {
       reuse,
     }: {
       firstRun: boolean;
-      reuse?: { slices: Slice[] | null; conversation: ConversationSummary | null };
+      reuse?: {
+        slices: Slice[] | null;
+        conversation: ConversationSummary | null;
+        fileNotes?: Record<string, FileNote[]> | null;
+      };
     },
   ) {
     setPreparing(firstRun);
@@ -3291,7 +3411,9 @@ function App() {
       const res = await fetch(generationUrl(ref), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reuse: { slices: reuse?.slices, conversation: reuse?.conversation } }),
+        body: JSON.stringify({
+          reuse: { slices: reuse?.slices, conversation: reuse?.conversation, fileNotes: reuse?.fileNotes },
+        }),
       });
       const body = await readOk<{ generation: Generation }>(res);
       collectGeneration(ref, body.generation);
@@ -3352,6 +3474,7 @@ function App() {
     setSlices(null);
     setSummary(null);
     setConversation(null);
+    setFileNotes(null);
     setNotes([]);
     setNoteStatus({});
     setFeedback({});
@@ -3384,6 +3507,7 @@ function App() {
       setSlices(prRecord.slices);
       setSummary(prRecord.summary);
       setConversation(prRecord.conversation);
+      setFileNotes(prRecord.fileNotes);
       setNotes(prRecord.notes);
       setFeedback(prRecord.feedback);
       setReviewDraft(prRecord.review);
@@ -3399,10 +3523,10 @@ function App() {
         // we were away. A stopped or failed one stays that way until resumed.
         setPreparing(!prRecord.summary && !existing.results.summary);
         collectGeneration(ref, existing);
-      } else if (!prRecord.slices || !prRecord.conversation || !prRecord.summary) {
+      } else if (!prRecord.slices || !prRecord.conversation || !prRecord.summary || !prRecord.fileNotes) {
         startGeneration(ref, {
           firstRun: !prRecord.summary,
-          reuse: { slices: prRecord.slices, conversation: prRecord.conversation },
+          reuse: { slices: prRecord.slices, conversation: prRecord.conversation, fileNotes: prRecord.fileNotes },
         });
       }
     } catch (err) {
@@ -3445,6 +3569,7 @@ function App() {
     setSlices(null);
     setSummary(null);
     setConversation(null);
+    setFileNotes(null);
     setNotes([]);
     setNoteStatus({});
     setFeedback({});
@@ -4040,7 +4165,15 @@ function App() {
   }
 
   const viewOptions = (
-    <ViewOptions hideWhitespace={hideWhitespace} onHideWhitespaceChange={setHideWhitespace} />
+    <ViewOptions
+      hideWhitespace={hideWhitespace}
+      onHideWhitespaceChange={setHideWhitespace}
+      autoReviewTests={autoReviewTests}
+      onAutoReviewTestsChange={(value) => {
+        setAutoReviewTests(value);
+        writeAutoReviewTests(value);
+      }}
+    />
   );
 
   return (
@@ -4143,6 +4276,8 @@ function App() {
             noteControls={noteControls}
             revealedFile={revealedFile}
             onRevealNote={(note) => revealFile(note.path, note.id)}
+            fileNotes={fileNotes?.[activeSlice.id] ?? NO_FILE_NOTES}
+            autoReviewedKeys={autoReviewedKeys}
           />
         ) : view === "landing" && preparing ? (
           <PreparingView
@@ -4151,7 +4286,7 @@ function App() {
             fileCount={files.length}
             generation={generation}
             onStop={() => stopGeneration(prRef)}
-            onResume={() => startGeneration(prRef, { firstRun: true, reuse: { slices, conversation } })}
+            onResume={() => startGeneration(prRef, { firstRun: true, reuse: { slices, conversation, fileNotes } })}
           />
         ) : view === "your-feedback" ? (
           <YourFeedbackView

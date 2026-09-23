@@ -64,6 +64,16 @@ export interface Note {
   readAt?: number;
 }
 
+// A note on one file within a slice: what a test file tests, or what a large
+// change amounts to (backend/src/fileNotes.ts).
+export interface FileNote {
+  path: string;
+  kind: "tests" | "context";
+  note: string;
+  // For tests: whether they're well-formed.
+  quality?: string;
+}
+
 // A review comment drafted for posting: from one of your threads, or from
 // the agent review. Unticked ones are left out of the posted review.
 export interface FeedbackItem {
@@ -122,6 +132,8 @@ export interface PrRecord {
   slices: Slice[] | null;
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
+  // By slice id; null until written for the current slices.
+  fileNotes: Record<string, FileNote[]> | null;
   notes: Note[];
   feedback: Partial<Record<FeedbackKind, FeedbackDraft>>;
   review?: ReviewDraft;
@@ -139,7 +151,7 @@ export interface SavedPr {
 }
 
 function emptyRecord(): PrRecord {
-  return { reviewed: {}, slices: null, summary: null, conversation: null, notes: [], feedback: {} };
+  return { reviewed: {}, slices: null, summary: null, conversation: null, fileNotes: null, notes: [], feedback: {} };
 }
 
 function keyFor(owner: string, repo: string, number: string): string {
@@ -158,6 +170,7 @@ function normalize(stored: Partial<PrRecord> | undefined): PrRecord {
   // per-comment cards; drop those so they're summarised again.
   if (Array.isArray(record.conversation)) record.conversation = null;
   record.slices ??= null;
+  record.fileNotes ??= null;
   record.notes ??= [];
   record.feedback ??= {};
   return record;
@@ -249,6 +262,17 @@ export async function saveSummary(
     r.summary = summary;
   });
   return record.summary as PrSummary;
+}
+
+export async function saveFileNotes(
+  owner: string,
+  repo: string,
+  number: string,
+  fileNotes: Record<string, FileNote[]>,
+): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    r.fileNotes = fileNotes;
+  });
 }
 
 export async function saveConversation(

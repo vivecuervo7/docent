@@ -122,6 +122,10 @@ app.post("/api/pr/:owner/:repo/:number/generation", (req, res) => {
   if (Array.isArray(req.body?.reuse?.conversation?.reviewers)) {
     reuse.conversation = req.body.reuse.conversation as ConversationSummary;
   }
+  const fileNotes = req.body?.reuse?.fileNotes;
+  if (fileNotes && typeof fileNotes === "object" && !Array.isArray(fileNotes)) {
+    reuse.fileNotes = fileNotes as Reuse["fileNotes"];
+  }
   res.json({ generation: startGeneration(owner, repo, number, reuse) });
 });
 
