@@ -24,18 +24,48 @@ const SUMMARY_TOOL = {
 };
 
 const SUMMARY_SYSTEM_PROMPT = `You are orienting a reviewer to a pull request. Below is the \
-author's PR description and a breakdown of the change into small ideas, each already grounded in \
-the actual code diff. Treat the ideas as ground truth; use the description only as supporting \
-context, not something to audit or critique. Write a succinct, accurate summary in three parts:
+author's PR description, a breakdown of the change into small ideas (each already grounded in the \
+actual code diff), and a summary of the review conversation so far. The ideas reflect the final \
+state of the code and are ground truth. The conversation explains how the PR got there - it often \
+records the author changing something in response to review. The description may have been \
+written before those changes and can be out of date; where it disagrees with the ideas or the \
+conversation, trust the ideas and the conversation. Use the description only as supporting \
+context, not something to audit or critique. Describe the PR as it stands now: do not narrate the \
+review itself ("a reviewer asked...") - that is shown separately. Write a succinct, accurate \
+summary in three parts:
 - what: 1-3 sentences on what this PR actually does.
 - why: 1-2 sentences on why this change is being made.
 - how: only if the approach isn't obvious from "what" - 1-2 sentences on the mechanism, otherwise \
 an empty string.
 Call report_summary with the result.`;
 
-export async function generateSummary(meta: PrMeta, ideas: Idea[]): Promise<PrSummary> {
+function formatConversationDigest(conversation: ConversationSummary | null): string {
+  if (!conversation || (conversation.reviewers.length === 0 && !conversation.authorNotes)) {
+    return "(no review conversation)";
+  }
+  const lines = conversation.reviewers.map((r) => {
+    const replies = r.replies.map(
+      (reply) =>
+        `  - ${reply.from === "author" ? conversation.prAuthor : r.reviewer}` +
+        `${reply.outcome ? ` (${reply.outcome})` : ""}: ${reply.summary}`,
+    );
+    return [`- ${r.reviewer}${r.verdict ? ` (${r.verdict})` : ""}: ${r.summary}`, ...replies].join("\n");
+  });
+  if (conversation.authorNotes) lines.push(`- ${conversation.prAuthor} (author notes): ${conversation.authorNotes}`);
+  return lines.join("\n");
+}
+
+export async function generateSummary(
+  meta: PrMeta,
+  ideas: Idea[],
+  conversation: ConversationSummary | null,
+): Promise<PrSummary> {
   const ideasText = ideas.map((idea) => `- ${idea.title}: ${idea.summary}`).join("\n");
-  const userContent = `PR description:\nTitle: ${meta.title}\n${meta.body ?? "(no description provided)"}\n\nIdeas derived from the diff:\n${ideasText || "(none generated)"}`;
+  const userContent = [
+    `PR description:\nTitle: ${meta.title}\n${meta.body ?? "(no description provided)"}`,
+    `Ideas derived from the diff:\n${ideasText || "(none generated)"}`,
+    `Review conversation:\n${formatConversationDigest(conversation)}`,
+  ].join("\n\n");
 
   const result = await chatWithTool(
     [

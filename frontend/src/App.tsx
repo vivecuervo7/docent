@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
 import { diffArrays } from "diff";
-import { BookOpen, Check, ChevronDown, ChevronRight, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, LogOut, MessagesSquare, Package, SlidersHorizontal, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, SlidersHorizontal, Trash2, Wrench, type LucideIcon } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -23,7 +23,10 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
+  deleteSavedPr,
   getPrRecord,
+  listSavedPrs,
+  markPrOpened,
   saveConversation as persistConversation,
   saveIdeas as persistIdeas,
   saveSummary as persistSummary,
@@ -33,6 +36,7 @@ import {
   type ReviewerConversation,
   type Idea,
   type PrSummary,
+  type SavedPr,
 } from "./prDb";
 
 // The bundled "common" language set covers most backend languages already;
@@ -161,7 +165,16 @@ function extractLinks(body: string | null): Link[] {
   return links;
 }
 
-type PipelineStage = "ideas" | "summary" | "conversation" | null;
+// Ideas and the conversation don't depend on each other and run together;
+// the summary waits for both so it can prefer them over a stale description.
+type PipelineStep = "ideas" | "conversation" | "summary";
+type PipelineSteps = Record<PipelineStep, { status: "pending" | "active" | "done"; startedAt?: number }>;
+
+const PIPELINE_STEPS: { step: PipelineStep; label: string }[] = [
+  { step: "ideas", label: "Breaking the PR into ideas" },
+  { step: "conversation", label: "Reading the review conversation" },
+  { step: "summary", label: "Writing the summary" },
+];
 
 // Every hunk-addressable unit is keyed "filename#index"; files with no
 // hunks to address individually (e.g. binary changes) fall back to a
@@ -996,39 +1009,155 @@ function ViewOptions({
   );
 }
 
+function formatRelativeTime(timestamp: number): string {
+  const minutes = Math.round((Date.now() - timestamp) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
+function SavedPrRow({
+  saved,
+  disabled,
+  onOpen,
+  onDelete,
+}: {
+  saved: SavedPr;
+  disabled: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const { owner, repo, number, record } = saved;
+  const ideas = record.ideas;
+  const reviewedIdeas = ideas?.filter((idea) => isIdeaReviewed(idea, record.reviewed)).length ?? 0;
+
+  return (
+    <li className="flex items-center gap-4 rounded-lg border border-transparent px-3 py-3 hover:border-border hover:bg-card">
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={disabled}
+        className="min-w-0 flex-1 text-left disabled:opacity-50"
+      >
+        <div className="truncate text-[15px] font-medium">
+          {record.title ?? `${owner}/${repo} #${number}`}
+        </div>
+        <div className="truncate font-mono text-xs text-muted-foreground">
+          {owner}/{repo} #{number}
+        </div>
+      </button>
+      <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+        {ideas ? `${reviewedIdeas}/${ideas.length} ideas` : "No ideas yet"}
+      </span>
+      <span className="w-24 shrink-0 text-right text-sm text-muted-foreground">
+        {record.lastOpenedAt ? formatRelativeTime(record.lastOpenedAt) : ""}
+      </span>
+      <div className="flex w-28 shrink-0 justify-end">
+        {confirming ? (
+          <div className="flex items-center gap-1 text-sm">
+            <Button size="sm" variant="ghost" onClick={onDelete} className="text-destructive">
+              Delete?
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} className="text-muted-foreground">
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => setConfirming(true)}
+            aria-label={`Delete saved review of ${owner}/${repo} #${number}`}
+            title="Delete this saved review"
+            className="text-muted-foreground"
+          >
+            <Trash2 />
+          </Button>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function StartPage({
   prUrl,
   onPrUrlChange,
   onSubmit,
+  onOpenSaved,
   loading,
   error,
 }: {
   prUrl: string;
   onPrUrlChange: (value: string) => void;
   onSubmit: (e: FormEvent) => void;
+  onOpenSaved: (ref: PrRef) => void;
   loading: boolean;
   error: string | null;
 }) {
+  const [saved, setSaved] = useState<SavedPr[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listSavedPrs()
+      .then((list) => {
+        if (!cancelled) setSaved(list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0)));
+      })
+      .catch(() => {
+        if (!cancelled) setSaved([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function deleteSaved(target: SavedPr) {
+    await deleteSavedPr(target.owner, target.repo, target.number);
+    setSaved((prev) => prev?.filter((s) => s !== target) ?? null);
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center px-6">
-      <form onSubmit={onSubmit} className="flex w-full max-w-xl flex-col gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Review a pull request</h1>
-        <p className="text-sm text-muted-foreground">
-          Paste a GitHub PR link. It'll be broken into ideas you can review one at a time.
-        </p>
-        <div className="flex gap-2">
-          <Input
-            autoFocus
-            placeholder="https://github.com/owner/repo/pull/123"
-            value={prUrl}
-            onChange={(e) => onPrUrlChange(e.target.value)}
-          />
-          <Button type="submit" disabled={loading}>
-            {loading ? "Loading…" : "Load PR"}
-          </Button>
-        </div>
-        {error && <div className="text-sm text-destructive">{error}</div>}
-      </form>
+    <div className="scrollbar-thin h-screen overflow-y-auto px-6 [scrollbar-gutter:stable]">
+      <div className="mx-auto flex max-w-3xl flex-col gap-12 pt-[18vh] pb-16">
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <h1 className="text-2xl font-semibold tracking-tight">Review a pull request</h1>
+          <p className="text-sm text-muted-foreground">
+            Paste a GitHub PR link. It'll be broken into ideas you can review one at a time.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              autoFocus
+              placeholder="https://github.com/owner/repo/pull/123"
+              value={prUrl}
+              onChange={(e) => onPrUrlChange(e.target.value)}
+            />
+            <Button type="submit" disabled={loading}>
+              {loading ? "Loading…" : "Load PR"}
+            </Button>
+          </div>
+          {error && <div className="text-sm text-destructive">{error}</div>}
+        </form>
+
+        {saved && saved.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Recent reviews</h2>
+            <ul className="-mx-3 flex flex-col">
+              {saved.map((entry) => (
+                <SavedPrRow
+                  key={`${entry.owner}/${entry.repo}/${entry.number}`}
+                  saved={entry}
+                  disabled={loading}
+                  onOpen={() => onOpenSaved({ owner: entry.owner, repo: entry.repo, number: entry.number })}
+                  onDelete={() => deleteSaved(entry)}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
@@ -1215,10 +1344,120 @@ function ConversationThread({ entry, prAuthor }: { entry: ReviewerConversation; 
   );
 }
 
+function formatElapsed(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+// Shown instead of the overview while a PR is generated for the first time,
+// so the page doesn't look finished while it's still empty.
+function PreparingView({
+  prRef,
+  title,
+  fileCount,
+  steps,
+  error,
+  onRetry,
+}: {
+  prRef: PrRef;
+  title: string | undefined;
+  fileCount: number;
+  steps: PipelineSteps | null;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const running = steps !== null && !error;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+
+  return (
+    <div className="flex h-full items-center justify-center px-10">
+      <div className="flex w-full max-w-lg flex-col gap-8">
+        <div>
+          <div className="text-sm font-medium text-reviewed">
+            {error ? "Preparing this review stopped" : "Preparing your review"}
+          </div>
+          <h1 className="mt-3 text-[26px] leading-[1.2] font-semibold tracking-tight text-balance">
+            {title ?? "Pull request"}
+          </h1>
+          <div className="mt-2 font-mono text-sm text-muted-foreground">
+            {prRef.owner}/{prRef.repo} #{prRef.number}
+          </div>
+        </div>
+
+        <ol className="flex flex-col gap-4 text-[15px]">
+          <li className="flex items-center gap-3">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-reviewed-strong text-white">
+              <Check className="size-3" strokeWidth={3.5} />
+            </span>
+            <span>Fetched the PR and its {fileCount} {fileCount === 1 ? "file" : "files"}</span>
+          </li>
+          {PIPELINE_STEPS.map(({ step, label }) => {
+            const state = steps?.[step];
+            const done = state?.status === "done";
+            const active = state?.status === "active";
+            const failed = active && !!error;
+            return (
+              <li key={step} className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-full",
+                    done && "bg-reviewed-strong text-white",
+                    !done && !active && "border-[1.5px] border-muted-foreground/40",
+                  )}
+                >
+                  {done ? (
+                    <Check className="size-3" strokeWidth={3.5} />
+                  ) : failed ? (
+                    <CircleAlert className="size-5 text-destructive" />
+                  ) : active ? (
+                    <Loader2 className="size-5 animate-spin text-reviewed motion-reduce:animate-none" />
+                  ) : null}
+                </span>
+                <span className={cn(!done && !active && "text-muted-foreground", active && "font-medium")}>
+                  {label}
+                </span>
+                {active && !failed && state.startedAt && (
+                  <span className="ml-auto font-mono text-sm text-muted-foreground tabular-nums">
+                    {formatElapsed(now - state.startedAt)}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+
+        {error ? (
+          <div className="flex flex-col gap-4 rounded-lg border border-destructive/40 bg-destructive/10 p-4">
+            <div className="flex items-start gap-3 text-[15px]">
+              <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <span>
+                Generation failed. <span className="text-muted-foreground">{error}</span>
+              </span>
+            </div>
+            <Button variant="outline" onClick={onRetry} className="self-start">
+              Try again
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            You can browse the files from the sidebar in the meantime.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LandingView({
   prRef,
   prMeta,
-  pipelineStage,
+  pipelineSteps,
+  pipelineError,
   summary,
   conversation,
   onRegenerate,
@@ -1228,7 +1467,8 @@ function LandingView({
 }: {
   prRef: PrRef;
   prMeta: PrMeta | null;
-  pipelineStage: PipelineStage;
+  pipelineSteps: PipelineSteps | null;
+  pipelineError: string | null;
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
   onRegenerate: () => void;
@@ -1236,19 +1476,19 @@ function LandingView({
   hasProgress: boolean;
   onStartReviewing: () => void;
 }) {
-  const stageLabel =
-    pipelineStage === "ideas"
-      ? "Breaking the PR into ideas…"
-      : pipelineStage === "summary"
-        ? "Summarizing the PR…"
-        : pipelineStage === "conversation"
-          ? "Reading the conversation…"
-          : null;
+  const running = pipelineSteps !== null && !pipelineError;
+  const stageLabel = running
+    ? PIPELINE_STEPS.filter(({ step }) => pipelineSteps[step].status === "active")
+        .map(({ label }) => label)
+        .join(" and ") + "…"
+    : null;
 
   const links = useMemo(() => extractLinks(prMeta?.body ?? null), [prMeta]);
   const imageLinks = useMemo(() => links.filter((l) => l.isImage), [links]);
   const plainLinks = useMemo(() => links.filter((l) => !l.isImage), [links]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const hasConversation = !!conversation && (conversation.reviewers.length > 0 || !!conversation.authorNotes);
 
   const summarySections: { heading: string; body: string; Icon: LucideIcon; color: string }[] = summary
     ? [
@@ -1264,8 +1504,8 @@ function LandingView({
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       {/* Same header shape as an idea, so the actions sit where Mark reviewed does. */}
       <header className="flex shrink-0 justify-end gap-2 border-b border-transparent px-10 pt-10">
-        <Button variant="outline" onClick={onRegenerate} disabled={pipelineStage !== null}>
-          {pipelineStage !== null ? "Generating…" : "Regenerate review"}
+        <Button variant="outline" onClick={onRegenerate} disabled={running}>
+          {running ? "Generating…" : "Regenerate review"}
         </Button>
         {prMeta && (
           <a href={prMeta.htmlUrl} target="_blank" rel="noreferrer">
@@ -1289,10 +1529,17 @@ function LandingView({
           </div>
 
           {stageLabel && (
-            <p className="mt-4 flex items-center gap-2.5 text-[15px] text-muted-foreground">
-              <span className="size-2 animate-pulse rounded-full bg-reviewed motion-reduce:animate-none" />
-              {stageLabel}
-            </p>
+            <div className="mt-8 flex items-center gap-3 rounded-lg border border-reviewed/40 bg-reviewed/10 px-4 py-3 text-[15px]">
+              <Loader2 className="size-4 shrink-0 animate-spin text-reviewed motion-reduce:animate-none" />
+              <span>
+                Regenerating the review · <span className="text-muted-foreground">{stageLabel}</span>
+              </span>
+            </div>
+          )}
+          {pipelineError && !stageLabel && (
+            <div className="mt-8 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-[15px]">
+              Regenerating the review failed: <span className="text-muted-foreground">{pipelineError}</span>
+            </div>
           )}
 
           <div className="mt-12 flex flex-col gap-10">
@@ -1306,7 +1553,7 @@ function LandingView({
                     <p className="mt-3 text-[17px] leading-[1.65]">{section.body}</p>
                   </section>
                 ))
-              : pipelineStage === null && (
+              : !running && (
                   <p className="text-[15px] text-muted-foreground">
                     No summary yet. Regenerate the review to write one.
                   </p>
@@ -1352,30 +1599,32 @@ function LandingView({
             </section>
           )}
 
-          <section className="mt-16 border-t pt-14">
-            <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
-              <MessagesSquare className="size-5 text-muted-foreground" strokeWidth={2.25} />
-              Conversation
-            </h2>
-            {conversation && (conversation.reviewers.length > 0 || conversation.authorNotes) ? (
-              <div className="mt-5 flex flex-col gap-5">
-                {conversation.reviewers.map((entry) => (
-                  <ConversationThread key={entry.reviewer} entry={entry} prAuthor={conversation.prAuthor} />
-                ))}
-                {conversation.authorNotes && (
-                  <Bubble login={conversation.prAuthor} label="author notes" muted>
-                    {conversation.authorNotes}
-                  </Bubble>
-                )}
-              </div>
-            ) : (
-              pipelineStage === null && (
-                <p className="mt-3 text-[15px] text-muted-foreground">
-                  {conversation ? "No reviews or comments yet." : "Regenerate the review to summarize the conversation."}
-                </p>
-              )
-            )}
-          </section>
+          {(hasConversation || !running) && (
+            <section className="mt-16 border-t pt-14">
+              <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
+                <MessagesSquare className="size-5 text-muted-foreground" strokeWidth={2.25} />
+                Conversation
+              </h2>
+              {conversation && hasConversation ? (
+                <div className="mt-5 flex flex-col gap-5">
+                  {conversation.reviewers.map((entry) => (
+                    <ConversationThread key={entry.reviewer} entry={entry} prAuthor={conversation.prAuthor} />
+                  ))}
+                  {conversation.authorNotes && (
+                    <Bubble login={conversation.prAuthor} label="author notes" muted>
+                      {conversation.authorNotes}
+                    </Bubble>
+                  )}
+                </div>
+              ) : (
+                !running && (
+                  <p className="mt-3 text-[15px] text-muted-foreground">
+                    {conversation ? "No reviews or comments yet." : "Regenerate the review to summarize the conversation."}
+                  </p>
+                )
+              )}
+            </section>
+          )}
         </div>
       </div>
 
@@ -1533,6 +1782,14 @@ function writeStoredSidebarWidth(width: number) {
   }
 }
 
+// The model endpoints answer 502 with {error} when generation fails; without
+// this, a failed ideas call would be saved as "no ideas" for good.
+async function readOk<T>(res: Response): Promise<T> {
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  return body as T;
+}
+
 type View = "landing" | "idea" | "files";
 
 function App() {
@@ -1544,7 +1801,14 @@ function App() {
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
   const [summary, setSummary] = useState<PrSummary | null>(null);
   const [conversation, setConversation] = useState<ConversationSummary | null>(null);
-  const [pipelineStage, setPipelineStage] = useState<PipelineStage>(null);
+  // Non-null while generating, and kept after a failure so the preparation
+  // screen can show which step stopped.
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineSteps | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  // True while a PR is being generated for the first time (or retried after
+  // that failed): the overview shows the preparation screen instead of a
+  // half-empty page. A regenerate of an existing review keeps the overview.
+  const [preparing, setPreparing] = useState(false);
   const [view, setView] = useState<View>("landing");
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1593,10 +1857,10 @@ function App() {
     };
   }, [files, ideas, fileHunkCounts]);
 
-  const allIdeas = useMemo(
-    () => (everythingElse.hunks.length > 0 ? [...(ideas ?? []), everythingElse] : (ideas ?? [])),
-    [ideas, everythingElse],
-  );
+  const allIdeas = useMemo(() => {
+    if (ideas === null) return [];
+    return everythingElse.hunks.length > 0 ? [...ideas, everythingElse] : ideas;
+  }, [ideas, everythingElse]);
   const activeIdeaIndex = activeIdeaId ? allIdeas.findIndex((i) => i.id === activeIdeaId) : -1;
   const activeIdea = activeIdeaIndex >= 0 ? allIdeas[activeIdeaIndex] : null;
 
@@ -1604,19 +1868,23 @@ function App() {
     const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/ideas`, {
       method: "POST",
     });
-    const body = await res.json();
+    const body = await readOk<{ ideas?: Idea[] }>(res);
     const ideas: Idea[] = body.ideas ?? [];
     await persistIdeas(ref.owner, ref.repo, ref.number, ideas);
     return ideas;
   }
 
-  async function fetchSummaryFor(ref: PrRef, ideasForSummary: Idea[]): Promise<PrSummary | null> {
+  async function fetchSummaryFor(
+    ref: PrRef,
+    ideasForSummary: Idea[],
+    conversationForSummary: ConversationSummary | null,
+  ): Promise<PrSummary | null> {
     const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/summary`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ideas: ideasForSummary }),
+      body: JSON.stringify({ ideas: ideasForSummary, conversation: conversationForSummary }),
     });
-    const body = await res.json();
+    const body = await readOk<{ summary?: PrSummary }>(res);
     if (!body.summary) return null;
     const { what, why, how } = body.summary;
     const summary = { what, why, how };
@@ -1629,26 +1897,53 @@ function App() {
       `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/conversation`,
       { method: "POST" },
     );
-    const body = await res.json();
+    const body = await readOk<{ conversation?: ConversationSummary }>(res);
     const conversation: ConversationSummary | undefined = body.conversation;
     if (!conversation) return null;
     await persistConversation(ref.owner, ref.repo, ref.number, conversation);
     return conversation;
   }
 
-  async function runFullPipeline(ref: PrRef) {
-    setPipelineStage("ideas");
-    const generatedIdeas = await fetchIdeasFor(ref);
-    setIdeas(generatedIdeas);
-    setPipelineStage("summary");
-    setSummary(await fetchSummaryFor(ref, generatedIdeas));
-    setPipelineStage("conversation");
-    setConversation(await fetchConversationFor(ref));
-    setPipelineStage(null);
+  async function runFullPipeline(ref: PrRef, { firstRun }: { firstRun: boolean }) {
+    setPreparing(firstRun);
+    setPipelineError(null);
+    const mark = (step: PipelineStep, status: "active" | "done") =>
+      setPipelineSteps((prev) =>
+        prev && { ...prev, [step]: { status, startedAt: status === "active" ? Date.now() : undefined } },
+      );
+    const now = Date.now();
+    setPipelineSteps({
+      ideas: { status: "active", startedAt: now },
+      conversation: { status: "active", startedAt: now },
+      summary: { status: "pending" },
+    });
+    try {
+      const [generatedIdeas, generatedConversation] = await Promise.all([
+        fetchIdeasFor(ref).then((result) => {
+          setIdeas(result);
+          mark("ideas", "done");
+          return result;
+        }),
+        fetchConversationFor(ref).then((result) => {
+          setConversation(result);
+          mark("conversation", "done");
+          return result;
+        }),
+      ]);
+      mark("summary", "active");
+      setSummary(await fetchSummaryFor(ref, generatedIdeas, generatedConversation));
+      setPipelineSteps(null);
+      setPreparing(false);
+    } catch (err) {
+      setPipelineError((err as Error).message);
+    }
   }
 
   async function loadPrByRef(ref: PrRef) {
     setError(null);
+    setPipelineError(null);
+    setPipelineSteps(null);
+    setPreparing(false);
     setLoading(true);
     setFiles(null);
     setPrMeta(null);
@@ -1677,10 +1972,11 @@ function App() {
       setSummary(prRecord.summary);
       setConversation(prRecord.conversation);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
+      markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
       if (!prRecord.ideas) {
         // Fire and forget - this can take minutes; don't block the initial load on it.
-        runFullPipeline(ref);
+        runFullPipeline(ref, { firstRun: true });
       }
     } catch (err) {
       setError((err as Error).message);
@@ -1719,7 +2015,9 @@ function App() {
     setIdeas(null);
     setSummary(null);
     setConversation(null);
-    setPipelineStage(null);
+    setPipelineSteps(null);
+    setPipelineError(null);
+    setPreparing(false);
     setActiveIdeaId(null);
     setView("landing");
     setError(null);
@@ -1836,6 +2134,10 @@ function App() {
         prUrl={prUrl}
         onPrUrlChange={setPrUrl}
         onSubmit={loadPr}
+        onOpenSaved={(ref) => {
+          setPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
+          loadPrByRef(ref);
+        }}
         loading={loading}
         error={error}
       />
@@ -1856,7 +2158,7 @@ function App() {
           <SidebarNav
             allIdeas={allIdeas}
             reviewed={reviewed}
-            loading={pipelineStage === "ideas"}
+            loading={!pipelineError && pipelineSteps?.ideas.status === "active"}
             activeIdeaId={view === "idea" ? activeIdeaId : null}
             overviewActive={view === "landing"}
             allFilesActive={view === "files"}
@@ -1935,6 +2237,15 @@ function App() {
             onPrev={() => setActiveIdeaId(allIdeas[activeIdeaIndex - 1]?.id ?? null)}
             onNext={() => setActiveIdeaId(allIdeas[activeIdeaIndex + 1]?.id ?? null)}
           />
+        ) : view === "landing" && preparing ? (
+          <PreparingView
+            prRef={prRef}
+            title={prMeta?.title}
+            fileCount={files.length}
+            steps={pipelineSteps}
+            error={pipelineError}
+            onRetry={() => runFullPipeline(prRef, { firstRun: true })}
+          />
         ) : view === "files" ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <header className="shrink-0 px-10 pt-10 pb-6">
@@ -1963,10 +2274,11 @@ function App() {
           <LandingView
             prRef={prRef}
             prMeta={prMeta}
-            pipelineStage={pipelineStage}
+            pipelineSteps={pipelineSteps}
+            pipelineError={pipelineError}
             summary={summary}
             conversation={conversation}
-            onRegenerate={() => runFullPipeline(prRef)}
+            onRegenerate={() => runFullPipeline(prRef, { firstRun: false })}
             hasIdeas={ideas !== null && ideas.length > 0}
             hasProgress={Object.values(reviewed).some(Boolean)}
             onStartReviewing={resumeIdeas}

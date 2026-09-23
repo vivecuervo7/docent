@@ -41,6 +41,17 @@ export interface PrRecord {
   ideas: Idea[] | null;
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
+  // Written whenever the PR is opened, so the start page can list saved
+  // reviews by title and recency. Absent on records from before that.
+  title?: string;
+  lastOpenedAt?: number;
+}
+
+export interface SavedPr {
+  owner: string;
+  repo: string;
+  number: string;
+  record: PrRecord;
 }
 
 const DB_NAME = "docent";
@@ -171,4 +182,46 @@ export async function saveConversation(
     r.conversation = conversation;
   });
   return record.conversation ?? conversation;
+}
+
+export async function markPrOpened(
+  owner: string,
+  repo: string,
+  number: string,
+  title: string | undefined,
+): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    if (title) r.title = title;
+    r.lastOpenedAt = Date.now();
+  });
+}
+
+export async function listSavedPrs(): Promise<SavedPr[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const saved: SavedPr[] = [];
+    const req = db.transaction(STORE, "readonly").objectStore(STORE).openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) {
+        resolve(saved);
+        return;
+      }
+      const [owner, repo, number] = String(cursor.key).split("/");
+      if (owner && repo && number) {
+        saved.push({ owner, repo, number, record: cursor.value as PrRecord });
+      }
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteSavedPr(owner: string, repo: string, number: string): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const req = db.transaction(STORE, "readwrite").objectStore(STORE).delete(keyFor(owner, repo, number));
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }

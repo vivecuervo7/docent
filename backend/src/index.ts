@@ -9,7 +9,7 @@ import {
 } from "./github.js";
 import { generateIdeas } from "./ideas.js";
 import { generateConversationSummary, generateSummary } from "./overview.js";
-import type { Idea } from "./types.js";
+import type { ConversationSummary, Idea } from "./types.js";
 
 const app = express();
 app.use(express.json());
@@ -94,10 +94,14 @@ app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
   }
 
   const ideas: Idea[] = Array.isArray(req.body?.ideas) ? req.body.ideas : [];
+  const conversation: ConversationSummary | null =
+    req.body?.conversation && Array.isArray(req.body.conversation.reviewers)
+      ? req.body.conversation
+      : null;
 
   try {
     const meta = await fetchPrMeta(owner, repo, number);
-    const summary = await generateSummary(meta, ideas);
+    const summary = await generateSummary(meta, ideas, conversation);
     res.json({ summary });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
