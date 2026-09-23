@@ -105,7 +105,7 @@ function tallyLine(inline: number, inBody: number, summary: boolean): string {
   const parts = [
     inline > 0 && `${inline} ${inline === 1 ? "comment" : "comments"} on lines`,
     inBody > 0 && `${inBody} in the review's text`,
-    summary && "a summary",
+    summary && "a review body",
   ].filter((p): p is string => !!p);
   if (parts.length === 0) return "Nothing to post yet";
   return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
@@ -132,7 +132,7 @@ function ReviewCard({
     summary,
     onSummary,
     readOnly,
-    "No summary. Add one to say something about the PR overall.",
+    "No review body. Add one to say something about the PR overall.",
   );
   return (
     <section className="overflow-hidden rounded-lg border bg-card">

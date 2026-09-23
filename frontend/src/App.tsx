@@ -3723,13 +3723,14 @@ function App() {
               ? `${item.path}${item.start && item.end ? ` ${describeLines(item.start, item.end)}` : ""}`
               : "the PR as a whole",
             body: item.body,
+            inline: isInlineComment(item),
           })),
         }),
       });
       const prepared = await readOk<{
         comments: { from: string[]; body: string }[];
         dropped: { from: string[]; reason: string }[];
-        summary: string;
+        body: string;
       }>(res);
       const byId = new Map(candidates.map((c) => [c.item.id, c.item]));
       const next: ReviewDraft = {
@@ -3750,7 +3751,7 @@ function App() {
           };
         }),
         dropped: prepared.dropped,
-        summary: prepared.summary,
+        summary: prepared.body,
         event: reviewDraft?.event ?? "COMMENT",
       };
       if (openPrKey.current === `${ref.owner}/${ref.repo}/${ref.number}`) {
@@ -3785,14 +3786,28 @@ function App() {
   }
 
   async function postReview() {
-    if (!reviewDraft) return;
-    const { url } = await readOk<{ url: string }>(await reviewRequest(reviewDraft, false));
-    saveReview({ ...reviewDraft, posted: { at: Date.now(), url } });
+    if (!reviewDraft || !prRef) return;
+    const ref = prRef;
+    // A little before now, allowing for the clocks here and at GitHub.
+    const since = Date.now() - 30_000;
+    try {
+      const { url } = await readOk<{ url: string }>(await reviewRequest(reviewDraft, false));
+      saveReview({ ...reviewDraft, posted: { at: Date.now(), url } });
+    } catch (err) {
+      // The post can succeed and its answer still be lost on the way back.
+      // Only report a failure once GitHub confirms nothing arrived.
+      const found = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/review/posted-since?since=${since}`)
+        .then((res) => readOk<{ url: string | null }>(res))
+        .then((r) => r.url)
+        .catch(() => null);
+      if (!found) throw err;
+      saveReview({ ...reviewDraft, posted: { at: Date.now(), url: found } });
+    }
   }
 
   // GitHub takes a comment on lines only if they're in the PR's diff as it
   // stands - not lines the reviewer expanded, and not a whole file.
-  function isInlineComment(comment: ReviewComment): boolean {
+  function isInlineComment(comment: Pick<ReviewComment, "path" | "start" | "end">): boolean {
     const file = comment.path ? files?.find((f) => f.filename === comment.path) : undefined;
     const { start, end } = comment;
     if (!file?.patch || !start || !end) return false;
@@ -3812,6 +3827,16 @@ function App() {
     const sources = dropped.from.map((id) => items.get(id)).filter((i): i is FeedbackItem => !!i);
     if (sources.length === 0) return;
     const anchor = sources.find((i) => i.path);
+    const text = sources.map((i) => i.body).join("\n\n");
+    // With no lines to sit on, it goes in the review's body like the others.
+    if (!anchor || !isInlineComment(anchor)) {
+      saveReview({
+        ...reviewDraft,
+        dropped: reviewDraft.dropped.filter((_, i) => i !== index),
+        summary: [reviewDraft.summary.trim(), text].filter(Boolean).join("\n\n"),
+      });
+      return;
+    }
     saveReview({
       ...reviewDraft,
       dropped: reviewDraft.dropped.filter((_, i) => i !== index),
@@ -3819,7 +3844,7 @@ function App() {
         ...reviewDraft.comments,
         {
           id: crypto.randomUUID(),
-          body: sources.map((i) => i.body).join("\n\n"),
+          body: text,
           included: true,
           from: dropped.from,
           path: anchor?.path,

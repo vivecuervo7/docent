@@ -24,6 +24,9 @@ export interface Candidate {
   source: "yours" | "agent";
   location: string;
   body: string;
+  // Whether it can be posted on its lines. The rest can only go in the
+  // review's body.
+  inline: boolean;
 }
 
 export interface PreparedComment {
@@ -39,7 +42,11 @@ export interface DroppedComment {
 export interface PreparedReview {
   comments: PreparedComment[];
   dropped: DroppedComment[];
-  summary: string;
+  // The review's own text: an overall summary, with the points that can't go
+  // on lines written into it.
+  body: string;
+  // The candidates written into the body.
+  inBody: string[];
 }
 
 const REPORT_REVIEW_TOOL = {
@@ -70,9 +77,14 @@ const REPORT_REVIEW_TOOL = {
           required: ["from", "reason"],
         },
       },
-      summary: { type: "string" },
+      body: { type: "string" },
+      in_body: {
+        type: "array",
+        items: { type: "string" },
+        description: "Ids of the no-lines candidates written into the body.",
+      },
     },
-    required: ["comments", "dropped", "summary"],
+    required: ["comments", "dropped", "body", "in_body"],
   },
 };
 
@@ -85,9 +97,12 @@ clearest wording.
 - Drop a candidate only when its point has already been made in the existing conversation, and \
 say who made it. Only drop it if the point really is the same.
 Keep every other candidate exactly as written.
-Every candidate id goes in exactly one comment's "from", or in "dropped".
-Also write a summary for the top of the review: one to three sentences, as the reviewer, about \
-the PR overall and what the comments add up to. No headings, and don't list the comments.`;
+Candidates marked "no lines" can't be posted as comments on lines. Write each of them into the \
+review's body instead, and list its id in "in_body".
+The body is the review's own text, as the reviewer: one to three sentences about the PR overall \
+and what the comments add up to, then the points from the "no lines" candidates, each kept to \
+its substance. Markdown is fine; no headings, and don't repeat the comments on lines.
+Every candidate id goes in exactly one comment's "from", in "in_body", or in "dropped".`;
 
 export function prepareReview(
   owner: string,
@@ -102,7 +117,7 @@ export function prepareReview(
     const listed = candidates
       .map(
         (c) =>
-          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.location}):\n${c.body}`,
+          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}`,
       )
       .join("\n\n");
     const call = await chatWithTool(
@@ -132,6 +147,15 @@ function settle(candidates: Candidate[], raw: Record<string, unknown>): Prepared
       return id;
     });
 
+  const inBody = take(raw.in_body).filter((id) => {
+    // Only no-lines candidates belong in the body; anything else stays a
+    // comment on its lines.
+    if (candidates.find((c) => c.id === id)?.inline) {
+      used.delete(id);
+      return false;
+    }
+    return true;
+  });
   const comments: PreparedComment[] = [];
   for (const entry of Array.isArray(raw.comments) ? raw.comments : []) {
     const { from, body } = (entry ?? {}) as { from?: unknown; body?: unknown };
@@ -145,15 +169,43 @@ function settle(candidates: Candidate[], raw: Record<string, unknown>): Prepared
     const ids = take(from);
     if (ids.length > 0) dropped.push({ from: ids, reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Left out." });
   }
+  let body = typeof raw.body === "string" ? raw.body.trim() : "";
   for (const candidate of candidates) {
-    if (!used.has(candidate.id)) comments.push({ from: [candidate.id], body: candidate.body });
+    if (used.has(candidate.id)) continue;
+    // Missed by the model: kept as written, where it can go.
+    if (candidate.inline) {
+      comments.push({ from: [candidate.id], body: candidate.body });
+    } else {
+      body = [body, candidate.body].filter(Boolean).join("\n\n");
+      inBody.push(candidate.id);
+    }
   }
-  return { comments, dropped, summary: typeof raw.summary === "string" ? raw.summary.trim() : "" };
+  return { comments, dropped, body, inBody };
 }
 
 export async function fetchViewer(): Promise<string> {
   const { stdout } = await execFileAsync("gh", ["api", "user", "--jq", ".login"]);
   return stdout.trim();
+}
+
+// The reviewer's latest review on the PR submitted since a time, if any. A
+// post that fails without a clear answer (the connection dropped, say) may
+// still have gone through, and this is how to tell.
+export async function findReviewSince(
+  owner: string,
+  repo: string,
+  number: string,
+  since: number,
+): Promise<string | null> {
+  const [viewer, { stdout }] = await Promise.all([
+    fetchViewer(),
+    execFileAsync("gh", ["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
+  ]);
+  const reviews = JSON.parse(stdout) as { user: { login?: string } | null; submitted_at: string | null; html_url: string }[];
+  const mine = reviews
+    .filter((r) => r.user?.login === viewer && r.submitted_at && Date.parse(r.submitted_at) >= since)
+    .sort((a, b) => Date.parse(b.submitted_at!) - Date.parse(a.submitted_at!));
+  return mine[0]?.html_url ?? null;
 }
 
 export type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";

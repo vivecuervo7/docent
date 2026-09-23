@@ -30,6 +30,7 @@ import { handleMcpRequest } from "./mcp.js";
 import {
   buildReviewPayload,
   fetchViewer,
+  findReviewSince,
   postReviewPayload,
   prepareReview,
   type Candidate,
@@ -264,7 +265,7 @@ app.post("/api/pr/:owner/:repo/:number/review/prepare", async (req, res) => {
   if (!validParams(owner, repo, number) || !Array.isArray(candidates)) {
     return res.status(400).json({ error: "invalid candidates" });
   }
-  if (candidates.length === 0) return res.json({ comments: [], dropped: [], summary: "" });
+  if (candidates.length === 0) return res.json({ comments: [], dropped: [], body: "", inBody: [] });
 
   const controller = new AbortController();
   res.on("close", () => {
@@ -274,6 +275,19 @@ app.post("/api/pr/:owner/:repo/:number/review/prepare", async (req, res) => {
     res.json(await prepareReview(owner, repo, number, candidates, controller.signal));
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.get("/api/pr/:owner/:repo/:number/review/posted-since", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const since = Number(req.query.since);
+  if (!validParams(owner, repo, number) || !Number.isFinite(since)) {
+    return res.status(400).json({ error: "invalid PR or time" });
+  }
+  try {
+    res.json({ url: await findReviewSince(owner, repo, number, since) });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
   }
 });
 
