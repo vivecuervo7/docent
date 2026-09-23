@@ -127,5 +127,5 @@ app.post("/api/debug/pr-state", (req, res) => {
 
 const PORT = 3001;
 app.listen(PORT, () => {
-  console.log(`codetour-pr backend listening on http://localhost:${PORT}`);
+  console.log(`docent backend listening on http://localhost:${PORT}`);
 });

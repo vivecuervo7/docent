@@ -1,5 +1,20 @@
 node_modules/
 dist/
-backend/data/*.json
+backend/data/
 frontend/dist/
 .DS_Store
+
+# Logs
+*.log
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local tooling state
+.claude/settings.local.json
+.playwright-cli/
+.vscode/*
+!.vscode/extensions.json
+.idea/
