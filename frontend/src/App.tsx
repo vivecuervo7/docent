@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
 import { diffArrays } from "diff";
-import { BookOpen, Check, ChevronDown, ChevronRight, Files, Folder, ListChecks, SlidersHorizontal, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ChevronRight, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, LogOut, MessagesSquare, Package, SlidersHorizontal, Wrench, type LucideIcon } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -28,7 +28,9 @@ import {
   saveIdeas as persistIdeas,
   saveSummary as persistSummary,
   setHunksReviewed as persistReviewedHunks,
-  type ConversationCard,
+  type ConversationSummary,
+  type ReplyOutcome,
+  type ReviewerConversation,
   type Idea,
   type PrSummary,
 } from "./prDb";
@@ -843,11 +845,11 @@ function IdeaView({
         ) : (
           <>
             <div className="mb-12 flex justify-end">{actions}</div>
-            <h2 className="max-w-[40ch] text-[28px] leading-[1.2] font-semibold tracking-tight text-balance">
+            <h2 className="text-[28px] leading-[1.2] font-semibold tracking-tight text-balance">
               {idea.title}
             </h2>
             {idea.summary && (
-              <p className="mt-4 max-w-[68ch] text-[17px] leading-[1.65] text-foreground">
+              <p className="mt-4 text-[17px] leading-[1.65] text-foreground">
                 {idea.summary}
               </p>
             )}
@@ -1132,23 +1134,154 @@ function ImageLightbox({
   );
 }
 
+// Public GitHub avatars load without auth; bots and deleted users sometimes
+// 404, so fall back to an initial.
+function Avatar({ login, size }: { login: string; size: "sm" | "md" }) {
+  const [failed, setFailed] = useState(false);
+  const px = size === "md" ? 32 : 24;
+  const box = size === "md" ? "size-8 text-sm" : "size-6 text-xs";
+  if (failed) {
+    return (
+      <span
+        className={cn(
+          "flex shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground uppercase",
+          box,
+        )}
+      >
+        {login.charAt(0)}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={`https://github.com/${encodeURIComponent(login)}.png?size=${px * 2}`}
+      alt=""
+      onError={() => setFailed(true)}
+      className={cn("shrink-0 rounded-full bg-muted", box)}
+    />
+  );
+}
+
+const VERDICT_STYLES: Record<NonNullable<ReviewerConversation["verdict"]>, string> = {
+  approved: "border-[#3fb950]/40 text-[#3fb950]",
+  "changes requested": "border-[#f85149]/40 text-[#f85149]",
+  commented: "border-border text-muted-foreground",
+};
+
+const OUTCOME_STYLES: Record<ReplyOutcome, string> = {
+  actioned: "border-reviewed/40 text-reviewed",
+  answered: "border-reviewed/40 text-reviewed",
+  acknowledged: "border-border text-muted-foreground",
+  mixed: "border-border text-muted-foreground",
+  refuted: "border-[#e3b341]/40 text-[#e3b341]",
+};
+
+function Tag({ className, children }: { className: string; children: ReactNode }) {
+  return (
+    <span className={cn("rounded-full border px-2 py-px text-[11px] font-medium", className)}>
+      {children}
+    </span>
+  );
+}
+
+function Bubble({
+  login,
+  label,
+  tag,
+  children,
+  muted = false,
+}: {
+  login: string;
+  label?: string;
+  tag?: ReactNode;
+  children: ReactNode;
+  muted?: boolean;
+}) {
+  return (
+    <article className="flex gap-3 rounded-xl border bg-card p-4">
+      <Avatar login={login} size="md" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium">{login}</span>
+          {label && <span className="text-muted-foreground">{label}</span>}
+          {tag}
+        </div>
+        <p className={cn("mt-1 text-[15px] leading-relaxed", muted && "text-muted-foreground")}>
+          {children}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+// Replies sit below their reviewer's bubble, indented and joined by an
+// elbow line running down from the reviewer's avatar, so top-level bubbles
+// stay easy to scan while the thread is still easy to follow.
+function ConversationThread({ entry, prAuthor }: { entry: ReviewerConversation; prAuthor: string }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Bubble
+        login={entry.reviewer}
+        tag={entry.verdict && <Tag className={VERDICT_STYLES[entry.verdict]}>{entry.verdict}</Tag>}
+      >
+        {entry.summary}
+      </Bubble>
+      {entry.replies.length > 0 ? (
+        <div className="flex flex-col gap-3 pl-14">
+          {entry.replies.map((reply, i) => {
+            const isLast = i === entry.replies.length - 1;
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "relative",
+                  "before:absolute before:-top-3 before:-left-6 before:h-[44px] before:w-5 before:rounded-bl-lg before:border-b before:border-l before:border-muted-foreground/40",
+                  !isLast &&
+                    "after:absolute after:top-8 after:-bottom-3 after:-left-6 after:border-l after:border-muted-foreground/40",
+                )}
+              >
+                <Bubble
+                  login={reply.from === "author" ? prAuthor : entry.reviewer}
+                  label={reply.from === "author" ? "author" : undefined}
+                  tag={reply.outcome && <Tag className={OUTCOME_STYLES[reply.outcome]}>{reply.outcome}</Tag>}
+                  muted
+                >
+                  {reply.summary}
+                </Bubble>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        // Only worth saying for an actual review - an automated PR summary
+        // from a bot isn't waiting on a response.
+        entry.verdict && (
+          <p className="pl-14 text-sm text-muted-foreground">No response from {prAuthor} yet.</p>
+        )
+      )}
+    </div>
+  );
+}
+
 function LandingView({
+  prRef,
   prMeta,
   pipelineStage,
   summary,
-  conversationCards,
+  conversation,
   onRegenerate,
-  onClose,
   hasIdeas,
+  hasProgress,
   onStartReviewing,
 }: {
+  prRef: PrRef;
   prMeta: PrMeta | null;
   pipelineStage: PipelineStage;
   summary: PrSummary | null;
-  conversationCards: ConversationCard[] | null;
+  conversation: ConversationSummary | null;
   onRegenerate: () => void;
-  onClose: () => void;
   hasIdeas: boolean;
+  hasProgress: boolean;
   onStartReviewing: () => void;
 }) {
   const stageLabel =
@@ -1165,96 +1298,134 @@ function LandingView({
   const plainLinks = useMemo(() => links.filter((l) => !l.isImage), [links]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
+  const summarySections: { heading: string; body: string; Icon: LucideIcon; color: string }[] = summary
+    ? [
+        { heading: "What", body: summary.what, Icon: Package, color: "text-[#79c0ff]" },
+        { heading: "Why", body: summary.why, Icon: Lightbulb, color: "text-[#e3b341]" },
+        ...(summary.how
+          ? [{ heading: "How", body: summary.how, Icon: Wrench, color: "text-[#d2a8ff]" }]
+          : []),
+      ].filter((section) => section.body)
+    : [];
+
   return (
-    <div className="flex min-w-0 flex-col gap-4 pt-8">
-      <div className="flex items-start justify-between gap-4">
-        <h1 className="min-w-0 text-lg font-semibold">{prMeta?.title ?? "Pull request"}</h1>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onRegenerate} disabled={pipelineStage !== null}>
-            {pipelineStage !== null ? "Generating…" : "Regenerate review"}
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      {/* Same header shape as an idea, so the actions sit where Mark reviewed does. */}
+      <header className="flex shrink-0 justify-end gap-2 border-b border-transparent px-10 pt-10">
+        <Button variant="outline" onClick={onRegenerate} disabled={pipelineStage !== null}>
+          {pipelineStage !== null ? "Generating…" : "Regenerate review"}
+        </Button>
+        {prMeta && (
+          <a href={prMeta.htmlUrl} target="_blank" rel="noreferrer">
+            <Button variant="outline">View in GitHub</Button>
+          </a>
+        )}
+        {hasIdeas && (
+          <Button onClick={onStartReviewing} className="bg-reviewed-strong px-4 text-white hover:bg-[#388bfd]">
+            {hasProgress ? "Continue reviewing →" : "Start reviewing →"}
           </Button>
-          {prMeta && (
-            <a href={prMeta.htmlUrl} target="_blank" rel="noreferrer">
-              <Button variant="outline" size="sm">
-                View in GitHub
-              </Button>
-            </a>
+        )}
+      </header>
+
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pt-12 pb-16 [scrollbar-gutter:stable]">
+        <div className="mx-auto max-w-[860px]">
+          <h1 className="text-[28px] leading-[1.2] font-semibold tracking-tight text-balance">
+            {prMeta?.title ?? "Pull request"}
+          </h1>
+          <div className="mt-2 font-mono text-sm text-muted-foreground">
+            {prRef.owner}/{prRef.repo} #{prRef.number}
+          </div>
+
+          {stageLabel && (
+            <p className="mt-4 flex items-center gap-2.5 text-[15px] text-muted-foreground">
+              <span className="size-2 animate-pulse rounded-full bg-reviewed motion-reduce:animate-none" />
+              {stageLabel}
+            </p>
           )}
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">
-            <X />
-            Close PR
-          </Button>
+
+          <div className="mt-12 flex flex-col gap-10">
+            {summarySections.length > 0
+              ? summarySections.map((section) => (
+                  <section key={section.heading}>
+                    <h2 className={cn("flex items-center gap-2.5 text-xl font-semibold tracking-tight", section.color)}>
+                      <section.Icon className="size-5" strokeWidth={2.25} />
+                      {section.heading}
+                    </h2>
+                    <p className="mt-3 text-[17px] leading-[1.65]">{section.body}</p>
+                  </section>
+                ))
+              : pipelineStage === null && (
+                  <p className="text-[15px] text-muted-foreground">
+                    No summary yet. Regenerate the review to write one.
+                  </p>
+                )}
+          </div>
+
+          {links.length > 0 && (
+            <section className="mt-16 border-t pt-14">
+              <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
+                <ImageIcon className="size-5 text-muted-foreground" strokeWidth={2.25} />
+                {imageLinks.length > 0 ? "Media" : "Links"}
+              </h2>
+              {imageLinks.length > 0 && (
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {imageLinks.map((link, i) => (
+                    <button
+                      key={link.url}
+                      type="button"
+                      onClick={() => setLightboxIndex(i)}
+                      className="aspect-[3/2] w-[168px] max-w-full overflow-hidden rounded-lg border hover:border-muted-foreground"
+                    >
+                      <img src={imageSrcFor(link.url)} alt={link.label} className="size-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {plainLinks.length > 0 && (
+                <ul className="mt-5 flex flex-col gap-1.5">
+                  {plainLinks.map((link) => (
+                    <li key={link.url} className="truncate">
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[15px] text-[#79c0ff] hover:underline"
+                      >
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          <section className="mt-16 border-t pt-14">
+            <h2 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight">
+              <MessagesSquare className="size-5 text-muted-foreground" strokeWidth={2.25} />
+              Conversation
+            </h2>
+            {conversation && (conversation.reviewers.length > 0 || conversation.authorNotes) ? (
+              <div className="mt-5 flex flex-col gap-5">
+                {conversation.reviewers.map((entry) => (
+                  <ConversationThread key={entry.reviewer} entry={entry} prAuthor={conversation.prAuthor} />
+                ))}
+                {conversation.authorNotes && (
+                  <Bubble login={conversation.prAuthor} label="author notes" muted>
+                    {conversation.authorNotes}
+                  </Bubble>
+                )}
+              </div>
+            ) : (
+              pipelineStage === null && (
+                <p className="mt-3 text-[15px] text-muted-foreground">
+                  {conversation ? "No reviews or comments yet." : "Regenerate the review to summarize the conversation."}
+                </p>
+              )
+            )}
+          </section>
         </div>
       </div>
-
-      {stageLabel && (
-        <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-          {stageLabel}
-        </div>
-      )}
-
-      <Card className="gap-3 p-4">
-        <span className="text-xs font-semibold uppercase text-muted-foreground">Summary</span>
-        {summary ? (
-          <div className="flex flex-col gap-2 text-sm">
-            <div>
-              <span className="font-medium text-muted-foreground">What: </span>
-              {summary.what}
-            </div>
-            <div>
-              <span className="font-medium text-muted-foreground">Why: </span>
-              {summary.why}
-            </div>
-            {summary.how && (
-              <div>
-                <span className="font-medium text-muted-foreground">How: </span>
-                {summary.how}
-              </div>
-            )}
-          </div>
-        ) : (
-          pipelineStage === null && <p className="text-sm text-muted-foreground italic">No summary yet.</p>
-        )}
-      </Card>
-
-      {links.length > 0 && (
-        <Card className="gap-2 p-4">
-          <span className="text-xs font-semibold uppercase text-muted-foreground">Links</span>
-          {imageLinks.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {imageLinks.map((link, i) => (
-                <button
-                  key={link.url}
-                  type="button"
-                  onClick={() => setLightboxIndex(i)}
-                  className="size-20 shrink-0 overflow-hidden rounded-md border hover:border-foreground"
-                >
-                  <img
-                    src={imageSrcFor(link.url)}
-                    alt={link.label}
-                    className="size-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-          {plainLinks.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {plainLinks.map((link) => (
-                <a
-                  key={link.url}
-                  href={link.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="truncate text-sm text-[#79c0ff] hover:underline"
-                >
-                  {link.label}
-                </a>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
 
       {lightboxIndex !== null && (
         <ImageLightbox
@@ -1263,33 +1434,6 @@ function LandingView({
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
         />
-      )}
-
-      <span className="text-xs font-semibold uppercase text-muted-foreground">Conversation</span>
-      {conversationCards && conversationCards.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {conversationCards.map((card, i) => (
-            <Card key={i} className="gap-1 p-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{card.author}</span>
-                <Badge variant="outline" className="text-[10px]">
-                  {card.kind}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">{card.summary}</p>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        pipelineStage === null && (
-          <p className="text-sm text-muted-foreground italic">No conversation yet.</p>
-        )
-      )}
-
-      {hasIdeas && (
-        <Button onClick={onStartReviewing} className="self-start">
-          Start reviewing
-        </Button>
       )}
     </div>
   );
@@ -1447,7 +1591,7 @@ function App() {
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
   const [summary, setSummary] = useState<PrSummary | null>(null);
-  const [conversationCards, setConversationCards] = useState<ConversationCard[] | null>(null);
+  const [conversation, setConversation] = useState<ConversationSummary | null>(null);
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>(null);
   const [view, setView] = useState<View>("landing");
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
@@ -1528,15 +1672,16 @@ function App() {
     return summary;
   }
 
-  async function fetchConversationFor(ref: PrRef): Promise<ConversationCard[]> {
+  async function fetchConversationFor(ref: PrRef): Promise<ConversationSummary | null> {
     const res = await fetch(
       `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/conversation`,
       { method: "POST" },
     );
     const body = await res.json();
-    const cards: ConversationCard[] = body.cards ?? [];
-    await persistConversation(ref.owner, ref.repo, ref.number, cards);
-    return cards;
+    const conversation: ConversationSummary | undefined = body.conversation;
+    if (!conversation) return null;
+    await persistConversation(ref.owner, ref.repo, ref.number, conversation);
+    return conversation;
   }
 
   async function runFullPipeline(ref: PrRef) {
@@ -1546,7 +1691,7 @@ function App() {
     setPipelineStage("summary");
     setSummary(await fetchSummaryFor(ref, generatedIdeas));
     setPipelineStage("conversation");
-    setConversationCards(await fetchConversationFor(ref));
+    setConversation(await fetchConversationFor(ref));
     setPipelineStage(null);
   }
 
@@ -1557,7 +1702,7 @@ function App() {
     setPrMeta(null);
     setIdeas(null);
     setSummary(null);
-    setConversationCards(null);
+    setConversation(null);
     setActiveIdeaId(null);
     setView("landing");
 
@@ -1578,7 +1723,7 @@ function App() {
       setReviewed(prRecord.reviewed);
       setIdeas(prRecord.ideas);
       setSummary(prRecord.summary);
-      setConversationCards(prRecord.conversation);
+      setConversation(prRecord.conversation);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
 
       if (!prRecord.ideas) {
@@ -1621,7 +1766,7 @@ function App() {
     setReviewed({});
     setIdeas(null);
     setSummary(null);
-    setConversationCards(null);
+    setConversation(null);
     setPipelineStage(null);
     setActiveIdeaId(null);
     setView("landing");
@@ -1748,6 +1893,19 @@ function App() {
             />
           </div>
         )}
+
+        <div className="mt-auto pt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearPr}
+            title="Leave this PR and go back to the start page. Your progress is kept."
+            className="-ml-2 text-muted-foreground"
+          >
+            <LogOut />
+            Exit
+          </Button>
+        </div>
       </aside>
       <div
         role="separator"
@@ -1815,24 +1973,17 @@ function App() {
             </div>
           </div>
         ) : (
-          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]">
-            <LandingView
-              prMeta={prMeta}
-              pipelineStage={pipelineStage}
-              summary={summary}
-              conversationCards={conversationCards}
-              onRegenerate={() => runFullPipeline(prRef)}
-              onClose={clearPr}
-              hasIdeas={ideas !== null && ideas.length > 0}
-              onStartReviewing={() => {
-                const first = allIdeas[0];
-                if (first) {
-                  setActiveIdeaId(first.id);
-                  setView("idea");
-                }
-              }}
-            />
-          </div>
+          <LandingView
+            prRef={prRef}
+            prMeta={prMeta}
+            pipelineStage={pipelineStage}
+            summary={summary}
+            conversation={conversation}
+            onRegenerate={() => runFullPipeline(prRef)}
+            hasIdeas={ideas !== null && ideas.length > 0}
+            hasProgress={Object.values(reviewed).some(Boolean)}
+            onStartReviewing={resumeIdeas}
+          />
         )}
       </main>
     </div>

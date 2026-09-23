@@ -8,7 +8,7 @@ import {
   fetchPrMeta,
 } from "./github.js";
 import { generateIdeas } from "./ideas.js";
-import { generateConversationCards, generateSummary } from "./overview.js";
+import { generateConversationSummary, generateSummary } from "./overview.js";
 import type { Idea } from "./types.js";
 
 const app = express();
@@ -111,9 +111,8 @@ app.post("/api/pr/:owner/:repo/:number/overview/conversation", async (req, res) 
   }
 
   try {
-    const items = await fetchPrConversation(owner, repo, number);
-    const cards = await generateConversationCards(items);
-    res.json({ cards });
+    const conversation = await fetchPrConversation(owner, repo, number);
+    res.json({ conversation: await generateConversationSummary(conversation) });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }

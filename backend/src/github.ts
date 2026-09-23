@@ -65,38 +65,64 @@ export async function fetchPrMeta(owner: string, repo: string, number: string): 
   return JSON.parse(stdout) as PrMeta;
 }
 
-export interface ConversationItem {
-  kind: "review" | "comment";
+export interface ConversationEntry {
   author: string;
   body: string;
-  state?: string;
-  inlineComments?: { path: string; body: string }[];
+  createdAt: string;
 }
 
-interface RawReview {
-  id: number;
-  user: { login?: string } | null;
-  body: string | null;
+export interface ReviewEntry extends ConversationEntry {
   state: string;
 }
 
+export interface InlineThread {
+  path: string;
+  entries: ConversationEntry[];
+}
+
+// Everything said on the PR, keeping enough structure (who the PR author is,
+// when things were said, which inline replies belong together) for the model
+// to tell a reviewer's point from the author's response to it.
+export interface PrConversation {
+  prAuthor: string;
+  reviews: ReviewEntry[];
+  comments: ConversationEntry[];
+  threads: InlineThread[];
+}
+
+interface RawUser {
+  login?: string;
+}
+
+interface RawReview {
+  user: RawUser | null;
+  body: string | null;
+  state: string;
+  submitted_at: string | null;
+}
+
 interface RawInlineComment {
-  pull_request_review_id: number | null;
+  id: number;
+  in_reply_to_id?: number;
+  user: RawUser | null;
   path: string;
   body: string;
+  created_at: string;
 }
 
 interface RawIssueComment {
-  user: { login?: string } | null;
+  user: RawUser | null;
   body: string | null;
+  created_at: string;
 }
 
 export async function fetchPrConversation(
   owner: string,
   repo: string,
   number: string,
-): Promise<ConversationItem[]> {
-  const [reviewsRes, inlineRes, issueCommentsRes] = await Promise.all([
+): Promise<PrConversation> {
+  const [prAuthorRes, reviewsRes, inlineRes, issueCommentsRes] = await Promise.all([
+    execFileAsync("gh", ["api", `repos/${owner}/${repo}/pulls/${number}`, "--jq", ".user.login"]),
     execFileAsync("gh", [
       "api",
       "--paginate",
@@ -114,39 +140,45 @@ export async function fetchPrConversation(
     ]),
   ]);
 
-  const reviews = JSON.parse(reviewsRes.stdout) as RawReview[];
-  const inline = JSON.parse(inlineRes.stdout) as RawInlineComment[];
-  const issueComments = JSON.parse(issueCommentsRes.stdout) as RawIssueComment[];
+  const rawReviews = JSON.parse(reviewsRes.stdout) as RawReview[];
+  const rawInline = JSON.parse(inlineRes.stdout) as RawInlineComment[];
+  const rawIssueComments = JSON.parse(issueCommentsRes.stdout) as RawIssueComment[];
+  const login = (user: RawUser | null) => user?.login ?? "unknown";
 
-  const inlineByReview = new Map<number, { path: string; body: string }[]>();
-  for (const c of inline) {
-    if (c.pull_request_review_id == null) continue;
-    if (!inlineByReview.has(c.pull_request_review_id)) {
-      inlineByReview.set(c.pull_request_review_id, []);
-    }
-    inlineByReview.get(c.pull_request_review_id)!.push({ path: c.path, body: c.body });
-  }
-
-  const items: ConversationItem[] = [];
-
-  for (const r of reviews) {
-    const inlineForThis = inlineByReview.get(r.id) ?? [];
-    if (!r.body && inlineForThis.length === 0) continue;
-    items.push({
-      kind: "review",
-      author: r.user?.login ?? "unknown",
+  // A bare "commented" review with no body is just the envelope GitHub
+  // creates around inline comments, which are captured in threads instead.
+  const reviews: ReviewEntry[] = rawReviews
+    .filter((r) => r.body || (r.state !== "COMMENTED" && r.state !== "PENDING"))
+    .map((r) => ({
+      author: login(r.user),
       body: r.body ?? "",
       state: r.state,
-      inlineComments: inlineForThis.length > 0 ? inlineForThis : undefined,
+      createdAt: r.submitted_at ?? "",
+    }));
+
+  // GitHub points every reply at the thread's first comment, so the root id
+  // groups a whole inline thread.
+  const threadsByRoot = new Map<number, InlineThread>();
+  for (const c of [...rawInline].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    const root = c.in_reply_to_id ?? c.id;
+    if (!threadsByRoot.has(root)) threadsByRoot.set(root, { path: c.path, entries: [] });
+    threadsByRoot.get(root)!.entries.push({
+      author: login(c.user),
+      body: c.body,
+      createdAt: c.created_at,
     });
   }
 
-  for (const c of issueComments) {
-    if (!c.body) continue;
-    items.push({ kind: "comment", author: c.user?.login ?? "unknown", body: c.body });
-  }
+  const comments: ConversationEntry[] = rawIssueComments
+    .filter((c) => c.body)
+    .map((c) => ({ author: login(c.user), body: c.body ?? "", createdAt: c.created_at }));
 
-  return items;
+  return {
+    prAuthor: prAuthorRes.stdout.trim(),
+    reviews,
+    comments,
+    threads: [...threadsByRoot.values()],
+  };
 }
 
 export async function fetchPrBaseSha(

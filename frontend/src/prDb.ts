@@ -15,17 +15,32 @@ export interface PrSummary {
   how?: string;
 }
 
-export interface ConversationCard {
-  author: string;
-  kind: string;
+export type ReplyOutcome = "actioned" | "acknowledged" | "refuted" | "answered" | "mixed";
+
+export interface ThreadReply {
+  from: "author" | "reviewer";
+  outcome?: ReplyOutcome;
   summary: string;
+}
+
+export interface ReviewerConversation {
+  reviewer: string;
+  verdict?: "approved" | "changes requested" | "commented";
+  summary: string;
+  replies: ThreadReply[];
+}
+
+export interface ConversationSummary {
+  prAuthor: string;
+  reviewers: ReviewerConversation[];
+  authorNotes?: string;
 }
 
 export interface PrRecord {
   reviewed: Record<string, boolean>;
   ideas: Idea[] | null;
   summary: PrSummary | null;
-  conversation: ConversationCard[] | null;
+  conversation: ConversationSummary | null;
 }
 
 const DB_NAME = "codetour-pr";
@@ -98,7 +113,13 @@ export async function getPrRecord(
   return new Promise((resolve, reject) => {
     const req = db.transaction(STORE, "readonly").objectStore(STORE)
       .get(keyFor(owner, repo, number));
-    req.onsuccess = () => resolve(req.result ?? emptyRecord());
+    req.onsuccess = () => {
+      const record: PrRecord = req.result ?? emptyRecord();
+      // Records saved before the per-reviewer summary stored a flat list of
+      // per-comment cards; drop those so Regenerate writes the new shape.
+      if (Array.isArray(record.conversation)) record.conversation = null;
+      resolve(record);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -144,10 +165,10 @@ export async function saveConversation(
   owner: string,
   repo: string,
   number: string,
-  cards: ConversationCard[],
-): Promise<ConversationCard[]> {
+  conversation: ConversationSummary,
+): Promise<ConversationSummary> {
   const record = await updateRecord(owner, repo, number, (r) => {
-    r.conversation = cards;
+    r.conversation = conversation;
   });
-  return record.conversation ?? [];
+  return record.conversation ?? conversation;
 }
