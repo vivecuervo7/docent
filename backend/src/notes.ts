@@ -45,7 +45,8 @@ function contextMessage(context: NoteContext): string {
 
 let tail: Promise<unknown> = Promise.resolve();
 
-function inLane<T>(work: () => Promise<T>): Promise<T> {
+// Shared by the other interactive model calls, such as drafting feedback.
+export function inLane<T>(work: () => Promise<T>): Promise<T> {
   const run = tail.then(work, work);
   tail = run.catch(() => {});
   return run;

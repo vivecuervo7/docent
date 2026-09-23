@@ -16,7 +16,7 @@ const ARROW_INSET = PANEL_OFFSET + 5;
 
 // Just enough formatting for model replies: fenced code blocks and inline
 // code. Everything else is shown as written.
-function MessageText({ text }: { text: string }) {
+export function MessageText({ text }: { text: string }) {
   const blocks = text.split(/```[^\n]*\n?/);
   return (
     <div className="flex flex-col gap-2">
@@ -66,7 +66,7 @@ function UnreadDot({ ring, small }: { ring: string; small?: boolean }) {
 // The comment icon everywhere it appears: an outline at rest, two-tone when
 // its button (a `group`) is hovered, and filled when active. Lucide only
 // ships outlines, so the fill is layered on through fill-opacity.
-function CommentIcon({
+export function CommentIcon({
   className,
   unread,
   ring,

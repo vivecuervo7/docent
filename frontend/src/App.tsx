@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type UIEvent } from "react";
 import { diffArrays } from "diff";
-import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, SlidersHorizontal, Trash2, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Bot, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, Send, SlidersHorizontal, Trash2, User, Wrench, type LucideIcon } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -31,12 +31,16 @@ import {
   getPrRecord,
   listSavedPrs,
   markPrOpened,
+  saveFeedback as persistFeedback,
   saveNote as persistNote,
   saveConversation as persistConversation,
   saveSlices as persistSlices,
   saveSummary as persistSummary,
   setHunksReviewed as persistReviewedHunks,
   type ConversationSummary,
+  type FeedbackDraft,
+  type FeedbackItem,
+  type FeedbackKind,
   type Note,
   type ReplyOutcome,
   type ReviewerConversation,
@@ -56,6 +60,7 @@ import {
   type ShownHunk,
 } from "./hunkExpansion";
 import { changeKeys, changesBetween, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
+import { AgentFeedbackView, PostReviewView, YourFeedbackView, type DraftStatus } from "./feedbackViews";
 import { NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
 
 // The bundled "common" language set covers most backend languages already;
@@ -804,6 +809,18 @@ interface NoteControls {
 }
 
 const NO_NOTES: Note[] = [];
+
+// Where a drafted comment sits: on the lines of the threads it came from
+// when they're all in one file (spanning them if there are several), and on
+// the PR as a whole otherwise.
+function placeFeedback(sources: Note[]): Pick<FeedbackItem, "path" | "start" | "end" | "noteIds"> {
+  const noteIds = sources.map((n) => n.id);
+  const paths = new Set(sources.map((n) => n.path));
+  if (paths.size !== 1) return { noteIds };
+  const ordered = [...sources].sort((a, b) => a.hunk - b.hunk || a.start.line - b.start.line);
+  const last = [...sources].sort((a, b) => b.hunk - a.hunk || b.end.line - a.end.line)[0];
+  return { path: ordered[0].path, start: ordered[0].start, end: last.end, noteIds };
+}
 const NO_KEYS: string[] = [];
 
 // A file picked in the sidebar, for the view to expand - and, when the pick
@@ -1656,6 +1673,10 @@ function SidebarNav({
   onSelectSlice,
   onToggleSlice,
   onSelectAllFiles,
+  activeView,
+  onSelectView,
+  yourFeedbackCount,
+  agentFeedbackCount,
 }: {
   allSlices: Slice[];
   reviewed: Record<string, boolean>;
@@ -1667,6 +1688,11 @@ function SidebarNav({
   onSelectSlice: (id: string) => void;
   onToggleSlice: (slice: Slice) => void;
   onSelectAllFiles: () => void;
+  activeView: View;
+  onSelectView: (view: FeedbackView) => void;
+  // How many drafted comments are ticked to include.
+  yourFeedbackCount: number;
+  agentFeedbackCount: number;
 }) {
   const rowClass = (active: boolean) =>
     cn(
@@ -1736,7 +1762,48 @@ function SidebarNav({
         </ol>
       </div>
 
-      <div className={cn(rowClass(allFilesActive), "mt-2")}>
+      <div className="mt-2 flex flex-col">
+        <div className={rowClass(false)}>
+          <MessagesSquare className={topLevelIcon} />
+          <span className="min-w-0 flex-1 text-[15px] font-medium text-foreground/80">Feedback</span>
+        </div>
+        <ol className="flex flex-col gap-0.5 pl-3">
+          {(
+            [
+              { id: "your-feedback", label: "Your feedback", Icon: User, count: yourFeedbackCount },
+              { id: "agent-feedback", label: "Agent feedback", Icon: Bot, count: agentFeedbackCount },
+            ] as const
+          ).map(({ id, label, Icon, count }) => (
+            <li key={id} className={rowClass(activeView === id)}>
+              <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <button type="button" onClick={() => onSelectView(id)} className={sliceLabelClass(activeView === id)}>
+                {label}
+              </button>
+              {count > 0 && (
+                <span
+                  title={`${count} ticked to include`}
+                  className="mt-0.5 text-xs text-muted-foreground tabular-nums"
+                >
+                  {count}
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className={cn(rowClass(activeView === "post-review"), "mt-2")}>
+        <Send className={topLevelIcon} />
+        <button
+          type="button"
+          onClick={() => onSelectView("post-review")}
+          className={topLevelClass(activeView === "post-review")}
+        >
+          Post review
+        </button>
+      </div>
+
+      <div className={cn(rowClass(allFilesActive), "mt-5")}>
         <Files className={topLevelIcon} />
         <button type="button" onClick={onSelectAllFiles} className={topLevelClass(allFilesActive)}>
           All files
@@ -1967,7 +2034,7 @@ function StartPage({
     // A generation can exist for a PR with no saved row yet.
     for (const { owner, repo, number } of listed) {
       if (!list.some((s) => s.owner === owner && s.repo === repo && s.number === number)) {
-        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null, notes: [] } });
+        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null, notes: [], feedback: {} } });
       }
     }
     setSaved(list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0)));
@@ -2847,7 +2914,8 @@ async function readOk<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-type View = "landing" | "slice" | "files";
+type FeedbackView = "your-feedback" | "agent-feedback" | "post-review";
+type View = "landing" | "slice" | "files" | FeedbackView;
 
 function App() {
   const [prUrl, setPrUrl] = useState("");
@@ -2860,6 +2928,8 @@ function App() {
   const [conversation, setConversation] = useState<ConversationSummary | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [revealedFile, setRevealedFile] = useState<RevealedFile | null>(null);
+  const [feedback, setFeedback] = useState<Partial<Record<FeedbackKind, FeedbackDraft>>>({});
+  const [draftStatus, setDraftStatus] = useState<Partial<Record<FeedbackKind, DraftStatus>>>({});
   // Replies in flight and failed ones, by note id. Not saved: a reply lost
   // to a reload is retried by asking again.
   const [noteStatus, setNoteStatus] = useState<Record<string, NoteStatus>>({});
@@ -3040,6 +3110,8 @@ function App() {
     setConversation(null);
     setNotes([]);
     setNoteStatus({});
+    setFeedback({});
+    setDraftStatus({});
     setActiveSliceId(null);
     setView("landing");
 
@@ -3065,6 +3137,7 @@ function App() {
       setSummary(prRecord.summary);
       setConversation(prRecord.conversation);
       setNotes(prRecord.notes);
+      setFeedback(prRecord.feedback);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
@@ -3119,6 +3192,8 @@ function App() {
     setConversation(null);
     setNotes([]);
     setNoteStatus({});
+    setFeedback({});
+    setDraftStatus({});
     setGeneration(null);
     setPreparing(false);
     setActiveSliceId(null);
@@ -3292,6 +3367,96 @@ function App() {
     revealFile(filename);
   }
 
+  const listedNotes = useMemo(() => {
+    const fileOrder = new Map((files ?? []).map((f, i) => [f.filename, i]));
+    return [...notes].sort(
+      (a, b) =>
+        (fileOrder.get(a.path) ?? 0) - (fileOrder.get(b.path) ?? 0) ||
+        a.hunk - b.hunk ||
+        a.start.line - b.start.line,
+    );
+  }, [notes, files]);
+
+  // From the Feedback list: to the slice the note's lines are in, so the
+  // review stays in its guided order, or All files if no slice has them.
+  function openListedNote(note: Note) {
+    const slice = allSlices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
+    if (slice) {
+      setActiveSliceId(slice.id);
+      setView("slice");
+    } else {
+      setView("files");
+    }
+    setRevealedFile({ filename: note.path, noteId: note.id, at: Date.now() });
+    scrollToNote(note.id, () => setRevealedFile(null));
+  }
+
+  async function draftFeedback(kind: FeedbackKind) {
+    if (!prRef) return;
+    const ref = prRef;
+    const key = `${ref.owner}/${ref.repo}/${ref.number}`;
+    const here = () => openPrKey.current === key;
+    setDraftStatus((prev) => ({ ...prev, [kind]: { pending: true } }));
+    try {
+      let draft: FeedbackDraft;
+      if (kind === "yours") {
+        const threads = listedNotes;
+        const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/feedback/yours`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prTitle: prMeta?.title,
+            threads: threads.map((n) => ({
+              path: n.path,
+              lines: describeLines(n.start, n.end),
+              code: n.code,
+              messages: n.messages.map(({ role, text }) => ({ role, text })),
+            })),
+          }),
+        });
+        const { comments } = await readOk<{ comments: { threads: number[]; body: string }[] }>(res);
+        draft = {
+          items: comments.map(({ threads: indices, body }) => ({
+            id: crypto.randomUUID(),
+            body,
+            included: true,
+            ...placeFeedback(indices.map((i) => threads[i]).filter(Boolean)),
+          })),
+          draftedAt: Date.now(),
+          basedOn: Object.fromEntries(threads.map((n) => [n.id, n.messages.length])),
+        };
+      } else {
+        const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/feedback/agent`, { method: "POST" });
+        const { comments } = await readOk<{ comments: { path?: string; line?: number; body: string }[] }>(res);
+        draft = {
+          items: comments.map(({ path, line, body }) => ({
+            id: crypto.randomUUID(),
+            body,
+            included: true,
+            path,
+            ...(line ? { start: { side: "new" as const, line }, end: { side: "new" as const, line } } : {}),
+          })),
+          draftedAt: Date.now(),
+        };
+      }
+      await persistFeedback(ref.owner, ref.repo, ref.number, kind, draft);
+      if (here()) {
+        setFeedback((prev) => ({ ...prev, [kind]: draft }));
+        setDraftStatus((prev) => ({ ...prev, [kind]: {} }));
+      }
+    } catch (err) {
+      if (here()) setDraftStatus((prev) => ({ ...prev, [kind]: { error: (err as Error).message } }));
+    }
+  }
+
+  function toggleFeedbackItem(kind: FeedbackKind, id: string) {
+    const draft = feedback[kind];
+    if (!prRef || !draft) return;
+    const next = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included: !i.included } : i)) };
+    setFeedback((prev) => ({ ...prev, [kind]: next }));
+    persistFeedback(prRef.owner, prRef.repo, prRef.number, kind, next).catch(() => {});
+  }
+
   function openUnreadIn(filename: string) {
     const sliceKeys = fileListMode === "slice" ? sliceHunkKeysByFile.get(filename) : undefined;
     const first = notes
@@ -3382,6 +3547,10 @@ function App() {
             }}
             onToggleSlice={toggleSlice}
             onSelectAllFiles={() => setView("files")}
+            activeView={view}
+            onSelectView={setView}
+            yourFeedbackCount={feedback.yours?.items.filter((i) => i.included).length ?? 0}
+            agentFeedbackCount={feedback.agent?.items.filter((i) => i.included).length ?? 0}
           />
 
           {listedFiles.length > 0 && (
@@ -3463,6 +3632,27 @@ function App() {
             generation={generation}
             onStop={() => stopGeneration(prRef)}
             onResume={() => startGeneration(prRef, { firstRun: true, reuse: { slices, conversation } })}
+          />
+        ) : view === "your-feedback" ? (
+          <YourFeedbackView
+            notes={listedNotes}
+            draft={feedback.yours}
+            status={draftStatus.yours ?? {}}
+            onDraft={() => draftFeedback("yours")}
+            onToggle={(id) => toggleFeedbackItem("yours", id)}
+            onOpenNote={openListedNote}
+          />
+        ) : view === "agent-feedback" ? (
+          <AgentFeedbackView
+            draft={feedback.agent}
+            status={draftStatus.agent ?? {}}
+            onRun={() => draftFeedback("agent")}
+            onToggle={(id) => toggleFeedbackItem("agent", id)}
+          />
+        ) : view === "post-review" ? (
+          <PostReviewView
+            yours={feedback.yours?.items.filter((i) => i.included).length ?? 0}
+            agent={feedback.agent?.items.filter((i) => i.included).length ?? 0}
           />
         ) : view === "files" ? (
           <AllFilesView

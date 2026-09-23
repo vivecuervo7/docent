@@ -64,12 +64,36 @@ export interface Note {
   readAt?: number;
 }
 
+// A review comment drafted for posting: from one of your threads, or from
+// the agent review. Unticked ones are left out of the posted review.
+export interface FeedbackItem {
+  id: string;
+  body: string;
+  included: boolean;
+  path?: string;
+  start?: LineRef;
+  end?: LineRef;
+  // The threads it was drafted from; only used to go to its lines.
+  noteIds?: string[];
+}
+
+export interface FeedbackDraft {
+  items: FeedbackItem[];
+  draftedAt: number;
+  // The threads drafted from, with how many messages each had, so a draft
+  // can tell when they've changed since.
+  basedOn?: Record<string, number>;
+}
+
+export type FeedbackKind = "yours" | "agent";
+
 export interface PrRecord {
   reviewed: Record<string, boolean>;
   slices: Slice[] | null;
   summary: PrSummary | null;
   conversation: ConversationSummary | null;
   notes: Note[];
+  feedback: Partial<Record<FeedbackKind, FeedbackDraft>>;
   // Written whenever the PR is opened, so the start page can list saved
   // reviews by title and recency. Absent on records from before that.
   title?: string;
@@ -88,7 +112,7 @@ const DB_VERSION = 2;
 const STORE = "prs";
 
 function emptyRecord(): PrRecord {
-  return { reviewed: {}, slices: null, summary: null, conversation: null, notes: [] };
+  return { reviewed: {}, slices: null, summary: null, conversation: null, notes: [], feedback: {} };
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -162,6 +186,7 @@ export async function getPrRecord(
       // treat those as not generated yet so they regenerate on open.
       record.slices ??= null;
       record.notes ??= [];
+      record.feedback ??= {};
       resolve(record);
     };
     req.onerror = () => reject(req.error);
@@ -258,6 +283,18 @@ export async function markNoteRead(
 export async function deleteNote(owner: string, repo: string, number: string, id: string): Promise<void> {
   await updateRecord(owner, repo, number, (r) => {
     r.notes = (r.notes ?? []).filter((n) => n.id !== id);
+  });
+}
+
+export async function saveFeedback(
+  owner: string,
+  repo: string,
+  number: string,
+  kind: FeedbackKind,
+  draft: FeedbackDraft,
+): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    r.feedback = { ...r.feedback, [kind]: draft };
   });
 }
 

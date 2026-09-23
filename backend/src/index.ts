@@ -14,6 +14,7 @@ import {
   stopGeneration,
   type Reuse,
 } from "./generation.js";
+import { draftYourFeedback, runAgentReview, type ThreadForFeedback } from "./feedback.js";
 import { replyToNote, type NoteContext, type NoteMessage } from "./notes.js";
 import type { ConversationSummary, Slice } from "./types.js";
 
@@ -148,6 +149,35 @@ app.post("/api/pr/:owner/:repo/:number/notes/reply", async (req, res) => {
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }
+});
+
+// Drafts review comments from the reviewer's threads. Held open like a note
+// reply, in the same lane.
+app.post("/api/pr/:owner/:repo/:number/feedback/yours", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const threads = req.body?.threads as ThreadForFeedback[] | undefined;
+  if (!validParams(owner, repo, number) || !Array.isArray(threads) || threads.length === 0) {
+    return res.status(400).json({ error: "invalid threads" });
+  }
+
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
+  try {
+    const prTitle = typeof req.body?.prTitle === "string" ? req.body.prTitle : undefined;
+    res.json({ comments: await draftYourFeedback(threads, prTitle, controller.signal) });
+  } catch (err) {
+    if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+app.post("/api/pr/:owner/:repo/:number/feedback/agent", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) {
+    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  }
+  res.json({ comments: await runAgentReview() });
 });
 
 app.post("/api/debug/pr-state", (req, res) => {
