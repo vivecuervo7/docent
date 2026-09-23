@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from "react";
 import { diffArrays } from "diff";
-import { ChevronDown, ChevronRight, Folder } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ChevronRight, Files, Folder, ListChecks, SlidersHorizontal, X } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getPrRecord,
   saveConversation as persistConversation,
@@ -313,6 +312,7 @@ function FileTreeNodes({
   collapsedFolders,
   onToggleFolder,
   onToggleFile,
+  onSelectFile,
 }: {
   entries: FileTreeEntry[];
   depth: number;
@@ -321,11 +321,12 @@ function FileTreeNodes({
   collapsedFolders: Set<string>;
   onToggleFolder: (path: string) => void;
   onToggleFile: (filename: string) => void;
+  onSelectFile: (filename: string) => void;
 }) {
   return (
     <>
       {entries.map((entry) => {
-        const indent = 8 + depth * 14;
+        const indent = 8 + depth * 16;
 
         if (entry.type === "folder") {
           const isCollapsed = collapsedFolders.has(entry.path);
@@ -335,7 +336,7 @@ function FileTreeNodes({
                 type="button"
                 onClick={() => onToggleFolder(entry.path)}
                 style={{ paddingLeft: indent }}
-                className="flex w-full items-center gap-1.5 rounded-md py-1.5 pr-3 text-left text-xs whitespace-nowrap text-muted-foreground hover:bg-muted"
+                className="flex w-full items-center gap-1.5 rounded-md py-1.5 pr-3 text-left text-sm whitespace-nowrap text-muted-foreground hover:bg-muted"
               >
                 {isCollapsed ? (
                   <ChevronRight className="size-3.5 shrink-0" />
@@ -354,6 +355,7 @@ function FileTreeNodes({
                   collapsedFolders={collapsedFolders}
                   onToggleFolder={onToggleFolder}
                   onToggleFile={onToggleFile}
+                  onSelectFile={onSelectFile}
                 />
               )}
             </div>
@@ -365,13 +367,13 @@ function FileTreeNodes({
             key={entry.path}
             role="button"
             tabIndex={0}
-            onClick={() => scrollToFile(entry.file.filename)}
+            onClick={() => onSelectFile(entry.file.filename)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") scrollToFile(entry.file.filename);
+              if (e.key === "Enter") onSelectFile(entry.file.filename);
             }}
             title={entry.file.filename}
             style={{ paddingLeft: indent }}
-            className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-3 text-xs whitespace-nowrap hover:bg-muted"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pr-3 text-sm whitespace-nowrap hover:bg-muted"
           >
             <span onClick={(e) => e.stopPropagation()}>
               <Checkbox
@@ -391,18 +393,18 @@ function FileTreeNodes({
   );
 }
 
-function TableOfContents({
+function FileTree({
   files,
   fileHunkCounts,
   reviewed,
   onToggleFile,
-  onHeaderClick,
+  onSelectFile,
 }: {
   files: PrFile[];
   fileHunkCounts: Record<string, number>;
   reviewed: Record<string, boolean>;
   onToggleFile: (filename: string) => void;
-  onHeaderClick: () => void;
+  onSelectFile: (filename: string) => void;
 }) {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const tree = buildFileTree(files);
@@ -420,28 +422,20 @@ function TableOfContents({
   }
 
   return (
-    <nav className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card">
-      <button
-        type="button"
-        onClick={onHeaderClick}
-        className="border-b px-3 py-2 text-left text-xs font-semibold uppercase text-muted-foreground hover:text-foreground"
-      >
-        Files
-      </button>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="flex w-max min-w-full flex-col gap-0.5 p-1">
-          <FileTreeNodes
-            entries={tree.children}
-            depth={0}
-            fileHunkCounts={fileHunkCounts}
-            reviewed={reviewed}
-            collapsedFolders={collapsedFolders}
-            onToggleFolder={toggleFolder}
-            onToggleFile={onToggleFile}
-          />
-        </div>
-      </ScrollArea>
-    </nav>
+    <div className="-mx-2 overflow-x-auto">
+      <div className="flex w-max min-w-full flex-col gap-0.5">
+        <FileTreeNodes
+          entries={tree.children}
+          depth={0}
+          fileHunkCounts={fileHunkCounts}
+          reviewed={reviewed}
+          collapsedFolders={collapsedFolders}
+          onToggleFolder={toggleFolder}
+          onToggleFile={onToggleFile}
+          onSelectFile={onSelectFile}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -610,42 +604,146 @@ function IdeaFileSection({
   hunkIndices,
   hideWhitespace,
   prRef,
+  reviewed,
+  onSetHunksReviewed,
 }: {
   file: PrFile;
   hunkIndices: number[];
   hideWhitespace: boolean;
   prRef: PrRef;
+  reviewed: Record<string, boolean>;
+  onSetHunksReviewed: (keys: string[], value: boolean) => void;
 }) {
   const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, true);
+  const hunkKey = (index: number) => `${file.filename}#${index}`;
+  const keys = hunkIndices.map(hunkKey);
+  // Scoped to the hunks this idea shows - the file may have others that
+  // belong to different ideas.
+  const fileReviewed = keys.length > 0 && keys.every((k) => reviewed[k]);
 
-  const displayedHunks = useMemo(() => {
-    if (!hunks) return undefined;
-    return hunkIndices.map((i) => hunks[i]).filter((h): h is HunkData => !!h);
+  const [fileCollapsed, setFileCollapsed] = useState(fileReviewed);
+  const [collapsedHunks, setCollapsedHunks] = useState<Set<number>>(
+    () => new Set(hunkIndices.filter((i) => reviewed[hunkKey(i)])),
+  );
+
+  // Reviewed state drives collapse in both directions: marking reviewed
+  // folds it away, marking unreviewed brings it back. Manual expand/collapse
+  // in between is left alone.
+  const wasFileReviewed = useRef(fileReviewed);
+  const wasHunkReviewed = useRef<Record<number, boolean>>(
+    Object.fromEntries(hunkIndices.map((i) => [i, !!reviewed[hunkKey(i)]])),
+  );
+  useEffect(() => {
+    if (fileReviewed !== wasFileReviewed.current) setFileCollapsed(fileReviewed);
+    wasFileReviewed.current = fileReviewed;
+
+    const isReviewed = (i: number) => !!reviewed[`${file.filename}#${i}`];
+    const changed = hunkIndices.filter((i) => isReviewed(i) !== !!wasHunkReviewed.current[i]);
+    if (changed.length > 0) {
+      setCollapsedHunks((prev) => {
+        const next = new Set(prev);
+        for (const i of changed) {
+          if (isReviewed(i)) next.add(i);
+          else next.delete(i);
+        }
+        return next;
+      });
+    }
+    wasHunkReviewed.current = Object.fromEntries(hunkIndices.map((i) => [i, isReviewed(i)]));
+  }, [reviewed, fileReviewed, hunkIndices, file.filename]);
+
+  function toggleHunkCollapsed(index: number) {
+    setCollapsedHunks((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  const displayed = useMemo(() => {
+    if (!hunks) return [];
+    return hunkIndices
+      .map((index) => ({ index, hunk: hunks[index] }))
+      .filter((h): h is { index: number; hunk: HunkData } => !!h.hunk);
   }, [hunks, hunkIndices]);
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <div className="border-b bg-muted/50 px-4 py-2 font-mono text-xs font-medium">
-        {file.filename}
+    <Card id={fileElementId(file.filename)} className="scroll-mt-4 gap-0 overflow-hidden py-0">
+      <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => setFileCollapsed((c) => !c)}
+          aria-label={fileCollapsed ? "Expand file" : "Collapse file"}
+          className="shrink-0 rounded text-muted-foreground hover:text-foreground"
+        >
+          {fileCollapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
+        </button>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate font-mono text-xs font-medium",
+            fileReviewed && "text-muted-foreground",
+          )}
+        >
+          {file.filename}
+        </span>
+        <span
+          title={`This idea shows ${hunkIndices.length} of this file's ${hunks?.length ?? hunkIndices.length} hunks`}
+          className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
+        >
+          {hunkIndices.length}/{hunks?.length ?? hunkIndices.length} hunks
+        </span>
+        <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <Checkbox
+            checked={fileReviewed}
+            onCheckedChange={() => onSetHunksReviewed(keys, !fileReviewed)}
+          />
+          Reviewed
+        </label>
       </div>
-      {displayedHunks && displayedHunks.length > 0 ? (
-        <div className="overflow-x-auto text-xs">
-          <Diff viewType="unified" diffType={diffType} hunks={displayedHunks} tokens={tokens}>
-            {(hunks) =>
-              hunks.flatMap((hunk) => [
-                <Decoration key={`decoration-${hunk.content}`}>
-                  <div className="bg-[rgba(56,139,253,0.1)] px-4 py-1.5 font-mono text-xs text-[#79c0ff]">
-                    {hunk.content}
-                  </div>
-                </Decoration>,
-                <Hunk key={hunk.content} hunk={hunk} />,
-              ])
-            }
-          </Diff>
-        </div>
-      ) : (
-        <div className="p-4 text-sm italic text-muted-foreground">No matching hunks.</div>
-      )}
+      {!fileCollapsed &&
+        (displayed.length > 0 ? (
+          <div className="overflow-x-auto text-xs">
+            <Diff
+              viewType="unified"
+              diffType={diffType}
+              hunks={displayed.map((d) => d.hunk)}
+              tokens={tokens}
+            >
+              {() =>
+                displayed.flatMap(({ index, hunk }) => {
+                  const key = hunkKey(index);
+                  const isReviewed = !!reviewed[key];
+                  const isCollapsed = collapsedHunks.has(index);
+                  const header = (
+                    <Decoration key={`decoration-${key}`}>
+                      <button
+                        type="button"
+                        onClick={() => toggleHunkCollapsed(index)}
+                        aria-label={isCollapsed ? "Expand hunk" : "Collapse hunk"}
+                        className={cn(
+                          "flex w-full items-center gap-2 bg-[rgba(56,139,253,0.08)] py-1.5 pr-4 pl-2 text-left font-mono text-xs hover:bg-[rgba(56,139,253,0.14)]",
+                          isReviewed ? "text-muted-foreground" : "text-[#79c0ff]",
+                        )}
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="size-3.5 shrink-0" />
+                        ) : (
+                          <ChevronDown className="size-3.5 shrink-0" />
+                        )}
+                        <span className="min-w-0 flex-1 truncate">{hunk.content}</span>
+                        {isReviewed && <Check className="size-3.5 shrink-0 text-reviewed" />}
+                      </button>
+                    </Decoration>
+                  );
+                  return isCollapsed ? [header] : [header, <Hunk key={key} hunk={hunk} />];
+                })
+              }
+            </Diff>
+          </div>
+        ) : (
+          <div className="p-4 text-sm italic text-muted-foreground">No matching hunks.</div>
+        ))}
     </Card>
   );
 }
@@ -654,136 +752,329 @@ function IdeaView({
   idea,
   files,
   hideWhitespace,
+  viewOptions,
   prRef,
   reviewed,
   index,
   total,
   onToggleIdea,
+  onSetHunksReviewed,
+  onMarkReviewed,
   onPrev,
   onNext,
-  onClose,
 }: {
   idea: Idea;
   files: PrFile[];
   hideWhitespace: boolean;
+  viewOptions: ReactNode;
   prRef: PrRef;
   reviewed: Record<string, boolean>;
   index: number;
   total: number;
   onToggleIdea: (idea: Idea) => void;
+  onSetHunksReviewed: (keys: string[], value: boolean) => void;
+  onMarkReviewed: () => void;
   onPrev: () => void;
   onNext: () => void;
-  onClose: () => void;
 }) {
   const byFile = useMemo(() => groupHunkRefsByFile(idea.hunks), [idea]);
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
   const done = isIdeaReviewed(idea, reviewed);
+  const [compact, setCompact] = useState(false);
+
+  // Hysteresis keeps the header from flickering at the threshold, and the
+  // "room" check skips compacting when the diff barely scrolls - shrinking
+  // the header would just hand that room straight back.
+  function onScroll(e: UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const room = el.scrollHeight - el.clientHeight;
+    setCompact((was) => (was ? el.scrollTop > 4 : el.scrollTop > 48 && room > 240));
+  }
+
+  const actions = (
+    <div className="flex shrink-0 items-center gap-2">
+      <Button variant="outline" size={compact ? "sm" : "default"} onClick={onPrev} disabled={index === 0}>
+        ← Prev
+      </Button>
+      <Button
+        variant="outline"
+        size={compact ? "sm" : "default"}
+        onClick={onNext}
+        disabled={index === total - 1}
+      >
+        Next →
+      </Button>
+      {done ? (
+        <Button variant="outline" size={compact ? "sm" : "default"} onClick={() => onToggleIdea(idea)}>
+          <Check className="text-reviewed" />
+          Reviewed
+        </Button>
+      ) : (
+        <Button
+          size={compact ? "sm" : "default"}
+          onClick={onMarkReviewed}
+          className="bg-reviewed-strong px-4 text-white hover:bg-[#388bfd]"
+        >
+          Mark reviewed
+          <kbd className="font-mono text-[11px] opacity-70">↵</kbd>
+        </Button>
+      )}
+    </div>
+  );
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onPrev} disabled={index === 0}>
-          Prev
-        </Button>
-        <span className="text-xs text-muted-foreground">
-          Idea {index + 1} / {total}
-        </span>
-        <Button variant="outline" size="sm" onClick={onNext} disabled={index === total - 1}>
-          Next
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onClose} className="ml-auto">
-          Back to overview
-        </Button>
-      </div>
-      <Card className="gap-2 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold">{idea.title}</div>
-            <p className="mt-1 text-sm text-muted-foreground">{idea.summary}</p>
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <header
+        className={cn(
+          "shrink-0 border-b px-10 transition-[padding,border-color] duration-200",
+          compact ? "border-border py-3" : "border-transparent pt-10 pb-8",
+        )}
+      >
+        {compact ? (
+          <div className="flex items-center gap-6">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-base font-semibold">{idea.title}</h2>
+              {idea.summary && (
+                <p className="truncate text-sm text-muted-foreground">{idea.summary}</p>
+              )}
+            </div>
+            {actions}
           </div>
-          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <Checkbox checked={done} onCheckedChange={() => onToggleIdea(idea)} />
-            Reviewed
-          </label>
+        ) : (
+          <>
+            <div className="mb-12 flex justify-end">{actions}</div>
+            <h2 className="max-w-[40ch] text-[28px] leading-[1.2] font-semibold tracking-tight text-balance">
+              {idea.title}
+            </h2>
+            {idea.summary && (
+              <p className="mt-4 max-w-[68ch] text-[17px] leading-[1.65] text-foreground">
+                {idea.summary}
+              </p>
+            )}
+          </>
+        )}
+      </header>
+      <div
+        onScroll={onScroll}
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]"
+      >
+        <div className="flex flex-col gap-6">
+          <div className="-mb-2 flex justify-end">{viewOptions}</div>
+          {orderedFileGroups.map(([filename, hunkIndices]) => {
+            const file = files.find((f) => f.filename === filename);
+            if (!file) return null;
+            return (
+              <IdeaFileSection
+                key={`${idea.id}:${filename}`}
+                file={file}
+                hunkIndices={hunkIndices}
+                hideWhitespace={hideWhitespace}
+                prRef={prRef}
+                reviewed={reviewed}
+                onSetHunksReviewed={onSetHunksReviewed}
+              />
+            );
+          })}
         </div>
-      </Card>
-      {orderedFileGroups.map(([filename, hunkIndices]) => {
-        const file = files.find((f) => f.filename === filename);
-        if (!file) return null;
-        return (
-          <IdeaFileSection
-            key={filename}
-            file={file}
-            hunkIndices={hunkIndices}
-            hideWhitespace={hideWhitespace}
-            prRef={prRef}
-          />
-        );
-      })}
+      </div>
     </div>
   );
 }
 
-function IdeasPanel({
+function SidebarNav({
   allIdeas,
-  hasIdeas,
   reviewed,
   loading,
   activeIdeaId,
-  onGenerate,
+  overviewActive,
+  allFilesActive,
+  onSelectOverview,
+  onResumeIdeas,
   onSelectIdea,
   onToggleIdea,
+  onSelectAllFiles,
 }: {
   allIdeas: Idea[];
-  hasIdeas: boolean;
   reviewed: Record<string, boolean>;
   loading: boolean;
   activeIdeaId: string | null;
-  onGenerate: () => void;
+  overviewActive: boolean;
+  allFilesActive: boolean;
+  onSelectOverview: () => void;
+  onResumeIdeas: () => void;
   onSelectIdea: (id: string) => void;
   onToggleIdea: (idea: Idea) => void;
+  onSelectAllFiles: () => void;
 }) {
+  const rowClass = (active: boolean) =>
+    cn(
+      "-mx-2.5 flex items-start gap-3 rounded-md border px-2.5 py-2",
+      active ? "border-border bg-background/60" : "border-transparent",
+    );
+  const topLevelClass = (active: boolean) =>
+    cn(
+      "min-w-0 flex-1 text-left text-[15px] font-medium hover:text-foreground",
+      active ? "text-foreground" : "text-foreground/80",
+    );
+  const ideaLabelClass = (active: boolean) =>
+    cn(
+      "min-w-0 flex-1 text-left text-sm leading-snug hover:text-foreground",
+      active ? "font-medium text-foreground" : "text-muted-foreground",
+    );
+  const topLevelIcon = "mt-0.5 size-4 shrink-0 text-muted-foreground";
+
   return (
-    <div className="flex flex-col rounded-lg border bg-card">
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-xs font-semibold uppercase text-muted-foreground">Ideas</span>
-        <Button size="sm" variant="outline" onClick={onGenerate} disabled={loading}>
-          {loading ? "Generating…" : hasIdeas ? "Regenerate" : "Generate"}
-        </Button>
+    <nav className="flex flex-col gap-1">
+      <div className={rowClass(overviewActive)}>
+        <BookOpen className={topLevelIcon} />
+        <button type="button" onClick={onSelectOverview} className={topLevelClass(overviewActive)}>
+          Overview
+        </button>
       </div>
-      {allIdeas.length === 0 ? (
-        <div className="p-3 text-xs text-muted-foreground">
-          {loading ? "Decomposing PR into ideas…" : "No ideas generated yet."}
+
+      <div className="mt-2 flex flex-col">
+        <div className={rowClass(false)}>
+          <ListChecks className={topLevelIcon} />
+          <button
+            type="button"
+            onClick={onResumeIdeas}
+            disabled={allIdeas.length === 0}
+            title="Go to the first idea you haven't reviewed"
+            className={topLevelClass(false)}
+          >
+            Ideas
+          </button>
         </div>
-      ) : (
-        <div className="flex flex-col gap-0.5 p-1">
-          {allIdeas.map((idea) => {
-            const doneCount = idea.hunks.filter((k) => reviewed[k]).length;
-            const done = doneCount === idea.hunks.length;
-            return (
-              <button
-                key={idea.id}
-                type="button"
-                onClick={() => onSelectIdea(idea.id)}
-                className={cn(
-                  "flex flex-col gap-1 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted",
-                  activeIdeaId === idea.id && "bg-muted",
-                )}
-              >
-                <span className="flex items-center gap-1.5 font-medium">
-                  <span onClick={(e) => e.stopPropagation()}>
-                    <Checkbox checked={done} onCheckedChange={() => onToggleIdea(idea)} />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{idea.title}</span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {doneCount}/{idea.hunks.length}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
+        <ol className="flex flex-col gap-0.5 pl-3">
+          {allIdeas.length === 0 ? (
+            <li className="px-2.5 py-2 text-sm text-muted-foreground">
+              {loading ? "Breaking the PR into ideas…" : "No ideas yet."}
+            </li>
+          ) : (
+            allIdeas.map((idea) => {
+              const done = isIdeaReviewed(idea, reviewed);
+              const current = activeIdeaId === idea.id;
+              return (
+                <li key={idea.id} className={rowClass(current)}>
+                  <button
+                    type="button"
+                    onClick={() => onToggleIdea(idea)}
+                    aria-label={done ? `Mark "${idea.title}" unreviewed` : `Mark "${idea.title}" reviewed`}
+                    className={cn(
+                      "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-[1.5px]",
+                      done
+                        ? "border-reviewed-strong bg-reviewed-strong text-white"
+                        : current
+                          ? "border-foreground/70"
+                          : "border-muted-foreground/40 hover:border-muted-foreground",
+                    )}
+                  >
+                    {done && <Check className="size-2.5" strokeWidth={3.5} />}
+                  </button>
+                  <button type="button" onClick={() => onSelectIdea(idea.id)} className={ideaLabelClass(current)}>
+                    {idea.title}
+                  </button>
+                </li>
+              );
+            })
+          )}
+        </ol>
+      </div>
+
+      <div className={cn(rowClass(allFilesActive), "mt-2")}>
+        <Files className={topLevelIcon} />
+        <button type="button" onClick={onSelectAllFiles} className={topLevelClass(allFilesActive)}>
+          All files
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function ViewOptions({
+  hideWhitespace,
+  onHideWhitespaceChange,
+}: {
+  hideWhitespace: boolean;
+  onHideWhitespaceChange: (value: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="text-muted-foreground"
+      >
+        <SlidersHorizontal />
+        View
+        <ChevronDown />
+      </Button>
+      {open && (
+        <div className="absolute top-full right-0 z-20 mt-1 w-48 rounded-lg border bg-popover p-1.5 shadow-lg">
+          <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
+            <Checkbox checked={hideWhitespace} onCheckedChange={onHideWhitespaceChange} />
+            Hide whitespace
+          </label>
         </div>
       )}
+    </div>
+  );
+}
+
+function StartPage({
+  prUrl,
+  onPrUrlChange,
+  onSubmit,
+  loading,
+  error,
+}: {
+  prUrl: string;
+  onPrUrlChange: (value: string) => void;
+  onSubmit: (e: FormEvent) => void;
+  loading: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-6">
+      <form onSubmit={onSubmit} className="flex w-full max-w-xl flex-col gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Review a pull request</h1>
+        <p className="text-sm text-muted-foreground">
+          Paste a GitHub PR link. It'll be broken into ideas you can review one at a time.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            autoFocus
+            placeholder="https://github.com/owner/repo/pull/123"
+            value={prUrl}
+            onChange={(e) => onPrUrlChange(e.target.value)}
+          />
+          <Button type="submit" disabled={loading}>
+            {loading ? "Loading…" : "Load PR"}
+          </Button>
+        </div>
+        {error && <div className="text-sm text-destructive">{error}</div>}
+      </form>
     </div>
   );
 }
@@ -845,22 +1136,18 @@ function LandingView({
   prMeta,
   pipelineStage,
   summary,
-  summaryLoading,
-  onGenerateSummary,
   conversationCards,
-  conversationLoading,
-  onGenerateConversation,
+  onRegenerate,
+  onClose,
   hasIdeas,
   onStartReviewing,
 }: {
   prMeta: PrMeta | null;
   pipelineStage: PipelineStage;
   summary: PrSummary | null;
-  summaryLoading: boolean;
-  onGenerateSummary: () => void;
   conversationCards: ConversationCard[] | null;
-  conversationLoading: boolean;
-  onGenerateConversation: () => void;
+  onRegenerate: () => void;
+  onClose: () => void;
   hasIdeas: boolean;
   onStartReviewing: () => void;
 }) {
@@ -879,16 +1166,25 @@ function LandingView({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4 pt-8">
       <div className="flex items-start justify-between gap-4">
         <h1 className="min-w-0 text-lg font-semibold">{prMeta?.title ?? "Pull request"}</h1>
-        {prMeta && (
-          <a href={prMeta.htmlUrl} target="_blank" rel="noreferrer" className="shrink-0">
-            <Button variant="outline" size="sm">
-              View in GitHub
-            </Button>
-          </a>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onRegenerate} disabled={pipelineStage !== null}>
+            {pipelineStage !== null ? "Generating…" : "Regenerate review"}
+          </Button>
+          {prMeta && (
+            <a href={prMeta.htmlUrl} target="_blank" rel="noreferrer">
+              <Button variant="outline" size="sm">
+                View in GitHub
+              </Button>
+            </a>
+          )}
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">
+            <X />
+            Close PR
+          </Button>
+        </div>
       </div>
 
       {stageLabel && (
@@ -898,12 +1194,7 @@ function LandingView({
       )}
 
       <Card className="gap-3 p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase text-muted-foreground">Summary</span>
-          <Button size="sm" variant="outline" onClick={onGenerateSummary} disabled={summaryLoading}>
-            {summaryLoading ? "Generating…" : summary ? "Regenerate" : "Generate"}
-          </Button>
-        </div>
+        <span className="text-xs font-semibold uppercase text-muted-foreground">Summary</span>
         {summary ? (
           <div className="flex flex-col gap-2 text-sm">
             <div>
@@ -922,7 +1213,7 @@ function LandingView({
             )}
           </div>
         ) : (
-          !summaryLoading && <p className="text-sm text-muted-foreground italic">No summary yet.</p>
+          pipelineStage === null && <p className="text-sm text-muted-foreground italic">No summary yet.</p>
         )}
       </Card>
 
@@ -974,17 +1265,7 @@ function LandingView({
         />
       )}
 
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase text-muted-foreground">Conversation</span>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onGenerateConversation}
-          disabled={conversationLoading}
-        >
-          {conversationLoading ? "Generating…" : conversationCards ? "Regenerate" : "Generate"}
-        </Button>
-      </div>
+      <span className="text-xs font-semibold uppercase text-muted-foreground">Conversation</span>
       {conversationCards && conversationCards.length > 0 ? (
         <div className="flex flex-col gap-2">
           {conversationCards.map((card, i) => (
@@ -1000,7 +1281,7 @@ function LandingView({
           ))}
         </div>
       ) : (
-        !conversationLoading && (
+        pipelineStage === null && (
           <p className="text-sm text-muted-foreground italic">No conversation yet.</p>
         )
       )}
@@ -1031,8 +1312,8 @@ function FileDiff({
   const wasReviewed = useRef(reviewed);
 
   useEffect(() => {
-    if (!wasReviewed.current && reviewed) {
-      setCollapsed(true);
+    if (wasReviewed.current !== reviewed) {
+      setCollapsed(reviewed);
     }
     wasReviewed.current = reviewed;
   }, [reviewed]);
@@ -1130,6 +1411,32 @@ function clearStoredPrUrl() {
   }
 }
 
+const SIDEBAR_WIDTH_KEY = "codetour-pr:sidebar-width";
+const SIDEBAR_MIN = 240;
+const SIDEBAR_MAX = 520;
+const SIDEBAR_DEFAULT = 300;
+
+function clampSidebarWidth(width: number): number {
+  return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(width)));
+}
+
+function readStoredSidebarWidth(): number {
+  try {
+    const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return stored ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT;
+  } catch {
+    return SIDEBAR_DEFAULT;
+  }
+}
+
+function writeStoredSidebarWidth(width: number) {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  } catch {
+    // ignore, e.g. private browsing
+  }
+}
+
 type View = "landing" | "idea" | "files";
 
 function App() {
@@ -1139,17 +1446,37 @@ function App() {
   const [files, setFiles] = useState<PrFile[] | null>(null);
   const [reviewed, setReviewed] = useState<Record<string, boolean>>({});
   const [ideas, setIdeas] = useState<Idea[] | null>(null);
-  const [ideasLoading, setIdeasLoading] = useState(false);
   const [summary, setSummary] = useState<PrSummary | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
   const [conversationCards, setConversationCards] = useState<ConversationCard[] | null>(null);
-  const [conversationLoading, setConversationLoading] = useState(false);
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>(null);
   const [view, setView] = useState<View>("landing");
   const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hideWhitespace, setHideWhitespace] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
+
+  function startSidebarResize(e: ReactPointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    let latest = startWidth;
+    function onMove(ev: PointerEvent) {
+      latest = clampSidebarWidth(startWidth + ev.clientX - startX);
+      setSidebarWidth(latest);
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+      writeStoredSidebarWidth(latest);
+    }
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
 
   const fileHunkCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1321,129 +1648,181 @@ function App() {
     setHunksReviewed(idea.hunks, !isIdeaReviewed(idea, reviewed));
   }
 
-  async function generateIdeas() {
-    if (!prRef) return;
-    setIdeasLoading(true);
-    try {
-      setIdeas(await fetchIdeasFor(prRef));
-    } finally {
-      setIdeasLoading(false);
-    }
+  // Marking an idea reviewed moves straight on to the next one; Next alone
+  // moves on without marking, which is why there's no separate Skip.
+  function markActiveIdeaReviewed() {
+    if (!activeIdea) return;
+    setHunksReviewed(activeIdea.hunks, true);
+    const next = allIdeas[activeIdeaIndex + 1];
+    if (next) setActiveIdeaId(next.id);
   }
 
-  async function generateSummary() {
-    if (!prRef) return;
-    setSummaryLoading(true);
-    try {
-      setSummary(await fetchSummaryFor(prRef, ideas ?? []));
-    } finally {
-      setSummaryLoading(false);
+  useEffect(() => {
+    if (view !== "idea" || !activeIdea) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Enter" || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, button, a, [role=button], [contenteditable]")) return;
+      if (activeIdea && isIdeaReviewed(activeIdea, reviewed)) return;
+      e.preventDefault();
+      markActiveIdeaReviewed();
     }
-  }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
-  async function generateConversation() {
-    if (!prRef) return;
-    setConversationLoading(true);
-    try {
-      setConversationCards(await fetchConversationFor(prRef));
-    } finally {
-      setConversationLoading(false);
-    }
+  // The sidebar's file list follows the view: in an idea it lists just that
+  // idea's files, in "All files" it lists every file, and on the overview
+  // there's nothing to list. Either way, picking a file scrolls to it.
+  const fileListMode: "idea" | "all" | null =
+    view === "idea" && activeIdea ? "idea" : view === "files" ? "all" : null;
+  const ideaFileNames = useMemo(
+    () => new Set(activeIdea ? groupHunkRefsByFile(activeIdea.hunks).keys() : []),
+    [activeIdea],
+  );
+  const listedFiles =
+    fileListMode === "idea"
+      ? (files ?? []).filter((f) => ideaFileNames.has(f.filename))
+      : fileListMode === "all"
+        ? (files ?? [])
+        : [];
+
+  function resumeIdeas() {
+    const next = allIdeas.find((idea) => !isIdeaReviewed(idea, reviewed)) ?? allIdeas[0];
+    if (!next) return;
+    setActiveIdeaId(next.id);
+    setView("idea");
   }
 
   const reviewedFileCount = (files ?? []).filter((file) =>
     isFileReviewed(file.filename, fileHunkCounts[file.filename] ?? 0, reviewed),
   ).length;
 
+  if (!files || !prRef) {
+    return (
+      <StartPage
+        prUrl={prUrl}
+        onPrUrlChange={setPrUrl}
+        onSubmit={loadPr}
+        loading={loading}
+        error={error}
+      />
+    );
+  }
+
+  const viewOptions = (
+    <ViewOptions hideWhitespace={hideWhitespace} onHideWhitespaceChange={setHideWhitespace} />
+  );
+
   return (
-    <div className="w-full p-6">
-      <form onSubmit={loadPr} className="mb-6 flex gap-2 max-w-3xl">
-        <Input
-          placeholder="https://github.com/owner/repo/pull/123"
-          value={prUrl}
-          onChange={(e) => setPrUrl(e.target.value)}
+    <div className="flex h-screen overflow-hidden">
+      <aside
+        style={{ width: sidebarWidth }}
+        className="scrollbar-thin sticky top-0 flex h-screen shrink-0 flex-col gap-6 overflow-y-auto border-r bg-sidebar px-5 pt-8 pb-6"
+      >
+        <SidebarNav
+          allIdeas={allIdeas}
+          reviewed={reviewed}
+          loading={pipelineStage === "ideas"}
+          activeIdeaId={view === "idea" ? activeIdeaId : null}
+          overviewActive={view === "landing"}
+          allFilesActive={view === "files"}
+          onSelectOverview={() => setView("landing")}
+          onResumeIdeas={resumeIdeas}
+          onSelectIdea={(id) => {
+            setActiveIdeaId(id);
+            setView("idea");
+          }}
+          onToggleIdea={toggleIdea}
+          onSelectAllFiles={() => setView("files")}
         />
-        <Button type="submit" disabled={loading}>
-          {loading ? "Loading…" : "Load PR"}
-        </Button>
-        <Button type="button" variant="outline" onClick={clearPr} disabled={!files}>
-          Clear
-        </Button>
-      </form>
 
-      {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
-
-      {files && (
-        <div className="mb-4 flex items-center gap-4 text-sm">
-          <span className="font-medium">{reviewedFileCount} / {files.length} files reviewed</span>
-          <label className="flex items-center gap-2 text-muted-foreground">
-            <Checkbox checked={hideWhitespace} onCheckedChange={setHideWhitespace} />
-            Hide whitespace
-          </label>
-        </div>
-      )}
-
-      {files && prRef && (
-        <div className="grid grid-cols-[300px_1fr] items-start gap-6">
-          <div className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col gap-4 self-start">
-            <IdeasPanel
-              allIdeas={allIdeas}
-              hasIdeas={ideas !== null}
-              reviewed={reviewed}
-              loading={ideasLoading || pipelineStage === "ideas"}
-              activeIdeaId={activeIdeaId}
-              onGenerate={generateIdeas}
-              onSelectIdea={(id) => {
-                setActiveIdeaId(id);
-                setView("idea");
-              }}
-              onToggleIdea={toggleIdea}
-            />
-            <TableOfContents
-              files={files}
+        {listedFiles.length > 0 && (
+          <div className="border-t pt-6">
+            <FileTree
+              files={listedFiles}
               fileHunkCounts={fileHunkCounts}
               reviewed={reviewed}
               onToggleFile={toggleFile}
-              onHeaderClick={() => setView("files")}
+              onSelectFile={scrollToFile}
             />
           </div>
-          {view === "idea" && activeIdea ? (
-            <IdeaView
-              idea={activeIdea}
-              files={files}
-              hideWhitespace={hideWhitespace}
-              prRef={prRef}
-              reviewed={reviewed}
-              index={activeIdeaIndex}
-              total={allIdeas.length}
-              onToggleIdea={toggleIdea}
-              onPrev={() => setActiveIdeaId(allIdeas[activeIdeaIndex - 1]?.id ?? null)}
-              onNext={() => setActiveIdeaId(allIdeas[activeIdeaIndex + 1]?.id ?? null)}
-              onClose={() => setView("landing")}
-            />
-          ) : view === "files" ? (
-            <div className="flex min-w-0 flex-col gap-4">
-              {files.map((file) => (
-                <FileDiff
-                  key={file.filename}
-                  file={file}
-                  reviewed={isFileReviewed(file.filename, fileHunkCounts[file.filename] ?? 0, reviewed)}
-                  hideWhitespace={hideWhitespace}
-                  prRef={prRef}
-                  onToggle={() => toggleFile(file.filename)}
-                />
-              ))}
+        )}
+      </aside>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuemin={SIDEBAR_MIN}
+        aria-valuemax={SIDEBAR_MAX}
+        aria-valuenow={sidebarWidth}
+        tabIndex={0}
+        onPointerDown={startSidebarResize}
+        onDoubleClick={() => {
+          setSidebarWidth(SIDEBAR_DEFAULT);
+          writeStoredSidebarWidth(SIDEBAR_DEFAULT);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          const next = clampSidebarWidth(sidebarWidth + (e.key === "ArrowRight" ? 16 : -16));
+          setSidebarWidth(next);
+          writeStoredSidebarWidth(next);
+        }}
+        className="sticky top-0 z-20 -ml-1.5 h-screen w-3 shrink-0 cursor-col-resize outline-none after:mx-auto after:block after:h-full after:w-px after:bg-transparent after:transition-colors hover:after:bg-reviewed focus-visible:after:bg-reviewed"
+      />
+
+      <main className="-ml-1.5 flex h-screen min-w-0 flex-1 flex-col">
+        {view === "idea" && activeIdea ? (
+          <IdeaView
+            key={activeIdea.id}
+            idea={activeIdea}
+            files={files}
+            hideWhitespace={hideWhitespace}
+            viewOptions={viewOptions}
+            prRef={prRef}
+            reviewed={reviewed}
+            index={activeIdeaIndex}
+            total={allIdeas.length}
+            onToggleIdea={toggleIdea}
+            onSetHunksReviewed={setHunksReviewed}
+            onMarkReviewed={markActiveIdeaReviewed}
+            onPrev={() => setActiveIdeaId(allIdeas[activeIdeaIndex - 1]?.id ?? null)}
+            onNext={() => setActiveIdeaId(allIdeas[activeIdeaIndex + 1]?.id ?? null)}
+          />
+        ) : view === "files" ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <header className="shrink-0 px-10 pt-10 pb-6">
+              <h2 className="text-[28px] leading-[1.2] font-semibold tracking-tight">All files</h2>
+              <p className="mt-2 text-[15px] text-muted-foreground tabular-nums">
+                {reviewedFileCount} of {files.length} files reviewed
+              </p>
+            </header>
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]">
+              <div className="flex flex-col gap-4">
+                <div className="-mb-2 flex justify-end">{viewOptions}</div>
+                {files.map((file) => (
+                  <FileDiff
+                    key={file.filename}
+                    file={file}
+                    reviewed={isFileReviewed(file.filename, fileHunkCounts[file.filename] ?? 0, reviewed)}
+                    hideWhitespace={hideWhitespace}
+                    prRef={prRef}
+                    onToggle={() => toggleFile(file.filename)}
+                  />
+                ))}
+              </div>
             </div>
-          ) : (
+          </div>
+        ) : (
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-10 pb-12 [scrollbar-gutter:stable]">
             <LandingView
               prMeta={prMeta}
               pipelineStage={pipelineStage}
               summary={summary}
-              summaryLoading={summaryLoading}
-              onGenerateSummary={generateSummary}
               conversationCards={conversationCards}
-              conversationLoading={conversationLoading}
-              onGenerateConversation={generateConversation}
+              onRegenerate={() => runFullPipeline(prRef)}
+              onClose={clearPr}
               hasIdeas={ideas !== null && ideas.length > 0}
               onStartReviewing={() => {
                 const first = allIdeas[0];
@@ -1453,9 +1832,9 @@ function App() {
                 }
               }}
             />
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

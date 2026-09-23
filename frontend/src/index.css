@@ -14,6 +14,8 @@
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
+    --color-reviewed: var(--reviewed);
+    --color-reviewed-strong: var(--reviewed-strong);
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -80,6 +82,10 @@
     --sidebar-accent-foreground: #e6edf3;
     --sidebar-border: #30363d;
     --sidebar-ring: #6e7681;
+    /* Reviewed/viewed state everywhere. Blue rather than green so it never
+       reads as "added code" next to a diff (same choice as GitHub's Viewed). */
+    --reviewed: #4493f8;
+    --reviewed-strong: #1f6feb;
 }
 
 @layer base {
@@ -92,6 +98,30 @@
   html {
     @apply font-sans;
     }
+}
+
+/* Quiet scrollbar for the sidebar and each view's scroll area: thin, no
+   track, thumb only. Views pair it with scrollbar-gutter: stable so content
+   doesn't shift between pages that do and don't scroll. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #30363d transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+  background-clip: padding-box;
 }
 
 /* react-diff-view ships light-mode diff colors; override for the dark theme above. */
