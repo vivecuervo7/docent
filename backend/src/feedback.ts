@@ -15,6 +15,7 @@ export interface DraftedComment {
   // Indices of the threads it draws on, which place it on their lines.
   threads: number[];
   body: string;
+  rationale?: string;
 }
 
 const REPORT_FEEDBACK_TOOL = {
@@ -34,8 +35,9 @@ const REPORT_FEEDBACK_TOOL = {
               description: "The numbers of the threads this comment draws on.",
             },
             body: { type: "string" },
+            rationale: { type: "string" },
           },
-          required: ["threads", "body"],
+          required: ["threads", "body", "rationale"],
         },
       },
     },
@@ -54,7 +56,10 @@ Comments don't map one-to-one to threads: combine threads that raise the same po
 comment, and split a thread that raises several points into several comments.
 Each comment is addressed to the author, written as the reviewer, specific to the lines, and \
 short: a sentence or two, with a suggestion where there is one. Start a minor point with \
-"Nit: ", as reviewers do. Don't mention the assistant or the thread. Put code in backticks. Report no comments if nothing is worth posting.`;
+"Nit: ", as reviewers do. Don't mention the assistant or the thread. Put code in backticks. Report no comments if nothing is worth posting.
+Also give each comment a rationale, for the reviewer only (the author never sees it): which of \
+their notes it came from and what those showed - say so when you combined several notes or \
+split one. A sentence or two.`;
 
 function threadText(thread: ThreadForFeedback, index: number): string {
   const code = thread.code
@@ -86,14 +91,20 @@ export function draftYourFeedback(
     const raw = (call.arguments as { comments?: unknown }).comments;
     if (!Array.isArray(raw)) return [];
     return raw.flatMap((entry): DraftedComment[] => {
-      const { threads: refs, body } = (entry ?? {}) as { threads?: unknown; body?: unknown };
+      const { threads: refs, body, rationale } = (entry ?? {}) as { threads?: unknown; body?: unknown; rationale?: unknown };
       if (typeof body !== "string" || !body.trim()) return [];
       const indices = Array.isArray(refs)
         ? [...new Set(refs.filter((n): n is number => Number.isInteger(n)).map((n) => n - 1))].filter(
             (i) => i >= 0 && i < threads.length,
           )
         : [];
-      return [{ threads: indices, body: body.trim() }];
+      return [
+        {
+          threads: indices,
+          body: body.trim(),
+          rationale: typeof rationale === "string" && rationale.trim() ? rationale.trim() : undefined,
+        },
+      ];
     });
   });
 }

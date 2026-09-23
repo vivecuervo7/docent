@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronRight, Copy, Loader2, Plug, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Lightbulb, Loader2, Plug, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -78,63 +78,95 @@ function FeedbackItems({
   onToggle,
   onOpen,
   renderContext,
+  noun,
+  reasoning,
 }: {
   items: FeedbackItem[];
   onToggle: (id: string) => void;
   onOpen?: (item: FeedbackItem) => void;
   renderContext: RenderContext;
+  // What each item is called in its heading: "Comment 1 of 3".
+  noun: string;
+  // The box beside each item that explains it.
+  reasoning: { heading: string; missing: string };
 }) {
+  const location = (item: FeedbackItem) => (
+    <>
+      {item.path ?? "The whole PR"}
+      {item.start && item.end && <span className="text-muted-foreground"> · {describeLines(item.start, item.end)}</span>}
+    </>
+  );
+
   return (
-    <ul className="flex flex-col gap-4">
-      {items.map((item) => (
-        <li
-          key={item.id}
-          className={cn(
-            "overflow-hidden rounded-lg border transition-opacity",
-            !item.included && "opacity-55",
-          )}
-        >
-          <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2.5">
-            <Checkbox
-              checked={item.included}
-              onCheckedChange={() => onToggle(item.id)}
-              aria-label={item.included ? "Leave this out of the review" : "Include this in the review"}
-            />
-            {onOpen && item.path ? (
-              <button
-                type="button"
-                onClick={() => onOpen(item)}
-                title={`Go to ${item.path}`}
-                className="min-w-0 truncate font-mono text-xs font-medium hover:text-reviewed"
-              >
-                {item.path}
-                {item.start && item.end && (
-                  <span className="text-muted-foreground"> · {describeLines(item.start, item.end)}</span>
-                )}
-              </button>
-            ) : (
-              <span className="min-w-0 truncate font-mono text-xs font-medium">
-                {item.path ?? "The whole PR"}
-                {item.start && item.end && (
-                  <span className="text-muted-foreground"> · {describeLines(item.start, item.end)}</span>
-                )}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col gap-2.5 px-4 py-3.5">
-            <div className="text-[15px] leading-relaxed">
+    <ol className="flex flex-col gap-16">
+      {items.map((item, index) => {
+        const finding = (
+          <div
+            className="overflow-hidden rounded-lg border bg-card"
+          >
+            <div className="flex items-center gap-3 border-b bg-muted/50 px-4 py-2.5">
+              <Checkbox
+                checked={item.included}
+                onCheckedChange={() => onToggle(item.id)}
+                aria-label={item.included ? "Leave this out of the review" : "Include this in the review"}
+              />
+              {onOpen && item.path ? (
+                <button
+                  type="button"
+                  onClick={() => onOpen(item)}
+                  title={`Go to ${item.path}`}
+                  className="min-w-0 truncate font-mono text-xs font-medium hover:text-reviewed"
+                >
+                  {location(item)}
+                </button>
+              ) : (
+                <span className="min-w-0 truncate font-mono text-xs font-medium">{location(item)}</span>
+              )}
+            </div>
+            <div className="px-5 py-4 text-[15px] leading-relaxed">
               <MessageText text={item.body} />
             </div>
-            {item.rationale && (
-              <div className="text-[13px] leading-relaxed text-muted-foreground">
-                <MessageText text={item.rationale} />
-              </div>
-            )}
+            {renderContext(item)}
           </div>
-          {renderContext(item)}
-        </li>
-      ))}
-    </ul>
+        );
+
+        return (
+          <li key={item.id} className="flex flex-col gap-3">
+            {/* Each finding gets its own heading, so they read as separate
+                things to weigh rather than rows to skim. */}
+            <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground tabular-nums">
+              <span>
+                {noun} {index + 1} of {items.length}
+              </span>
+              <span className="h-px flex-1 bg-border" />
+              {!item.included && <span>Left out</span>}
+            </div>
+            {/* The item as it would be posted, and beside it why it's here. */}
+            <div
+              className={cn(
+                "grid grid-cols-5 items-start gap-5 transition-opacity",
+                !item.included && "opacity-40",
+              )}
+            >
+              <div className="col-span-3 min-w-0">{finding}</div>
+              <aside className="col-span-2 flex flex-col gap-2 rounded-lg border bg-muted/30 px-5 py-4">
+                <h4 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Lightbulb className="size-3.5" />
+                  {reasoning.heading}
+                </h4>
+                {item.rationale ? (
+                  <div className="text-sm leading-relaxed text-foreground/85">
+                    <MessageText text={item.rationale} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{reasoning.missing}</p>
+                )}
+              </aside>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -248,7 +280,14 @@ export function YourFeedbackView({
               Nothing you asked or commented on looked worth raising with the author.
             </p>
           ) : (
-            <FeedbackItems items={draft.items} onToggle={onToggle} onOpen={openItem} renderContext={renderContext} />
+            <FeedbackItems
+              items={draft.items}
+              onToggle={onToggle}
+              onOpen={openItem}
+              renderContext={renderContext}
+              noun="Comment"
+              reasoning={{ heading: "Why it was drafted", missing: "Drafted before reasoning was added. Redraft to see it." }}
+            />
           )}
           {discarded.length > 0 && (
             <section className="flex flex-col gap-2">
@@ -470,7 +509,14 @@ export function AgentFeedbackView({
       {review?.status === "stopped" && <p className="text-sm text-muted-foreground">The review was stopped.</p>}
 
       {items.length > 0 ? (
-        <FeedbackItems items={items} onToggle={onToggle} onOpen={onOpen} renderContext={renderContext} />
+        <FeedbackItems
+          items={items}
+          onToggle={onToggle}
+          onOpen={onOpen}
+          renderContext={renderContext}
+          noun="Finding"
+          reasoning={{ heading: "Why it was raised", missing: "The agent didn't give its reasoning." }}
+        />
       ) : (
         draft &&
         !running &&

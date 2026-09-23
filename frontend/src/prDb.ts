@@ -75,8 +75,8 @@ export interface FeedbackItem {
   end?: LineRef;
   // The threads it was drafted from; only used to go to its lines.
   noteIds?: string[];
-  // From the agent review: its reasoning, for deciding whether to keep it.
-  // Never posted.
+  // Why it was drafted or raised, for deciding whether to keep it. Never
+  // posted.
   rationale?: string;
 }
 

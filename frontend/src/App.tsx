@@ -1895,6 +1895,7 @@ function SidebarNav({
             [
               { id: "your-feedback", label: "Your feedback", Icon: User, count: yourFeedbackCount },
               { id: "agent-feedback", label: "Agent feedback", Icon: Bot, count: agentFeedbackCount },
+              { id: "post-review", label: "Post review", Icon: Send, count: 0 },
             ] as const
           ).map(({ id, label, Icon, count }) => (
             <li key={id} className={rowClass(activeView === id)}>
@@ -1913,17 +1914,6 @@ function SidebarNav({
             </li>
           ))}
         </ol>
-      </div>
-
-      <div className={cn(rowClass(activeView === "post-review"), "mt-2")}>
-        <Send className={topLevelIcon} />
-        <button
-          type="button"
-          onClick={() => onSelectView("post-review")}
-          className={topLevelClass(activeView === "post-review")}
-        >
-          Post review
-        </button>
       </div>
 
       <div className={cn(rowClass(allFilesActive), "mt-5")}>
@@ -3549,11 +3539,12 @@ function App() {
             })),
           }),
         });
-        const { comments } = await readOk<{ comments: { threads: number[]; body: string }[] }>(res);
+        const { comments } = await readOk<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
         draft = {
-          items: comments.map(({ threads: indices, body }) => ({
+          items: comments.map(({ threads: indices, body, rationale }) => ({
             id: crypto.randomUUID(),
             body,
+            rationale,
             included: true,
             ...placeFeedback(indices.map((i) => threads[i]).filter(Boolean)),
           })),
