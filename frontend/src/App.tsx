@@ -23,7 +23,16 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getReviewState, setHunksReviewed as persistReviewedHunks } from "./reviewDb";
+import {
+  getPrRecord,
+  saveConversation as persistConversation,
+  saveIdeas as persistIdeas,
+  saveSummary as persistSummary,
+  setHunksReviewed as persistReviewedHunks,
+  type ConversationCard,
+  type Idea,
+  type PrSummary,
+} from "./prDb";
 
 // The bundled "common" language set covers most backend languages already;
 // JSX/TSX aren't in it and are registered separately (each pulls in its own
@@ -85,29 +94,10 @@ interface PrFile {
   patch?: string;
 }
 
-interface Idea {
-  id: string;
-  title: string;
-  summary: string;
-  hunks: string[];
-}
-
 interface PrMeta {
   title: string;
   body: string | null;
   htmlUrl: string;
-}
-
-interface ConversationCard {
-  author: string;
-  kind: string;
-  summary: string;
-}
-
-interface PrSummary {
-  what: string;
-  why: string;
-  how?: string;
 }
 
 interface Link {
@@ -1192,17 +1182,23 @@ function App() {
       method: "POST",
     });
     const body = await res.json();
-    return body.ideas ?? [];
+    const ideas: Idea[] = body.ideas ?? [];
+    await persistIdeas(ref.owner, ref.repo, ref.number, ideas);
+    return ideas;
   }
 
-  async function fetchSummaryFor(ref: PrRef): Promise<PrSummary | null> {
+  async function fetchSummaryFor(ref: PrRef, ideasForSummary: Idea[]): Promise<PrSummary | null> {
     const res = await fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview/summary`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ideas: ideasForSummary }),
     });
     const body = await res.json();
     if (!body.summary) return null;
     const { what, why, how } = body.summary;
-    return { what, why, how };
+    const summary = { what, why, how };
+    await persistSummary(ref.owner, ref.repo, ref.number, summary);
+    return summary;
   }
 
   async function fetchConversationFor(ref: PrRef): Promise<ConversationCard[]> {
@@ -1211,14 +1207,17 @@ function App() {
       { method: "POST" },
     );
     const body = await res.json();
-    return body.conversation?.cards ?? [];
+    const cards: ConversationCard[] = body.cards ?? [];
+    await persistConversation(ref.owner, ref.repo, ref.number, cards);
+    return cards;
   }
 
   async function runFullPipeline(ref: PrRef) {
     setPipelineStage("ideas");
-    setIdeas(await fetchIdeasFor(ref));
+    const generatedIdeas = await fetchIdeasFor(ref);
+    setIdeas(generatedIdeas);
     setPipelineStage("summary");
-    setSummary(await fetchSummaryFor(ref));
+    setSummary(await fetchSummaryFor(ref, generatedIdeas));
     setPipelineStage("conversation");
     setConversationCards(await fetchConversationFor(ref));
     setPipelineStage(null);
@@ -1236,30 +1235,26 @@ function App() {
     setView("landing");
 
     try {
-      const [filesRes, ideasRes, overviewRes, reviewState] = await Promise.all([
+      const [filesRes, prRecord] = await Promise.all([
         fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}`),
-        fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/ideas`),
-        fetch(`/api/pr/${ref.owner}/${ref.repo}/${ref.number}/overview`),
-        getReviewState(ref.owner, ref.repo, ref.number),
+        getPrRecord(ref.owner, ref.repo, ref.number),
       ]);
       if (!filesRes.ok) {
         const body = await filesRes.json();
         throw new Error(body.error ?? "Failed to fetch PR");
       }
       const { files, meta } = await filesRes.json();
-      const ideasState = await ideasRes.json();
-      const overviewState = await overviewRes.json();
 
       setPrRef(ref);
       setFiles(files);
       setPrMeta(meta ?? null);
-      setReviewed(reviewState);
-      setIdeas(ideasState.ideas ?? null);
-      setSummary(overviewState.summary ? { ...overviewState.summary } : null);
-      setConversationCards(overviewState.conversation?.cards ?? null);
+      setReviewed(prRecord.reviewed);
+      setIdeas(prRecord.ideas);
+      setSummary(prRecord.summary);
+      setConversationCards(prRecord.conversation);
       writeStoredPrUrl(`https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`);
 
-      if (!ideasState.ideas) {
+      if (!prRecord.ideas) {
         // Fire and forget - this can take minutes; don't block the initial load on it.
         runFullPipeline(ref);
       }
@@ -1340,7 +1335,7 @@ function App() {
     if (!prRef) return;
     setSummaryLoading(true);
     try {
-      setSummary(await fetchSummaryFor(prRef));
+      setSummary(await fetchSummaryFor(prRef, ideas ?? []));
     } finally {
       setSummaryLoading(false);
     }

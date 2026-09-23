@@ -8,9 +8,8 @@ import {
   fetchPrMeta,
 } from "./github.js";
 import { generateIdeas } from "./ideas.js";
-import { readIdeas, writeIdeas } from "./ideaStore.js";
 import { generateConversationCards, generateSummary } from "./overview.js";
-import { readOverview, saveConversation, saveSummary } from "./overviewStore.js";
+import type { Idea } from "./types.js";
 
 const app = express();
 app.use(express.json());
@@ -73,16 +72,6 @@ app.get("/api/pr/:owner/:repo/:number/old-content", async (req, res) => {
   }
 });
 
-app.get("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
-  const { owner, repo, number } = req.params;
-  if (!validParams(owner, repo, number)) {
-    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
-  }
-
-  const state = await readIdeas(owner, repo, number);
-  res.json(state ?? { ideas: null });
-});
-
 app.post("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
   const { owner, repo, number } = req.params;
   if (!validParams(owner, repo, number)) {
@@ -92,21 +81,10 @@ app.post("/api/pr/:owner/:repo/:number/ideas", async (req, res) => {
   try {
     const files = await fetchPrFiles(owner, repo, number);
     const ideas = await generateIdeas(files);
-    const state = await writeIdeas(owner, repo, number, ideas);
-    res.json(state);
+    res.json({ ideas });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }
-});
-
-app.get("/api/pr/:owner/:repo/:number/overview", async (req, res) => {
-  const { owner, repo, number } = req.params;
-  if (!validParams(owner, repo, number)) {
-    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
-  }
-
-  const state = await readOverview(owner, repo, number);
-  res.json(state);
 });
 
 app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
@@ -115,14 +93,12 @@ app.post("/api/pr/:owner/:repo/:number/overview/summary", async (req, res) => {
     return res.status(400).json({ error: "invalid owner, repo, or PR number" });
   }
 
+  const ideas: Idea[] = Array.isArray(req.body?.ideas) ? req.body.ideas : [];
+
   try {
-    const [meta, ideasState] = await Promise.all([
-      fetchPrMeta(owner, repo, number),
-      readIdeas(owner, repo, number),
-    ]);
-    const summary = await generateSummary(meta, ideasState?.ideas ?? []);
-    const state = await saveSummary(owner, repo, number, summary);
-    res.json(state);
+    const meta = await fetchPrMeta(owner, repo, number);
+    const summary = await generateSummary(meta, ideas);
+    res.json({ summary });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }
@@ -137,8 +113,7 @@ app.post("/api/pr/:owner/:repo/:number/overview/conversation", async (req, res) 
   try {
     const items = await fetchPrConversation(owner, repo, number);
     const cards = await generateConversationCards(items);
-    const state = await saveConversation(owner, repo, number, cards);
-    res.json(state);
+    res.json({ cards });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }

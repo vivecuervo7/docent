@@ -1,6 +1,6 @@
 import { chatWithTool } from "./modelProvider.js";
 import type { PrFile } from "./github.js";
-import type { Idea } from "./ideaStore.js";
+import type { Idea } from "./types.js";
 
 // Splits a unified-diff patch into its hunks purely by the "@@ ... @@"
 // header lines, matching how react-diff-view/gitdiff-parser splits hunks

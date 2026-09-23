@@ -1,7 +1,6 @@
 import { chatWithTool } from "./modelProvider.js";
 import type { ConversationItem, PrMeta } from "./github.js";
-import type { Idea } from "./ideaStore.js";
-import type { ConversationCard, PrSummary } from "./overviewStore.js";
+import type { ConversationCard, Idea, PrSummary } from "./types.js";
 
 const SUMMARY_TOOL = {
   name: "report_summary",
