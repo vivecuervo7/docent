@@ -63,11 +63,33 @@ function UnreadDot({ ring, small }: { ring: string; small?: boolean }) {
   );
 }
 
-function CommentIcon({ className, unread, ring }: { className: string; unread: boolean; ring: string }) {
+// The comment icon everywhere it appears: an outline at rest, two-tone when
+// its button (a `group`) is hovered, and filled when active. Lucide only
+// ships outlines, so the fill is layered on through fill-opacity.
+function CommentIcon({
+  className,
+  unread,
+  ring,
+  active,
+  small = true,
+}: {
+  className: string;
+  unread: boolean;
+  ring: string;
+  active?: boolean;
+  small?: boolean;
+}) {
   return (
     <span className="relative">
-      <MessageSquare className={className} />
-      {unread && <UnreadDot ring={ring} small />}
+      <MessageSquare
+        fill="currentColor"
+        className={cn(
+          className,
+          "transition-[fill-opacity] duration-150",
+          active ? "[fill-opacity:1]" : "[fill-opacity:0] group-hover:[fill-opacity:0.2]",
+        )}
+      />
+      {unread && <UnreadDot ring={ring} small={small} />}
     </span>
   );
 }
@@ -76,26 +98,25 @@ export function NotePin({
   active,
   unread,
   onClick,
+  onHover,
 }: {
   active: boolean;
   unread: boolean;
   onClick: () => void;
+  onHover: (hovering: boolean) => void;
 }) {
   // note-pin-pulse runs once each time the pin becomes active.
   return (
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
       aria-label={active ? "Close note" : unread ? "Open note (unread reply)" : "Open note"}
       style={{ width: PIN_SIZE, height: PIN_SIZE - 4 }}
-      className={cn(
-        "relative grid place-items-center rounded-md border transition-colors",
-        active
-          ? "note-pin-pulse border-reviewed bg-reviewed text-background"
-          : "border-reviewed/35 bg-reviewed/15 text-reviewed hover:bg-reviewed/25",
-      )}
+      className={cn("group relative grid place-items-center text-reviewed", active && "note-pin-pulse")}
     >
-      <CommentIcon className="size-3.5" unread={unread && !active} ring="ring-[#152439]" />
+      <CommentIcon className="size-4" unread={unread && !active} ring="ring-background" active={active} />
     </button>
   );
 }
@@ -120,16 +141,12 @@ export function OffscreenUnread({
       title={direction === "up" ? "Unread reply above" : "Unread reply below"}
       aria-label={direction === "up" ? "Go to the unread reply above" : "Go to the unread reply below"}
       className={cn(
-        "note-offscreen-in fixed z-30 flex items-center gap-0.5 text-reviewed drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)] hover:text-[#79b8ff]",
+        "group note-offscreen-in fixed z-30 flex items-center gap-0.5 text-reviewed drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]",
         direction === "up" ? "flex-col" : "flex-col-reverse",
       )}
     >
       <Chevron className="size-4" strokeWidth={2.5} />
-      <span className="relative">
-        {/* Two-tone: Lucide ships outlines only, so the fill is added faintly. */}
-        <MessageSquare className="size-6" fill="currentColor" fillOpacity={0.2} />
-        <UnreadDot ring="ring-background" />
-      </span>
+      <CommentIcon className="size-6" unread ring="ring-background" small={false} />
     </button>
   );
 }
@@ -148,10 +165,7 @@ export function NoteCount({
   ring: string;
   onClick?: () => void;
 }) {
-  // Just the icon and number at rest; the badge only appears on hover, to
-  // keep headers and the sidebar quiet.
-  const className =
-    "relative flex shrink-0 items-center gap-1 rounded-md border border-transparent px-1.5 py-0.5 text-[11px] text-reviewed tabular-nums";
+  const className = "group relative flex shrink-0 items-center gap-1 px-1 py-0.5 text-[11px] text-reviewed tabular-nums";
   const content = (
     <>
       <CommentIcon className="size-3" unread={unread} ring={ring} />
@@ -169,7 +183,7 @@ export function NoteCount({
       }}
       title={unread ? "Open the unread reply" : "Expand to see them"}
       aria-label={`${label}; expand to see them`}
-      className={cn(className, "hover:border-reviewed/35 hover:bg-reviewed/15")}
+      className={className}
     >
       {content}
     </button>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type UIEvent } from "react";
 import { diffArrays } from "diff";
-import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, SlidersHorizontal, Trash2, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Files, Folder, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, SlidersHorizontal, Trash2, Wrench, type LucideIcon } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -44,6 +44,17 @@ import {
   type PrSummary,
   type SavedPr,
 } from "./prDb";
+import {
+  EXPAND_STEP,
+  expandHunk,
+  expansionFor,
+  fileLines,
+  gapAbove,
+  gapBelow,
+  shownHunks,
+  type Expansion,
+  type ShownHunk,
+} from "./hunkExpansion";
 import { changeKeys, changesBetween, describeLines, diffLines, isUnread, lineRefFor, PIN_SIZE } from "./noteAnchors";
 import { NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
 
@@ -615,31 +626,32 @@ function collapseWhitespaceOnlyChanges(hunks: HunkData[]): HunkData[] {
 }
 
 // Shared by the full per-file view and the single-slice view: parses a
-// file's patch into hunks, lazily fetches old-file context for syntax
-// highlighting, and tokenizes. `enabled` gates the (relatively expensive)
-// context fetch + tokenize pass so a collapsed file in the full list skips
-// both until expanded.
-function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enabled: boolean) {
-  const { hunks, diffType } = useMemo((): { hunks?: HunkData[]; diffType: DiffType } => {
-    if (!file.patch) return { hunks: undefined, diffType: "modify" };
+// file's patch into hunks, expands them with any unchanged lines the reviewer
+// asked for (or that notes are on), lazily fetches the old file, and
+// tokenizes. `enabled` gates the (relatively expensive) fetch + tokenize pass
+// so a collapsed file in the full list skips both until expanded.
+function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enabled: boolean, notes: Note[]) {
+  const { parsed, diffType } = useMemo((): { parsed?: HunkData[]; diffType: DiffType } => {
+    if (!file.patch) return { parsed: undefined, diffType: "modify" };
     try {
-      const [parsed] = parseDiff(buildDiffText(file));
-      let hunks = parsed?.hunks;
+      const [parsedFile] = parseDiff(buildDiffText(file));
+      let hunks = parsedFile?.hunks;
       if (hunks && hideWhitespace) hunks = collapseWhitespaceOnlyChanges(hunks);
-      return { hunks, diffType: (parsed?.type as DiffType) ?? "modify" };
+      return { parsed: hunks, diffType: (parsedFile?.type as DiffType) ?? "modify" };
     } catch {
-      return { hunks: undefined, diffType: "modify" };
+      return { parsed: undefined, diffType: "modify" };
     }
   }, [file, hideWhitespace]);
 
   const language = useMemo(() => languageForFilename(file.filename), [file.filename]);
 
-  // Fetched lazily, only once enabled and there's a language worth
-  // highlighting, since it's the full old file's content, not just the diff.
+  // The whole old file: highlighting context, and the unchanged lines that
+  // expanding shows (they read the same in the new file). Fetched once the
+  // file is on screen.
   const [oldContent, setOldContent] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!enabled || !hunks || !language || file.status === "added") return;
+    if (!enabled || !parsed || file.status === "added") return;
     if (oldContent !== undefined) return;
 
     let cancelled = false;
@@ -657,7 +669,54 @@ function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enab
     return () => {
       cancelled = true;
     };
-  }, [enabled, hunks, language, file, prRef, oldContent]);
+  }, [enabled, parsed, file, prRef, oldContent]);
+
+  const oldLines = useMemo(() => (oldContent === undefined ? null : fileLines(oldContent)), [oldContent]);
+  const [requested, setRequested] = useState<Record<number, Expansion>>({});
+
+  // What's actually shown: the lines asked for, plus any a note needs, kept
+  // within each gap so neighbouring hunks never overlap.
+  const expansion = useMemo((): Expansion[] => {
+    if (!parsed || !oldLines) return [];
+    const wanted = parsed.map((_, i) => ({ up: requested[i]?.up ?? 0, down: requested[i]?.down ?? 0 }));
+    for (const note of notes) {
+      const hunk = parsed[note.hunk];
+      if (!hunk || note.path !== file.filename) continue;
+      const needed = expansionFor(hunk, note.start, note.end);
+      wanted[note.hunk] = {
+        up: Math.max(wanted[note.hunk].up, needed.up),
+        down: Math.max(wanted[note.hunk].down, needed.down),
+      };
+    }
+    const shown: Expansion[] = [];
+    parsed.forEach((_, i) => {
+      const up = Math.min(wanted[i].up, gapAbove(parsed, i) - (shown[i - 1]?.down ?? 0));
+      const down = Math.min(wanted[i].down, gapBelow(parsed, i, oldLines.length));
+      shown.push({ up: Math.max(0, up), down: Math.max(0, down) });
+    });
+    return shown;
+  }, [parsed, oldLines, requested, notes, file.filename]);
+
+  const hunks = useMemo(
+    () => (parsed && oldLines ? parsed.map((h, i) => expandHunk(h, expansion[i], oldLines)) : parsed),
+    [parsed, oldLines, expansion],
+  );
+
+  const expander = useMemo(() => {
+    if (!parsed || !oldLines) return null;
+    return {
+      above: (i: number) => gapAbove(parsed, i) - expansion[i].up - (expansion[i - 1]?.down ?? 0),
+      below: (i: number) =>
+        gapBelow(parsed, i, oldLines.length) - expansion[i].down - (expansion[i + 1]?.up ?? 0),
+      expand: (i: number, direction: "up" | "down", count: number) =>
+        // Grows from what's shown now, which may be more than was asked for
+        // when a note needed extra lines.
+        setRequested((prev) => ({
+          ...prev,
+          [i]: { up: prev[i]?.up ?? 0, down: prev[i]?.down ?? 0, [direction]: expansion[i][direction] + count },
+        })),
+    };
+  }, [parsed, oldLines, expansion]);
 
   const tokens = useMemo(() => {
     if (!hunks || !enabled) return undefined;
@@ -679,7 +738,52 @@ function useDiffRender(file: PrFile, hideWhitespace: boolean, prRef: PrRef, enab
     }
   }, [hunks, enabled, language, oldContent]);
 
-  return { hunks, diffType, tokens };
+  return { hunks, diffType, tokens, expander };
+}
+
+type Expander = NonNullable<ReturnType<typeof useDiffRender>["expander"]>;
+
+// GitHub-style controls for showing unchanged lines: in a hunk's header for
+// the gap above it, and after a hunk for the gap below it when the next hunk
+// isn't shown here. ↓ grows the hunk above the gap, ↑ the one below it.
+function HunkExpanders({
+  expander,
+  index,
+  where,
+  previousShown,
+}: {
+  expander: Expander | null;
+  index: number;
+  where: "above" | "below";
+  previousShown?: boolean;
+}) {
+  if (!expander) return null;
+  const remaining = where === "above" ? expander.above(index) : expander.below(index);
+  if (remaining <= 0) return null;
+  const button = (label: string, Icon: LucideIcon, onClick: () => void) => (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-reviewed/20 hover:text-foreground"
+    >
+      <Icon className="size-3.5" />
+    </button>
+  );
+  if (remaining <= EXPAND_STEP) {
+    return button(`Show ${remaining} hidden ${remaining === 1 ? "line" : "lines"}`, ChevronsUpDown, () =>
+      expander.expand(index, where === "above" ? "up" : "down", remaining),
+    );
+  }
+  const more = `Show ${EXPAND_STEP} more lines`;
+  if (where === "below") return button(more, ChevronDown, () => expander.expand(index, "down", EXPAND_STEP));
+  return (
+    <>
+      {previousShown && button(more, ChevronDown, () => expander.expand(index - 1, "down", EXPAND_STEP))}
+      {button(more, ChevronUp, () => expander.expand(index, "up", EXPAND_STEP))}
+    </>
+  );
 }
 
 interface NoteStatus {
@@ -700,6 +804,7 @@ interface NoteControls {
 }
 
 const NO_NOTES: Note[] = [];
+const NO_KEYS: string[] = [];
 
 // A file picked in the sidebar, for the view to expand - and, when the pick
 // was an unread reply, the note to open. Cleared once it's been scrolled to.
@@ -936,13 +1041,28 @@ function useOffscreenUnread(
   );
 }
 
+// The selected changes and the hunk they're anchored to: the one the
+// selection starts in, when a joined block spans several.
+function selectionIn(displayed: ShownHunk[], keys: string[] | null) {
+  if (!keys?.length) return null;
+  const wanted = new Set(keys);
+  for (const block of displayed) {
+    const changes = block.hunk.changes.filter((c) => wanted.has(getChangeKey(c)));
+    if (changes.length === 0) continue;
+    const first = getChangeKey(changes[0]);
+    const part = block.parts.findIndex((p) => p.changes.some((c) => getChangeKey(c) === first));
+    return { hunk: block.indices[Math.max(0, part)], changes };
+  }
+  return null;
+}
+
 // Notes on one file's diff: pins in the right margin level with the lines
 // they're about, an outline around the selected lines, and the open panel.
 // The caller puts wrapperRef and data-note-path on a relative element around
 // the file, passes selectedChanges to its Diff, and renders overlay inside.
 function useFileNotes(
   file: PrFile,
-  displayed: { index: number; hunk: HunkData }[],
+  displayed: ShownHunk[],
   {
     notes,
     selectionKeys,
@@ -958,19 +1078,12 @@ function useFileNotes(
   collapsed: boolean,
   tokens: unknown,
 ) {
-  const selection = useMemo(() => {
-    if (!selectionKeys?.length) return null;
-    const wanted = new Set(selectionKeys);
-    const found = displayed
-      .map(({ index, hunk }) => ({ hunk: index, changes: hunk.changes.filter((c) => wanted.has(getChangeKey(c))) }))
-      .find((s) => s.changes.length > 0);
-    return found ?? null;
-  }, [selectionKeys, displayed]);
+  const selection = useMemo(() => selectionIn(displayed, selectionKeys), [selectionKeys, displayed]);
 
   const placedNotes = useMemo(
     () =>
       notes.flatMap((note) => {
-        const shown = displayed.find((d) => d.index === note.hunk);
+        const shown = displayed.find((d) => d.indices.includes(note.hunk));
         const changes = shown ? changesBetween(shown.hunk, note.start, note.end) : [];
         return changes.length > 0 ? [{ note, keys: changeKeys(changes) }] : [];
       }),
@@ -988,6 +1101,15 @@ function useFileNotes(
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [pinTops, setPinTops] = useState<Record<string, number>>({});
   const [outline, setOutline] = useState<{ top: number; height: number } | null>(null);
+  // Hovering a pin previews its note's lines with the same outline.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const hoveredKeys = placedNotes.find((p) => p.note.id === hoveredId)?.keys;
+  const outlineKeys = selectedChanges.length > 0 ? selectedChanges : (hoveredKeys ?? NO_KEYS);
+  const outlinePreview = selectedChanges.length === 0;
+
+  // A faint bar in the margin beside each note's lines, joining its pin to
+  // what it's about. Notes on overlapping lines get their own lanes.
+  const [bars, setBars] = useState<{ id: string; top: number; height: number; lane: number }[]>([]);
   const pinAnchors = useMemo(() => {
     const anchors = placedNotes.map((p) => ({ id: p.note.id, key: p.keys[0] }));
     if (selection && draftOpen) anchors.push({ id: DRAFT_PIN, key: getChangeKey(selection.changes[0]) });
@@ -1018,12 +1140,35 @@ function useFileNotes(
         return same ? prev : next;
       });
 
+      const spans = placedNotes
+        .flatMap(({ note, keys }) => {
+          const first = wrapper!.querySelector(`td[data-change-key="${keys[0]}"]`);
+          const last = wrapper!.querySelector(`td[data-change-key="${keys[keys.length - 1]}"]`);
+          if (!first || !last) return [];
+          const top = first.getBoundingClientRect().top - base;
+          return [{ id: note.id, top, height: last.getBoundingClientRect().bottom - base - top }];
+        })
+        .sort((a, b) => a.top - b.top);
+      const laneEnds: number[] = [];
+      const nextBars = spans.map((span) => {
+        let lane = laneEnds.findIndex((end) => end <= span.top);
+        if (lane < 0) lane = laneEnds.length;
+        laneEnds[lane] = span.top + span.height;
+        return { ...span, lane };
+      });
+      setBars((prev) =>
+        prev.length === nextBars.length &&
+        prev.every((b, i) => b.id === nextBars[i].id && b.top === nextBars[i].top && b.height === nextBars[i].height && b.lane === nextBars[i].lane)
+          ? prev
+          : nextBars,
+      );
+
       // An outline around the selected lines, which a tint alone can't do on
       // rows that are already coloured as added or deleted.
-      const first = selectedChanges[0] && wrapper!.querySelector(`td[data-change-key="${selectedChanges[0]}"]`);
+      const first = outlineKeys[0] && wrapper!.querySelector(`td[data-change-key="${outlineKeys[0]}"]`);
       const last =
-        selectedChanges.length > 0 &&
-        wrapper!.querySelector(`td[data-change-key="${selectedChanges[selectedChanges.length - 1]}"]`);
+        outlineKeys.length > 0 &&
+        wrapper!.querySelector(`td[data-change-key="${outlineKeys[outlineKeys.length - 1]}"]`);
       if (first && last) {
         const top = first.getBoundingClientRect().top - base;
         const height = last.getBoundingClientRect().bottom - base - top;
@@ -1036,7 +1181,7 @@ function useFileNotes(
     const observer = new ResizeObserver(measure);
     observer.observe(wrapper);
     return () => observer.disconnect();
-  }, [pinAnchors, selectedChanges, collapsed, tokens]);
+  }, [pinAnchors, placedNotes, outlineKeys, collapsed, tokens]);
 
   function panelTitle(lines: string) {
     return (
@@ -1094,11 +1239,24 @@ function useFileNotes(
 
   const overlay = !collapsed && (
     <>
+      {bars.map((bar) => (
+        <div
+          key={`bar-${bar.id}`}
+          aria-hidden
+          style={{ top: bar.top, height: bar.height, marginLeft: 3 + bar.lane * 3 }}
+          className="pointer-events-none absolute left-full w-0.5 rounded-full bg-reviewed/50"
+        />
+      ))}
       {outline && (
         <div
           aria-hidden
           style={{ top: outline.top - 2, height: outline.height + 4 }}
-          className="pointer-events-none absolute -inset-x-0.5 z-10 rounded-[4px] border-[1.5px] border-reviewed shadow-[0_0_0_4px_rgba(68,147,248,0.14)]"
+          className={cn(
+            "pointer-events-none absolute -inset-x-0.5 z-10 rounded-[4px] border-[1.5px]",
+            outlinePreview
+              ? "border-reviewed/60"
+              : "border-reviewed shadow-[0_0_0_4px_rgba(68,147,248,0.14)]",
+          )}
         />
       )}
       {Object.entries(pinTops).map(([id, top]) => {
@@ -1116,6 +1274,7 @@ function useFileNotes(
               active={open}
               unread={!!placed && isUnread(placed.note)}
               onClick={() => (id === DRAFT_PIN ? onCloseDraft() : onOpenNote(open ? null : id))}
+              onHover={(hovering) => setHoveredId(hovering ? id : null)}
             />
             {open && renderPanel(id)}
           </div>
@@ -1155,7 +1314,7 @@ function SliceFileSection({
   // When this file was last picked in the sidebar, or 0.
   revealAt: number;
 }) {
-  const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, true);
+  const { hunks, diffType, tokens, expander } = useDiffRender(file, hideWhitespace, prRef, true, noteProps.notes);
   const hunkKey = (index: number) => `${file.filename}#${index}`;
   const keys = hunkIndices.map(hunkKey);
   // Scoped to the hunks this slice shows - the file may have others that
@@ -1181,12 +1340,10 @@ function SliceFileSection({
     if (revealAt) setFileCollapsed(false);
   }
 
-  const displayed = useMemo(() => {
-    if (!hunks) return [];
-    return hunkIndices
-      .map((index) => ({ index, hunk: hunks[index] }))
-      .filter((h): h is { index: number; hunk: HunkData } => !!h.hunk);
-  }, [hunks, hunkIndices]);
+  const displayed = useMemo(
+    () => (hunks ? shownHunks(hunks, hunkIndices, (i) => !!expander && expander.below(i) <= 0) : []),
+    [hunks, hunkIndices, expander],
+  );
 
   const { wrapperRef, selectedChanges, noteCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, fileCollapsed, tokens);
 
@@ -1249,9 +1406,12 @@ function SliceFileSection({
                 selectedChanges={selectedChanges}
               >
                 {() =>
-                  displayed.flatMap(({ index, hunk }) => {
+                  displayed.flatMap(({ index, indices, hunk }) => {
                     const key = hunkKey(index);
-                    const isReviewed = !!reviewed[key];
+                    const isReviewed = indices.every((i) => reviewed[hunkKey(i)]);
+                    const shown = new Set(hunkIndices);
+                    const last = indices[indices.length - 1];
+                    const footer = !shown.has(last + 1) && (expander?.below(last) ?? 0) > 0;
                     return [
                       <Decoration key={`decoration-${key}`}>
                         <div
@@ -1260,11 +1420,26 @@ function SliceFileSection({
                             isReviewed ? "text-muted-foreground" : "text-[#79c0ff]",
                           )}
                         >
+                          <HunkExpanders
+                            expander={expander}
+                            index={index}
+                            where="above"
+                            previousShown={shown.has(index - 1)}
+                          />
                           <span className="min-w-0 flex-1 truncate">{hunk.content}</span>
                           {isReviewed && <Check className="size-3.5 shrink-0 text-reviewed" />}
                         </div>
                       </Decoration>,
                       <Hunk key={key} hunk={hunk} />,
+                      ...(footer
+                        ? [
+                            <Decoration key={`below-${key}`}>
+                              <div className="flex items-center gap-2 bg-[rgba(56,139,253,0.08)] px-4 py-1 font-mono text-xs text-muted-foreground">
+                                <HunkExpanders expander={expander} index={last} where="below" />
+                              </div>
+                            </Decoration>,
+                          ]
+                        : []),
                     ];
                   })
                 }
@@ -1280,8 +1455,8 @@ function SliceFileSection({
 }
 
 // The rows a dragged rectangle covers, snapped to whole lines and kept to a
-// single hunk - the one it covers most - since that's all a GitHub review
-// comment can span.
+// single block of the diff - the one it covers most. Hunks join into one
+// block once the gap between them is fully expanded.
 function rowsInRect(
   container: HTMLElement,
   rect: { left: number; top: number; right: number; bottom: number },
@@ -2424,8 +2599,18 @@ function FileDiff({
     if (revealAt) setCollapsed(false);
   }
 
-  const { hunks, diffType, tokens } = useDiffRender(file, hideWhitespace, prRef, !collapsed);
-  const displayed = useMemo(() => (hunks ?? []).map((hunk, index) => ({ index, hunk })), [hunks]);
+  const { hunks, diffType, tokens, expander } = useDiffRender(file, hideWhitespace, prRef, !collapsed, noteProps.notes);
+  const displayed = useMemo(
+    () =>
+      hunks
+        ? shownHunks(
+            hunks,
+            hunks.map((_, i) => i),
+            (i) => !!expander && expander.below(i) <= 0,
+          )
+        : [],
+    [hunks, expander],
+  );
   const { wrapperRef, selectedChanges, noteCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, collapsed, tokens);
 
   return (
@@ -2474,19 +2659,32 @@ function FileDiff({
               <Diff
                 viewType="unified"
                 diffType={diffType}
-                hunks={hunks}
+                hunks={displayed.map((d) => d.hunk)}
                 tokens={tokens}
                 selectedChanges={selectedChanges}
               >
-                {(hunks) =>
-                  hunks.flatMap((hunk) => [
-                    <Decoration key={`decoration-${hunk.content}`}>
-                      <div className="bg-[rgba(56,139,253,0.1)] px-4 py-1.5 font-mono text-xs text-[#79c0ff]">
-                        {hunk.content}
-                      </div>
-                    </Decoration>,
-                    <Hunk key={hunk.content} hunk={hunk} />,
-                  ])
+                {() =>
+                  displayed.flatMap(({ index, indices, hunk }) => {
+                    const last = indices[indices.length - 1];
+                    return [
+                      <Decoration key={`decoration-${index}`}>
+                        <div className="flex items-center gap-2 bg-[rgba(56,139,253,0.1)] px-4 py-1.5 font-mono text-xs text-[#79c0ff]">
+                          <HunkExpanders expander={expander} index={index} where="above" previousShown={index > 0} />
+                          <span className="min-w-0 flex-1 truncate">{hunk.content}</span>
+                        </div>
+                      </Decoration>,
+                      <Hunk key={`hunk-${index}`} hunk={hunk} />,
+                      ...(last === (hunks?.length ?? 0) - 1 && (expander?.below(last) ?? 0) > 0
+                        ? [
+                            <Decoration key="below-last">
+                              <div className="flex items-center gap-2 bg-[rgba(56,139,253,0.1)] px-4 py-1 font-mono text-xs text-muted-foreground">
+                                <HunkExpanders expander={expander} index={last} where="below" />
+                              </div>
+                            </Decoration>,
+                          ]
+                        : []),
+                    ];
+                  })
                 }
               </Diff>
             </div>

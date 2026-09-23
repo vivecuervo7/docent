@@ -160,10 +160,13 @@
 }
 @keyframes note-pin-pulse {
   from {
-    box-shadow: 0 0 0 0 rgba(68, 147, 248, 0.55);
+    filter: drop-shadow(0 0 0 rgba(68, 147, 248, 0.9));
+  }
+  40% {
+    filter: drop-shadow(0 0 6px rgba(68, 147, 248, 0.7));
   }
   to {
-    box-shadow: 0 0 0 8px rgba(68, 147, 248, 0);
+    filter: drop-shadow(0 0 8px rgba(68, 147, 248, 0));
   }
 }
 .note-pin-pulse {
