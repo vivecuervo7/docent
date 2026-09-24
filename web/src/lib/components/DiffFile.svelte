@@ -276,6 +276,19 @@
 		open = id;
 	}
 
+	// A click anywhere but the open thread, finding or composer closes it.
+	$effect(() => {
+		if (!open && !(selection && !dragging)) return;
+		const close = (e: PointerEvent) => {
+			const el = e.target as Element;
+			if (el.closest('.popover, .composer, .pin, .n')) return;
+			open = null;
+			selection = null;
+		};
+		window.addEventListener('pointerdown', close);
+		return () => window.removeEventListener('pointerdown', close);
+	});
+
 	// The composer takes focus as it opens, so typing goes to it and never to
 	// the page's shortcuts. Autofocus alone loses to whatever held focus.
 	function focusNow(node: HTMLElement) {
@@ -417,11 +430,15 @@
 				<span class="fold-changes">{rows.length} unchanged lines</span>
 			{/if}
 		{/if}
-		{#each hidden as m (m.id)}
-			<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
-				{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
+		{#if hidden.length}
+			<span class="fold-pins">
+				{#each hidden as m (m.id)}
+					<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
+						{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
+					</span>
+				{/each}
 			</span>
-		{/each}
+		{/if}
 	</button>
 {/snippet}
 
@@ -494,12 +511,14 @@
 						{item.expanded ? 'Showing' : 'The same change in'}
 						{item.hunks.length} more places
 						<span class="faint">· lines {foldLines(item)}</span>
-						{#if !item.expanded}
-							{#each hiddenMarks(item.hunks.flatMap((h) => h.rows)) as m (m.id)}
-								<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
-									{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
-								</span>
-							{/each}
+						{#if !item.expanded && hiddenMarks(item.hunks.flatMap((h) => h.rows)).length}
+							<span class="fold-pins">
+								{#each hiddenMarks(item.hunks.flatMap((h) => h.rows)) as m (m.id)}
+									<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
+										{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
+									</span>
+								{/each}
+							</span>
 						{/if}
 					</button>
 					{#if item.expanded}
@@ -719,7 +738,7 @@
 	.row {
 		position: relative;
 		display: grid;
-		grid-template-columns: 48px 48px minmax(0, 1fr) 40px;
+		grid-template-columns: 48px 48px minmax(0, 1fr);
 		font-family: var(--mono);
 		font-size: 12.5px;
 		line-height: 22px;
@@ -771,12 +790,19 @@
 		background: var(--add-edit);
 		border-radius: 2px;
 	}
-	.gutter {
+	/* Threads and findings hang off the block's right edge, as folds hang
+	   off its left, so the code and its highlights keep the full width. */
+	.gutter,
+	.fold-pins {
+		position: absolute;
+		left: calc(100% + 8px);
+		top: 2px;
 		display: flex;
-		align-items: flex-start;
-		justify-content: center;
-		gap: 2px;
-		padding-top: 2px;
+		gap: 4px;
+	}
+	.fold-pins {
+		top: 50%;
+		transform: translateY(-50%);
 	}
 	.pin {
 		display: grid;
@@ -801,6 +827,7 @@
 		filter: brightness(1.3);
 	}
 	.fold {
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 8px;
