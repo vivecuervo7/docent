@@ -1,44 +1,54 @@
 <script lang="ts">
-	import InlineText from './InlineText.svelte';
+	import DOMPurify from 'dompurify';
+	import { marked } from 'marked';
 
-	// A file note's text: paragraphs, and "- " lines as a list.
+	// Markdown written by the model or the reviewer, rendered the way GitHub
+	// would. It's sanitised, since the model's text can carry anything.
 	let { text }: { text: string } = $props();
 
-	const blocks = $derived.by(() => {
-		const out: ({ list: false; text: string } | { list: true; items: string[] })[] = [];
-		for (const raw of text.split('\n')) {
-			const line = raw.trim();
-			if (!line) continue;
-			const item = line.match(/^[-*]\s+(.*)$/);
-			const last = out.at(-1);
-			if (item) {
-				if (last?.list) last.items.push(item[1]);
-				else out.push({ list: true, items: [item[1]] });
-			} else out.push({ list: false, text: line });
-		}
-		return out;
-	});
+	const html = $derived(DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: true, async: false })));
 </script>
 
-{#each blocks as block, i (i)}
-	{#if block.list}
-		<ul>
-			{#each block.items as item, j (j)}<li><InlineText text={item} /></li>{/each}
-		</ul>
-	{:else}
-		<p><InlineText text={block.text} /></p>
-	{/if}
-{/each}
+<!-- Its blocks sit directly in the caller's layout, which spaces them. -->
+<div class="md">{@html html}</div>
 
 <style>
-	p,
-	ul {
+	.md {
+		display: contents;
+	}
+	.md :global(:is(p, ul, ol, pre, blockquote, h1, h2, h3, h4)) {
 		margin: 0;
 	}
-	ul {
+	.md :global(:is(ul, ol)) {
 		padding-left: 18px;
 		display: flex;
 		flex-direction: column;
 		gap: 3px;
+	}
+	.md :global(:is(h1, h2, h3, h4)) {
+		font-size: 1em;
+		font-weight: 600;
+	}
+	.md :global(pre) {
+		padding: 10px 12px;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.04);
+		overflow-x: auto;
+		font-size: 12.5px;
+		line-height: 1.55;
+	}
+	.md :global(pre code) {
+		padding: 0;
+		background: none;
+		font-size: inherit;
+	}
+	.md :global(blockquote) {
+		padding-left: 12px;
+		border-left: 2px solid var(--line-2);
+		color: var(--muted);
+	}
+	.md :global(a) {
+		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 </style>

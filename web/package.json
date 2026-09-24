@@ -23,6 +23,8 @@
 	"dependencies": {
 		"@floating-ui/dom": "^1.8.0",
 		"diff": "^9.0.0",
+		"dompurify": "^3.4.15",
+		"marked": "^18.0.13",
 		"shiki": "^4.4.3",
 		"unique-names-generator": "^4.7.1"
 	}

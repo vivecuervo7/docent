@@ -7,6 +7,7 @@
 	import FindingCard from '$lib/components/FindingCard.svelte';
 	import FindingLines from '$lib/components/FindingLines.svelte';
 	import FoldAll from '$lib/components/FoldAll.svelte';
+	import NoteText from '$lib/components/NoteText.svelte';
 	import SliceRail from '$lib/components/SliceRail.svelte';
 	import ViewOptions from '$lib/components/ViewOptions.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
@@ -109,7 +110,7 @@
 				{#if index < slices.length - 1}<a class="btn" href="{base}/slices/{slices[index + 1].id}">Next →</a>{/if}
 			</div>
 			<h1>{slice.title}</h1>
-			<p class="summary">{slice.summary}</p>
+			<div class="summary"><NoteText text={slice.summary} /></div>
 			{#if lateHere.length}
 				<div class="late" role="status">
 					<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" fill="var(--agent)" /></svg>
@@ -261,6 +262,9 @@
 		font-size: 13px;
 	}
 	.summary {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
 		margin: 0 0 8px;
 		max-width: 860px;
 		color: var(--muted);
