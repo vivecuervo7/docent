@@ -333,11 +333,8 @@
 	{@const removed = rows.filter((r) => r.kind === 'del').length}
 	<button class="fold-row" aria-expanded={isOpen} title={isOpen ? 'Fold this code' : 'Show this code'} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
 		<span class="fold-tab" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg></span>
-		<svg class="fold-triangle" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg>
-		{#if label}<span>{label}</span>{/if}
-		{#if isOpen}
-			<span class="faint">{label ? '' : 'Fold'}</span>
-		{:else if added || removed}
+		<span class="fold-kind">{label ?? '…'}</span>
+		{#if added || removed}
 			<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
 		{:else}
 			<span>{rows.length} unchanged lines</span>
@@ -506,7 +503,7 @@
 		gap: 10px;
 		width: 100%;
 		height: 28px;
-		padding: 0 16px 0 106px;
+		padding: 0 16px;
 		border: 0;
 		background: var(--hunk-bg);
 		color: var(--muted);
@@ -519,10 +516,10 @@
 		color: var(--text);
 		background: #202127;
 	}
-	.fold-triangle {
-		flex-shrink: 0;
+	.fold-kind {
+		font-family: var(--mono);
+		font-size: 12px;
 		color: var(--hunk-text);
-		transition: transform 0.12s;
 	}
 	.fold-changes {
 		font-family: var(--mono);
