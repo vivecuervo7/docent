@@ -70,7 +70,7 @@ import { changeKeys, changesBetween, matches, describeLines, diffLines, isUnread
 import { AgentFeedbackView, YourFeedbackView, type AgentReviewState, type DraftStatus } from "./feedbackViews";
 import { PostReviewView, type ReviewCandidate, type ReviewPayload } from "./postReviewView";
 import { Markdown } from "./markdown";
-import { CommentIcon, NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
+import { CommentIcon, FindingCount, FindingPanel, NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
 import { plainText } from "./plainText";
 
 // The bundled "common" language set covers most backend languages already;
@@ -432,7 +432,7 @@ function FileTreeNodes({
   onToggleFolder: (path: string) => void;
   onToggleFile: (filename: string) => void;
   onSelectFile: (filename: string) => void;
-  notesFor: (filename: string) => { count: number; unread: boolean } | null;
+  notesFor: (filename: string) => { count: number; unread: boolean; findings: number } | null;
   onOpenUnread: (filename: string) => void;
 }) {
   return (
@@ -496,7 +496,7 @@ function FileTreeNodes({
               />
             </span>
             <span>{entry.name}</span>
-            {fileNotes && (
+            {fileNotes && fileNotes.count > 0 && (
               <NoteCount
                 count={fileNotes.count}
                 unread={fileNotes.unread}
@@ -504,6 +504,7 @@ function FileTreeNodes({
                 onClick={fileNotes.unread ? () => onOpenUnread(entry.file.filename) : undefined}
               />
             )}
+            {fileNotes && <FindingCount count={fileNotes.findings} />}
           </div>
         );
       })}
@@ -523,7 +524,7 @@ function FileTree({
   isFileChecked: (filename: string) => boolean;
   onToggleFile: (filename: string) => void;
   onSelectFile: (filename: string) => void;
-  notesFor: (filename: string) => { count: number; unread: boolean } | null;
+  notesFor: (filename: string) => { count: number; unread: boolean; findings: number } | null;
   onOpenUnread: (filename: string) => void;
 }) {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
@@ -935,6 +936,9 @@ interface NoteControls {
 }
 
 const NO_NOTES: Note[] = [];
+const NO_FINDINGS: FeedbackItem[] = [];
+// Pins for agent findings are keyed apart from the reviewer's notes.
+const FINDING_PIN = "finding:";
 const NO_FILE_NOTES: FileNote[] = [];
 
 // A file's note, at the top of its card so it's there even when the file is
@@ -1007,17 +1011,33 @@ interface FileNoteProps {
   onCreateNote: (anchor: NoteAnchor, text: string) => void;
   unsent: Record<string, string>;
   onUnsentChange: (id: string, text: string) => void;
+  // Agent findings on this file's lines, pinned beside the reviewer's threads.
+  findings: FeedbackItem[];
+  onToggleFinding: (id: string) => void;
 }
 
 // A scrolling list of file diffs that notes can be made on: ⌥-drag draws a
 // rectangle that snaps to the lines it covers, and letting go opens a panel
 // to ask or comment about them. At most one panel is open at a time.
-function useNoteSelection(notes: Note[], noteControls: NoteControls, reveal: RevealedFile | null) {
+function useNoteSelection(
+  notes: Note[],
+  noteControls: NoteControls,
+  reveal: RevealedFile | null,
+  findings: FeedbackItem[],
+  onToggleFinding: (id: string) => void,
+) {
   const notesByFile = useMemo(() => {
     const grouped = new Map<string, Note[]>();
     for (const note of notes) grouped.set(note.path, [...(grouped.get(note.path) ?? []), note]);
     return grouped;
   }, [notes]);
+  const findingsByFile = useMemo(() => {
+    const grouped = new Map<string, FeedbackItem[]>();
+    for (const finding of findings) {
+      if (finding.path) grouped.set(finding.path, [...(grouped.get(finding.path) ?? []), finding]);
+    }
+    return grouped;
+  }, [findings]);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const [dragRect, setDragRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -1115,6 +1135,8 @@ function useNoteSelection(notes: Note[], noteControls: NoteControls, reveal: Rev
       },
       unsent,
       onUnsentChange: (id, text) => setUnsent((prev) => ({ ...prev, [id]: text })),
+      findings: findingsByFile.get(filename) ?? NO_FINDINGS,
+      onToggleFinding,
     };
   }
 
@@ -1251,6 +1273,8 @@ function useFileNotes(
     onCreateNote,
     unsent,
     onUnsentChange,
+    findings,
+    onToggleFinding,
   }: FileNoteProps,
   collapsed: boolean,
   tokens: unknown,
@@ -1267,10 +1291,32 @@ function useFileNotes(
     [notes, displayed],
   );
 
-  const openNote = placedNotes.find((p) => p.note.id === openNoteId);
+  // Findings sit on lines in the diff, so they're placed by their lines
+  // alone, in whichever shown block has them.
+  const placedFindings = useMemo(
+    () =>
+      findings.flatMap((finding) => {
+        const { start, end } = finding;
+        if (!start || !end) return [];
+        for (const block of displayed) {
+          const changes = changesBetween(block.hunk, start, end);
+          if (changes.length > 0) return [{ id: `${FINDING_PIN}${finding.id}`, finding, keys: changeKeys(changes) }];
+        }
+        return [];
+      }),
+    [findings, displayed],
+  );
+
+  // Everything with a pin: the reviewer's notes and the agent's findings.
+  const placedMarks = useMemo(
+    () => [...placedNotes.map((p) => ({ id: p.note.id, keys: p.keys })), ...placedFindings.map((p) => ({ id: p.id, keys: p.keys }))],
+    [placedNotes, placedFindings],
+  );
+
+  const openMark = placedMarks.find((p) => p.id === openNoteId);
   const selectedChanges = useMemo(
-    () => (selection ? changeKeys(selection.changes) : (openNote?.keys ?? [])),
-    [selection, openNote],
+    () => (selection ? changeKeys(selection.changes) : (openMark?.keys ?? [])),
+    [selection, openMark],
   );
 
   // Each pin sits level with the first line it's about. Rows can wrap, so
@@ -1280,7 +1326,7 @@ function useFileNotes(
   const [outline, setOutline] = useState<{ top: number; height: number } | null>(null);
   // Hovering a pin previews its note's lines with the same outline.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const hoveredKeys = placedNotes.find((p) => p.note.id === hoveredId)?.keys;
+  const hoveredKeys = placedMarks.find((p) => p.id === hoveredId)?.keys;
   const outlineKeys = selectedChanges.length > 0 ? selectedChanges : (hoveredKeys ?? NO_KEYS);
   const outlinePreview = selectedChanges.length === 0;
 
@@ -1288,10 +1334,10 @@ function useFileNotes(
   // what it's about. Notes on overlapping lines get their own lanes.
   const [bars, setBars] = useState<{ id: string; top: number; height: number; lane: number }[]>([]);
   const pinAnchors = useMemo(() => {
-    const anchors = placedNotes.map((p) => ({ id: p.note.id, key: p.keys[0] }));
+    const anchors = placedMarks.map((p) => ({ id: p.id, key: p.keys[0] }));
     if (selection && draftOpen) anchors.push({ id: DRAFT_PIN, key: getChangeKey(selection.changes[0]) });
     return anchors;
-  }, [placedNotes, selection, draftOpen]);
+  }, [placedMarks, selection, draftOpen]);
 
   useLayoutEffect(() => {
     const wrapper = wrapperRef.current;
@@ -1317,13 +1363,13 @@ function useFileNotes(
         return same ? prev : next;
       });
 
-      const spans = placedNotes
-        .flatMap(({ note, keys }) => {
+      const spans = placedMarks
+        .flatMap(({ id, keys }) => {
           const first = wrapper!.querySelector(`td[data-change-key="${keys[0]}"]`);
           const last = wrapper!.querySelector(`td[data-change-key="${keys[keys.length - 1]}"]`);
           if (!first || !last) return [];
           const top = first.getBoundingClientRect().top - base;
-          return [{ id: note.id, top, height: last.getBoundingClientRect().bottom - base - top }];
+          return [{ id, top, height: last.getBoundingClientRect().bottom - base - top }];
         })
         .sort((a, b) => a.top - b.top);
       const laneEnds: number[] = [];
@@ -1358,7 +1404,7 @@ function useFileNotes(
     const observer = new ResizeObserver(measure);
     observer.observe(wrapper);
     return () => observer.disconnect();
-  }, [pinAnchors, placedNotes, outlineKeys, collapsed, tokens]);
+  }, [pinAnchors, placedMarks, outlineKeys, collapsed, tokens]);
 
   function panelTitle(lines: string) {
     return (
@@ -1388,6 +1434,20 @@ function useFileNotes(
           }
           onRetry={() => {}}
           onClose={onCloseDraft}
+        />
+      );
+    }
+    const placedFinding = placedFindings.find((p) => p.id === id);
+    if (placedFinding) {
+      const { finding } = placedFinding;
+      return (
+        <FindingPanel
+          title={panelTitle(finding.start && finding.end ? describeLines(finding.start, finding.end) : "")}
+          body={finding.body}
+          rationale={finding.rationale}
+          included={finding.included}
+          onToggle={() => onToggleFinding(finding.id)}
+          onClose={() => onOpenNote(null)}
         />
       );
     }
@@ -1449,6 +1509,7 @@ function useFileNotes(
           >
             <NotePin
               active={open}
+              kind={id.startsWith(FINDING_PIN) ? "finding" : "note"}
               unread={!!placed && isUnread(placed.note)}
               onClick={() => (id === DRAFT_PIN ? onCloseDraft() : onOpenNote(open ? null : id))}
               onHover={(hovering) => setHoveredId(hovering ? id : null)}
@@ -1464,6 +1525,8 @@ function useFileNotes(
     wrapperRef,
     selectedChanges,
     noteCount: placedNotes.length,
+    // Findings on this file, including any about the file as a whole.
+    findingCount: findings.length,
     firstUnreadId: placedNotes
       .filter((p) => isUnread(p.note))
       .sort((a, b) => a.note.hunk - b.note.hunk || a.note.start.line - b.note.start.line)[0]?.note.id,
@@ -1527,7 +1590,7 @@ function SliceFileSection({
     [hunks, hunkIndices, expander],
   );
 
-  const { wrapperRef, selectedChanges, noteCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, fileCollapsed, tokens);
+  const { wrapperRef, selectedChanges, noteCount, findingCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, fileCollapsed, tokens);
 
   return (
     <div ref={wrapperRef} data-note-path={file.filename} className="relative">
@@ -1563,6 +1626,7 @@ function SliceFileSection({
               }}
             />
           )}
+          {fileCollapsed && <FindingCount count={findingCount} />}
           <span
             title={`This slice shows ${hunkIndices.length} of this file's ${hunks?.length ?? hunkIndices.length} hunks`}
             className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
@@ -1686,6 +1750,8 @@ function SliceView({
   onRevealNote,
   fileNotes,
   autoReviewedKeys,
+  findings,
+  onToggleFinding,
 }: {
   slice: Slice;
   files: PrFile[];
@@ -1708,6 +1774,8 @@ function SliceView({
   // Hunks counting as reviewed only because their test file's note says what
   // it tests.
   autoReviewedKeys: Set<string>;
+  findings: FeedbackItem[];
+  onToggleFinding: (id: string) => void;
 }) {
   const byFile = useMemo(() => groupHunkRefsByFile(slice.hunks), [slice]);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -1719,6 +1787,8 @@ function SliceView({
     notes,
     noteControls,
     revealedFile,
+    findings,
+    onToggleFinding,
   );
   const offscreenUnread = useOffscreenUnread(scrollerRef, contentRef, unreadHere, onRevealNote);
   const orderedFileGroups = useMemo(() => orderFileGroups(byFile, files), [byFile, files]);
@@ -3000,7 +3070,7 @@ function FileDiff({
         : [],
     [hunks, expander],
   );
-  const { wrapperRef, selectedChanges, noteCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, collapsed, tokens);
+  const { wrapperRef, selectedChanges, noteCount, findingCount, firstUnreadId, overlay } = useFileNotes(file, displayed, noteProps, collapsed, tokens);
 
   return (
     <div ref={wrapperRef} data-note-path={file.filename} className="relative">
@@ -3031,6 +3101,7 @@ function FileDiff({
               }}
             />
           )}
+          {collapsed && <FindingCount count={findingCount} />}
           <Badge variant="outline" className="border-[#3fb950]/40 bg-[#3fb950]/10 text-[#3fb950]">
             +{file.additions}
           </Badge>
@@ -3100,6 +3171,8 @@ function AllFilesView({
   noteControls,
   revealedFile,
   onRevealNote,
+  findings,
+  onToggleFinding,
 }: {
   files: PrFile[];
   reviewedFileCount: number;
@@ -3112,11 +3185,15 @@ function AllFilesView({
   noteControls: NoteControls;
   revealedFile: RevealedFile | null;
   onRevealNote: (note: Note) => void;
+  findings: FeedbackItem[];
+  onToggleFinding: (id: string) => void;
 }) {
   const { contentRef, startSelecting, fileNoteProps, hint, dragOverlay } = useNoteSelection(
     notes,
     noteControls,
     revealedFile,
+    findings,
+    onToggleFinding,
   );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const unreadHere = useMemo(() => notes.filter(isUnread), [notes]);
@@ -4209,7 +4286,24 @@ function App() {
     const fileNotes = notes.filter(
       (n) => n.path === filename && (!sliceKeys || sliceKeys.includes(`${n.path}#${n.hunk}`)),
     );
-    return fileNotes.length > 0 ? { count: fileNotes.length, unread: fileNotes.some(isUnread) } : null;
+    const findings = (feedback.agent?.items ?? []).filter((f) => {
+      if (f.path !== filename) return false;
+      // In a slice, only findings on the lines it shows, or on the whole file.
+      if (!sliceKeys || !f.start) return true;
+      const start = f.start;
+      const file = files?.find((x) => x.filename === filename);
+      let hunks: HunkData[] = [];
+      try {
+        hunks = file?.patch ? (parseDiff(buildDiffText(file))[0]?.hunks ?? []) : [];
+      } catch {
+        hunks = [];
+      }
+      const at = hunks.findIndex((h) => h.changes.some((c) => matches(c, start)));
+      return at >= 0 && sliceKeys.includes(`${filename}#${at}`);
+    }).length;
+    return fileNotes.length > 0 || findings > 0
+      ? { count: fileNotes.length, unread: fileNotes.some(isUnread), findings }
+      : null;
   }
 
   function toggleListedFile(filename: string) {
@@ -4357,6 +4451,8 @@ function App() {
             onRevealNote={(note) => revealFile(note.path, note.id)}
             fileNotes={fileNotes?.[activeSlice.id] ?? NO_FILE_NOTES}
             autoReviewedKeys={autoReviewedKeys}
+            findings={feedback.agent?.items ?? NO_FINDINGS}
+            onToggleFinding={(id) => toggleFeedbackItem("agent", id)}
           />
         ) : view === "landing" && preparing ? (
           <PreparingView
@@ -4422,6 +4518,8 @@ function App() {
             noteControls={noteControls}
             revealedFile={revealedFile}
             onRevealNote={(note) => revealFile(note.path, note.id)}
+            findings={feedback.agent?.items ?? NO_FINDINGS}
+            onToggleFinding={(id) => toggleFeedbackItem("agent", id)}
           />
         ) : (
           <LandingView

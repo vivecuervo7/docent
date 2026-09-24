@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, Loader2, MessageSquare, Trash2, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp, Loader2, MessageSquare, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./markdown";
 import { PIN_SIZE } from "./noteAnchors";
@@ -61,17 +61,36 @@ export function CommentIcon({
   );
 }
 
+// The agent's icon, in the same states as the comment icon: outline at rest,
+// two-tone on hover, filled when active.
+function FindingIcon({ className, active }: { className: string; active?: boolean }) {
+  return (
+    <Bot
+      fill="currentColor"
+      className={cn(
+        className,
+        "transition-[fill-opacity] duration-150",
+        active ? "[fill-opacity:0.35]" : "[fill-opacity:0] group-hover:[fill-opacity:0.2]",
+      )}
+    />
+  );
+}
+
 export function NotePin({
   active,
   unread,
   onClick,
   onHover,
+  kind = "note",
 }: {
   active: boolean;
   unread: boolean;
   onClick: () => void;
   onHover: (hovering: boolean) => void;
+  // A reviewer's thread, or an agent finding.
+  kind?: "note" | "finding";
 }) {
+  const what = kind === "finding" ? "agent finding" : "note";
   // note-pin-pulse runs once each time the pin becomes active.
   return (
     <button
@@ -79,12 +98,111 @@ export function NotePin({
       onClick={onClick}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
-      aria-label={active ? "Close note" : unread ? "Open note (unread reply)" : "Open note"}
+      aria-label={active ? `Close ${what}` : unread ? `Open ${what} (unread reply)` : `Open ${what}`}
       style={{ width: PIN_SIZE, height: PIN_SIZE - 4 }}
-      className={cn("group relative grid place-items-center text-reviewed", active && "note-pin-pulse")}
+      className={cn(
+        "group relative grid place-items-center",
+        kind === "finding" ? "text-muted-foreground hover:text-foreground" : "text-reviewed",
+        active && "note-pin-pulse",
+        active && kind === "finding" && "text-foreground",
+      )}
     >
-      <CommentIcon className="size-4" unread={unread && !active} ring="ring-background" active={active} />
+      {kind === "finding" ? (
+        <FindingIcon className="size-4" active={active} />
+      ) : (
+        <CommentIcon className="size-4" unread={unread && !active} ring="ring-background" active={active} />
+      )}
     </button>
+  );
+}
+
+// How many agent findings a file has, beside its thread count.
+export function FindingCount({ count }: { count: number }) {
+  if (count === 0) return null;
+  const label = `${count} agent ${count === 1 ? "finding" : "findings"}`;
+  return (
+    <span title={label} aria-label={label} className="flex shrink-0 items-center gap-1 px-1 py-0.5 text-[11px] text-muted-foreground tabular-nums">
+      <Bot className="size-3" />
+      {count}
+    </span>
+  );
+}
+
+// An agent finding opened from its pin: what it says, why the agent raised
+// it, and whether it's in the review - the same tick as on Agent feedback.
+export function FindingPanel({
+  title,
+  body,
+  rationale,
+  included,
+  onToggle,
+  onClose,
+}: {
+  title: ReactNode;
+  body: string;
+  rationale?: string;
+  included: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<"down" | "up">("down");
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const pin = panel?.parentElement;
+    const scroller = panel?.closest("[data-note-scroller]");
+    if (!panel || !pin || !scroller) return;
+    const pinBox = pin.getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    const below = view.bottom - (pinBox.top - PANEL_OFFSET);
+    const above = pinBox.bottom + PANEL_OFFSET - view.top;
+    setPlacement(panel.offsetHeight <= below - 8 || below >= above ? "down" : "up");
+  }, []);
+
+  return (
+    <div
+      ref={panelRef}
+      style={{
+        width: PANEL_WIDTH,
+        ...(placement === "down" ? { top: -PANEL_OFFSET } : { bottom: -PANEL_OFFSET }),
+        transformOrigin: placement === "down" ? "top right" : "bottom right",
+      }}
+      className="note-panel-in absolute right-full z-30 mr-5 rounded-[10px] border border-reviewed/30 bg-[#1c2128] text-[13px] shadow-[0_16px_40px_rgba(0,0,0,0.6),0_0_0_1px_rgba(0,0,0,0.4)]"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <span
+        aria-hidden
+        style={placement === "down" ? { top: ARROW_INSET } : { bottom: ARROW_INSET }}
+        className="absolute -right-[7px] size-3 rotate-45 border-t border-r border-reviewed/30 bg-[#1c2128]"
+      />
+      <div className="flex items-center gap-2 border-b px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
+        <Bot className="size-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{title}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          title="Close (Esc)"
+          className="rounded p-0.5 hover:text-foreground"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      <div className="scrollbar-thin flex max-h-[360px] flex-col gap-2.5 overflow-y-auto px-3 py-3 leading-[1.55]">
+        <Markdown text={body} small />
+        {rationale && (
+          <div className="border-t pt-2.5 text-muted-foreground">
+            <span className="text-[11.5px] font-medium">Why it was raised</span>
+            <Markdown text={rationale} small />
+          </div>
+        )}
+      </div>
+      <label className="flex cursor-pointer items-center gap-2 border-t px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground">
+        <input type="checkbox" checked={included} onChange={onToggle} className="accent-[#1f6feb]" />
+        Include in the review
+      </label>
+    </div>
   );
 }
 
