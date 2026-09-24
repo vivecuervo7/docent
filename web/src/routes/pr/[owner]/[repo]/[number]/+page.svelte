@@ -12,6 +12,9 @@
 	const session = useSession();
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 	const summary = $derived(session.record.summary);
+	const githubUrl = $derived(
+		session.meta?.htmlUrl ?? `https://github.com/${session.ref.owner}/${session.ref.repo}/pull/${session.ref.number}`
+	);
 </script>
 
 {#if session.preparing}
@@ -19,7 +22,14 @@
 {:else}
 	<main>
 		<section class="about">
-			<h1>{session.title}</h1>
+			<div class="heading">
+				<h1>{session.title}</h1>
+				<p class="byline faint">
+					{session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if session.meta?.author}{' '}by {session.meta.author}{/if}
+					·
+					<a href={githubUrl} target="_blank" rel="noreferrer">View on GitHub ↗</a>
+				</p>
+			</div>
 
 			{#if summary}
 				<div class="summary">
@@ -79,6 +89,22 @@
 		line-height: 1.12;
 		font-weight: 500;
 		letter-spacing: -0.015em;
+	}
+	.heading {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.byline {
+		margin: 0;
+		font-size: 13.5px;
+	}
+	.byline a {
+		color: var(--muted);
+		text-underline-offset: 3px;
+	}
+	.byline a:hover {
+		color: var(--text);
 	}
 	.summary {
 		display: flex;
