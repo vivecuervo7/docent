@@ -299,6 +299,8 @@ export class PrSession {
 	// Wrap up's folded lists, kept here so going to the diff and back finds
 	// them as they were left, with the scroll position intact.
 	wrapUpOpen = $state({ kept: false, skipped: false });
+	// Long line excerpts opened out in full, likewise.
+	readonly openExcerpts = new SvelteSet<string>();
 
 	// Findings waiting on a decision in slices already reviewed: they landed
 	// after the reviewer had moved on.

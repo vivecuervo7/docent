@@ -122,7 +122,11 @@
 		font-size: 14.5px;
 		line-height: 1.6;
 	}
+	/* The agent's own reasoning, on the half brown of Docent's thread replies. */
 	.rationale {
+		padding: 10px 14px;
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
 		color: var(--muted);
 		font-size: 13.5px;
 	}
