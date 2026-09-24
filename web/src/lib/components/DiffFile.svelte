@@ -19,6 +19,7 @@
 	} from '$lib/diff/parse';
 	import InlineText from './InlineText.svelte';
 	import MarkPopover from './MarkPopover.svelte';
+	import NoteText from './NoteText.svelte';
 	import StateMark from './StateMark.svelte';
 
 	let {
@@ -297,7 +298,7 @@
 		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 			<span class="path">{file.filename.split('/').pop()}</span>
-			<span class="gist faint">{#if note}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
+			<span class="gist faint">{#if note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
 			<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
 		</button>
 		{#if onToggleReviewed}
@@ -313,6 +314,13 @@
 			</button>
 		{/if}
 	</header>
+	{#if !collapsed && note}
+		<div class="note">
+			<span class="note-label">{note.kind === 'tests' ? 'What’s tested' : 'About this change'}</span>
+			<NoteText text={note.note} />
+			{#if note.quality}<p class="quality"><span class="faint">Test quality:</span> <InlineText text={note.quality} /></p>{/if}
+		</div>
+	{/if}
 	{#if !collapsed}
 		<div class="diff">
 			{#each items as item (item.type === 'hunk' ? `h${item.hunk.index}` : item.id)}
@@ -393,6 +401,27 @@
 	}
 	.minus {
 		color: var(--minus-dull);
+	}
+	.note {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		max-width: 860px;
+		padding: 2px 0 16px 30px;
+		font-size: 14px;
+		line-height: 1.6;
+		color: var(--muted);
+	}
+	.note-label {
+		font-size: 11px;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		font-weight: 600;
+		color: var(--faint);
+	}
+	.quality {
+		margin: 2px 0 0;
+		font-size: 13.5px;
 	}
 	.diff {
 		margin-bottom: 18px;
