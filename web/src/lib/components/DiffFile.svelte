@@ -491,7 +491,7 @@
 		{/if}
 	</header>
 	{#if !collapsed && note?.note}
-		<div class="note">
+		<div class="file-note">
 			<NoteText text={note.note} />
 			{#if note.quality}<p><InlineText text={note.quality} /></p>{/if}
 		</div>
@@ -586,7 +586,7 @@
 	.minus {
 		color: var(--minus-dull);
 	}
-	.note {
+	.file-note {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
@@ -596,7 +596,7 @@
 		line-height: 1.6;
 		color: var(--muted);
 	}
-	.note p {
+	.file-note p {
 		margin: 0;
 	}
 	.fold-row {
