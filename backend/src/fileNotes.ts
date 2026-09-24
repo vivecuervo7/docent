@@ -23,18 +23,10 @@ const REPORT_FILE_NOTES_TOOL = {
             path: { type: "string" },
             kind: { type: "string", enum: ["tests", "context"] },
             note: { type: "string", description: "One or two sentences of plain prose: a verdict, not a list." },
-            folds: {
+            scenario_lines: {
               type: "array",
-              description: "Parts of this file's diff that are safe to skim once summarised.",
-              items: {
-                type: "object",
-                properties: {
-                  start_line: { type: "integer", description: "First new-file line, as numbered in the diff." },
-                  end_line: { type: "integer", description: "Last new-file line, as numbered in the diff." },
-                  summary: { type: "string", description: "One sentence: what the folded code does." },
-                },
-                required: ["summary"],
-              },
+              items: { type: "integer" },
+              description: "For tests only: new-file line numbers of the lines that name a test or a group of tests.",
             },
           },
           required: ["path", "kind", "note"],
@@ -54,16 +46,11 @@ Each note is one or two sentences of plain prose - a verdict, with no headings o
 well-formed (clear assertions, realistic setups, names that match what they test), or what's off.
 - context: for a large or intricate change in a non-test file. What the change amounts to, and \
 what's worth checking.
-A note can also fold parts of the file's diff that are safe to skim once summarised, so the \
-reviewer reads the summary in their place:
-- In a test file, fold each describe block (or a run of related it blocks) whose scenarios you can \
-name; the summary lists them, e.g. "Checks each PA-429 entity syncs through its filter input type, \
-and that paged wrappers are exempt." Leave unfolded only test code that's surprising or suspect.
-- Fold a long mechanical run: a list of similar entries, or the same edit repeated.
-- Fold a file that's deleted outright or generated, as a whole: leave the lines out.
-Each fold gives start_line and end_line as new-file line numbers from the diff (both inside the \
-block), and a one-sentence summary of what the folded code does. Never fold logic the reviewer \
-should read.
+For a test file, also give scenario_lines: the new-file line numbers, as numbered in the diff, of \
+every line that names a test or a group of tests - whatever this file's framework uses, e.g. \
+describe/it/test calls, def test_ functions, func TestX or t.Run, [Fact] or [Test] methods, \
+RSpec's describe/context/it. The reviewer then reads those lines with the code between them \
+folded, so include every one, and nothing else.
 Only note files that are in this slice, using their paths exactly as shown. Report no notes if \
 none are needed.`;
 
@@ -102,32 +89,21 @@ async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal
 
   const raw = (call.arguments as { notes?: unknown }).notes;
   return (Array.isArray(raw) ? raw : []).flatMap((entry): FileNote[] => {
-    const { path, kind, note, folds } = (entry ?? {}) as Record<string, unknown>;
+    const { path, kind, note, scenario_lines } = (entry ?? {}) as Record<string, unknown>;
     // Only files in this slice, and one note per file.
     if (typeof path !== "string" || !byFile.has(path) || typeof note !== "string" || !note.trim()) return [];
     if (kind !== "tests" && kind !== "context") return [];
     const file = files.find((f) => f.filename === path);
-    const checked = file ? checkFolds(folds, linesInDiff(file)) : [];
-    return [{ path, kind, note: note.trim(), ...(checked.length ? { folds: checked } : {}) }];
+    const scenarios = kind === "tests" && file ? checkLines(scenario_lines, linesInDiff(file)) : [];
+    return [{ path, kind, note: note.trim(), ...(scenarios.length ? { scenarioLines: scenarios } : {}) }];
   })
     .filter((n, i, all) => all.findIndex((m) => m.path === n.path) === i);
 }
 
-// Folds whose lines are in the diff, in order and not overlapping; a fold
-// with no lines covers the whole file, so it stands alone.
-function checkFolds(raw: unknown, inDiff: Set<number>): NonNullable<FileNote["folds"]> {
-  const folds: NonNullable<FileNote["folds"]> = [];
-  for (const entry of Array.isArray(raw) ? raw : []) {
-    const { start_line, end_line, summary } = (entry ?? {}) as Record<string, unknown>;
-    if (typeof summary !== "string" || !summary.trim()) continue;
-    if (start_line === undefined && end_line === undefined) return [{ summary: summary.trim() }];
-    if (typeof start_line !== "number" || typeof end_line !== "number") continue;
-    const [startLine, endLine] = start_line <= end_line ? [start_line, end_line] : [end_line, start_line];
-    if (!inDiff.has(startLine) || !inDiff.has(endLine)) continue;
-    folds.push({ startLine, endLine, summary: summary.trim() });
-  }
-  folds.sort((a, b) => a.startLine! - b.startLine!);
-  return folds.filter((f, i) => i === 0 || f.startLine! > folds[i - 1].endLine!);
+// Line numbers that are in the diff, in order, once each.
+function checkLines(raw: unknown, inDiff: Set<number>): number[] {
+  const lines = (Array.isArray(raw) ? raw : []).filter((n): n is number => typeof n === "number" && inDiff.has(n));
+  return [...new Set(lines)].sort((a, b) => a - b);
 }
 
 // Notes for every slice, by slice id. Slices are done side by side, as many

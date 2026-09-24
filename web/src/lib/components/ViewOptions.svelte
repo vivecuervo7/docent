@@ -31,10 +31,10 @@
 				<span>Hide whitespace changes</span>
 			</label>
 			<label>
-				<input type="checkbox" checked={session.foldSummaries} onchange={(e) => session.setFoldSummaries(e.currentTarget.checked)} />
+				<input type="checkbox" checked={session.foldTests} onchange={(e) => session.setFoldTests(e.currentTarget.checked)} />
 				<span>
-					Fold summarised code
-					<small class="faint">Code a note has summarised shows as its summary until opened.</small>
+					Fold test bodies
+					<small class="faint">New test code shows as its test names, with the code between them folded.</small>
 				</span>
 			</label>
 			<label>

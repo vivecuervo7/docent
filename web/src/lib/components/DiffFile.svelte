@@ -35,7 +35,7 @@
 		onToggleReviewed,
 		fold = null,
 		onopenchange,
-		foldSummaries = true
+		foldTests = true
 	}: {
 		file: PrFile;
 		// Every hunk in the file, shown or not: expansion stops at its neighbours.
@@ -54,8 +54,8 @@
 		fold?: { open: boolean; at: number } | null;
 		// Told whenever the file opens or closes, and that it's closed when it goes.
 		onopenchange?: (open: boolean) => void;
-		// Show the note's summarised parts folded, with the summary in their place.
-		foldSummaries?: boolean;
+		// Fold test code between the scenario lines the note marks.
+		foldTests?: boolean;
 	} = $props();
 
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
@@ -130,78 +130,41 @@
 		return () => (live = false);
 	});
 
-	// The note's summarised parts, shown folded with the summary in their
-	// place until opened. A fold with no lines covers the whole file.
-	type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; summary: string; rows: Row[] };
+	// Test files read as their scenarios: the code between the lines that
+	// name a test (marked by the note) folds away until opened. Only code
+	// that's wholly new or unchanged folds; a body with a real edit, or any
+	// deletion, stays open because that edit is what needs reading.
+	type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; rows: Row[] };
 	const openFolds = new SvelteSet<string>();
-	const folds = $derived(foldSummaries ? (note?.folds ?? []) : []);
-	// A file deleted outright folds to its note, when it has one.
-	const wholeFold = $derived(
-		folds.find((f) => f.startLine === undefined) ??
-			(foldSummaries && note && file.status === 'removed' ? { summary: note.note, fromNote: true } : null)
-	);
+	const scenarioLines = $derived(new Set(foldTests && note?.kind === 'tests' ? (note.scenarioLines ?? []) : []));
+	const MIN_FOLD = 3;
 
-	const inFold = (r: Row, f: { startLine?: number; endLine?: number }) =>
-		r.kind !== 'del' && r.new !== undefined && r.new >= f.startLine! && r.new <= f.endLine!;
-
-	// A fold within one hunk sits among its rows; one spanning hunks stands in
-	// for all of them (see spans below).
 	function pieces(hunk: Hunk): Piece[] {
 		const { rows } = hunk;
-		const ranges = folds
-			.map((f, k) => {
-				if (spans.has(`fold-${k}`)) return null;
-				const from = rows.findIndex((r) => inFold(r, f));
-				const to = rows.findLastIndex((r) => inFold(r, f));
-				return from < 0 ? null : { from, to, summary: f.summary, id: `fold-${k}` };
-			})
-			.filter((r) => r !== null)
-			.sort((a, b) => a.from - b.from);
+		const titles = rows.flatMap((r, i) => (r.kind !== 'del' && r.new !== undefined && scenarioLines.has(r.new) ? [i] : []));
 		const out: Piece[] = [];
 		let i = 0;
-		for (const range of ranges) {
-			if (range.from < i) continue;
-			for (; i < range.from; i++) out.push({ type: 'row', row: rows[i] });
-			out.push({ type: 'fold', id: range.id, summary: range.summary, rows: rows.slice(range.from, range.to + 1) });
-			i = range.to + 1;
-		}
+		titles.forEach((t, n) => {
+			const end = n + 1 < titles.length ? titles[n + 1] : rows.length;
+			const body = rows.slice(t + 1, end);
+			const uniform = body.every((r) => r.kind === 'add') || body.every((r) => r.kind === 'context');
+			if (body.length < MIN_FOLD || !uniform) return;
+			for (; i <= t; i++) out.push({ type: 'row', row: rows[i] });
+			out.push({ type: 'fold', id: `${hunk.index}:${t}`, rows: body });
+			i = end;
+		});
 		for (; i < rows.length; i++) out.push({ type: 'row', row: rows[i] });
 		return out;
 	}
 
-	// Folds that touch more than one hunk: while closed, the first of those
-	// hunks becomes the fold's row and the rest aren't shown.
-	const spans = $derived.by(() => {
-		const out = new Map<string, { id: string; summary: string; hunks: number[]; rows: Row[] }>();
-		folds.forEach((f, k) => {
-			if (f.startLine === undefined) return;
-			const touched = hunks.filter((h) => h.rows.some((r) => inFold(r, f)));
-			if (touched.length > 1) {
-				const id = `fold-${k}`;
-				out.set(id, { id, summary: f.summary, hunks: touched.map((h) => h.index), rows: touched.flatMap((h) => h.rows) });
-			}
-		});
-		return out;
-	});
-	const spanOf = (h: Hunk) => [...spans.values()].find((s) => s.hunks.includes(h.index)) ?? null;
-	const hiddenBySpan = (h: Hunk) => {
-		const span = spanOf(h);
-		return !!span && !openFolds.has(span.id);
-	};
-
 	const piecesOf = $derived(new Map(hunks.map((h) => [h.index, pieces(h)])));
 	const visible = (h: Hunk) =>
-		hiddenBySpan(h)
-			? []
-			: (piecesOf.get(h.index) ?? []).flatMap((p) => (p.type === 'row' ? [p.row] : openFolds.has(p.id) ? p.rows : []));
-	const wholeFolded = $derived(!!wholeFold && !openFolds.has('file'));
+		(piecesOf.get(h.index) ?? []).flatMap((p) => (p.type === 'row' ? [p.row] : openFolds.has(p.id) ? p.rows : []));
 
 	// The rows on screen, in order: a mark's range and a selection are both
 	// spans of these.
 	const shown = $derived(
-		wholeFolded
-			? []
-			: items.flatMap((item) => (item.type === 'hunk' ? [item.hunk] : item.expanded ? item.hunks : []).flatMap(visible))
+		items.flatMap((item) => (item.type === 'hunk' ? [item.hunk] : item.expanded ? item.hunks : []).flatMap(visible))
 	);
 
 	// Marks on lines a fold is hiding, shown on the fold instead.
@@ -346,25 +309,21 @@
 	</div>
 {/snippet}
 
-{#snippet foldRow(id: string, summary: string, rows: Row[])}
+{#snippet foldRow(id: string, rows: Row[])}
 	{@const isOpen = openFolds.has(id)}
 	{@const hidden = isOpen ? [] : hiddenMarks(rows)}
-	<button class="fold-row" aria-expanded={isOpen} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
-		<svg class="fold-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-		<span class="fold-summary"><InlineText text={summary} /></span>
+	<button class="fold-row" aria-expanded={isOpen} title={isOpen ? 'Fold this test’s code' : 'Show this test’s code'} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
+		<span class="fold-dots">{isOpen ? '⌃' : '⋯'}</span>
+		<span>{isOpen ? 'Fold' : `${rows.length} lines`}</span>
 		{#each hidden as m (m.id)}
 			<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
 				{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
 			</span>
 		{/each}
-		<span class="fold-lines">{rows.length} {rows.length === 1 ? 'line' : 'lines'}</span>
 	</button>
 {/snippet}
 
 {#snippet hunkBlock(hunk: Hunk)}
-	{@const span = spanOf(hunk)}
-	{#if span && span.hunks[0] === hunk.index}{@render foldRow(span.id, span.summary, span.rows)}{/if}
-	{#if !hiddenBySpan(hunk)}
 	<div class="hunk-header">
 		<span class="hunk-text">{hunk.header}</span>
 		{#if hiddenAbove(hunk.index) > 0}
@@ -378,7 +337,7 @@
 		{#if piece.type === 'row'}
 			{@render row(piece.row)}
 		{:else}
-			{@render foldRow(piece.id, piece.summary, piece.rows)}
+			{@render foldRow(piece.id, piece.rows)}
 			{#if openFolds.has(piece.id)}{#each piece.rows as r (r.key)}{@render row(r)}{/each}{/if}
 		{/if}
 	{/each}
@@ -390,7 +349,6 @@
 			</button>
 		</div>
 	{/if}
-{/if}
 {/snippet}
 
 <section class="file">
@@ -414,7 +372,7 @@
 			</button>
 		{/if}
 	</header>
-	{#if !collapsed && note && !(wholeFold && 'fromNote' in wholeFold)}
+	{#if !collapsed && note}
 		<div class="note">
 			<NoteText text={note.note} />
 			{#if note.quality}<p><InlineText text={note.quality} /></p>{/if}
@@ -422,12 +380,10 @@
 	{/if}
 	{#if !collapsed}
 		<div class="diff">
-			{#if wholeFold}{@render foldRow('file', wholeFold.summary, hunks.flatMap((h) => h.rows))}{/if}
-			{#if !wholeFolded}
 			{#each items as item (item.type === 'hunk' ? `h${item.hunk.index}` : item.id)}
 				{#if item.type === 'hunk'}
 					{@render hunkBlock(item.hunk)}
-				{:else if !item.hunks.every(hiddenBySpan)}
+				{:else}
 					<button
 						class="fold"
 						aria-expanded={item.expanded}
@@ -443,7 +399,6 @@
 					{/if}
 				{/if}
 			{/each}
-			{/if}
 		</div>
 	{/if}
 </section>
@@ -519,39 +474,26 @@
 	}
 	.fold-row {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		gap: 10px;
 		width: 100%;
-		padding: 9px 16px 9px 20px;
+		height: 26px;
+		padding: 0 16px 0 112px;
 		border: 0;
-		border-top: 1px solid var(--line);
-		border-bottom: 1px solid var(--line);
-		background: var(--hunk-bg);
-		color: var(--muted);
+		background: none;
+		color: var(--faint);
 		font-family: var(--sans);
-		font-size: 13.5px;
-		line-height: 1.55;
+		font-size: 12.5px;
 		text-align: left;
 		cursor: pointer;
 	}
 	.fold-row:hover {
 		color: var(--text);
+		background: rgba(255, 255, 255, 0.03);
 	}
-	.fold-chevron {
-		flex-shrink: 0;
-		margin-top: 3px;
-		color: var(--faint);
-	}
-	.fold-summary {
-		flex-grow: 1;
-		min-width: 0;
-	}
-	.fold-lines {
-		flex-shrink: 0;
+	.fold-dots {
 		font-family: var(--mono);
-		font-size: 12px;
-		color: var(--faint);
-		padding-top: 1px;
+		letter-spacing: 1px;
 	}
 	.fold-pin {
 		display: grid;

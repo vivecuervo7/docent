@@ -30,7 +30,7 @@ export class PrSession {
 	// Viewing preferences, kept in this browser.
 	hideWhitespace = $state(readPref('docent.hideWhitespace', true));
 	autoReviewTests = $state(readPref('docent.autoReviewTests', true));
-	foldSummaries = $state(readPref('docent.foldSummaries', true));
+	foldTests = $state(readPref('docent.foldTests', true));
 
 	// Each file's hunks, parsed once.
 	readonly hunks = $derived(new Map<string, Hunk[]>(this.files.map((f) => [f.filename, parseFilePatch(f.patch ?? '')])));
@@ -104,9 +104,9 @@ export class PrSession {
 		writePref('docent.hideWhitespace', value);
 	}
 
-	setFoldSummaries(value: boolean) {
-		this.foldSummaries = value;
-		writePref('docent.foldSummaries', value);
+	setFoldTests(value: boolean) {
+		this.foldTests = value;
+		writePref('docent.foldTests', value);
 	}
 
 	setAutoReviewTests(value: boolean) {

@@ -40,7 +40,7 @@ export interface FileNote {
   note: string;
   // For tests, in notes from before the note itself gave a verdict.
   quality?: string;
-  // Parts of the diff that are safe to skim once summarised, shown folded
-  // with their summary in their place. No lines: the whole file.
-  folds?: { startLine?: number; endLine?: number; summary: string }[];
+  // For tests: new-file lines that name a test or group of tests, so the
+  // code between them can be folded away.
+  scenarioLines?: number[];
 }

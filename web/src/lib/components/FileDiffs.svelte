@@ -70,7 +70,7 @@
 			autoReviewed={reviewed && fileKeys.every((k) => session.autoReviewed.has(k))}
 			onToggleReviewed={() => session.setReviewed(fileKeys, !reviewed)}
 			{fold}
-			foldSummaries={session.foldSummaries}
+			foldTests={session.foldTests}
 			onopenchange={(isOpen) => (isOpen ? open.add(file.filename) : open.delete(file.filename))}
 		/>
 	{/each}
