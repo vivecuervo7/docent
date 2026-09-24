@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { listModels } from '$lib/api';
-	import { agentInstruction, modelLabel, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
+	import { agentInstruction, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';
 	import Spinner from './Spinner.svelte';
@@ -39,7 +39,8 @@
 	const anyRan = $derived(panel.reviewers.some((r) => r.ranWith || panel.findings(r.id) > 0 || panel.reviews[r.id]));
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 
-	function nameOf(r: AgentReviewer): string {
+	// What runs a reviewer, as its menu shows it.
+	function runsWith(r: AgentReviewer): string {
 		const setup = setupOf(r);
 		return setup.mode === 'external' ? 'Your own agent' : `Docent · ${modelLabel(setup.model)}`;
 	}
@@ -92,9 +93,9 @@
 	});
 
 	let copied = $state<AgentId | null>(null);
-	function copy(id: AgentId) {
-		navigator.clipboard.writeText(agentInstruction(session, id)).then(() => {
-			copied = id;
+	function copy(r: AgentReviewer) {
+		navigator.clipboard.writeText(agentInstruction(session, r)).then(() => {
+			copied = r.id;
 			setTimeout(() => (copied = null), 1500);
 		});
 	}
@@ -119,16 +120,18 @@
 			<li>
 				<div class="text">
 					<div class="picker">
+						<span class="name">{nameOf(r)}</span>
 						{#if running}
-							<span class="name">{nameOf(r)}</span>
+							<span class="runs faint">{runsWith(r)}</span>
 						{:else}
 							<button
-								class="name trigger"
+								class="trigger"
 								aria-haspopup="menu"
+								aria-label="What runs {nameOf(r)}: {runsWith(r)}"
 								aria-expanded={menuFor === r.id}
 								onclick={() => (menuFor = menuFor === r.id ? null : r.id)}
 							>
-								{nameOf(r)}
+								{runsWith(r)}
 								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
 							</button>
 						{/if}
@@ -180,8 +183,8 @@
 					{#if setup.mode === 'external' && (running || isTicked(r))}
 						<span class="tell faint">After your usual review, tell your agent:</span>
 						<span class="command">
-							<span class="sentence">{agentInstruction(session, r.id)}</span>
-							<button class="icon" aria-label="Copy what to tell your agent" onclick={() => copy(r.id)}>
+							<span class="sentence">{agentInstruction(session, r)}</span>
+							<button class="icon" aria-label="Copy what to tell your agent" onclick={() => copy(r)}>
 								{#if copied === r.id}
 									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
 								{:else}
@@ -296,19 +299,27 @@
 		position: relative;
 		align-self: flex-start;
 	}
+	.picker {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 2px;
+	}
+	.runs {
+		font-size: 13px;
+	}
 	.trigger {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
-		margin: -3px 0 -3px -8px;
-		padding: 3px 8px;
+		gap: 5px;
+		margin: 0 0 0 -7px;
+		padding: 2px 7px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: 7px;
 		background: none;
-		color: var(--text);
+		color: var(--muted);
 		font: inherit;
-		font-size: 15px;
-		font-weight: 500;
+		font-size: 13px;
 		cursor: pointer;
 	}
 	.trigger svg {

@@ -3,6 +3,7 @@ import { fetchPrFiles, type PrFile } from "./github.js";
 import { chatWithTool } from "./modelProvider.js";
 import { inLane } from "./notes.js";
 import { describeRanges, linesInDiff, numberedFileDiff } from "./prDiff.js";
+import { getRecord, keyFor } from "./store.js";
 import type { PrSummary, Slice } from "./types.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
@@ -61,12 +62,28 @@ function reviewKey(owner: string, repo: string, number: string, reviewer: string
   return `${prKey(owner, repo, number)}#${reviewer}`;
 }
 
-// Which reviewer an agent's submission is for when it doesn't say: the one
-// waiting for the reviewer's own agent, if there's exactly one, else the
-// first. With several waiting there's no telling which agent this is, so it
-// has to name one.
+// The PR's reviewers as saved in its record, where the browser gives each a
+// name ("Copper Eagle") alongside its id.
+function savedReviewers(owner: string, repo: string, number: string): { id: string; name?: string }[] {
+  const saved = getRecord(keyFor(owner, repo, number)).record.agentReviewers;
+  return Array.isArray(saved) && saved.length ? (saved as { id: string; name?: string }[]) : [{ id: DEFAULT_REVIEWER }];
+}
+
+const sameName = (a: string, b: string) => a.toLowerCase().replace(/[\s_-]+/g, " ").trim() === b.toLowerCase().replace(/[\s_-]+/g, " ").trim();
+
+// Which reviewer an agent's submission is for. A named one, by name or id;
+// otherwise the one waiting for the reviewer's own agent, if there's exactly
+// one, else the first. With several waiting there's no telling which agent
+// this is, so it has to name one.
 export function resolveReviewer(owner: string, repo: string, number: string, reviewer?: string): string {
-  if (reviewer) return reviewer;
+  const saved = savedReviewers(owner, repo, number);
+  const label = (id: string) => saved.find((r) => r.id === id)?.name ?? id;
+  if (reviewer?.trim()) {
+    const match = saved.find((r) => r.id === reviewer.trim() || (r.name && sameName(r.name, reviewer)));
+    if (match) return match.id;
+    if (REVIEWER_RE.test(reviewer.trim())) return reviewer.trim();
+    throw new Error(`No reviewer called "${reviewer}" on this PR. Its reviewers: ${saved.map((r) => label(r.id)).join(", ")}.`);
+  }
   const prefix = `${prKey(owner, repo, number)}#`;
   const waiting = [...reviews]
     .filter(([key, entry]) => key.startsWith(prefix) && entry.review.source === "external" && entry.review.status === "running")
@@ -74,7 +91,7 @@ export function resolveReviewer(owner: string, repo: string, number: string, rev
   if (waiting.length === 1) return waiting[0];
   if (waiting.length > 1) {
     throw new Error(
-      `Several reviewers are waiting for findings on this PR (${waiting.join(", ")}). Ask the user which one this review is for, and pass it as \`reviewer\`.`,
+      `Several reviewers are waiting for findings on this PR (${waiting.map(label).join(", ")}). Ask the user which one this review is for, and pass it as \`reviewer\`.`,
     );
   }
   return DEFAULT_REVIEWER;
@@ -144,23 +161,16 @@ export interface SubmittedFinding {
   rationale?: string;
 }
 
-// Checks a finding against the PR and records it. Lines have to be in the
-// diff, since that's all a review comment can sit on; the error says which
-// lines are, so an agent can correct itself.
-export async function submitFinding(
-  owner: string,
-  repo: string,
-  number: string,
-  finding: SubmittedFinding,
-  files?: PrFile[],
-  reviewer = DEFAULT_REVIEWER,
-): Promise<Finding> {
+// Checks a finding against the PR's files. Lines have to be in the diff,
+// since that's all a review comment can sit on; the error says which lines
+// are, so an agent can correct itself.
+function checkFinding(finding: SubmittedFinding, files: PrFile[]): Finding {
   const body = finding.body.trim();
   if (!body) throw new Error("A finding needs a body.");
   let { path, startLine, endLine } = finding;
   if (startLine !== undefined && endLine === undefined) endLine = startLine;
   if (path) {
-    const file = (files ?? (await fetchPrFiles(owner, repo, number))).find((f) => f.filename === path);
+    const file = files.find((f) => f.filename === path);
     if (!file) throw new Error(`${path} isn't one of the files this PR changes.`);
     if (startLine !== undefined && endLine !== undefined) {
       if (endLine < startLine) [startLine, endLine] = [endLine, startLine];
@@ -175,17 +185,57 @@ export async function submitFinding(
     startLine = undefined;
     endLine = undefined;
   }
+  return { id: randomUUID(), path, startLine, endLine, body, rationale: finding.rationale?.trim() || undefined };
+}
 
-  const key = reviewKey(owner, repo, number, reviewer);
-  // An agent can start submitting before anyone pressed Run in Docent.
-  const entry =
-    reviews.get(key)?.review.status === "running"
-      ? reviews.get(key)!
-      : begin(owner, repo, number, reviewer, "external", null);
-  const rationale = finding.rationale?.trim() || undefined;
-  const recorded: Finding = { id: randomUUID(), path, startLine, endLine, body, rationale };
-  entry.review.findings.push(recorded);
+// The review findings are going into: the reviewer's running one, or a new
+// one, since an agent can start submitting before anyone pressed Run in Docent.
+function openReview(owner: string, repo: string, number: string, reviewer: string): Entry {
+  const entry = reviews.get(reviewKey(owner, repo, number, reviewer));
+  return entry?.review.status === "running" ? entry : begin(owner, repo, number, reviewer, "external", null);
+}
+
+// Records one finding, for agents that report as they go.
+export async function submitFinding(
+  owner: string,
+  repo: string,
+  number: string,
+  finding: SubmittedFinding,
+  files?: PrFile[],
+  reviewer = DEFAULT_REVIEWER,
+): Promise<Finding> {
+  const recorded = checkFinding(finding, files ?? (await fetchPrFiles(owner, repo, number)));
+  openReview(owner, repo, number, reviewer).review.findings.push(recorded);
   return recorded;
+}
+
+// Records a whole review at once, and finishes it. Every finding is checked
+// first: if any is wrong, nothing is recorded and the error covers them all,
+// so the agent can fix them and send the review again.
+export async function submitReview(
+  owner: string,
+  repo: string,
+  number: string,
+  findings: SubmittedFinding[],
+  reviewer: string,
+): Promise<AgentReview> {
+  const files = await fetchPrFiles(owner, repo, number);
+  const checked: Finding[] = [];
+  const problems: string[] = [];
+  findings.forEach((finding, i) => {
+    try {
+      checked.push(checkFinding(finding, files));
+    } catch (err) {
+      problems.push(`Finding ${i + 1}: ${(err as Error).message}`);
+    }
+  });
+  if (problems.length) {
+    throw new Error(`Nothing was recorded. Fix these, then send the whole review again:\n${problems.join("\n")}`);
+  }
+  const entry = openReview(owner, repo, number, reviewer);
+  entry.review.findings.push(...checked);
+  entry.review.status = "done";
+  return entry.review;
 }
 
 const REPORT_FINDINGS_TOOL = {

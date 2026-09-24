@@ -1,4 +1,5 @@
 import * as api from './api';
+import { reviewerName } from './names';
 import type { PrSession } from './session.svelte';
 import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type FeedbackDraft } from './types';
 
@@ -18,11 +19,24 @@ export function modelLabel(model: string): string {
 	return name.slice(name.lastIndexOf('/') + 1);
 }
 
+export const nameOf = (reviewer: AgentReviewer) => reviewer.name ?? reviewer.id;
+
 // What to tell the reviewer's own agent after its review, to send the
 // findings here. It names the reviewer, so two agents can't be mixed up.
-export function agentInstruction(session: PrSession, id: AgentId): string {
+export function agentInstruction(session: PrSession, reviewer: AgentReviewer): string {
 	const { owner, repo, number } = session.ref;
-	return `Send these review findings to Docent for ${owner}/${repo}#${number} as reviewer ${id}, then finish the review.`;
+	return `Send these review findings to Docent for ${owner}/${repo}#${number} as ${nameOf(reviewer)}.`;
+}
+
+function nameAll(record: { agentReviewers: AgentReviewer[]; agentNamesUsed?: string[] }) {
+	const used = new Set([...(record.agentNamesUsed ?? []), ...record.agentReviewers.flatMap((r) => (r.name ? [r.name] : []))]);
+	record.agentReviewers = record.agentReviewers.map((r) => {
+		if (r.name) return r;
+		const name = reviewerName(used);
+		used.add(name);
+		return { ...r, name };
+	});
+	record.agentNamesUsed = [...used];
 }
 
 export class Panel {
@@ -46,8 +60,10 @@ export class Panel {
 		this.#session = session;
 	}
 
-	// Picks up reviews still running from an earlier visit.
+	// Names any reviewers from before names, and picks up reviews still
+	// running from an earlier visit.
 	async load() {
+		if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
 		await Promise.all(
 			this.reviewers.map(async ({ id }) => {
 				const review = await api.getAgentReview(this.#session.ref, id).catch(() => null);
@@ -97,6 +113,7 @@ export class Panel {
 			added = `agent-${highest + 1}`;
 			r.agentHighest = highest + 1;
 			r.agentReviewers = [...r.agentReviewers.filter((a) => a.id !== added), { id: added }];
+			nameAll(r);
 		});
 		return added;
 	}

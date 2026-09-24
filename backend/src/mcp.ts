@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import * as z from "zod/v4";
-import { REVIEWER_RE, finishAgentReview, getReviewContext, resolveReviewer, submitFinding } from "./agentReview.js";
+import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from "./agentReview.js";
 import {
   fetchFileContentAtRef,
   fetchPrBaseSha,
@@ -31,17 +31,31 @@ const prArg = z.string().describe("The pull request, as owner/repo#123 or its Gi
 
 const reviewerArg = z
   .string()
-  .regex(REVIEWER_RE)
+  .max(60)
   .optional()
   .describe(
-    "Which of the PR's agent reviewers in Docent this is for, e.g. agent-2, if the user named one. Leave it out otherwise: Docent picks the reviewer waiting for this agent.",
+    'Which of the PR\'s reviewers in Docent this is for, if the user named one, e.g. "Copper Eagle". Leave it out otherwise: Docent picks the reviewer waiting for this agent.',
   );
 
 // Prompt arguments arrive as text, and may be left empty.
 function reviewerFrom(value: string | undefined): string | undefined {
-  const reviewer = value?.trim();
-  return reviewer && REVIEWER_RE.test(reviewer) ? reviewer : undefined;
+  return value?.trim() || undefined;
 }
+
+const findingShape = {
+  body: z
+    .string()
+    .describe('The comment, addressed to the PR\'s author. A sentence or two; code in backticks. Start a minor point with "Nit: ".'),
+  rationale: z
+    .string()
+    .optional()
+    .describe(
+      "For the reviewer deciding whether to post it - the author never sees it: why it matters, what in the code shows it, and how sure you are.",
+    ),
+  path: z.string().optional(),
+  start_line: z.number().int().optional(),
+  end_line: z.number().int().optional().describe("For a finding spanning several lines."),
+};
 
 function text(value: string) {
   return { content: [{ type: "text" as const, text: value }] };
@@ -167,24 +181,42 @@ function buildServer(): McpServer {
   );
 
   server.registerTool(
+    "submit_review",
+    {
+      description:
+        "Send a whole review to Docent in one call: every finding at once. Use this when asked to send review findings to Docent. Anchor each finding to the lines it's about: look them up with get_diff and give the file and new-file line numbers (they must be lines in the diff) - the few lines the point is actually about. Leave the lines out only for a point about a whole file, and the file too only for the PR as a whole. If any finding is wrong, nothing is recorded and the error says what to fix; fix it and send the whole review again.",
+      inputSchema: {
+        pr: prArg,
+        findings: z.array(z.object(findingShape)).describe("Every finding in the review."),
+        reviewer: reviewerArg,
+      },
+    },
+    async ({ pr, findings, reviewer }) => {
+      try {
+        const { owner, repo, number } = parsePr(pr);
+        const review = await submitReview(
+          owner,
+          repo,
+          number,
+          findings.map(({ body, rationale, path, start_line, end_line }) => ({ body, rationale, path, startLine: start_line, endLine: end_line })),
+          resolveReviewer(owner, repo, number, reviewer),
+        );
+        const count = review.findings.length;
+        return text(`Sent: ${count} ${count === 1 ? "finding" : "findings"} are in Docent.`);
+      } catch (err) {
+        return failure(err);
+      }
+    },
+  );
+
+  server.registerTool(
     "submit_finding",
     {
       description:
-        "Record one review finding. It appears in Docent for the reviewer to keep or drop. Give the file and new-file line numbers from get_diff (they must be lines in the diff) - the few lines the point is actually about, not the whole block around them - or leave the lines out to comment on the whole file, or leave both out for the PR as a whole.",
+        "Record one finding, for reporting as you go; call finish_review when they're all in. To send a whole review at once, use submit_review instead. Lines follow the same rules as submit_review.",
       inputSchema: {
         pr: prArg,
-        body: z
-          .string()
-          .describe('The comment, addressed to the PR\'s author. A sentence or two; code in backticks. Start a minor point with "Nit: ".'),
-        rationale: z
-          .string()
-          .optional()
-          .describe(
-            "For the reviewer deciding whether to post it - the author never sees it: why it matters, what in the code shows it, and how sure you are.",
-          ),
-        path: z.string().optional(),
-        start_line: z.number().int().optional(),
-        end_line: z.number().int().optional().describe("For a finding spanning several lines."),
+        ...findingShape,
         reviewer: reviewerArg,
       },
     },
@@ -209,7 +241,7 @@ function buildServer(): McpServer {
   server.registerTool(
     "finish_review",
     {
-      description: "Call once every finding has been submitted, to tell Docent the review is complete.",
+      description: "After reporting findings one at a time with submit_finding, tells Docent they're all in. Not needed after submit_review.",
       inputSchema: { pr: prArg, reviewer: reviewerArg },
     },
     async ({ pr, reviewer }) => {
@@ -227,11 +259,11 @@ function buildServer(): McpServer {
   // Prompts, which clients like Claude Code offer as commands: one to review
   // a PR your usual way and send the findings here, one to send findings
   // from a review you've already done.
-  const findingFormat = (reviewer: string | undefined) => `For each finding, call submit_finding with${reviewer ? ` reviewer "${reviewer}" and` : ""}:
+  const findingFormat = (reviewer: string | undefined) => `Send the findings in one submit_review call${reviewer ? ` with reviewer "${reviewer}"` : ""}, each with:
 - body: the comment for the PR's author - a sentence or two, specific, with a suggestion where there is one. Start a minor point with "Nit: ".
 - rationale: for the reviewer deciding whether to post it (the author never sees it) - why it matters, what in the code shows it, and how sure you are.
 - path, start_line and end_line: the few lines the point is about, as new-file line numbers from get_diff. Leave the lines out for a point about a whole file, and the path too for the PR as a whole.
-If submit_finding rejects the lines, it lists the lines that are in the diff; pick from those. When every finding is in, call finish_review${reviewer ? ` with reviewer "${reviewer}"` : ""}.`;
+If submit_review rejects some lines, it lists the lines that are in the diff; pick from those and send the review again.`;
 
   server.registerPrompt(
     "review",
@@ -239,7 +271,7 @@ If submit_finding rejects the lines, it lists the lines that are in the diff; pi
       description: "Review a PR your usual way, and send the findings to Docent.",
       argsSchema: {
         pr: z.string().describe("The pull request, as owner/repo#123 or its GitHub URL."),
-        reviewer: z.string().optional().describe("Which agent reviewer in Docent to send the findings to, e.g. agent-2. Optional when only one is waiting."),
+        reviewer: z.string().optional().describe('Which reviewer in Docent to send the findings to, e.g. "Copper Eagle". Optional when only one is waiting.'),
       },
     },
     ({ pr, reviewer }) => ({
@@ -263,7 +295,7 @@ ${findingFormat(reviewerFrom(reviewer))}`,
       description: "Send the findings from a review you've already done in this conversation to Docent.",
       argsSchema: {
         pr: z.string().describe("The pull request, as owner/repo#123 or its GitHub URL."),
-        reviewer: z.string().optional().describe("Which agent reviewer in Docent to send the findings to, e.g. agent-2. Optional when only one is waiting."),
+        reviewer: z.string().optional().describe('Which reviewer in Docent to send the findings to, e.g. "Copper Eagle". Optional when only one is waiting.'),
       },
     },
     ({ pr, reviewer }) => ({
@@ -272,7 +304,7 @@ ${findingFormat(reviewerFrom(reviewer))}`,
           role: "user",
           content: {
             type: "text",
-            text: `Send the review findings from this conversation so far to Docent, for the pull request ${pr}. Don't review it again: take the findings as they are, one submit_finding call each, using get_diff to find the right line numbers.
+            text: `Send the review findings from this conversation so far to Docent, for the pull request ${pr}. Don't review it again: take the findings as they are, using get_diff to find the right line numbers.
 
 ${findingFormat(reviewerFrom(reviewer))}`,
           },

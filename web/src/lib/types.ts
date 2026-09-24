@@ -92,6 +92,9 @@ export const FIRST_AGENT: AgentId = 'agent-1';
 
 export interface AgentReviewer {
 	id: AgentId;
+	// A generated handle, e.g. "copper-eagle"; agents can be told it instead
+	// of the id.
+	name?: string;
 	ranWith?: string;
 }
 
@@ -105,6 +108,8 @@ export interface PrRecord {
 	feedback: Record<string, FeedbackDraft | undefined>;
 	agentReviewers: AgentReviewer[];
 	agentHighest?: number;
+	// Every reviewer name handed out on this PR, so none is reused.
+	agentNamesUsed?: string[];
 	// The prepared review; its shape is Post review's concern.
 	review?: unknown;
 	title?: string;
