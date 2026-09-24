@@ -50,7 +50,7 @@
 	}
 
 	function read() {
-		const next = session.slices.find((s) => !isSliceReviewed(s, session.record.reviewed)) ?? session.slices[0];
+		const next = session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0];
 		if (next) goto(`${base}/slices/${next.id}`);
 	}
 

@@ -34,7 +34,7 @@
 				<ol class="slices">
 					{#each session.slices as slice (slice.id)}
 						<li>
-							<StateMark state={isSliceReviewed(slice, session.record.reviewed) ? 'done' : 'todo'} />
+							<StateMark state={isSliceReviewed(slice, session.reviewed) ? 'done' : 'todo'} />
 							<a href="{base}/slices/{slice.id}">{slice.title}</a>
 						</li>
 					{/each}

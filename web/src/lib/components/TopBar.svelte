@@ -8,13 +8,13 @@
 
 	const session = useSession();
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
-	const onSlice = $derived(page.url.pathname.startsWith(`${base}/slices/`));
+	const onSlice = $derived(page.url.pathname.startsWith(`${base}/slices/`) || page.url.pathname === `${base}/files`);
 	const onOverview = $derived(page.url.pathname === base);
 	const total = $derived(session.slices.length);
 	const allRead = $derived(total > 0 && session.reviewedSlices === total);
 	// Read goes to the first slice not yet reviewed.
 	const readTarget = $derived(
-		(session.slices.find((s) => !isSliceReviewed(s, session.record.reviewed)) ?? session.slices[0])?.id
+		(session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0])?.id
 	);
 </script>
 

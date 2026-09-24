@@ -14,6 +14,7 @@ export interface PrFile {
 	additions: number;
 	deletions: number;
 	patch?: string;
+	previous_filename?: string;
 }
 
 export interface PrMeta {

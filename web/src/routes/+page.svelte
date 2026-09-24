@@ -5,6 +5,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { parsePrUrl, timeAgo } from '$lib/format';
 	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/record';
+	import { effectiveReviewed, readPref } from '$lib/review';
 	import { isGenerating, isSliceReviewed } from '$lib/session.svelte';
 	import type { Generation, PrRef, SavedPr } from '$lib/types';
 
@@ -87,7 +88,8 @@
 
 	function progress(pr: SavedPr) {
 		const slices = pr.record.slices ?? [];
-		const done = slices.filter((s) => isSliceReviewed(s, pr.record.reviewed)).length;
+		const reviewed = effectiveReviewed(pr.record, readPref('docent.autoReviewTests', true));
+		const done = slices.filter((s) => isSliceReviewed(s, reviewed)).length;
 		return { done, total: slices.length };
 	}
 </script>

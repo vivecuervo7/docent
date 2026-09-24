@@ -1,6 +1,8 @@
 import { getContext, setContext } from 'svelte';
 import * as api from './api';
+import { parseFilePatch, type Hunk } from './diff/parse';
 import { Panel } from './panel.svelte';
+import { autoReviewedKeys, everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
 import type { Generation, PrFile, PrMeta, PrRecord, PrRef, Slice, StepName } from './types';
 
@@ -11,9 +13,7 @@ export function isGenerating(generation: Generation | null | undefined): boolean
 	return generation?.status === 'queued' || generation?.status === 'running';
 }
 
-export function isSliceReviewed(slice: Slice, reviewed: Record<string, boolean>): boolean {
-	return slice.hunks.length > 0 && slice.hunks.every((key) => reviewed[key]);
-}
+export { isSliceReviewed };
 
 export class PrSession {
 	readonly ref: PrRef;
@@ -27,8 +27,28 @@ export class PrSession {
 	// The first preparation of a PR takes over the Overview; a rerun of one
 	// that already has a summary happens quietly behind it.
 	readonly preparing = $derived(!this.record.summary && this.generation !== null);
-	readonly slices = $derived(this.record.slices ?? []);
-	readonly reviewedSlices = $derived(this.slices.filter((s) => isSliceReviewed(s, this.record.reviewed)).length);
+	// Viewing preferences, kept in this browser.
+	hideWhitespace = $state(readPref('docent.hideWhitespace', true));
+	autoReviewTests = $state(readPref('docent.autoReviewTests', true));
+
+	// Each file's hunks, parsed once.
+	readonly hunks = $derived(new Map<string, Hunk[]>(this.files.map((f) => [f.filename, parseFilePatch(f.patch ?? '')])));
+	readonly hunkKeys = $derived([...this.hunks].flatMap(([path, hunks]) => hunks.map((h) => `${path}#${h.index}`)));
+	// The prepared slices, then anything they left out.
+	readonly slices = $derived.by(() => {
+		const prepared = this.record.slices ?? [];
+		const rest = prepared.length ? everythingElse(this.hunkKeys, prepared) : null;
+		return rest ? [...prepared, rest] : prepared;
+	});
+	// Test files counted as reviewed from their notes; see review.ts.
+	readonly autoReviewed = $derived(autoReviewedKeys(this.record, this.autoReviewTests));
+	readonly reviewed = $derived.by(() => {
+		if (!this.autoReviewed.size) return this.record.reviewed;
+		const merged = { ...this.record.reviewed };
+		for (const key of this.autoReviewed) merged[key] = true;
+		return merged;
+	});
+	readonly reviewedSlices = $derived(this.slices.filter((s) => isSliceReviewed(s, this.reviewed)).length);
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
 	readonly panel: Panel = new Panel(this);
@@ -76,6 +96,23 @@ export class PrSession {
 		this.#closed = true;
 		this.#stopPolling();
 		this.panel.close();
+	}
+
+	setHideWhitespace(value: boolean) {
+		this.hideWhitespace = value;
+		writePref('docent.hideWhitespace', value);
+	}
+
+	setAutoReviewTests(value: boolean) {
+		this.autoReviewTests = value;
+		writePref('docent.autoReviewTests', value);
+	}
+
+	// Ticks or unticks hunks, by key (`path#index`).
+	setReviewed(keys: string[], value: boolean) {
+		return this.update((r) => {
+			for (const key of keys) r.reviewed[key] = value;
+		});
 	}
 
 	// Saves a change to the review, and shows the record as saved.

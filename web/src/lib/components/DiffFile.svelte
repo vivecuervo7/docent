@@ -1,20 +1,112 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Mark } from '$lib/api';
-	import type { FileNote, LineRef, PrFile } from '$lib/types';
+	import type { FileNote, LineRef, PrFile, PrRef } from '$lib/types';
 	import { highlightHunks, segments, type Token } from '$lib/diff/highlight';
-	import { layout, parseFilePatch, wordEdits, type Row } from '$lib/diff/parse';
+	import {
+		EXPAND_STEP,
+		expandHunk,
+		fileLines,
+		gapAbove,
+		gapBelow,
+		hideWhitespace,
+		layout,
+		wordEdits,
+		type Expansion,
+		type Hunk,
+		type Row
+	} from '$lib/diff/parse';
+	import InlineText from './InlineText.svelte';
 	import MarkPopover from './MarkPopover.svelte';
+	import StateMark from './StateMark.svelte';
 
 	let {
 		file,
+		allHunks,
 		hunkIndices = null,
 		marks = [],
-		note
-	}: { file: PrFile; hunkIndices?: number[] | null; marks?: Mark[]; note?: FileNote } = $props();
+		note,
+		prRef,
+		whitespace = false,
+		reviewed = false,
+		autoReviewed = false,
+		onToggleReviewed
+	}: {
+		file: PrFile;
+		// Every hunk in the file, shown or not: expansion stops at its neighbours.
+		allHunks: Hunk[];
+		hunkIndices?: number[] | null;
+		marks?: Mark[];
+		note?: FileNote;
+		prRef: PrRef;
+		// Show whitespace-only changes as changes.
+		whitespace?: boolean;
+		reviewed?: boolean;
+		// Counted as reviewed because its note says what it tests.
+		autoReviewed?: boolean;
+		onToggleReviewed?: () => void;
+	} = $props();
+
+	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
+
+	// Unchanged lines shown around each hunk. They come from the file as it
+	// was, fetched the first time any are asked for.
+	let requested = $state<Record<number, Expansion>>({});
+	let oldLines = $state<string[] | null>(null);
+	let loadingOld: Promise<void> | null = null;
+	const canExpand = $derived(file.status !== 'added');
+
+	const expansion = $derived.by(() => {
+		const out: Expansion[] = [];
+		for (const h of allHunks) {
+			const i = h.index;
+			const want = requested[i] ?? { up: 0, down: 0 };
+			if (!oldLines) {
+				out[i] = { up: 0, down: 0 };
+				continue;
+			}
+			const up = Math.min(want.up, gapAbove(allHunks, i) - (out[i - 1]?.down ?? 0));
+			const down = Math.min(want.down, gapBelow(allHunks, i, oldLines.length));
+			out[i] = { up: Math.max(0, up), down: Math.max(0, down) };
+		}
+		return out;
+	});
+
+	// Lines still hidden above and below a hunk; below the last one is unknown
+	// until the old file is fetched.
+	function hiddenAbove(i: number): number {
+		return canExpand ? gapAbove(allHunks, i) - expansion[i].up - (expansion[i - 1]?.down ?? 0) : 0;
+	}
+	function hiddenBelow(i: number): number {
+		if (!canExpand) return 0;
+		if (!oldLines) return i < allHunks.length - 1 ? gapBelow(allHunks, i, 0) : 1;
+		return gapBelow(allHunks, i, oldLines.length) - expansion[i].down - (expansion[i + 1]?.up ?? 0);
+	}
+
+	async function expand(i: number, direction: 'up' | 'down') {
+		if (!oldLines) {
+			loadingOld ??= fetch(
+				`/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/old-content?path=${encodeURIComponent(file.previous_filename ?? file.filename)}`
+			)
+				.then((res) => (res.ok ? res.json() : { content: null }))
+				.then((data: { content: string | null }) => {
+					oldLines = fileLines(data.content ?? '');
+				})
+				.catch(() => {
+					loadingOld = null;
+				});
+			await loadingOld;
+		}
+		const now = expansion[i] ?? { up: 0, down: 0 };
+		requested = { ...requested, [i]: { ...now, [direction]: now[direction] + EXPAND_STEP } };
+	}
 
 	const hunks = $derived(
-		parseFilePatch(file.patch ?? '').filter((h) => !hunkIndices || hunkIndices.includes(h.index))
+		allHunks
+			.filter((h) => shownIndices.has(h.index))
+			.map((h) => (oldLines ? expandHunk(h, expansion[h.index], oldLines) : h))
+			.map((h) => (whitespace ? h : hideWhitespace(h)))
 	);
 	const expanded = new SvelteSet<string>();
 	const items = $derived(layout(hunks, expanded));
@@ -102,7 +194,13 @@
 		return at.length > 4 ? `${at.slice(0, 4).join(', ')}, …` : at.join(', ');
 	}
 
-	let collapsed = $state(false);
+	// Reviewed files start closed, and close when marked reviewed.
+	let collapsed = $state(untrack(() => reviewed));
+
+	function toggleReviewed() {
+		if (!reviewed) collapsed = true;
+		onToggleReviewed?.();
+	}
 </script>
 
 {#snippet row(r: Row)}
@@ -158,21 +256,53 @@
 	</div>
 {/snippet}
 
+{#snippet hunkBlock(hunk: Hunk)}
+	<div class="hunk-header">
+		<span class="hunk-text">{hunk.header}</span>
+		{#if hiddenAbove(hunk.index) > 0}
+			<button class="expand" onclick={() => expand(hunk.index, 'up')}>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+				{Math.min(EXPAND_STEP, hiddenAbove(hunk.index))} more lines
+			</button>
+		{/if}
+	</div>
+	{#each hunk.rows as r (r.key)}{@render row(r)}{/each}
+	{#if !shownIndices.has(hunk.index + 1) && hiddenBelow(hunk.index) > 0}
+		<div class="hunk-footer">
+			<button class="expand" onclick={() => expand(hunk.index, 'down')}>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+				{oldLines ? `${Math.min(EXPAND_STEP, hiddenBelow(hunk.index))} more lines` : 'More lines'}
+			</button>
+		</div>
+	{/if}
+{/snippet}
+
 <section class="file">
 	<header>
 		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 			<span class="path">{file.filename.split('/').pop()}</span>
-			<span class="gist faint">{note ? `${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}` : ''}</span>
+			<span class="gist faint">{#if note}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
 			<span class="stat faint">+{file.additions} −{file.deletions}</span>
 		</button>
+		{#if onToggleReviewed}
+			<button
+				class="review"
+				class:done={reviewed}
+				aria-pressed={reviewed}
+				title={autoReviewed ? 'Counted as reviewed: its note says what it tests. Click to review it yourself.' : undefined}
+				onclick={toggleReviewed}
+			>
+				<StateMark state={reviewed ? 'done' : 'todo'} size={15} />
+				{reviewed ? 'Reviewed' : 'Mark reviewed'}
+			</button>
+		{/if}
 	</header>
 	{#if !collapsed}
 		<div class="diff">
 			{#each items as item (item.type === 'hunk' ? `h${item.hunk.index}` : item.id)}
 				{#if item.type === 'hunk'}
-					<div class="hunk-header">{item.hunk.header}</div>
-					{#each item.hunk.rows as r (r.key)}{@render row(r)}{/each}
+					{@render hunkBlock(item.hunk)}
 				{:else}
 					<button
 						class="fold"
@@ -185,10 +315,7 @@
 						<span class="faint">· lines {foldLines(item)}</span>
 					</button>
 					{#if item.expanded}
-						{#each item.hunks as hunk (hunk.index)}
-							<div class="hunk-header">{hunk.header}</div>
-							{#each hunk.rows as r (r.key)}{@render row(r)}{/each}
-						{/each}
+						{#each item.hunks as hunk (hunk.index)}{@render hunkBlock(hunk)}{/each}
 					{/if}
 				{/if}
 			{/each}
@@ -252,15 +379,73 @@
 		border-radius: 12px;
 		background: var(--code-bg);
 	}
-	.hunk-header {
+	.hunk-header,
+	.hunk-footer {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-height: 30px;
+		padding: 0 8px 0 16px;
 		font-family: var(--mono);
 		font-size: 12px;
 		color: var(--faint);
-		padding: 7px 16px 6px;
 		background: var(--hunk-bg);
+	}
+	.hunk-text {
+		flex-grow: 1;
+		min-width: 0;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.hunk-footer {
+		justify-content: flex-end;
+	}
+	.diff > .hunk-footer:last-child {
+		border-radius: 0 0 12px 12px;
+	}
+	.expand {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+		height: 24px;
+		padding: 0 8px;
+		border: 0;
+		border-radius: 6px;
+		background: none;
+		color: var(--faint);
+		font-family: var(--sans);
+		font-size: 12.5px;
+		cursor: pointer;
+	}
+	.expand:hover {
+		background: rgba(255, 255, 255, 0.05);
+		color: var(--text);
+	}
+	.review {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		flex-shrink: 0;
+		height: 30px;
+		margin-left: 14px;
+		padding: 0 11px;
+		border: 0;
+		border-radius: 8px;
+		background: none;
+		box-shadow: inset 0 0 0 1px #3a3c42;
+		color: var(--text);
+		font: inherit;
+		font-size: 13px;
+		cursor: pointer;
+	}
+	.review.done {
+		box-shadow: none;
+		color: var(--faint);
+	}
+	.review:hover {
+		background: rgba(255, 255, 255, 0.04);
 	}
 	.diff > .hunk-header:first-child {
 		border-radius: 12px 12px 0 0;

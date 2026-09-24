@@ -1,8 +1,9 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { marksFrom } from '$lib/api';
-	import DiffFile from '$lib/components/DiffFile.svelte';
-	import StateMark from '$lib/components/StateMark.svelte';
+	import FileDiffs from '$lib/components/FileDiffs.svelte';
+	import SliceRail from '$lib/components/SliceRail.svelte';
+	import ViewOptions from '$lib/components/ViewOptions.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 
 	const session = useSession();
@@ -11,55 +12,75 @@
 	const index = $derived(slices.findIndex((s) => s.id === sliceId));
 	const slice = $derived(slices[index]);
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
-	const marks = $derived(marksFrom(session.record));
+	const done = $derived(slice ? isSliceReviewed(slice, session.reviewed) : false);
 
-	// The slice's files, each with the hunks it covers, in the PR's order.
-	const files = $derived.by(() => {
-		const byFile = new Map<string, number[]>();
-		for (const ref of slice?.hunks ?? []) {
-			const at = ref.lastIndexOf('#');
-			const path = ref.slice(0, at);
-			byFile.set(path, [...(byFile.get(path) ?? []), Number(ref.slice(at + 1))]);
+	// Files in this slice, and how many are reviewed.
+	const fileCounts = $derived.by(() => {
+		const byFile = new Map<string, boolean>();
+		for (const key of slice?.hunks ?? []) {
+			const path = key.slice(0, key.lastIndexOf('#'));
+			byFile.set(path, (byFile.get(path) ?? true) && !!session.reviewed[key]);
 		}
-		return session.files.filter((f) => byFile.has(f.filename)).map((file) => ({ file, hunks: byFile.get(file.filename)! }));
+		return { total: byFile.size, reviewed: [...byFile.values()].filter(Boolean).length };
 	});
+
+	// The next slice still to review, after this one, else before it.
+	const next = $derived.by(() => {
+		const after = slices.slice(index + 1).find((s) => !isSliceReviewed(s, session.reviewed));
+		return after ?? slices.slice(0, index).find((s) => !isSliceReviewed(s, session.reviewed));
+	});
+
+	function goNext() {
+		goto(next ? `${base}/slices/${next.id}` : base);
+	}
+
+	async function markReviewed() {
+		if (!slice) return;
+		const target = next;
+		await session.setReviewed(slice.hunks, true);
+		goto(target ? `${base}/slices/${target.id}` : base);
+		window.scrollTo(0, 0);
+	}
+
+	function onKey(e: KeyboardEvent) {
+		const el = e.target as HTMLElement;
+		if (e.metaKey || e.ctrlKey || e.altKey || el.closest('input, textarea, select, [contenteditable]')) return;
+		if (e.key === 'r' && !done) {
+			e.preventDefault();
+			markReviewed();
+		}
+	}
 </script>
 
+<svelte:window onkeydown={onKey} />
+
 <div class="page">
-	<nav aria-label="Slices">
-		<span class="label">Slices</span>
-		<ol>
-			{#each slices as s (s.id)}
-				<li>
-					<a href="{base}/slices/{s.id}" class:current={s.id === sliceId} aria-current={s.id === sliceId ? 'page' : undefined}>
-						<span class="mark"><StateMark state={isSliceReviewed(s, session.record.reviewed) ? 'done' : s.id === sliceId ? 'now' : 'todo'} /></span>
-						<span class="title">{s.title}</span>
-					</a>
-				</li>
-			{/each}
-		</ol>
-	</nav>
+	<SliceRail current={sliceId} />
 
 	{#if slice}
 		<main>
 			<div class="top">
 				<span class="label">Slice {index + 1} of {slices.length}</span>
 				<span class="grow"></span>
+				<ViewOptions />
 				{#if index > 0}<a class="btn" href="{base}/slices/{slices[index - 1].id}">← Prev</a>{/if}
 				{#if index < slices.length - 1}<a class="btn" href="{base}/slices/{slices[index + 1].id}">Next →</a>{/if}
 			</div>
 			<h1>{slice.title}</h1>
 			<p class="summary">{slice.summary}</p>
 			<p class="hint faint">Drag down the line numbers to select lines.</p>
-			<div class="files">
-				{#each files as { file, hunks } (file.filename)}
-					<DiffFile
-						{file}
-						hunkIndices={hunks}
-						marks={marks.filter((m) => m.path === file.filename)}
-						note={session.record.fileNotes?.[slice.id]?.find((n) => n.path === file.filename)}
-					/>
-				{/each}
+			{#key slice.id}
+				<FileDiffs keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} />
+			{/key}
+
+			<div class="finish">
+				<span class="faint">{fileCounts.reviewed} of {fileCounts.total} {fileCounts.total === 1 ? 'file' : 'files'} reviewed</span>
+				{#if done}
+					<button class="btn" onclick={() => session.setReviewed(slice.hunks, false)}>Mark not reviewed</button>
+					<button class="btn primary big" onclick={goNext}>{next ? 'Next slice →' : 'Back to the Overview'}</button>
+				{:else}
+					<button class="btn primary big" onclick={markReviewed}>Mark slice reviewed <kbd>R</kbd></button>
+				{/if}
 			</div>
 		</main>
 	{:else}
@@ -73,16 +94,6 @@
 		grid-template-columns: 300px minmax(0, 1fr);
 		min-height: calc(100vh - 64px);
 	}
-	nav {
-		position: sticky;
-		top: 64px;
-		align-self: start;
-		height: calc(100vh - 64px);
-		box-sizing: border-box;
-		padding: 28px 16px;
-		border-right: 1px solid var(--line);
-		overflow-y: auto;
-	}
 	.label {
 		font-size: 11.5px;
 		letter-spacing: 0.09em;
@@ -90,41 +101,8 @@
 		font-weight: 600;
 		color: var(--faint);
 	}
-	nav .label {
-		padding: 0 12px;
-	}
-	nav ol {
-		margin: 12px 0 0;
-		padding: 0;
-		list-style: none;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	nav a {
-		display: flex;
-		gap: 12px;
-		padding: 9px 12px;
-		border-radius: 10px;
-		text-decoration: none;
-		color: var(--muted);
-		font-size: 14px;
-		line-height: 1.4;
-		overflow-wrap: anywhere;
-	}
-	nav a:hover {
-		color: var(--text);
-	}
-	nav a.current {
-		background: var(--surface-2);
-		color: var(--text);
-		font-weight: 500;
-	}
-	.mark {
-		padding-top: 1px;
-	}
 	main {
-		padding: 36px 56px 120px;
+		padding: 36px 56px 40px;
 		max-width: 1180px;
 		box-sizing: border-box;
 	}
@@ -155,11 +133,37 @@
 		line-height: 1.6;
 	}
 	.hint {
-		margin: 0 0 20px;
+		margin: 0 0 12px;
 		font-size: 13px;
 	}
-	.files {
+	.finish {
+		position: sticky;
+		bottom: 0;
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 12px;
+		margin-top: 12px;
+		padding: 16px 0 24px;
+		background: linear-gradient(transparent, var(--bg) 30%);
+		font-size: 13.5px;
+	}
+	.big {
+		height: 42px;
+		padding: 0 18px;
+		border-radius: 12px;
+		font-size: 14.5px;
+	}
+	kbd {
+		display: inline-grid;
+		place-items: center;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 5px;
+		border-radius: 5px;
+		background: #d8d3c7;
+		color: #141413;
+		font-family: var(--mono);
+		font-size: 11.5px;
 	}
 </style>

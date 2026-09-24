@@ -1,4 +1,4 @@
-import { diffWordsWithSpace, parsePatch } from 'diff';
+import { diffArrays, diffWordsWithSpace, parsePatch } from 'diff';
 
 // A file's diff as rows we render ourselves, parsed from the patch GitHub
 // returns. Hunks keep their position in the patch, which is how slices refer
@@ -17,6 +17,10 @@ export interface Row {
 export interface Hunk {
 	index: number;
 	header: string;
+	oldStart: number;
+	oldLines: number;
+	newStart: number;
+	newLines: number;
 	rows: Row[];
 }
 
@@ -37,7 +41,8 @@ export function parseFilePatch(patch: string): Hunk[] {
 			else if (sign === '-') rows.push({ key: `${index}-${oldLine}`, kind: 'del', old: oldLine++, text });
 			else rows.push({ key: `${index} ${oldLine}`, kind: 'context', old: oldLine++, new: newLine++, text });
 		}
-		return { index, header: headers[index] ?? '', rows };
+		const { oldStart, oldLines, newStart, newLines } = hunk;
+		return { index, header: headers[index] ?? '', oldStart, oldLines, newStart, newLines, rows };
 	});
 }
 
@@ -124,4 +129,94 @@ export function layout(hunks: Hunk[], expanded: Set<string>): LayoutItem[] {
 		}
 	}
 	return items;
+}
+
+// Changes that only touch whitespace, shown as the unchanged lines they
+// really are. A removed line and an added one that match once whitespace is
+// ignored become one context line.
+const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+export function hideWhitespace(hunk: Hunk): Hunk {
+	const rows: Row[] = [];
+	const { rows: input } = hunk;
+	for (let i = 0; i < input.length; ) {
+		if (input[i].kind === 'context') {
+			rows.push(input[i++]);
+			continue;
+		}
+		const dels: Row[] = [];
+		while (input[i]?.kind === 'del') dels.push(input[i++]);
+		const adds: Row[] = [];
+		while (input[i]?.kind === 'add') adds.push(input[i++]);
+		const groups = diffArrays(dels, adds, { comparator: (a, b) => normalize(a.text) === normalize(b.text) });
+		let d = 0;
+		let a = 0;
+		for (const group of groups) {
+			const n = group.value.length;
+			if (group.removed) for (let k = 0; k < n; k++) rows.push(dels[d++]);
+			else if (group.added) for (let k = 0; k < n; k++) rows.push(adds[a++]);
+			else
+				for (let k = 0; k < n; k++) {
+					const del = dels[d++];
+					const add = adds[a++];
+					rows.push({ key: `${hunk.index} ${del.old}`, kind: 'context', old: del.old, new: add.new, text: add.text });
+				}
+		}
+	}
+	return { ...hunk, rows };
+}
+
+// Showing unchanged lines around a hunk, GitHub-style. Expanded lines join
+// that hunk's own rows rather than merging hunks, so hunk indices - which
+// slices, review state and notes refer to - never change. Expansion stops at
+// the neighbouring hunk even when it isn't shown (it may belong to another
+// slice), so changed lines are never shown as context.
+
+export const EXPAND_STEP = 20;
+
+export interface Expansion {
+	up: number;
+	down: number;
+}
+
+// First and last old-file lines a hunk covers. One with no old lines
+// ("-12,0") is an insertion after line 12, so these are the lines either side.
+const firstOld = (h: Hunk) => (h.oldLines === 0 ? h.oldStart + 1 : h.oldStart);
+const lastOld = (h: Hunk) => (h.oldLines === 0 ? h.oldStart : h.oldStart + h.oldLines - 1);
+// new line = old line + offset, for unchanged lines above / below a hunk.
+const offsetAbove = (h: Hunk) => (h.newLines === 0 ? h.newStart + 1 : h.newStart) - firstOld(h);
+const offsetBelow = (h: Hunk) => offsetAbove(h) + h.newLines - h.oldLines;
+
+// Unchanged lines between a hunk and the one before it, or the file's start.
+export function gapAbove(all: Hunk[], i: number): number {
+	const previousLast = i > 0 ? lastOld(all[i - 1]) : 0;
+	return Math.max(0, firstOld(all[i]) - previousLast - 1);
+}
+
+// Unchanged lines between a hunk and the one after it, or the file's end.
+export function gapBelow(all: Hunk[], i: number, totalLines: number): number {
+	const nextFirst = i < all.length - 1 ? firstOld(all[i + 1]) : totalLines + 1;
+	return Math.max(0, nextFirst - lastOld(all[i]) - 1);
+}
+
+export function fileLines(source: string): string[] {
+	const lines = source.split('\n');
+	if (lines.at(-1) === '') lines.pop();
+	return lines;
+}
+
+export function expandHunk(h: Hunk, { up, down }: Expansion, lines: string[]): Hunk {
+	if (!up && !down) return h;
+	const context = (old: number, offset: number): Row => ({
+		key: `${h.index}~${old}`,
+		kind: 'context',
+		old,
+		new: old + offset,
+		text: lines[old - 1] ?? ''
+	});
+	const first = firstOld(h);
+	const last = lastOld(h);
+	const above = Array.from({ length: up }, (_, k) => context(first - up + k, offsetAbove(h)));
+	const below = Array.from({ length: down }, (_, k) => context(last + 1 + k, offsetBelow(h)));
+	return { ...h, rows: [...above, ...h.rows, ...below] };
 }
