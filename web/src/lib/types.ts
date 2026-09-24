@@ -207,6 +207,8 @@ export interface ReviewDraft {
 	// Kept feedback left out, with why: usually that someone already said it.
 	dropped: { from: string[]; reason: string }[];
 	summary: string;
+	// The reviewer chose to post without the review's own text.
+	summaryLeftOut?: boolean;
 	event: ReviewEvent;
 	posted?: { at: number; url: string };
 }

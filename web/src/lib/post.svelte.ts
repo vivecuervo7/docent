@@ -106,7 +106,8 @@ export class ReviewPost {
 				}),
 				dropped: prepared.dropped,
 				summary: prepared.body,
-				event: this.draft?.event ?? 'COMMENT'
+				event: this.draft?.event ?? 'COMMENT',
+				summaryLeftOut: this.draft?.summaryLeftOut
 			});
 			this.prepareStatus = {};
 		} catch (err) {
@@ -134,7 +135,7 @@ export class ReviewPost {
 			const anchor = sources.find((i) => i.path);
 			const text = sources.map((i) => i.body).join('\n\n');
 			if (!anchor || !this.isInline(anchor)) {
-				return { ...d, dropped, summary: [d.summary.trim(), text].filter(Boolean).join('\n\n') };
+				return { ...d, dropped, summary: [d.summary.trim(), text].filter(Boolean).join('\n\n'), summaryLeftOut: false };
 			}
 			const comment = { id: crypto.randomUUID(), body: text, included: true, from: sources.map((i) => i.id), path: anchor.path, start: anchor.start, end: anchor.end };
 			return { ...d, dropped, comments: [...d.comments, comment] };
@@ -148,7 +149,7 @@ export class ReviewPost {
 			body: JSON.stringify({
 				dryRun,
 				event: draft.event,
-				summary: draft.summary,
+				summary: draft.summaryLeftOut ? '' : draft.summary,
 				comments: draft.comments.filter((c) => c.included && c.body.trim()).map(({ body, path, start, end }) => ({ body, path, start, end }))
 			})
 		});

@@ -53,6 +53,7 @@
 		if (!parts.length) return 'nothing to post yet';
 		return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
 	}
+	const hasSummary = $derived(!!draft?.summary.trim() && !draft.summaryLeftOut);
 	const keptInline = $derived(inline.filter((c) => c.included).length);
 	const keptInBody = $derived(inBody.filter((c) => c.included).length);
 
@@ -150,9 +151,15 @@
 				<header>
 					<span class="viewer">{post.people?.viewer ?? 'You'}</span>
 					<span class="grow faint">{event.verb}</span>
+					{#if !readOnly && draft.summary.trim()}
+						<button class="link" onclick={() => post.change((d) => ({ ...d, summaryLeftOut: !d.summaryLeftOut }))}>
+							{draft.summaryLeftOut ? 'Include' : 'Leave out'}
+						</button>
+					{/if}
 					{@render editButton('summary')}
 				</header>
 				<div class="card-body">
+					<div class="summary" class:out={draft.summaryLeftOut}>
 					<EditableText
 						bind:editing={editing.summary}
 						value={draft.summary}
@@ -160,6 +167,7 @@
 						placeholder="No review body. Add one to say something about the PR overall."
 						onchange={(summary) => post.change((d) => ({ ...d, summary }))}
 					/>
+					</div>
 					{#each inBody as comment (comment.id)}
 						<div class="in-body" class:out={!comment.included}>
 							<div class="row-head">
@@ -235,7 +243,7 @@
 					<h2>Post this review?</h2>
 					<p class="faint">
 						To {session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if post.people}{' '}as {post.people.viewer}{/if}:
-						{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, !!draft.summary.trim())}.
+						{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, hasSummary)}.
 						It’s visible to everyone on the PR.
 					</p>
 					{#if postError}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
@@ -260,7 +268,7 @@
 					</div>
 					{#if postError}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
 					<div class="actions">
-						<span class="faint grow">{tally(keptInline, keptInBody, !!draft.summary.trim())}</span>
+						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
 						<button class="btn primary big" onclick={review}>Post review</button>
 					</div>
 				{/if}
@@ -367,6 +375,11 @@
 		gap: 6px;
 		padding-top: 12px;
 		border-top: 1px solid var(--line);
+	}
+	.summary {
+		display: flex;
+		flex-direction: column;
+		transition: opacity 0.15s;
 	}
 	.out {
 		opacity: 0.4;
