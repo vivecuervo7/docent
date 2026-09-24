@@ -70,7 +70,7 @@ import { changeKeys, changesBetween, matches, describeLines, diffLines, isUnread
 import { AgentFeedbackView, YourFeedbackView, type AgentReviewState, type DraftStatus } from "./feedbackViews";
 import { PostReviewView, type ReviewCandidate, type ReviewPayload } from "./postReviewView";
 import { Markdown } from "./markdown";
-import { NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
+import { CommentIcon, NoteCount, NotePanel, NotePin, OffscreenUnread } from "./notes";
 import { plainText } from "./plainText";
 
 // The bundled "common" language set covers most backend languages already;
@@ -1852,6 +1852,7 @@ function SidebarNav({
   onSelectAllFiles,
   activeView,
   onSelectView,
+  sliceMarkers,
   yourFeedbackCount,
   agentFeedbackCount,
   busy,
@@ -1869,6 +1870,8 @@ function SidebarNav({
   onSelectAllFiles: () => void;
   activeView: View;
   onSelectView: (view: FeedbackView) => void;
+  // What's on each slice's lines, by slice id.
+  sliceMarkers: Record<string, SliceMarkerCounts>;
   // How many drafted comments are ticked to include.
   yourFeedbackCount: number;
   agentFeedbackCount: number;
@@ -1938,6 +1941,7 @@ function SidebarNav({
                 <button type="button" onClick={() => onSelectSlice(slice.id)} className={sliceLabelClass(current)}>
                   {slice.title}
                 </button>
+                <SliceMarkers markers={sliceMarkers[slice.id]} />
               </li>
             );
           })}
@@ -1995,6 +1999,40 @@ function SidebarNav({
         </button>
       </div>
     </nav>
+  );
+}
+
+interface SliceMarkerCounts {
+  threads: number;
+  unread: boolean;
+  findings: number;
+}
+
+// What's waiting in a slice, beside its title: the reviewer's threads (with
+// the unread dot when a reply is new) and the agent's findings.
+function SliceMarkers({ markers }: { markers?: SliceMarkerCounts }) {
+  if (!markers || (markers.threads === 0 && markers.findings === 0)) return null;
+  return (
+    <span className="mt-0.5 flex shrink-0 items-center gap-2 text-[11px] tabular-nums">
+      {markers.threads > 0 && (
+        <span
+          title={`${markers.threads} ${markers.threads === 1 ? "thread" : "threads"}${markers.unread ? ", with an unread reply" : ""}`}
+          className="flex items-center gap-1 text-reviewed"
+        >
+          <CommentIcon className="size-3" unread={markers.unread} ring="ring-sidebar" />
+          {markers.threads}
+        </span>
+      )}
+      {markers.findings > 0 && (
+        <span
+          title={`${markers.findings} agent ${markers.findings === 1 ? "finding" : "findings"}`}
+          className="flex items-center gap-1 text-muted-foreground"
+        >
+          <Bot className="size-3" />
+          {markers.findings}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -3347,6 +3385,46 @@ function App() {
     return merged;
   }, [storedReviewed, autoReviewedKeys]);
 
+  // For each slice: the reviewer's threads and the agent's findings on its
+  // lines. A finding belongs to the slice whose hunk its first line is in; one
+  // about a whole file, to every slice with that file; one about the whole
+  // PR, to none.
+  const sliceMarkers = useMemo(() => {
+    const hunksByFile = new Map<string, HunkData[]>();
+    const hunksOf = (path: string) => {
+      if (!hunksByFile.has(path)) {
+        const file = files?.find((f) => f.filename === path);
+        let hunks: HunkData[] = [];
+        try {
+          hunks = file?.patch ? (parseDiff(buildDiffText(file))[0]?.hunks ?? []) : [];
+        } catch {
+          hunks = [];
+        }
+        hunksByFile.set(path, hunks);
+      }
+      return hunksByFile.get(path)!;
+    };
+    const findingRefs = (feedback.agent?.items ?? []).map((item) => {
+      if (!item.path) return [];
+      const hunks = hunksOf(item.path);
+      if (!item.start) return hunks.map((_, i) => `${item.path}#${i}`);
+      const start = item.start;
+      const at = hunks.findIndex((h) => h.changes.some((c) => matches(c, start)));
+      return at >= 0 ? [`${item.path}#${at}`] : [];
+    });
+    const markers: Record<string, SliceMarkerCounts> = {};
+    for (const slice of allSlices) {
+      const refs = new Set(slice.hunks);
+      const threads = notes.filter((n) => refs.has(`${n.path}#${n.hunk}`));
+      markers[slice.id] = {
+        threads: threads.length,
+        unread: threads.some(isUnread),
+        findings: findingRefs.filter((r) => r.some((ref) => refs.has(ref))).length,
+      };
+    }
+    return markers;
+  }, [allSlices, notes, feedback.agent, files]);
+
   const activeSliceIndex = activeSliceId ? allSlices.findIndex((i) => i.id === activeSliceId) : -1;
   const activeSlice = activeSliceIndex >= 0 ? allSlices[activeSliceIndex] : null;
 
@@ -4196,6 +4274,7 @@ function App() {
             onSelectAllFiles={() => setView("files")}
             activeView={view}
             onSelectView={setView}
+            sliceMarkers={sliceMarkers}
             yourFeedbackCount={feedback.yours?.items.filter((i) => i.included).length ?? 0}
             agentFeedbackCount={feedback.agent?.items.filter((i) => i.included).length ?? 0}
             busy={{
