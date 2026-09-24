@@ -1,7 +1,7 @@
 import { matchPath, useLocation, useNavigate } from "react-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type UIEvent } from "react";
 import { diffArrays } from "diff";
-import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Bot, Files, FlaskConical, Folder, Info, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, Send, SlidersHorizontal, Trash2, User, Wrench, type LucideIcon } from "lucide-react";
+import { BookOpen, Check, CircleAlert, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Bot, Files, FlaskConical, Folder, Info, Lightbulb, Image as ImageIcon, ListChecks, Loader2, LogOut, MessagesSquare, Package, Plus, Send, SlidersHorizontal, Trash2, User, Wrench, X, type LucideIcon } from "lucide-react";
 import {
   Decoration,
   Diff,
@@ -25,6 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
+  addAgentReviewer,
   appendNoteMessage,
   deleteNote as persistDeleteNote,
   markNoteRead as persistNoteRead,
@@ -32,6 +33,8 @@ import {
   getPrRecord,
   listSavedPrs,
   markPrOpened,
+  removeAgentReviewer,
+  saveAgentRanWith,
   saveFeedback as persistFeedback,
   saveNote as persistNote,
   saveReviewDraft as persistReviewDraft,
@@ -40,6 +43,9 @@ import {
   saveSlices as persistSlices,
   saveSummary as persistSummary,
   setHunksReviewed as persistReviewedHunks,
+  FIRST_AGENT,
+  type AgentId,
+  type AgentReviewer,
   type ConversationSummary,
   type FeedbackDraft,
   type FeedbackItem,
@@ -1924,7 +1930,11 @@ function SidebarNav({
   onSelectView,
   sliceMarkers,
   yourFeedbackCount,
-  agentFeedbackCount,
+  agents,
+  activeAgentId,
+  onSelectAgent,
+  onAddAgent,
+  onRemoveAgent,
   busy,
   reviewState,
 }: {
@@ -1944,8 +1954,13 @@ function SidebarNav({
   sliceMarkers: Record<string, SliceMarkerCounts>;
   // How many drafted comments are ticked to include.
   yourFeedbackCount: number;
-  agentFeedbackCount: number;
-  // Feedback steps with work in progress: drafting, reviewing, preparing.
+  // The agent reviewers, each with its ticked count and whether it's reviewing.
+  agents: { reviewer: AgentReviewer; label: string; count: number; busy: boolean }[];
+  activeAgentId: AgentId;
+  onSelectAgent: (id: AgentId) => void;
+  onAddAgent: () => void;
+  onRemoveAgent: (reviewer: AgentReviewer) => void;
+  // Feedback steps with work in progress: drafting, preparing.
   busy: Partial<Record<FeedbackView, boolean>>;
   reviewState: "none" | "ready" | "posted";
 }) {
@@ -2022,28 +2037,60 @@ function SidebarNav({
         <div className={rowClass(false)}>
           <MessagesSquare className={topLevelIcon} />
           <span className="min-w-0 flex-1 text-[15px] font-medium text-foreground/80">Feedback</span>
+          <button
+            type="button"
+            onClick={onAddAgent}
+            aria-label="Add an agent reviewer"
+            title="Add an agent reviewer"
+            className="-my-0.5 grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Plus className="size-4" />
+          </button>
         </div>
         <ol className="flex flex-col gap-0.5 pl-3">
-          {(
-            [
-              { id: "your-feedback", label: "Your feedback", Icon: User, count: yourFeedbackCount },
-              { id: "agent-feedback", label: "Agent feedback", Icon: Bot, count: agentFeedbackCount },
-              { id: "post-review", label: "Post review", Icon: Send, count: 0 },
-            ] as const
-          ).map(({ id, label, Icon, count }) => (
-            <li key={id} className={rowClass(activeView === id)}>
+          {[
+            {
+              key: "your-feedback",
+              label: "Your feedback",
+              Icon: User,
+              count: yourFeedbackCount,
+              busy: !!busy["your-feedback"],
+              active: activeView === "your-feedback",
+              onSelect: () => onSelectView("your-feedback"),
+            },
+            ...agents.map(({ reviewer, label, count, busy: reviewing }) => ({
+              key: reviewer.id,
+              label,
+              Icon: Bot,
+              count,
+              busy: reviewing,
+              active: activeView === "agent-feedback" && activeAgentId === reviewer.id,
+              onSelect: () => onSelectAgent(reviewer.id),
+              onRemove: reviewer.id === FIRST_AGENT ? undefined : () => onRemoveAgent(reviewer),
+            })),
+            {
+              key: "post-review",
+              label: "Post review",
+              Icon: Send,
+              count: 0,
+              busy: !!busy["post-review"],
+              active: activeView === "post-review",
+              onSelect: () => onSelectView("post-review"),
+            },
+          ].map(({ key, label, Icon, count, busy: working, active, onSelect, ...row }) => (
+            <li key={key} className={cn(rowClass(active), "group/row")}>
               <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <button type="button" onClick={() => onSelectView(id)} className={sliceLabelClass(activeView === id)}>
+              <button type="button" onClick={onSelect} className={sliceLabelClass(active)}>
                 {label}
               </button>
-              {busy[id] ? (
+              {working ? (
                 <Loader2 aria-label="Working" className="mt-0.5 size-3.5 shrink-0 animate-spin text-muted-foreground" />
-              ) : id === "post-review" && reviewState === "posted" ? (
+              ) : key === "post-review" && reviewState === "posted" ? (
                 <span title="This review has been posted" className="mt-0.5 flex items-center gap-1 text-xs text-reviewed">
                   <Check className="size-3.5" />
                   Posted
                 </span>
-              ) : id === "post-review" && reviewState === "ready" ? (
+              ) : key === "post-review" && reviewState === "ready" ? (
                 <span title="Prepared and ready to post" className="mt-0.5 text-xs text-muted-foreground">
                   Ready
                 </span>
@@ -2056,6 +2103,17 @@ function SidebarNav({
                     {count}
                   </span>
                 )
+              )}
+              {"onRemove" in row && row.onRemove && (
+                <button
+                  type="button"
+                  onClick={row.onRemove}
+                  aria-label={`Remove ${label}`}
+                  title="Remove this agent reviewer"
+                  className="-my-0.5 grid size-6 shrink-0 place-items-center rounded text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100"
+                >
+                  <X className="size-3.5" />
+                </button>
               )}
             </li>
           ))}
@@ -2338,7 +2396,7 @@ function StartPage({
     // A generation can exist for a PR with no saved row yet.
     for (const { owner, repo, number } of listed) {
       if (!list.some((s) => s.owner === owner && s.repo === repo && s.number === number)) {
-        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null, fileNotes: null, notes: [], feedback: {} } });
+        list.push({ owner, repo, number, record: { reviewed: {}, slices: null, summary: null, conversation: null, fileNotes: null, notes: [], feedback: {}, agentReviewers: [{ id: FIRST_AGENT }] } });
       }
     }
     setSaved(list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0)));
@@ -3322,23 +3380,43 @@ interface Route {
   prRef: PrRef | null;
   view: View;
   sliceId: string | null;
+  // Which agent reviewer's page, for agent-feedback: /feedback/agent is the
+  // first, /feedback/agent/agent-2 the next.
+  agentId: AgentId;
+}
+
+// What an agent reviewer is called: after what it last ran with, else its
+// number.
+function agentLabel(reviewer: AgentReviewer): string {
+  if (reviewer.ranWith === "external") return "Agent · your agent";
+  if (reviewer.ranWith) {
+    const model = reviewer.ranWith.replace(/^claude-code:/, "");
+    return `Agent · ${model.slice(model.lastIndexOf("/") + 1)}`;
+  }
+  return reviewer.id === FIRST_AGENT ? "Agent feedback" : `Agent feedback ${reviewer.id.slice("agent-".length)}`;
 }
 
 function parseRoute(pathname: string): Route {
   const pr = matchPath({ path: "/pr/:owner/:repo/:number/*" }, pathname);
-  if (!pr?.params.owner || !pr.params.repo || !pr.params.number) return { prRef: null, view: "landing", sliceId: null };
+  if (!pr?.params.owner || !pr.params.repo || !pr.params.number) {
+    return { prRef: null, view: "landing", sliceId: null, agentId: FIRST_AGENT };
+  }
   const prRef = { owner: pr.params.owner, repo: pr.params.repo, number: pr.params.number };
   const rest = pr.params["*"] ?? "";
   const slice = rest.match(/^slices\/([^/]+)$/);
-  if (slice) return { prRef, view: "slice", sliceId: decodeURIComponent(slice[1]) };
+  if (slice) return { prRef, view: "slice", sliceId: decodeURIComponent(slice[1]), agentId: FIRST_AGENT };
+  const agent = rest.match(/^feedback\/agent\/(agent-\d+)$/);
+  if (agent) return { prRef, view: "agent-feedback", sliceId: null, agentId: agent[1] as AgentId };
   const view = (Object.keys(VIEW_PATHS) as (keyof typeof VIEW_PATHS)[]).find((v) => VIEW_PATHS[v] === rest);
-  return { prRef, view: view ?? "landing", sliceId: null };
+  return { prRef, view: view ?? "landing", sliceId: null, agentId: FIRST_AGENT };
 }
 
-function pathFor(ref: PrRef, view: View, sliceId?: string): string {
+// `id` is the slice for a slice, and the agent reviewer for agent-feedback.
+function pathFor(ref: PrRef, view: View, id?: string): string {
   const base = `/pr/${ref.owner}/${ref.repo}/${ref.number}`;
-  if (view === "slice" && sliceId) return `${base}/slices/${encodeURIComponent(sliceId)}`;
+  if (view === "slice" && id) return `${base}/slices/${encodeURIComponent(id)}`;
   if (view === "landing" || view === "slice") return base;
+  if (view === "agent-feedback" && id && id !== FIRST_AGENT) return `${base}/${VIEW_PATHS[view]}/${id}`;
   return `${base}/${VIEW_PATHS[view]}`;
 }
 
@@ -3359,8 +3437,11 @@ function App() {
   const [revealedFile, setRevealedFile] = useState<RevealedFile | null>(null);
   const [feedback, setFeedback] = useState<Partial<Record<FeedbackKind, FeedbackDraft>>>({});
   const [draftStatus, setDraftStatus] = useState<Partial<Record<FeedbackKind, DraftStatus>>>({});
-  const [agentReview, setAgentReview] = useState<AgentReviewState | null>(null);
-  const [agentError, setAgentError] = useState<string | undefined>(undefined);
+  const [agentReviewers, setAgentReviewers] = useState<AgentReviewer[]>([{ id: FIRST_AGENT }]);
+  // Each agent reviewer's review while it runs or just after, and any error
+  // starting one.
+  const [agentReviews, setAgentReviews] = useState<Partial<Record<AgentId, AgentReviewState>>>({});
+  const [agentErrors, setAgentErrors] = useState<Partial<Record<AgentId, string>>>({});
   const [reviewDraft, setReviewDraft] = useState<ReviewDraft | undefined>(undefined);
   const [prepareStatus, setPrepareStatus] = useState<DraftStatus>({});
   const [reviewer, setReviewer] = useState<{ viewer: string; author: string } | null>(null);
@@ -3380,8 +3461,8 @@ function App() {
   const view = route.view;
   const activeSliceId = route.sliceId;
 
-  function setView(next: View) {
-    if (prRef) navigate(pathFor(prRef, next));
+  function setView(next: View, id?: string) {
+    if (prRef) navigate(pathFor(prRef, next, id));
   }
 
   function openSlice(id: string | null | undefined) {
@@ -3462,6 +3543,12 @@ function App() {
     return merged;
   }, [storedReviewed, autoReviewedKeys]);
 
+  // Every agent reviewer's findings together, for pins, markers and counts.
+  const agentItems = useMemo(
+    () => agentReviewers.flatMap((r) => feedback[r.id]?.items ?? []),
+    [agentReviewers, feedback],
+  );
+
   // For each slice: the reviewer's threads and the agent's findings on its
   // lines. A finding belongs to the slice whose hunk its first line is in; one
   // about a whole file, to every slice with that file; one about the whole
@@ -3481,7 +3568,7 @@ function App() {
       }
       return hunksByFile.get(path)!;
     };
-    const findingRefs = (feedback.agent?.items ?? []).map((item) => {
+    const findingRefs = agentItems.map((item) => {
       if (!item.path) return [];
       const hunks = hunksOf(item.path);
       if (!item.start) return hunks.map((_, i) => `${item.path}#${i}`);
@@ -3500,10 +3587,12 @@ function App() {
       };
     }
     return markers;
-  }, [allSlices, notes, feedback.agent, files]);
+  }, [allSlices, notes, agentItems, files]);
 
   const activeSliceIndex = activeSliceId ? allSlices.findIndex((i) => i.id === activeSliceId) : -1;
   const activeSlice = activeSliceIndex >= 0 ? allSlices[activeSliceIndex] : null;
+  // An address naming a removed reviewer shows the first one.
+  const activeAgent = agentReviewers.find((r) => r.id === route.agentId) ?? agentReviewers[0];
 
   const generationUrl = (ref: PrRef) => generationUrlFor(ref.owner, ref.repo, ref.number);
 
@@ -3634,9 +3723,10 @@ function App() {
     setNoteStatus({});
     setFeedback({});
     setDraftStatus({});
-    setAgentReview(null);
-    setAgentError(undefined);
-    agentCollected.current = null;
+    setAgentReviewers([{ id: FIRST_AGENT }]);
+    setAgentReviews({});
+    setAgentErrors({});
+    agentCollected.current = {};
     setReviewDraft(undefined);
     setPrepareStatus({});
     setReviewer(null);
@@ -3665,11 +3755,14 @@ function App() {
       setFileNotes(prRecord.fileNotes);
       setNotes(prRecord.notes);
       setFeedback(prRecord.feedback);
+      setAgentReviewers(prRecord.agentReviewers);
       setReviewDraft(prRecord.review);
-      fetch(agentReviewUrl(ref))
-        .then((res) => readOk<{ review: AgentReviewBody | null }>(res))
-        .then(({ review }) => review && collectAgentReview(ref, review))
-        .catch(() => {});
+      for (const { id } of prRecord.agentReviewers) {
+        fetch(agentReviewUrl(ref, id))
+          .then((res) => readOk<{ review: AgentReviewBody | null }>(res))
+          .then(({ review }) => review && collectAgentReview(ref, id, review))
+          .catch(() => {});
+      }
       markPrOpened(ref.owner, ref.repo, ref.number, meta?.title).catch(() => {});
 
       const existing = generationRes.generation;
@@ -3729,9 +3822,10 @@ function App() {
     setNoteStatus({});
     setFeedback({});
     setDraftStatus({});
-    setAgentReview(null);
-    setAgentError(undefined);
-    agentCollected.current = null;
+    setAgentReviewers([{ id: FIRST_AGENT }]);
+    setAgentReviews({});
+    setAgentErrors({});
+    agentCollected.current = {};
     setReviewDraft(undefined);
     setPrepareStatus({});
     setReviewer(null);
@@ -3977,27 +4071,35 @@ function App() {
     }
   }
 
-  const agentReviewUrl = (ref: PrRef) => `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/agent-review`;
-  // The findings already copied into the agent draft, by review.
-  const agentCollected = useRef<{ id: string; count: number } | null>(null);
+  const agentReviewUrl = (ref: PrRef, id: AgentId, action?: string) =>
+    `/api/pr/${ref.owner}/${ref.repo}/${ref.number}/agent-review${action ? `/${action}` : ""}?reviewer=${id}`;
+  // The findings already copied into each reviewer's draft, by review.
+  const agentCollected = useRef<Partial<Record<AgentId, { id: string; count: number }>>>({});
+  // Reviewers removed while a check-in was in flight, whose findings mustn't
+  // come back.
+  const removedAgents = useRef(new Set<AgentId>());
 
-  // Copies an agent review's findings into the agent draft as they arrive,
-  // keeping any the reviewer has already unticked, and lets the backend
-  // forget the review once it's over.
-  function collectAgentReview(ref: PrRef, review: AgentReviewBody) {
-    setAgentReview({
-      source: review.source,
-      status: review.status,
-      progress: review.progress,
-      findingCount: review.findings.length,
-      error: review.error,
-    });
-    const seen = agentCollected.current;
+  // Copies an agent review's findings into its reviewer's draft as they
+  // arrive, keeping any the reviewer has already unticked, and lets the
+  // backend forget the review once it's over.
+  function collectAgentReview(ref: PrRef, id: AgentId, review: AgentReviewBody) {
+    if (removedAgents.current.has(id)) return;
+    setAgentReviews((prev) => ({
+      ...prev,
+      [id]: {
+        source: review.source,
+        status: review.status,
+        progress: review.progress,
+        findingCount: review.findings.length,
+        error: review.error,
+      },
+    }));
+    const seen = agentCollected.current[id];
     const fresh = seen?.id !== review.id || seen.count !== review.findings.length;
     if (fresh) {
-      agentCollected.current = { id: review.id, count: review.findings.length };
+      agentCollected.current[id] = { id: review.id, count: review.findings.length };
       setFeedback((prev) => {
-        const included = new Map((prev.agent?.items ?? []).map((i) => [i.id, i.included]));
+        const included = new Map((prev[id]?.items ?? []).map((i) => [i.id, i.included]));
         const draft: FeedbackDraft = {
           items: review.findings.map((f) => ({
             id: f.id,
@@ -4014,61 +4116,121 @@ function App() {
           })),
           draftedAt: Date.now(),
         };
-        persistFeedback(ref.owner, ref.repo, ref.number, "agent", draft).catch(() => {});
-        return { ...prev, agent: draft };
+        persistFeedback(ref.owner, ref.repo, ref.number, id, draft).catch(() => {});
+        return { ...prev, [id]: draft };
       });
     }
-    if (review.status !== "running") fetch(agentReviewUrl(ref), { method: "DELETE" }).catch(() => {});
+    if (review.status !== "running") fetch(agentReviewUrl(ref, id), { method: "DELETE" }).catch(() => {});
   }
 
-  async function startAgentReview(mode: "builtin" | "external") {
+  async function startAgentReview(id: AgentId, mode: "builtin" | "external", model?: string) {
     if (!prRef) return;
     const ref = prRef;
-    setAgentError(undefined);
+    setAgentErrors((prev) => ({ ...prev, [id]: undefined }));
     try {
-      const res = await fetch(agentReviewUrl(ref), {
+      const res = await fetch(agentReviewUrl(ref, id), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, context: { title: prMeta?.title, summary, slices: allSlices } }),
+        body: JSON.stringify({ mode, model, context: { title: prMeta?.title, summary, slices: allSlices } }),
       });
       const { review } = await readOk<{ review: AgentReviewBody }>(res);
-      agentCollected.current = null;
-      collectAgentReview(ref, review);
+      delete agentCollected.current[id];
+      collectAgentReview(ref, id, review);
+      const ranWith = mode === "external" ? "external" : model;
+      if (ranWith) {
+        setAgentReviewers((prev) => prev.map((r) => (r.id === id ? { ...r, ranWith } : r)));
+        saveAgentRanWith(ref.owner, ref.repo, ref.number, id, ranWith).catch(() => {});
+      }
     } catch (err) {
-      setAgentError((err as Error).message);
+      setAgentErrors((prev) => ({ ...prev, [id]: (err as Error).message }));
     }
   }
 
-  async function endAgentReview(action: "stop" | "finish") {
+  async function endAgentReview(id: AgentId, action: "stop" | "finish") {
     if (!prRef) return;
     try {
-      const res = await fetch(`${agentReviewUrl(prRef)}/${action}`, { method: "POST" });
+      const res = await fetch(agentReviewUrl(prRef, id, action), { method: "POST" });
       const { review } = await readOk<{ review: AgentReviewBody | null }>(res);
-      if (review) collectAgentReview(prRef, review);
+      if (review) collectAgentReview(prRef, id, review);
     } catch {
       // The next check-in shows whatever state it's really in.
     }
   }
 
-  const agentRunning = agentReview?.status === "running";
+  async function addAgent() {
+    if (!prRef) return;
+    const ref = prRef;
+    try {
+      const saved = await addAgentReviewer(ref.owner, ref.repo, ref.number);
+      setAgentReviewers(saved);
+      navigate(pathFor(ref, "agent-feedback", saved[saved.length - 1].id));
+    } catch {
+      // Nothing was added; the + can be pressed again.
+    }
+  }
+
+  // Removes an agent reviewer, stopping its review if it's running. Its
+  // findings go with it, so that's confirmed first.
+  async function removeAgent(reviewer: AgentReviewer) {
+    const { id } = reviewer;
+    if (!prRef || id === FIRST_AGENT) return;
+    const count = feedback[id]?.items.length ?? 0;
+    if (
+      count > 0 &&
+      !window.confirm(`Remove ${agentLabel(reviewer)}? Its ${count} ${count === 1 ? "finding" : "findings"} will be discarded.`)
+    ) {
+      return;
+    }
+    const ref = prRef;
+    removedAgents.current.add(id);
+    fetch(`${agentReviewUrl(ref, id)}&force=1`, { method: "DELETE" }).catch(() => {});
+    setAgentReviewers((prev) => prev.filter((r) => r.id !== id));
+    setFeedback((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setAgentReviews((prev) => ({ ...prev, [id]: undefined }));
+    if (view === "agent-feedback" && route.agentId === id) setView("agent-feedback", FIRST_AGENT);
+    await removeAgentReviewer(ref.owner, ref.repo, ref.number, id).catch(() => {});
+  }
+
+  // Checks in on every running review; the ids key it so it restarts as
+  // reviews start and end.
+  const runningAgents = agentReviewers
+    .filter((r) => agentReviews[r.id]?.status === "running")
+    .map((r) => r.id)
+    .join(",");
   useEffect(() => {
-    if (!prRef || !agentRunning) return;
+    if (!prRef || !runningAgents) return;
+    const ids = runningAgents.split(",") as AgentId[];
     let cancelled = false;
-    const timer = setInterval(async () => {
-      try {
-        const { review } = await readOk<{ review: AgentReviewBody | null }>(await fetch(agentReviewUrl(prRef)));
-        if (cancelled) return;
-        if (review) collectAgentReview(prRef, review);
-        else setAgentReview((prev) => prev && { ...prev, status: "failed", error: "The backend restarted, so this review was lost." });
-      } catch {
-        // A missed check-in is fine; the next one catches up.
+    const timer = setInterval(() => {
+      for (const id of ids) {
+        fetch(agentReviewUrl(prRef, id))
+          .then((res) => readOk<{ review: AgentReviewBody | null }>(res))
+          .then(({ review }) => {
+            if (cancelled) return;
+            if (review) collectAgentReview(prRef, id, review);
+            else {
+              setAgentReviews((prev) => {
+                const lost = prev[id];
+                return lost
+                  ? { ...prev, [id]: { ...lost, status: "failed", error: "The backend restarted, so this review was lost." } }
+                  : prev;
+              });
+            }
+          })
+          .catch(() => {
+            // A missed check-in is fine; the next one catches up.
+          });
       }
     }, 2000);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [prRef, agentRunning]);
+  }, [prRef, runningAgents]);
 
   function renderFeedbackContext(item: Pick<FeedbackItem, "path" | "start" | "end">) {
     const file = item.path ? files?.find((f) => f.filename === item.path) : undefined;
@@ -4080,10 +4242,10 @@ function App() {
   // Everything ticked in the two Feedback steps: what a review is made from.
   const reviewCandidates = useMemo(
     (): ReviewCandidate[] =>
-      (["yours", "agent"] as const).flatMap((source) =>
+      (["yours", ...agentReviewers.map((r) => r.id)] as FeedbackKind[]).flatMap((source) =>
         (feedback[source]?.items ?? []).filter((item) => item.included).map((item) => ({ item, source })),
       ),
-    [feedback],
+    [feedback, agentReviewers],
   );
 
   function saveReview(next: ReviewDraft | undefined) {
@@ -4104,7 +4266,7 @@ function App() {
         body: JSON.stringify({
           candidates: candidates.map(({ item, source }) => ({
             id: item.id,
-            source,
+            source: source === "yours" ? "yours" : "agent",
             location: item.path
               ? `${item.path}${item.start && item.end ? ` ${describeLines(item.start, item.end)}` : ""}`
               : "the PR as a whole",
@@ -4258,6 +4420,12 @@ function App() {
     persistFeedback(prRef.owner, prRef.repo, prRef.number, kind, next).catch(() => {});
   }
 
+  // A finding pinned in the diffs, from whichever agent reviewer raised it.
+  function toggleFinding(itemId: string) {
+    const from = agentReviewers.find((r) => feedback[r.id]?.items.some((i) => i.id === itemId));
+    if (from) toggleFeedbackItem(from.id, itemId);
+  }
+
   function openUnreadIn(filename: string) {
     const sliceKeys = fileListMode === "slice" ? sliceHunkKeysByFile.get(filename) : undefined;
     const first = notes
@@ -4286,7 +4454,7 @@ function App() {
     const fileNotes = notes.filter(
       (n) => n.path === filename && (!sliceKeys || sliceKeys.includes(`${n.path}#${n.hunk}`)),
     );
-    const findings = (feedback.agent?.items ?? []).filter((f) => {
+    const findings = agentItems.filter((f) => {
       if (f.path !== filename) return false;
       // In a slice, only findings on the lines it shows, or on the whole file.
       if (!sliceKeys || !f.start) return true;
@@ -4370,10 +4538,18 @@ function App() {
             onSelectView={setView}
             sliceMarkers={sliceMarkers}
             yourFeedbackCount={feedback.yours?.items.filter((i) => i.included).length ?? 0}
-            agentFeedbackCount={feedback.agent?.items.filter((i) => i.included).length ?? 0}
+            agents={agentReviewers.map((r) => ({
+              reviewer: r,
+              label: agentLabel(r),
+              count: feedback[r.id]?.items.filter((i) => i.included).length ?? 0,
+              busy: agentReviews[r.id]?.status === "running",
+            }))}
+            activeAgentId={route.agentId}
+            onSelectAgent={(id) => setView("agent-feedback", id)}
+            onAddAgent={addAgent}
+            onRemoveAgent={removeAgent}
             busy={{
               "your-feedback": !!draftStatus.yours?.pending,
-              "agent-feedback": agentReview?.status === "running",
               "post-review": !!prepareStatus.pending,
             }}
             reviewState={reviewDraft?.posted ? "posted" : reviewDraft ? "ready" : "none"}
@@ -4451,8 +4627,8 @@ function App() {
             onRevealNote={(note) => revealFile(note.path, note.id)}
             fileNotes={fileNotes?.[activeSlice.id] ?? NO_FILE_NOTES}
             autoReviewedKeys={autoReviewedKeys}
-            findings={feedback.agent?.items ?? NO_FINDINGS}
-            onToggleFinding={(id) => toggleFeedbackItem("agent", id)}
+            findings={agentItems}
+            onToggleFinding={toggleFinding}
           />
         ) : view === "landing" && preparing ? (
           <PreparingView
@@ -4475,15 +4651,18 @@ function App() {
           />
         ) : view === "agent-feedback" ? (
           <AgentFeedbackView
+            key={activeAgent.id}
             pr={`${prRef.owner}/${prRef.repo}#${prRef.number}`}
-            draft={feedback.agent}
-            review={agentReview}
-            error={agentError}
-            onRunBuiltin={() => startAgentReview("builtin")}
-            onUseOwnAgent={() => startAgentReview("external")}
-            onStop={() => endAgentReview("stop")}
-            onFinish={() => endAgentReview("finish")}
-            onToggle={(id) => toggleFeedbackItem("agent", id)}
+            reviewer={activeAgent}
+            title={agentLabel(activeAgent)}
+            draft={feedback[activeAgent.id]}
+            review={agentReviews[activeAgent.id] ?? null}
+            error={agentErrors[activeAgent.id]}
+            onRunBuiltin={(model) => startAgentReview(activeAgent.id, "builtin", model)}
+            onUseOwnAgent={() => startAgentReview(activeAgent.id, "external")}
+            onStop={() => endAgentReview(activeAgent.id, "stop")}
+            onFinish={() => endAgentReview(activeAgent.id, "finish")}
+            onToggle={(id) => toggleFeedbackItem(activeAgent.id, id)}
             onOpen={(item) => item.path && revealFile(item.path)}
             renderContext={renderFeedbackContext}
           />
@@ -4518,8 +4697,8 @@ function App() {
             noteControls={noteControls}
             revealedFile={revealedFile}
             onRevealNote={(note) => revealFile(note.path, note.id)}
-            findings={feedback.agent?.items ?? NO_FINDINGS}
-            onToggleFinding={(id) => toggleFeedbackItem("agent", id)}
+            findings={agentItems}
+            onToggleFinding={toggleFinding}
           />
         ) : (
           <LandingView

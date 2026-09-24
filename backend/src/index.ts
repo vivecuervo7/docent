@@ -17,6 +17,8 @@ import {
 } from "./generation.js";
 import { localhostHostValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
 import {
+  DEFAULT_REVIEWER,
+  REVIEWER_RE,
   dismissAgentReview,
   finishAgentReview,
   getAgentReview,
@@ -202,13 +204,27 @@ app.post("/api/pr/:owner/:repo/:number/feedback/yours", async (req, res) => {
   }
 });
 
+// Which of the PR's reviewer entries a request is about: `?reviewer=agent-2`,
+// or the first one.
+function reviewerParam(req: express.Request): string | null {
+  const reviewer = req.query.reviewer ?? DEFAULT_REVIEWER;
+  return typeof reviewer === "string" && REVIEWER_RE.test(reviewer) ? reviewer : null;
+}
+
 // The agent review: Docent's own reviewer ("builtin"), or waiting for the
 // reviewer's own agent to submit findings over MCP ("external").
 app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   const { owner, repo, number } = req.params;
   const mode = req.body?.mode;
-  if (!validParams(owner, repo, number) || (mode !== "builtin" && mode !== "external")) {
-    return res.status(400).json({ error: "invalid PR or mode" });
+  const reviewer = reviewerParam(req);
+  const model = req.body?.model;
+  if (
+    !validParams(owner, repo, number) ||
+    !reviewer ||
+    (mode !== "builtin" && mode !== "external") ||
+    (model !== undefined && (typeof model !== "string" || !model || model.length > 200))
+  ) {
+    return res.status(400).json({ error: "invalid PR, reviewer, mode or model" });
   }
   const context: ReviewContext = {
     title: typeof req.body?.context?.title === "string" ? req.body.context.title : undefined,
@@ -217,35 +233,41 @@ app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   };
   const review =
     mode === "builtin"
-      ? startBuiltinReview(owner, repo, number, context)
-      : openExternalReview(owner, repo, number, context);
+      ? startBuiltinReview(owner, repo, number, context, reviewer, model)
+      : openExternalReview(owner, repo, number, context, reviewer);
   res.json({ review });
 });
 
 app.get("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   const { owner, repo, number } = req.params;
-  if (!validParams(owner, repo, number)) {
-    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  const reviewer = reviewerParam(req);
+  if (!validParams(owner, repo, number) || !reviewer) {
+    return res.status(400).json({ error: "invalid PR or reviewer" });
   }
-  res.json({ review: getAgentReview(owner, repo, number) });
+  res.json({ review: getAgentReview(owner, repo, number, reviewer) });
 });
 
 app.post("/api/pr/:owner/:repo/:number/agent-review/:action", (req, res) => {
   const { owner, repo, number, action } = req.params;
-  if (!validParams(owner, repo, number) || (action !== "stop" && action !== "finish")) {
-    return res.status(400).json({ error: "invalid PR or action" });
+  const reviewer = reviewerParam(req);
+  if (!validParams(owner, repo, number) || !reviewer || (action !== "stop" && action !== "finish")) {
+    return res.status(400).json({ error: "invalid PR, reviewer or action" });
   }
   const review =
-    action === "stop" ? stopAgentReview(owner, repo, number) : finishAgentReview(owner, repo, number);
+    action === "stop"
+      ? stopAgentReview(owner, repo, number, reviewer)
+      : finishAgentReview(owner, repo, number, reviewer);
   res.json({ review });
 });
 
 app.delete("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   const { owner, repo, number } = req.params;
-  if (!validParams(owner, repo, number)) {
-    return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  const reviewer = reviewerParam(req);
+  if (!validParams(owner, repo, number) || !reviewer) {
+    return res.status(400).json({ error: "invalid PR or reviewer" });
   }
-  dismissAgentReview(owner, repo, number);
+  // `?force=1` when the reviewer entry itself is removed, stopping it if running.
+  dismissAgentReview(owner, repo, number, reviewer, req.query.force === "1");
   res.status(204).end();
 });
 

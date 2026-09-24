@@ -274,8 +274,9 @@ export function PostReviewView({
 
   const yours = candidates.filter((c) => c.source === "yours").length;
   const agent = candidates.length - yours;
+  const agents = new Set(candidates.filter((c) => c.source !== "yours").map((c) => c.source)).size;
   const byId = new Map(candidates.map((c) => [c.item.id, c]));
-  const tally = `${yours} of your ${yours === 1 ? "comment" : "comments"} and ${agent} from the agent`;
+  const tally = `${yours} of your ${yours === 1 ? "comment" : "comments"} and ${agent} from ${agents > 1 ? `${agents} agents` : "the agent"}`;
 
   // The heading spans the page like the other Feedback steps; the review
   // itself reads at the Overview's prose width.

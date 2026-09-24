@@ -12,8 +12,7 @@ import { modelApiKey, modelBaseUrl, modelName } from "./config.js";
 // for it go through `claude -p` (claudeCode.ts) instead of the endpoint.
 const CLAUDE_CODE_PREFIX = "claude-code:";
 
-function claudeCodeModel(): string | null {
-  const name = modelName();
+function claudeCodeModel(name: string): string | null {
   return name.startsWith(CLAUDE_CODE_PREFIX) ? name.slice(CLAUDE_CODE_PREFIX.length) : null;
 }
 
@@ -103,18 +102,21 @@ async function listModels(): Promise<string[]> {
   return (data.data ?? []).flatMap((m) => (typeof m.id === "string" ? [m.id] : [])).sort();
 }
 
+// `model` picks a model for this call alone - a reviewer entry with its own
+// choice - rather than the one picked on the start page.
 export async function chatWithTool(
   messages: ChatMessage[],
   tool: ToolDefinition,
   signal?: AbortSignal,
+  model = modelName(),
 ): Promise<ToolCall> {
-  const claude = claudeCodeModel();
+  const claude = claudeCodeModel(model);
   if (claude) return claudeCodeChatWithTool(claude, messages, tool, signal);
 
   const res = await postJson(
     `${modelBaseUrl()}/chat/completions`,
     {
-      model: modelName(),
+      model,
       messages,
       tools: [{ type: "function", function: tool }],
       tool_choice: "required",
@@ -140,11 +142,11 @@ export async function chatWithTool(
 
 // For free-form replies, where a tool call adds nothing: the model answers
 // in the message content.
-export async function chat(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
-  const claude = claudeCodeModel();
+export async function chat(messages: ChatMessage[], signal?: AbortSignal, model = modelName()): Promise<string> {
+  const claude = claudeCodeModel(model);
   if (claude) return claudeCodeChat(claude, messages, signal);
 
-  const res = await postJson(`${modelBaseUrl()}/chat/completions`, { model: modelName(), messages }, signal);
+  const res = await postJson(`${modelBaseUrl()}/chat/completions`, { model, messages }, signal);
 
   if (res.status < 200 || res.status >= 300) {
     throw new Error(`model backend returned ${res.status}`);

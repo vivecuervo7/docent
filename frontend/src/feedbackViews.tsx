@@ -1,11 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, Lightbulb, Loader2, Plug, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { describeLines } from "./noteAnchors";
 import { Markdown } from "./markdown";
-import type { FeedbackDraft, FeedbackItem, Note } from "./prDb";
+import { FIRST_AGENT, type AgentReviewer, type FeedbackDraft, type FeedbackItem, type Note } from "./prDb";
 
 // The Feedback steps: drafting review comments from your threads and from
 // the agent review, ticking which to keep, and (next) posting them.
@@ -367,12 +367,38 @@ function CopyBlock({ label, value }: { label: string; value: string }) {
   );
 }
 
-function agentPrompt(pr: string): string {
-  return `Review the pull request ${pr} using the docent MCP tools. Start with get_review_context, then read each slice with get_diff, using read_file where you need more context. Check get_existing_comments so you don't repeat what's already been said. Submit each problem worth raising with submit_finding, on lines from get_diff, then call finish_review.`;
+function agentPrompt(pr: string, reviewer: string | undefined): string {
+  const as = reviewer ? ` with reviewer "${reviewer}"` : "";
+  return `Review the pull request ${pr} using the docent MCP tools. Start with get_review_context, then read each slice with get_diff, using read_file where you need more context. Check get_existing_comments so you don't repeat what's already been said. Submit each problem worth raising with submit_finding${as}, on lines from get_diff, then call finish_review${as}.`;
+}
+
+interface ModelOption {
+  id: string;
+  label: string;
+  group: "endpoint" | "claude-code";
+}
+
+// Which model Docent's reviewer runs with, for this reviewer only: what it
+// last ran with, else the model Docent is set to.
+function useReviewModel(lastModel: string | undefined) {
+  const [options, setOptions] = useState<ModelOption[]>([]);
+  const [model, setModel] = useState<string | undefined>(lastModel);
+  useEffect(() => {
+    fetch("/api/models")
+      .then((res) => res.json() as Promise<{ options?: ModelOption[]; selected?: string }>)
+      .then(({ options = [], selected }) => {
+        setOptions(options);
+        setModel((current) => current ?? selected);
+      })
+      .catch(() => {});
+  }, []);
+  return { options, model, setModel };
 }
 
 export function AgentFeedbackView({
   pr,
+  reviewer,
+  title,
   draft,
   review,
   error,
@@ -385,10 +411,12 @@ export function AgentFeedbackView({
   renderContext,
 }: {
   pr: string;
+  reviewer: AgentReviewer;
+  title: string;
   draft: FeedbackDraft | undefined;
   review: AgentReviewState | null;
   error?: string;
-  onRunBuiltin: () => void;
+  onRunBuiltin: (model: string | undefined) => void;
   onUseOwnAgent: () => void;
   onStop: () => void;
   onFinish: () => void;
@@ -400,6 +428,10 @@ export function AgentFeedbackView({
   const running = review?.status === "running";
   const items = draft?.items ?? [];
   const showChoice = !running && (!draft || choosing);
+  const { options, model, setModel } = useReviewModel(reviewer.ranWith === "external" ? undefined : reviewer.ranWith);
+  // MCP submissions with no reviewer go to the first one.
+  const mcpReviewer = reviewer.id === FIRST_AGENT ? undefined : reviewer.id;
+  const withReviewer = (command: string) => (mcpReviewer ? `${command} ${mcpReviewer}` : command);
 
   const choice = (
     <div className="flex flex-col gap-5 rounded-xl border bg-card px-8 py-8">
@@ -410,12 +442,36 @@ export function AgentFeedbackView({
           own agent - any model or harness that speaks MCP.
         </p>
       </div>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        {options.length > 0 && (
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            aria-label="Model for Docent's reviewer"
+            className="h-10 rounded-md border bg-card px-2.5 font-mono text-[13px] outline-none focus:border-reviewed"
+          >
+            {model && !options.some((o) => o.id === model) && <option value={model}>{model} (unavailable)</option>}
+            {(["endpoint", "claude-code"] as const).map((group) => {
+              const inGroup = options.filter((o) => o.group === group);
+              return (
+                inGroup.length > 0 && (
+                  <optgroup key={group} label={group === "endpoint" ? "Endpoint (backend/.env)" : "Claude Code (your login)"}>
+                    {inGroup.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                )
+              );
+            })}
+          </select>
+        )}
         <Button
           size="lg"
           onClick={() => {
             setChoosing(false);
-            onRunBuiltin();
+            onRunBuiltin(model);
           }}
           className="bg-reviewed-strong px-5 text-white hover:bg-[#388bfd]"
         >
@@ -445,7 +501,7 @@ export function AgentFeedbackView({
 
   return (
     <FeedbackPage
-      title="Agent feedback"
+      title={title}
       subtitle="An optional review of the whole PR by an agent. Tick the comments to include alongside yours."
       action={
         draft && !running && !choosing && <DraftButton label="Run again" status={{}} onClick={() => setChoosing(true)} />
@@ -476,11 +532,11 @@ export function AgentFeedbackView({
           />
           <CopyBlock
             label="Then review the PR your usual way, and send the findings here"
-            value={`/mcp__docent__review ${pr}`}
+            value={withReviewer(`/mcp__docent__review ${pr}`)}
           />
           <CopyBlock
             label="Or, after a review you've already run in the session, send its findings"
-            value={`/mcp__docent__submit ${pr}`}
+            value={withReviewer(`/mcp__docent__submit ${pr}`)}
           />
           <details className="group/other flex flex-col gap-4">
             <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -489,7 +545,7 @@ export function AgentFeedbackView({
             </summary>
             <div className="mt-4 flex flex-col gap-5">
               <CopyBlock label="Connect your agent to Docent's MCP server (Streamable HTTP)" value={MCP_URL} />
-              <CopyBlock label="Then ask it" value={agentPrompt(pr)} />
+              <CopyBlock label="Then ask it" value={agentPrompt(pr, mcpReviewer)} />
             </div>
           </details>
           <div className="flex items-center gap-3 text-[15px]">

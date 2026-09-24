@@ -98,7 +98,19 @@ export interface FeedbackDraft {
   basedOn?: Record<string, number>;
 }
 
-export type FeedbackKind = "yours" | "agent";
+// A PR's agent reviewers are a panel: `agent-1`, which every PR has, and any
+// added alongside it.
+export type AgentId = `agent-${number}`;
+export type FeedbackKind = "yours" | AgentId;
+
+export const FIRST_AGENT: AgentId = "agent-1";
+
+export interface AgentReviewer {
+  id: AgentId;
+  // What it last ran with: a model for Docent's reviewer, or "external" for
+  // the reviewer's own agent over MCP.
+  ranWith?: string;
+}
 
 export type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
 
@@ -136,6 +148,9 @@ export interface PrRecord {
   fileNotes: Record<string, FileNote[]> | null;
   notes: Note[];
   feedback: Partial<Record<FeedbackKind, FeedbackDraft>>;
+  agentReviewers: AgentReviewer[];
+  // The highest agent reviewer number handed out, so removed ones aren't reused.
+  agentHighest?: number;
   review?: ReviewDraft;
   // Written whenever the PR is opened, so the start page can list saved
   // reviews by title and recency. Absent on records from before that.
@@ -151,7 +166,7 @@ export interface SavedPr {
 }
 
 function emptyRecord(): PrRecord {
-  return { reviewed: {}, slices: null, summary: null, conversation: null, fileNotes: null, notes: [], feedback: {} };
+  return { reviewed: {}, slices: null, summary: null, conversation: null, fileNotes: null, notes: [], feedback: {}, agentReviewers: [{ id: FIRST_AGENT }] };
 }
 
 function keyFor(owner: string, repo: string, number: string): string {
@@ -173,6 +188,16 @@ function normalize(stored: Partial<PrRecord> | undefined): PrRecord {
   record.fileNotes ??= null;
   record.notes ??= [];
   record.feedback ??= {};
+  // From before there could be several agent reviewers.
+  const legacy = (record.feedback as Record<string, FeedbackDraft | undefined>).agent;
+  if (legacy) {
+    record.feedback = { ...record.feedback, [FIRST_AGENT]: record.feedback[FIRST_AGENT] ?? legacy };
+    delete (record.feedback as Record<string, unknown>).agent;
+  }
+  record.agentReviewers ??= [];
+  if (record.agentReviewers[0]?.id !== FIRST_AGENT) {
+    record.agentReviewers = [{ id: FIRST_AGENT }, ...record.agentReviewers.filter((r) => r.id !== FIRST_AGENT)];
+  }
   return record;
 }
 
@@ -340,6 +365,37 @@ export async function saveFeedback(
 ): Promise<void> {
   await updateRecord(owner, repo, number, (r) => {
     r.feedback = { ...r.feedback, [kind]: draft };
+  });
+}
+
+// Adds an agent reviewer, and returns the panel as saved. Numbers aren't
+// reused, so an agent still submitting to a removed reviewer can't land in
+// a new one.
+export async function addAgentReviewer(owner: string, repo: string, number: string): Promise<AgentReviewer[]> {
+  let saved: AgentReviewer[] = [];
+  await updateRecord(owner, repo, number, (r) => {
+    const highest = Math.max(0, ...r.agentReviewers.map((a) => Number(a.id.slice("agent-".length))), r.agentHighest ?? 0);
+    r.agentHighest = highest + 1;
+    r.agentReviewers = [...r.agentReviewers, { id: `agent-${highest + 1}` }];
+    saved = r.agentReviewers;
+  });
+  return saved;
+}
+
+// Removes an agent reviewer and its findings. The first one stays.
+export async function removeAgentReviewer(owner: string, repo: string, number: string, id: AgentId): Promise<void> {
+  if (id === FIRST_AGENT) return;
+  await updateRecord(owner, repo, number, (r) => {
+    r.agentReviewers = r.agentReviewers.filter((a) => a.id !== id);
+    const feedback = { ...r.feedback };
+    delete feedback[id];
+    r.feedback = feedback;
+  });
+}
+
+export async function saveAgentRanWith(owner: string, repo: string, number: string, id: AgentId, ranWith: string): Promise<void> {
+  await updateRecord(owner, repo, number, (r) => {
+    r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, ranWith } : a));
   });
 }
 

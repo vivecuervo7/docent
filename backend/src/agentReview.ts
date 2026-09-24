@@ -23,6 +23,8 @@ export interface Finding {
 export interface AgentReview {
   id: string;
   source: "builtin" | "external";
+  // The model Docent's reviewer used.
+  model?: string;
   status: "running" | "done" | "failed" | "stopped";
   // The built-in reviewer goes a slice at a time.
   progress?: { done: number; total: number; current?: string };
@@ -43,27 +45,44 @@ interface Entry {
   controller: AbortController;
 }
 
+// A PR can have several reviewer entries - a panel - each with its own
+// review. `agent-1` is the one every PR has.
+export const DEFAULT_REVIEWER = "agent-1";
+export const REVIEWER_RE = /^[a-z0-9-]{1,40}$/;
+
 const reviews = new Map<string, Entry>();
 const contexts = new Map<string, ReviewContext>();
 
-function keyFor(owner: string, repo: string, number: string): string {
+function prKey(owner: string, repo: string, number: string): string {
   return `${owner}/${repo}/${number}`;
 }
 
-export function getAgentReview(owner: string, repo: string, number: string): AgentReview | null {
-  return reviews.get(keyFor(owner, repo, number))?.review ?? null;
+function reviewKey(owner: string, repo: string, number: string, reviewer: string): string {
+  return `${prKey(owner, repo, number)}#${reviewer}`;
+}
+
+export function getAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER): AgentReview | null {
+  return reviews.get(reviewKey(owner, repo, number, reviewer))?.review ?? null;
 }
 
 export function getReviewContext(owner: string, repo: string, number: string): ReviewContext {
-  return contexts.get(keyFor(owner, repo, number)) ?? {};
+  return contexts.get(prKey(owner, repo, number)) ?? {};
 }
 
-function begin(owner: string, repo: string, number: string, source: AgentReview["source"], context: ReviewContext) {
-  const key = keyFor(owner, repo, number);
+function begin(
+  owner: string,
+  repo: string,
+  number: string,
+  reviewer: string,
+  source: AgentReview["source"],
+  context: ReviewContext | null,
+  model?: string,
+) {
+  const key = reviewKey(owner, repo, number, reviewer);
   reviews.get(key)?.controller.abort();
-  contexts.set(key, context);
+  if (context) contexts.set(prKey(owner, repo, number), context);
   const entry: Entry = {
-    review: { id: randomUUID(), source, status: "running", findings: [] },
+    review: { id: randomUUID(), source, model, status: "running", findings: [] },
     controller: new AbortController(),
   };
   reviews.set(key, entry);
@@ -71,18 +90,18 @@ function begin(owner: string, repo: string, number: string, source: AgentReview[
 }
 
 // Waits for the reviewer's own agent to submit findings over MCP.
-export function openExternalReview(owner: string, repo: string, number: string, context: ReviewContext) {
-  return begin(owner, repo, number, "external", context).review;
+export function openExternalReview(owner: string, repo: string, number: string, context: ReviewContext, reviewer = DEFAULT_REVIEWER) {
+  return begin(owner, repo, number, reviewer, "external", context).review;
 }
 
-export function finishAgentReview(owner: string, repo: string, number: string): AgentReview | null {
-  const entry = reviews.get(keyFor(owner, repo, number));
+export function finishAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER): AgentReview | null {
+  const entry = reviews.get(reviewKey(owner, repo, number, reviewer));
   if (entry?.review.status === "running") entry.review.status = "done";
   return entry?.review ?? null;
 }
 
-export function stopAgentReview(owner: string, repo: string, number: string): AgentReview | null {
-  const entry = reviews.get(keyFor(owner, repo, number));
+export function stopAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER): AgentReview | null {
+  const entry = reviews.get(reviewKey(owner, repo, number, reviewer));
   if (entry?.review.status === "running") {
     entry.review.status = "stopped";
     entry.controller.abort();
@@ -90,8 +109,11 @@ export function stopAgentReview(owner: string, repo: string, number: string): Ag
   return entry?.review ?? null;
 }
 
-export function dismissAgentReview(owner: string, repo: string, number: string): void {
-  const key = keyFor(owner, repo, number);
+// Forgets a finished review. With `force`, stops a running one first - for a
+// reviewer entry being removed.
+export function dismissAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER, force = false): void {
+  const key = reviewKey(owner, repo, number, reviewer);
+  if (force) stopAgentReview(owner, repo, number, reviewer);
   if (reviews.get(key)?.review.status !== "running") reviews.delete(key);
 }
 
@@ -112,6 +134,7 @@ export async function submitFinding(
   number: string,
   finding: SubmittedFinding,
   files?: PrFile[],
+  reviewer = DEFAULT_REVIEWER,
 ): Promise<Finding> {
   const body = finding.body.trim();
   if (!body) throw new Error("A finding needs a body.");
@@ -134,12 +157,12 @@ export async function submitFinding(
     endLine = undefined;
   }
 
-  const key = keyFor(owner, repo, number);
+  const key = reviewKey(owner, repo, number, reviewer);
   // An agent can start submitting before anyone pressed Run in Docent.
   const entry =
     reviews.get(key)?.review.status === "running"
       ? reviews.get(key)!
-      : begin(owner, repo, number, "external", contexts.get(key) ?? {});
+      : begin(owner, repo, number, reviewer, "external", null);
   const rationale = finding.rationale?.trim() || undefined;
   const recorded: Finding = { id: randomUUID(), path, startLine, endLine, body, rationale };
   entry.review.findings.push(recorded);
@@ -201,13 +224,28 @@ function hunkIndicesByFile(slice: Slice): Map<string, number[]> {
 // model, rather than open-ended exploring, which a small local model does
 // poorly. The passes share the interactive lane, so questions asked meanwhile
 // only wait for a free turn, not the whole review.
-export function startBuiltinReview(owner: string, repo: string, number: string, context: ReviewContext) {
-  const entry = begin(owner, repo, number, "builtin", context);
-  void runBuiltin(owner, repo, number, context, entry);
+export function startBuiltinReview(
+  owner: string,
+  repo: string,
+  number: string,
+  context: ReviewContext,
+  reviewer = DEFAULT_REVIEWER,
+  model?: string,
+) {
+  const entry = begin(owner, repo, number, reviewer, "builtin", context, model);
+  void runBuiltin(owner, repo, number, context, entry, reviewer, model);
   return entry.review;
 }
 
-async function runBuiltin(owner: string, repo: string, number: string, context: ReviewContext, entry: Entry) {
+async function runBuiltin(
+  owner: string,
+  repo: string,
+  number: string,
+  context: ReviewContext,
+  entry: Entry,
+  reviewer: string,
+  model?: string,
+) {
   const { review, controller } = entry;
   const { signal } = controller;
   try {
@@ -247,6 +285,7 @@ async function runBuiltin(owner: string, repo: string, number: string, context: 
             ],
             REPORT_FINDINGS_TOOL,
             signal,
+            model,
           );
         });
         if (review.status !== "running") return;
@@ -262,11 +301,11 @@ async function runBuiltin(owner: string, repo: string, number: string, context: 
             rationale: typeof rationale === "string" ? rationale : undefined,
           };
           try {
-            await submitFinding(owner, repo, number, finding, files);
+            await submitFinding(owner, repo, number, finding, files, reviewer);
           } catch {
             // Lines outside the diff: keep the point, on the file as a whole.
             if (finding.path) {
-              await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files).catch(() => {});
+              await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files, reviewer).catch(() => {});
             }
           }
         }
