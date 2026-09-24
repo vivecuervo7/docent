@@ -68,19 +68,14 @@
 			(m) => !session.lateLeft.has(m.id) && !session.findings.find((f) => f.mark.id === m.id)?.slices.includes(sliceId ?? "")
 		)
 	);
-	// Catching up on them one at a time, with their lines.
-	let catchUp = $state<{ ids: string[]; at: number } | null>(null);
-	const catching = $derived(catchUp ? markById(catchUp.ids[catchUp.at]) : undefined);
+	// Catching up on them, each with its lines.
+	let catchUp = $state<string[] | null>(null);
 
-	function decide(included: boolean) {
-		if (!catchUp || !catching?.reviewer) return;
-		session.setFindingIncluded(catching.reviewer, catching.id, included);
-		advance();
-	}
-
-	function advance() {
-		if (!catchUp) return;
-		catchUp = catchUp.at + 1 < catchUp.ids.length ? { ...catchUp, at: catchUp.at + 1 } : null;
+	// The second opinion's Done completes the move it interrupted.
+	function finishOpinion() {
+		const target = opinion?.next ?? null;
+		opinion = null;
+		go(target);
 	}
 
 	// Opens a finding where it sits in the diff, through any fold hiding it.
@@ -98,11 +93,6 @@
 	function onKey(e: KeyboardEvent) {
 		const el = e.target as HTMLElement;
 		if (e.metaKey || e.ctrlKey || e.altKey || el.closest('input, textarea, select, [contenteditable]')) return;
-		if (catchUp && (e.key === 'k' || e.key === 's')) {
-			e.preventDefault();
-			decide(e.key === 'k');
-			return;
-		}
 		if (opinion || catchUp) return;
 		if (e.key === 'r' && !done) {
 			e.preventDefault();
@@ -134,7 +124,7 @@
 						{lateElsewhere.length} {lateElsewhere.length === 1 ? 'finding' : 'findings'} landed on slices you’ve already reviewed
 					</span>
 					<button class="btn" onclick={() => lateElsewhere.forEach((m) => session.lateLeft.add(m.id))}>Later</button>
-					<button class="btn primary" onclick={() => (catchUp = { ids: lateElsewhere.map((m) => m.id), at: 0 })}>Catch up</button>
+					<button class="btn primary" onclick={() => (catchUp = lateElsewhere.map((m) => m.id))}>Catch up</button>
 				</div>
 			{/if}
 			{#key slice.id}
@@ -162,7 +152,7 @@
 
 {#if opinion}
 	{@const marks = opinion.ids.map(markById).filter((m) => m !== undefined)}
-	<Dialog label="Slice reviewed" onclose={() => go(opinion?.next ?? null)}>
+	<Dialog label="Slice reviewed" onclose={finishOpinion}>
 		<span class="done-label">Slice reviewed</span>
 		<h2>The panel noticed {marks.length} {marks.length === 1 ? 'thing' : 'things'} here</h2>
 		{#each marks as mark (mark.id)}
@@ -176,31 +166,32 @@
 		{/each}
 		<div class="dialog-foot">
 			<span class="faint">{marks.filter((m) => !m.decided).length ? 'Undecided ones wait for you in Wrap up.' : ''}</span>
-			<button class="btn primary big" onclick={() => go(opinion?.next ?? null)}>{opinion.next ? 'Next slice →' : 'Back to the Overview'}</button>
+			<button class="btn primary big" onclick={finishOpinion}>Done</button>
 		</div>
 	</Dialog>
 {/if}
 
-{#if catchUp && catching}
-	{@const where = session.findings.find((f) => f.mark.id === catching.id)?.slices[0]}
+{#if catchUp}
+	{@const marks = catchUp.map(markById).filter((m) => m !== undefined)}
 	<Dialog label="Catch up" onclose={() => (catchUp = null)}>
-		<span class="done-label">Catching up · {catchUp.at + 1} of {catchUp.ids.length}</span>
-		<FindingLines mark={catching} />
-		{#key catching.id}
-			<FindingCard
-				mark={catching}
-				onshow={() => {
-					// Read before closing: both come from the dialog's state.
-					const id = catching.id;
-					const target = where;
-					catchUp = null;
-					goto(`${base}/slices/${target}?finding=${id}`);
-				}}
-			/>
-		{/key}
+		<span class="done-label">Catching up</span>
+		<h2>{marks.length} {marks.length === 1 ? 'finding' : 'findings'} landed after you’d reviewed {marks.length === 1 ? 'its slice' : 'their slices'}</h2>
+		{#each marks as mark (mark.id)}
+			{@const where = session.findings.find((f) => f.mark.id === mark.id)?.slices[0]}
+			<div class="late-item">
+				<FindingLines {mark} />
+				<FindingCard
+					{mark}
+					onshow={() => {
+						catchUp = null;
+						goto(`${base}/slices/${where}?finding=${mark.id}`);
+					}}
+				/>
+			</div>
+		{/each}
 		<div class="dialog-foot">
-			<span class="faint">K to keep · S to skip</span>
-			<button class="btn big" onclick={advance}>{catchUp.at + 1 < catchUp.ids.length ? 'Next' : 'Done'}</button>
+			<span class="faint">{marks.filter((m) => !m.decided).length ? 'Undecided ones wait for you in Wrap up.' : ''}</span>
+			<button class="btn primary big" onclick={() => (catchUp = null)}>Done</button>
 		</div>
 	</Dialog>
 {/if}
@@ -266,6 +257,11 @@
 		font-size: 26px;
 		font-weight: 500;
 		line-height: 1.2;
+	}
+	.late-item {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 	}
 	.dialog-foot {
 		display: flex;
