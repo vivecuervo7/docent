@@ -4,7 +4,7 @@
 	import Spinner from './Spinner.svelte';
 	import StateMark from './StateMark.svelte';
 
-	// The review's stages. Wrap up and Post arrive in later steps of the rewrite.
+	// The review's stages.
 
 	const session = useSession();
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
@@ -14,6 +14,12 @@
 	const onPost = $derived(page.url.pathname === `${base}/post`);
 	const total = $derived(session.slices.length);
 	const allRead = $derived(total > 0 && session.reviewedSlices === total);
+	// Wrap up is done once nothing from the panel waits on a decision and your
+	// comments are drafted from your threads as they stand.
+	const wrappedUp = $derived(
+		Object.entries(session.record.feedback).every(([key, draft]) => !key.startsWith('agent-') || !draft?.items.some((i) => !i.decided)) &&
+			(!session.threads.length || (!!session.record.feedback.yours && !session.threadsChanged))
+	);
 	// Read goes to the first slice not yet reviewed.
 	const readTarget = $derived(
 		(session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0])?.id
@@ -39,7 +45,7 @@
 		{/if}
 		<span class="joint"></span>
 		<a href="{base}/wrap-up" class="stage" class:current={onWrapUp} aria-current={onWrapUp ? 'page' : undefined}>
-			<StateMark state={onWrapUp ? 'now' : 'todo'} />Wrap up
+			<StateMark state={onWrapUp ? 'now' : wrappedUp ? 'done' : 'todo'} />Wrap up
 		</a>
 		<span class="joint"></span>
 		<a href="{base}/post" class="stage" class:current={onPost} aria-current={onPost ? 'page' : undefined}>
