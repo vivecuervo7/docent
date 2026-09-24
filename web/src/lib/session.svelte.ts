@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import * as api from './api';
+import { Panel } from './panel.svelte';
 import { emptyRecord, getRecord, updateRecord } from './record';
 import type { Generation, PrFile, PrMeta, PrRecord, PrRef, Slice, StepName } from './types';
 
@@ -30,6 +31,8 @@ export class PrSession {
 	readonly reviewedSlices = $derived(this.slices.filter((s) => isSliceReviewed(s, this.record.reviewed)).length);
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
+	readonly panel: Panel = new Panel(this);
+
 	#collected: { id: string; steps: Set<StepName> } | null = null;
 	#poll: ReturnType<typeof setInterval> | null = null;
 	#closed = false;
@@ -49,6 +52,7 @@ export class PrSession {
 			this.files = pr.files;
 			this.meta = pr.meta;
 			this.record = record;
+			this.panel.load();
 			this.update((r) => {
 				if (pr.meta?.title) r.title = pr.meta.title;
 				r.lastOpenedAt = Date.now();
@@ -71,6 +75,7 @@ export class PrSession {
 	close() {
 		this.#closed = true;
 		this.#stopPolling();
+		this.panel.close();
 	}
 
 	// Saves a change to the review, and shows the record as saved.

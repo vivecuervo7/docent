@@ -142,3 +142,14 @@ export interface Reuse {
 	conversation?: ConversationSummary | null;
 	fileNotes?: Record<string, FileNote[]> | null;
 }
+
+// An agent review as the backend reports it, while running or just ended.
+export interface AgentReview {
+	id: string;
+	source: 'builtin' | 'external';
+	model?: string;
+	status: 'running' | 'done' | 'failed' | 'stopped';
+	progress?: { done: number; total: number; current?: string };
+	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string }[];
+	error?: string;
+}
