@@ -127,9 +127,9 @@
 		padding: 12px 16px;
 		border-bottom: 1px solid var(--line);
 	}
-	/* Your turns carry your blue, faintly, so the turns read at a glance. */
-	.messages li.user {
-		background: var(--you-tint);
+	/* Docent's replies sit on half the agent brown, so the turns read at a glance. */
+	.messages li.assistant {
+		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
 	}
 	.role {
 		font-size: 12px;

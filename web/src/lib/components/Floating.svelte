@@ -39,7 +39,7 @@
 				placement,
 				middleware: [
 					// Starting a little above its anchor sets the arrow in from the corner.
-					offset(pointer ? { mainAxis: 26, alignmentAxis: -18 } : 6),
+					offset(pointer ? { mainAxis: 21, alignmentAxis: -18 } : 6),
 					flip({ fallbackPlacements: fallback, padding: room }),
 					shift({ padding: room }),
 					size({
