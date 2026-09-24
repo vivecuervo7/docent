@@ -18,11 +18,11 @@ export function modelLabel(model: string): string {
 	return name.slice(name.lastIndexOf('/') + 1);
 }
 
-// The command that points the reviewer's own agent at this reviewer. The
-// first reviewer is the default, so needs no name.
-export function mcpCommand(session: PrSession, id: AgentId): string {
+// What to tell the reviewer's own agent after its review, to send the
+// findings here. It names the reviewer, so two agents can't be mixed up.
+export function agentInstruction(session: PrSession, id: AgentId): string {
 	const { owner, repo, number } = session.ref;
-	return `/mcp__docent__review ${owner}/${repo}#${number}${id === FIRST_AGENT ? '' : ` ${id}`}`;
+	return `Send these review findings to Docent for ${owner}/${repo}#${number} as reviewer ${id}, then finish the review.`;
 }
 
 export class Panel {

@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import * as z from "zod/v4";
-import { DEFAULT_REVIEWER, REVIEWER_RE, finishAgentReview, getReviewContext, submitFinding } from "./agentReview.js";
+import { REVIEWER_RE, finishAgentReview, getReviewContext, resolveReviewer, submitFinding } from "./agentReview.js";
 import {
   fetchFileContentAtRef,
   fetchPrBaseSha,
@@ -33,12 +33,14 @@ const reviewerArg = z
   .string()
   .regex(REVIEWER_RE)
   .optional()
-  .describe(`Which of the PR's agent reviewers in Docent this is from, e.g. agent-2. Defaults to ${DEFAULT_REVIEWER}.`);
+  .describe(
+    "Which of the PR's agent reviewers in Docent this is for, e.g. agent-2, if the user named one. Leave it out otherwise: Docent picks the reviewer waiting for this agent.",
+  );
 
 // Prompt arguments arrive as text, and may be left empty.
-function reviewerFrom(value: string | undefined): string {
-  const reviewer = value?.trim() || DEFAULT_REVIEWER;
-  return REVIEWER_RE.test(reviewer) ? reviewer : DEFAULT_REVIEWER;
+function reviewerFrom(value: string | undefined): string | undefined {
+  const reviewer = value?.trim();
+  return reviewer && REVIEWER_RE.test(reviewer) ? reviewer : undefined;
 }
 
 function text(value: string) {
@@ -195,7 +197,7 @@ function buildServer(): McpServer {
           number,
           { body, rationale, path, startLine: start_line, endLine: end_line },
           undefined,
-          reviewer,
+          resolveReviewer(owner, repo, number, reviewer),
         );
         return text("Recorded.");
       } catch (err) {
@@ -213,7 +215,7 @@ function buildServer(): McpServer {
     async ({ pr, reviewer }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
-        const review = finishAgentReview(owner, repo, number, reviewer);
+        const review = finishAgentReview(owner, repo, number, resolveReviewer(owner, repo, number, reviewer));
         const count = review?.findings.length ?? 0;
         return text(review ? `Done: ${count} ${count === 1 ? "finding" : "findings"} recorded.` : "No review was in progress.");
       } catch (err) {
@@ -225,11 +227,11 @@ function buildServer(): McpServer {
   // Prompts, which clients like Claude Code offer as commands: one to review
   // a PR your usual way and send the findings here, one to send findings
   // from a review you've already done.
-  const findingFormat = (reviewer: string) => `For each finding, call submit_finding with reviewer "${reviewer}" and:
+  const findingFormat = (reviewer: string | undefined) => `For each finding, call submit_finding with${reviewer ? ` reviewer "${reviewer}" and` : ""}:
 - body: the comment for the PR's author - a sentence or two, specific, with a suggestion where there is one. Start a minor point with "Nit: ".
 - rationale: for the reviewer deciding whether to post it (the author never sees it) - why it matters, what in the code shows it, and how sure you are.
 - path, start_line and end_line: the few lines the point is about, as new-file line numbers from get_diff. Leave the lines out for a point about a whole file, and the path too for the PR as a whole.
-If submit_finding rejects the lines, it lists the lines that are in the diff; pick from those. When every finding is in, call finish_review with reviewer "${reviewer}".`;
+If submit_finding rejects the lines, it lists the lines that are in the diff; pick from those. When every finding is in, call finish_review${reviewer ? ` with reviewer "${reviewer}"` : ""}.`;
 
   server.registerPrompt(
     "review",
@@ -237,7 +239,7 @@ If submit_finding rejects the lines, it lists the lines that are in the diff; pi
       description: "Review a PR your usual way, and send the findings to Docent.",
       argsSchema: {
         pr: z.string().describe("The pull request, as owner/repo#123 or its GitHub URL."),
-        reviewer: z.string().optional().describe(`Which agent reviewer in Docent to send the findings to. Defaults to ${DEFAULT_REVIEWER}.`),
+        reviewer: z.string().optional().describe("Which agent reviewer in Docent to send the findings to, e.g. agent-2. Optional when only one is waiting."),
       },
     },
     ({ pr, reviewer }) => ({
@@ -261,7 +263,7 @@ ${findingFormat(reviewerFrom(reviewer))}`,
       description: "Send the findings from a review you've already done in this conversation to Docent.",
       argsSchema: {
         pr: z.string().describe("The pull request, as owner/repo#123 or its GitHub URL."),
-        reviewer: z.string().optional().describe(`Which agent reviewer in Docent to send the findings to. Defaults to ${DEFAULT_REVIEWER}.`),
+        reviewer: z.string().optional().describe("Which agent reviewer in Docent to send the findings to, e.g. agent-2. Optional when only one is waiting."),
       },
     },
     ({ pr, reviewer }) => ({

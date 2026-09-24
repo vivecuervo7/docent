@@ -61,6 +61,25 @@ function reviewKey(owner: string, repo: string, number: string, reviewer: string
   return `${prKey(owner, repo, number)}#${reviewer}`;
 }
 
+// Which reviewer an agent's submission is for when it doesn't say: the one
+// waiting for the reviewer's own agent, if there's exactly one, else the
+// first. With several waiting there's no telling which agent this is, so it
+// has to name one.
+export function resolveReviewer(owner: string, repo: string, number: string, reviewer?: string): string {
+  if (reviewer) return reviewer;
+  const prefix = `${prKey(owner, repo, number)}#`;
+  const waiting = [...reviews]
+    .filter(([key, entry]) => key.startsWith(prefix) && entry.review.source === "external" && entry.review.status === "running")
+    .map(([key]) => key.slice(prefix.length));
+  if (waiting.length === 1) return waiting[0];
+  if (waiting.length > 1) {
+    throw new Error(
+      `Several reviewers are waiting for findings on this PR (${waiting.join(", ")}). Ask the user which one this review is for, and pass it as \`reviewer\`.`,
+    );
+  }
+  return DEFAULT_REVIEWER;
+}
+
 export function getAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER): AgentReview | null {
   return reviews.get(reviewKey(owner, repo, number, reviewer))?.review ?? null;
 }

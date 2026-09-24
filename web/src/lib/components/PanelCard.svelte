@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { listModels } from '$lib/api';
-	import { mcpCommand, modelLabel, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
+	import { agentInstruction, modelLabel, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';
 	import Spinner from './Spinner.svelte';
@@ -93,7 +93,7 @@
 
 	let copied = $state<AgentId | null>(null);
 	function copy(id: AgentId) {
-		navigator.clipboard.writeText(mcpCommand(session, id)).then(() => {
+		navigator.clipboard.writeText(agentInstruction(session, id)).then(() => {
 			copied = id;
 			setTimeout(() => (copied = null), 1500);
 		});
@@ -178,9 +178,10 @@
 					{/if}
 
 					{#if setup.mode === 'external' && (running || isTicked(r))}
+						<span class="tell faint">After your usual review, tell your agent:</span>
 						<span class="command">
-							<code>{mcpCommand(session, r.id)}</code>
-							<button class="icon" aria-label="Copy the command" onclick={() => copy(r.id)}>
+							<span class="sentence">{agentInstruction(session, r.id)}</span>
+							<button class="icon" aria-label="Copy what to tell your agent" onclick={() => copy(r.id)}>
 								{#if copied === r.id}
 									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
 								{:else}
@@ -400,16 +401,21 @@
 		gap: 6px;
 		margin-top: 2px;
 	}
-	.command code {
+	.tell {
+		margin-top: 4px;
+		font-size: 12.5px;
+	}
+	.command {
+		align-items: flex-start;
+	}
+	.sentence {
 		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 12px;
-		color: #d9c7a6;
+		font-size: 13.5px;
+		line-height: 1.5;
+		color: #e6d6b8;
 		background: #14120e;
-		padding: 5px 9px;
-		border-radius: 7px;
+		padding: 8px 11px;
+		border-radius: 9px;
 	}
 	.controls {
 		display: flex;
