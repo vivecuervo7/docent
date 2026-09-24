@@ -515,7 +515,7 @@
 	{/if}
 {/snippet}
 
-<section class="file" bind:this={sectionEl}>
+<section class="file" data-path={file.filename} bind:this={sectionEl}>
 	<header>
 		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>

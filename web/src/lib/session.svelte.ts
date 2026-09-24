@@ -1,5 +1,7 @@
 import { getContext, setContext } from 'svelte';
+import { SvelteSet } from 'svelte/reactivity';
 import * as api from './api';
+import { marksFrom } from './api';
 import { parseFilePatch, type Hunk } from './diff/parse';
 import { Panel } from './panel.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
@@ -190,9 +192,47 @@ export class PrSession {
 	setFindingIncluded(reviewer: string, id: string, included: boolean) {
 		this.update((r) => {
 			const draft = r.feedback[reviewer];
-			if (draft) r.feedback[reviewer] = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included } : i)) };
+			if (draft) r.feedback[reviewer] = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included, decided: true } : i)) };
 		}).catch(() => {});
 	}
+
+	// Every agent finding on a file, with the slices its lines are in: the
+	// slice holding its first line, or every slice with its file when it's
+	// about the whole file. One about the whole PR is in none.
+	readonly findings = $derived.by(() =>
+		marksFrom(this.record)
+			.filter((m) => m.kind === 'finding')
+			.map((mark) => ({ mark, slices: this.#slicesOf(mark.path, mark.start) }))
+	);
+
+	#slicesOf(path: string, start: LineRef | undefined): string[] {
+		const hunks = this.hunks.get(path) ?? [];
+		const keys = start
+			? hunks
+					.filter((h) =>
+						h.rows.some((r) => (start.side === 'new' ? r.kind !== 'del' && r.new === start.line : r.kind !== 'add' && r.old === start.line))
+					)
+					.map((h) => `${path}#${h.index}`)
+			: hunks.map((h) => `${path}#${h.index}`);
+		return this.slices.filter((s) => s.hunks.some((k) => keys.includes(k))).map((s) => s.id);
+	}
+
+	// Findings on a slice still waiting on a keep or skip.
+	undecidedIn(sliceId: string) {
+		return this.findings.filter((f) => !f.mark.decided && f.slices.includes(sliceId)).map((f) => f.mark);
+	}
+
+	// Late findings the reviewer chose to leave for Wrap up, for this visit.
+	readonly lateLeft = new SvelteSet<string>();
+
+	// Findings waiting on a decision in slices already reviewed: they landed
+	// after the reviewer had moved on.
+	readonly late = $derived(
+		this.findings.filter((f) => !f.mark.decided && f.slices.some((id) => {
+			const slice = this.slices.find((s) => s.id === id);
+			return !!slice && isSliceReviewed(slice, this.reviewed);
+		})).map((f) => f.mark)
+	);
 
 	// Saves a change to the review, and shows the record as saved.
 	async update(change: (record: PrRecord) => void): Promise<void> {

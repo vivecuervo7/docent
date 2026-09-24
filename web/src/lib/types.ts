@@ -74,6 +74,9 @@ export interface FeedbackItem {
 	end?: LineRef;
 	noteIds?: string[];
 	rationale?: string;
+	// Set once the reviewer keeps or skips an agent's finding; until then it's
+	// kept by default but still waiting on them.
+	decided?: boolean;
 }
 
 export interface FeedbackDraft {

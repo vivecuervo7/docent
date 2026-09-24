@@ -74,16 +74,16 @@ export interface Mark {
 	note?: Note;
 	// The agent reviewer a finding came from.
 	reviewer?: string;
+	// Whether the reviewer has kept or skipped the finding yet.
+	decided?: boolean;
 }
 
-function agentName(id: string, ranWith: string | undefined): string {
-	if (ranWith === 'external') return 'Your agent';
-	if (ranWith) return ranWith.replace(/^claude-code:/, '').split('/').pop()!;
-	return id === 'agent-1' ? 'Agent' : `Agent ${id.slice('agent-'.length)}`;
+// A reviewer's name, as the panel shows it.
+export function reviewerName(record: PrRecord, id: string): string {
+	return record.agentReviewers.find((r) => r.id === id)?.name ?? id;
 }
 
 export function marksFrom(record: PrRecord): Mark[] {
-	const ranWith = new Map(record.agentReviewers.map((r) => [r.id as string, r.ranWith]));
 	const findings = Object.entries(record.feedback)
 		.filter(([key]) => key.startsWith('agent-'))
 		.flatMap(([key, draft]) =>
@@ -96,10 +96,11 @@ export function marksFrom(record: PrRecord): Mark[] {
 						path: item.path!,
 						start: item.start!,
 						end: item.end ?? item.start!,
-						who: agentName(key, ranWith.get(key)),
+						who: reviewerName(record, key),
 						body: item.body,
 						rationale: item.rationale,
 						included: item.included,
+						decided: item.decided,
 						reviewer: key
 					})
 				)
