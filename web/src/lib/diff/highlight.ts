@@ -51,6 +51,24 @@ async function load(lang: BundledLanguage): Promise<Highlighter> {
 	return h;
 }
 
+// Shiki's colours pulled most of the way toward the plain code colour, so
+// the syntax stays legible without every keyword competing with the changes
+// and findings.
+const BASE = [0xc9, 0xc6, 0xbf];
+const KEEP = 0.45;
+const muted = new Map<string, string>();
+
+function mute(color: string | undefined): string | undefined {
+	if (!color || !/^#[0-9a-f]{6}/i.test(color)) return color;
+	let out = muted.get(color);
+	if (!out) {
+		const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+		out = `#${rgb.map((c, i) => Math.round(c * KEEP + BASE[i] * (1 - KEEP)).toString(16).padStart(2, '0')).join('')}`;
+		muted.set(color, out);
+	}
+	return out;
+}
+
 export async function highlightHunks(hunks: Hunk[], path: string): Promise<Map<string, Token[]>> {
 	const lang = languageFor(path);
 	const tokens = new Map<string, Token[]>();
@@ -58,7 +76,7 @@ export async function highlightHunks(hunks: Hunk[], path: string): Promise<Map<s
 	const h = await load(lang);
 	const side = (rows: Row[]) => {
 		const lines = h.codeToTokens(rows.map((r) => r.text).join('\n'), { lang, theme: THEME }).tokens;
-		rows.forEach((row, i) => tokens.set(row.key, lines[i] ?? []));
+		rows.forEach((row, i) => tokens.set(row.key, (lines[i] ?? []).map((t) => ({ content: t.content, color: mute(t.color) }))));
 	};
 	for (const hunk of hunks) {
 		// Context lines take their colours from the new side.

@@ -160,12 +160,12 @@
 
 <section class="file">
 	<header>
-		<button class="icon" aria-label={collapsed ? 'Expand file' : 'Collapse file'} aria-expanded={!collapsed} onclick={() => (collapsed = !collapsed)}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
+		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
+			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
+			<span class="path">{file.filename.split('/').pop()}</span>
+			<span class="gist faint">{note ? `${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}` : ''}</span>
+			<span class="stat faint">+{file.additions} −{file.deletions}</span>
 		</button>
-		<span class="path" title={file.filename}>{file.filename.split('/').pop()}</span>
-		<span class="gist faint">{note ? `${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}` : ''}</span>
-		<span class="stat faint">+{file.additions} −{file.deletions}</span>
 	</header>
 	{#if !collapsed}
 		<div class="diff">
@@ -203,13 +203,31 @@
 	header {
 		display: flex;
 		align-items: center;
-		gap: 14px;
 		height: 52px;
-		padding: 0 4px 0 0;
-		font-size: 13.5px;
 	}
-	header .icon {
-		margin-left: -4px;
+	.toggle {
+		flex-grow: 1;
+		min-width: 0;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		padding: 0 4px 0 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		font-size: 13.5px;
+		text-align: left;
+		cursor: pointer;
+	}
+	.chevron {
+		flex-shrink: 0;
+		color: var(--faint);
+	}
+	.toggle:hover .chevron,
+	.toggle:hover .path {
+		color: #fff;
 	}
 	.path {
 		font-family: var(--mono);
@@ -238,7 +256,11 @@
 		font-family: var(--mono);
 		font-size: 12px;
 		color: var(--faint);
-		padding: 8px 16px 6px 112px;
+		padding: 7px 16px 6px 112px;
+		background: var(--hunk-bg);
+	}
+	.diff > .hunk-header:first-child {
+		border-radius: 12px 12px 0 0;
 	}
 	.row {
 		position: relative;
