@@ -3,8 +3,8 @@ import type { PrFile } from "./github.js";
 import type { Slice } from "./types.js";
 
 // Splits a unified-diff patch into its hunks purely by the "@@ ... @@"
-// header lines, matching how react-diff-view/gitdiff-parser splits hunks
-// client-side, so the indices assigned here line up with the frontend's.
+// header lines, matching how the web app's diff parser splits hunks, so the
+// indices assigned here line up with its own.
 export function splitPatchIntoHunks(patch: string): string[] {
   const lines = patch.split("\n");
   const hunks: string[] = [];

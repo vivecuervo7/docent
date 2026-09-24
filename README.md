@@ -11,7 +11,7 @@ in `backend/data/docent.db`.
 
 ## Requirements
 
-- A recent Node.js (the frontend is built with Vite 8)
+- A recent Node.js
 - [GitHub CLI](https://cli.github.com/), authenticated (`gh auth login`) with
   access to the repos you want to review
 - An OpenAI-compatible chat endpoint: a local server such as oMLX, or a hosted
@@ -30,10 +30,10 @@ prompt Docent sends.
 
 ```sh
 cd backend && npm install && npm run dev    # http://localhost:3001
-cd frontend && npm install && npm run dev   # http://localhost:5173
+cd web && npm install && npm run dev        # http://localhost:5174
 ```
 
-Open http://localhost:5173 and paste a GitHub PR URL.
+Open http://localhost:5174 and paste a GitHub PR URL.
 
 ## Using your own agent for the agent review
 

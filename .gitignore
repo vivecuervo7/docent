@@ -1,7 +1,6 @@
 node_modules/
 dist/
 backend/data/
-frontend/dist/
 .DS_Store
 
 # Logs
