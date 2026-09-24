@@ -43,7 +43,7 @@ import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
-import { listModelOptions, listProviderModels } from "./modelProvider.js";
+import { codexStatus, listModelOptions, listProviderModels } from "./modelProvider.js";
 import {
   buildReviewPayload,
   fetchViewer,
@@ -384,16 +384,17 @@ app.put("/api/models/selected", (req, res) => {
   res.json({ selected: modelName() });
 });
 
-// The Settings page: Claude Code, and the OpenAI-compatible providers with
+// The Settings page: Claude Code, Codex, and the OpenAI-compatible providers with
 // whether each answers. A provider's key is never sent back, only whether
 // it has one.
 const publicProvider = ({ apiKey, ...rest }: Provider) => ({ ...rest, hasKey: !!apiKey });
 
 app.get("/api/providers", async (_req, res) => {
   const list = providers();
-  const [claude, statuses] = await Promise.all([claudeCodeAvailable(), Promise.all(list.map(listProviderModels))]);
+  const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(), Promise.all(list.map(listProviderModels))]);
   res.json({
     claudeCode: { installed: claude, models: claude ? CLAUDE_CODE_MODELS : [] },
+    codex,
     providers: list.map((p, i) => ({ ...publicProvider(p), ...statuses[i] })),
   });
 });

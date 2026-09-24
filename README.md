@@ -20,6 +20,11 @@ in `backend/data/docent.db`.
     one of its models runs every model call through `claude -p` on your own
     login. Those calls have no tools, MCP servers or user settings, so they
     can only read the prompt Docent sends.
+  - [Codex](https://developers.openai.com/codex/cli), installed and signed in
+    (`codex login`). Its models run through `codex exec` on your own login,
+    with its shell, browser and other tools switched off, in a read-only
+    sandbox without your Codex config. Codex lists some models your plan may
+    not include; a call to one of those says so.
   - Any number of OpenAI-compatible providers: a local server such as oMLX
     or LM Studio, or a hosted proxy such as LiteLLM. Add them on the
     **Settings** page, with a key if they need one and how many requests

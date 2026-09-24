@@ -11,9 +11,10 @@ import { fileURLToPath } from "node:url";
 const backendDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const settingsFile = join(backendDir, "data", "settings.json");
 
-// A model from Claude Code's group is saved with this prefix; one from a
-// provider with the provider's id and a colon.
+// A model from Claude Code's or Codex's group is saved with its prefix; one
+// from a provider with the provider's id and a colon.
 export const CLAUDE_CODE_PREFIX = "claude-code:";
+export const CODEX_PREFIX = "codex:";
 
 export interface Provider {
   id: string;
@@ -74,7 +75,7 @@ function importEnvOnce(): void {
     concurrency: Number(process.env.DOCENT_MAX_CONCURRENT_REQUESTS) || 1,
   };
   const legacy = settings.model ?? process.env.DOCENT_MODEL;
-  const model = legacy && !legacy.startsWith(CLAUDE_CODE_PREFIX) ? `${provider.id}:${legacy}` : legacy;
+  const model = legacy && !legacy.startsWith(CLAUDE_CODE_PREFIX) && !legacy.startsWith(CODEX_PREFIX) ? `${provider.id}:${legacy}` : legacy;
   writeSettings({ providers: [provider], model });
 }
 importEnvOnce();
@@ -110,10 +111,14 @@ export function removeProvider(id: string): boolean {
 
 // What a saved model id refers to. A bare name, saved before providers had
 // ids, is taken as the first provider's.
-export type ResolvedModel = { kind: "claude-code"; alias: string } | { kind: "provider"; provider: Provider; model: string };
+export type ResolvedModel =
+  | { kind: "claude-code"; alias: string }
+  | { kind: "codex"; model: string }
+  | { kind: "provider"; provider: Provider; model: string };
 
 export function resolveModel(id: string): ResolvedModel | null {
   if (id.startsWith(CLAUDE_CODE_PREFIX)) return { kind: "claude-code", alias: id.slice(CLAUDE_CODE_PREFIX.length) };
+  if (id.startsWith(CODEX_PREFIX)) return { kind: "codex", model: id.slice(CODEX_PREFIX.length) };
   const list = providers();
   const colon = id.indexOf(":");
   const owner = colon > 0 ? list.find((p) => p.id === id.slice(0, colon)) : undefined;
@@ -139,8 +144,8 @@ export function setDefaultPanel(panel: string[]): void {
 }
 
 // How much runs at once follows the picked model's provider. Claude Code
-// calls are separate processes, so several run side by side: a few, to leave
-// the reviewer's own sessions room. Read on every call, so picking another
+// and Codex calls are separate processes, so several run side by side: a
+// few, to leave the reviewer's own sessions room. Read on every call, so picking another
 // model applies straight away.
 function selected(): ResolvedModel | null {
   return resolveModel(modelName());
@@ -149,12 +154,14 @@ function selected(): ResolvedModel | null {
 // PRs being prepared at once; the rest wait in a queue.
 export function maxConcurrentGenerations(): number {
   const model = selected();
-  return model?.kind === "claude-code" ? 3 : (model?.provider.concurrency ?? 1);
+  if (!model) return 1;
+  return model.kind === "provider" ? model.provider.concurrency : 3;
 }
 
 // Other model calls at once: question replies, drafting, the agent review
 // and preparing the review.
 export function maxConcurrentRequests(): number {
   const model = selected();
-  return model?.kind === "claude-code" ? 4 : (model?.provider.concurrency ?? 1);
+  if (!model) return 1;
+  return model.kind === "provider" ? model.provider.concurrency : 4;
 }

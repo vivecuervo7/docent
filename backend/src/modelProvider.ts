@@ -1,12 +1,14 @@
 // Model calls, to wherever the model lives: an OpenAI-compatible provider
-// (a local server like oMLX, or a hosted proxy like LiteLLM) or Claude Code.
+// (a local server like oMLX, or a hosted proxy like LiteLLM), Claude Code or
+// Codex.
 // Kept generic (messages + tool schema in, tool calls out) so callers don't
 // care which. The providers are set on the Settings page (config.ts).
 
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.js";
-import { CLAUDE_CODE_PREFIX, modelName, providers, resolveModel, type Provider } from "./config.js";
+import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.js";
+import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "./config.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -87,20 +89,28 @@ export async function listProviderModels(provider: Provider): Promise<ProviderSt
   }
 }
 
+// Codex's models when it's installed and signed in.
+export async function codexStatus(): Promise<{ installed: boolean; models: string[] }> {
+  const installed = await codexAvailable();
+  return { installed, models: installed ? await codexModels() : [] };
+}
+
 // Everything that can be picked right now: Claude Code's models when
-// `claude` is installed, then each provider's that answers.
+// `claude` is installed, Codex's when it's signed in, then each provider's
+// that answers.
 export async function listModelOptions(): Promise<ModelOption[]> {
   const list = providers();
-  const [claude, statuses] = await Promise.all([claudeCodeAvailable(), Promise.all(list.map(listProviderModels))]);
+  const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(), Promise.all(list.map(listProviderModels))]);
   return [
     ...(claude ? CLAUDE_CODE_MODELS.map((alias) => ({ id: `${CLAUDE_CODE_PREFIX}${alias}`, label: alias, source: "Claude Code" })) : []),
+    ...codex.models.map((model) => ({ id: `${CODEX_PREFIX}${model}`, label: model, source: "Codex" })),
     ...list.flatMap((provider, i) => statuses[i].models.map((model) => ({ id: `${provider.id}:${model}`, label: model, source: provider.name }))),
   ];
 }
 
 function target(model: string) {
   const resolved = resolveModel(model);
-  if (!resolved) throw new Error("No model is set up. Add a provider on the Settings page, or install Claude Code.");
+  if (!resolved) throw new Error("No model is set up. Add a provider on the Settings page, or install Claude Code or Codex.");
   return resolved;
 }
 
@@ -114,6 +124,7 @@ export async function chatWithTool(
 ): Promise<ToolCall> {
   const resolved = target(model);
   if (resolved.kind === "claude-code") return claudeCodeChatWithTool(resolved.alias, messages, tool, signal);
+  if (resolved.kind === "codex") return codexChatWithTool(resolved.model, messages, tool, signal);
 
   const res = await postJson(
     resolved.provider,
@@ -148,6 +159,7 @@ export async function chatWithTool(
 export async function chat(messages: ChatMessage[], signal?: AbortSignal, model = modelName()): Promise<string> {
   const resolved = target(model);
   if (resolved.kind === "claude-code") return claudeCodeChat(resolved.alias, messages, signal);
+  if (resolved.kind === "codex") return codexChat(resolved.model, messages, signal);
 
   const res = await postJson(resolved.provider, "/chat/completions", { model: resolved.model, messages }, signal);
 

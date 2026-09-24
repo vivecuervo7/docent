@@ -17,10 +17,10 @@ export function setupFrom(reviewer: AgentReviewer, defaultModel: string): Review
 
 const setupValue = (setup: ReviewerSetup) => (setup.mode === 'external' ? 'external' : setup.model);
 
-// A model's name without where it runs: Claude Code's prefix, or the
-// provider id it's saved with.
+// A model's name without where it runs: Claude Code's or Codex's prefix,
+// or the provider id it's saved with.
 export function modelLabel(model: string): string {
-	const name = model.replace(/^(claude-code|p[0-9a-f]{6}):/, '');
+	const name = model.replace(/^(claude-code|codex|p[0-9a-f]{6}):/, '');
 	return name.slice(name.lastIndexOf('/') + 1);
 }
 

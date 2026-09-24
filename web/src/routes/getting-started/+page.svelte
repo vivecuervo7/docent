@@ -89,16 +89,17 @@
 			<div class="step">
 				<h2>Have a model available</h2>
 				<p>
-					Any one will do: <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a>, installed and
-					signed in, runs its models on your own login; or add an OpenAI-compatible provider, such as a local oMLX server or
-					a LiteLLM proxy, in <a href="/settings">Settings</a>. Pick the model from the menu on the start page.
+					Any one will do. <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> or
+					<a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a>, installed and signed in,
+					runs its models on your own login; or add an OpenAI-compatible provider, such as a local oMLX server or a LiteLLM
+					proxy, in <a href="/settings">Settings</a>. Pick the model from the menu on the start page.
 				</p>
 				{#if !sources}
 					<p class="status faint">Checking…</p>
 				{:else if sources.length}
 					<p class="status ok">Models available from {sources.join(' and ')}.</p>
 				{:else}
-					<p class="status">No models available yet. Install Claude Code, or add a provider in <a href="/settings">Settings</a>.</p>
+					<p class="status">No models available yet. Install Claude Code or Codex, or add a provider in <a href="/settings">Settings</a>.</p>
 				{/if}
 			</div>
 		</li>

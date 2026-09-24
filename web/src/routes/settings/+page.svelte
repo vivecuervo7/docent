@@ -3,7 +3,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 
-	// Where Docent's models come from: Claude Code, and any number of
+	// Where Docent's models come from: Claude Code, Codex, and any number of
 	// OpenAI-compatible providers. The model menu on the start page picks from
 	// whatever here is available; anything wrong with a provider shows here.
 	interface Provider {
@@ -23,7 +23,11 @@
 		clearKey: boolean;
 	}
 
-	let setup = $state<{ claudeCode: { installed: boolean; models: string[] }; providers: Provider[] } | null>(null);
+	let setup = $state<{
+		claudeCode: { installed: boolean; models: string[] };
+		codex: { installed: boolean; models: string[] };
+		providers: Provider[];
+	} | null>(null);
 	let loading = $state(false);
 	// The provider being edited, or "new" for one being added.
 	let editing = $state<string | null>(null);
@@ -156,6 +160,30 @@
 						<p>
 							Not installed. Install <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> and sign
 							in to use its models.
+						</p>
+					{/if}
+				</div>
+			</div>
+		{/if}
+	</section>
+
+	<section>
+		<h2>Codex</h2>
+		{#if !setup}
+			<p class="faint">Checking…</p>
+		{:else}
+			<div class="row">
+				<StateMark state={setup.codex.installed ? 'done' : 'todo'} />
+				<div class="text">
+					{#if setup.codex.installed}
+						<p>
+							Signed in. Its models ({setup.codex.models.join(', ')}) run on your own login, through <code>codex exec</code> with its
+							tools switched off. Some may be outside your plan; a call to one says so.
+						</p>
+					{:else}
+						<p>
+							Not installed or not signed in. Install <a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a>
+							and run <code>codex login</code> to use its models.
 						</p>
 					{/if}
 				</div>
