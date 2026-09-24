@@ -62,10 +62,10 @@
 		else go(target);
 	}
 
-	// Findings that landed on slices already reviewed, elsewhere in the PR.
-	const lateElsewhere = $derived(
+	// Findings that landed on this slice after it was reviewed.
+	const lateHere = $derived(
 		session.late.filter(
-			(m) => !session.lateLeft.has(m.id) && !session.findings.find((f) => f.mark.id === m.id)?.slices.includes(sliceId ?? "")
+			(m) => !session.lateLeft.has(m.id) && !!session.findings.find((f) => f.mark.id === m.id)?.slices.includes(sliceId ?? '')
 		)
 	);
 	// Catching up on them, each with its lines.
@@ -82,13 +82,6 @@
 	function reveal(mark: Mark) {
 		session.revealing = mark.id;
 	}
-
-	// Arriving from Catch up's "Show in diff" opens the finding it named.
-	$effect(() => {
-		const id = page.url.searchParams.get('finding');
-		const mark = id ? markById(id) : undefined;
-		if (mark && session.files.length) reveal(mark);
-	});
 
 	function onKey(e: KeyboardEvent) {
 		const el = e.target as HTMLElement;
@@ -117,14 +110,14 @@
 			</div>
 			<h1>{slice.title}</h1>
 			<p class="summary">{slice.summary}</p>
-			{#if lateElsewhere.length}
+			{#if lateHere.length}
 				<div class="late" role="status">
 					<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" fill="var(--agent)" /></svg>
 					<span class="grow">
-						{lateElsewhere.length} {lateElsewhere.length === 1 ? 'finding' : 'findings'} landed on slices you’ve already reviewed
+						{lateHere.length} {lateHere.length === 1 ? 'finding' : 'findings'} landed after you reviewed this slice
 					</span>
-					<button class="btn" onclick={() => lateElsewhere.forEach((m) => session.lateLeft.add(m.id))}>Later</button>
-					<button class="btn primary" onclick={() => (catchUp = lateElsewhere.map((m) => m.id))}>Catch up</button>
+					<button class="btn" onclick={() => lateHere.forEach((m) => session.lateLeft.add(m.id))}>Later</button>
+					<button class="btn primary" onclick={() => (catchUp = lateHere.map((m) => m.id))}>Catch up</button>
 				</div>
 			{/if}
 			{#key slice.id}
@@ -165,7 +158,6 @@
 			/>
 		{/each}
 		<div class="dialog-foot">
-			<span class="faint">{marks.filter((m) => !m.decided).length ? 'Undecided ones wait for you in Wrap up.' : ''}</span>
 			<button class="btn primary big" onclick={finishOpinion}>Done</button>
 		</div>
 	</Dialog>
@@ -174,23 +166,20 @@
 {#if catchUp}
 	{@const marks = catchUp.map(markById).filter((m) => m !== undefined)}
 	<Dialog label="Catch up" onclose={() => (catchUp = null)}>
-		<span class="done-label">Catching up</span>
-		<h2>{marks.length} {marks.length === 1 ? 'finding' : 'findings'} landed after you’d reviewed {marks.length === 1 ? 'its slice' : 'their slices'}</h2>
+		<h2>{marks.length} {marks.length === 1 ? 'finding' : 'findings'} landed after you reviewed this slice</h2>
 		{#each marks as mark (mark.id)}
-			{@const where = session.findings.find((f) => f.mark.id === mark.id)?.slices[0]}
 			<div class="late-item">
 				<FindingLines {mark} />
 				<FindingCard
 					{mark}
 					onshow={() => {
 						catchUp = null;
-						goto(`${base}/slices/${where}?finding=${mark.id}`);
+						reveal(mark);
 					}}
 				/>
 			</div>
 		{/each}
 		<div class="dialog-foot">
-			<span class="faint">{marks.filter((m) => !m.decided).length ? 'Undecided ones wait for you in Wrap up.' : ''}</span>
 			<button class="btn primary big" onclick={() => (catchUp = null)}>Done</button>
 		</div>
 	</Dialog>
@@ -266,7 +255,7 @@
 	.dialog-foot {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		justify-content: flex-end;
 		gap: 12px;
 		padding-top: 4px;
 		font-size: 13px;
