@@ -61,6 +61,7 @@
 		foldTests?: boolean;
 	} = $props();
 
+	const findingMarks = $derived(marks.filter((m) => m.kind === 'finding'));
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
 
 	// Unchanged lines shown around each hunk. They come from the file as it
@@ -315,6 +316,27 @@
 		});
 	});
 
+	// Brings a thread or finding into view when asked to: opens the file and
+	// any fold hiding it, then opens its bubble.
+	$effect(() => {
+		const id = session.revealing;
+		if (!id) return;
+		untrack(() => {
+			const mark = marks.find((m) => m.id === id);
+			if (!mark) return;
+			session.revealing = null;
+			collapsed = false;
+			for (const list of piecesOf.values())
+				for (const p of list) if (p.type === 'fold' && p.rows.some((r) => matchesRow(r, mark.start))) openFolds.add(p.id);
+			for (const item of items)
+				if (item.type === 'fold' && item.hunks.some((h) => h.rows.some((r) => matchesRow(r, mark.start)))) expanded.add(item.id);
+			open = id;
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() => sectionEl?.querySelector(`[data-pin="${id}"]`)?.scrollIntoView({ block: 'center' }))
+			);
+		});
+	});
+
 	// A click anywhere but the open thread, finding or composer closes it.
 	$effect(() => {
 		if (!open && !(selection && !dragging)) return;
@@ -523,6 +545,22 @@
 			<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
 			<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
 		</button>
+		{#if collapsed && findingMarks.length}
+			<!-- A closed file still shows the panel's findings on it, for finding
+			     ones that landed after it was reviewed. -->
+			<span class="gutter header-pins">
+				{#each findingMarks as m (m.id)}
+					<button
+						class="pin finding"
+						aria-label="Open the finding from {m.who}"
+						title="A finding from {m.who}"
+						onclick={() => (session.revealing = m.id)}
+					>
+						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
+					</button>
+				{/each}
+			</span>
+		{/if}
 		{#if onToggleReviewed}
 			<button
 				class="review"
@@ -580,9 +618,14 @@
 		border-bottom: 1px solid var(--line);
 	}
 	header {
+		position: relative;
 		display: flex;
 		align-items: center;
 		height: 52px;
+	}
+	.gutter.header-pins {
+		top: 50%;
+		transform: translateY(-50%);
 	}
 	.toggle {
 		flex-grow: 1;
@@ -762,14 +805,12 @@
 		border: 0;
 		border-radius: 8px;
 		background: none;
-		box-shadow: inset 0 0 0 1px #3a3c42;
 		color: var(--text);
 		font: inherit;
 		font-size: 13px;
 		cursor: pointer;
 	}
 	.review.done {
-		box-shadow: none;
 		color: var(--faint);
 	}
 	.review:hover {

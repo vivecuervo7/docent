@@ -83,25 +83,16 @@
 		catchUp = catchUp.at + 1 < catchUp.ids.length ? { ...catchUp, at: catchUp.at + 1 } : null;
 	}
 
-	// Opens a finding where it sits in the diff: its file, then its pin.
+	// Opens a finding where it sits in the diff, through any fold hiding it.
 	function reveal(mark: Mark) {
-		const section = document.querySelector<HTMLElement>(`section.file[data-path="${CSS.escape(mark.path)}"]`);
-		const toggle = section?.querySelector<HTMLButtonElement>('.toggle[aria-expanded="false"]');
-		toggle?.click();
-		requestAnimationFrame(() =>
-			requestAnimationFrame(() => {
-				const pin = section?.querySelector<HTMLElement>(`[data-pin="${mark.id}"]`);
-				(pin ?? section)?.scrollIntoView({ block: 'center' });
-				pin?.click();
-			})
-		);
+		session.revealing = mark.id;
 	}
 
 	// Arriving from Catch up's "Show in diff" opens the finding it named.
 	$effect(() => {
 		const id = page.url.searchParams.get('finding');
 		const mark = id ? markById(id) : undefined;
-		if (mark && session.files.length) setTimeout(() => reveal(mark), 300);
+		if (mark && session.files.length) reveal(mark);
 	});
 
 	function onKey(e: KeyboardEvent) {
@@ -134,6 +125,8 @@
 				{#if index > 0}<a class="btn" href="{base}/slices/{slices[index - 1].id}">← Prev</a>{/if}
 				{#if index < slices.length - 1}<a class="btn" href="{base}/slices/{slices[index + 1].id}">Next →</a>{/if}
 			</div>
+			<h1>{slice.title}</h1>
+			<p class="summary">{slice.summary}</p>
 			{#if lateElsewhere.length}
 				<div class="late" role="status">
 					<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" fill="var(--agent)" /></svg>
@@ -144,8 +137,6 @@
 					<button class="btn primary" onclick={() => (catchUp = { ids: lateElsewhere.map((m) => m.id), at: 0 })}>Catch up</button>
 				</div>
 			{/if}
-			<h1>{slice.title}</h1>
-			<p class="summary">{slice.summary}</p>
 			{#key slice.id}
 				<div class="above-files">
 					<p class="hint faint">Drag down the line numbers to select lines.</p>
@@ -199,9 +190,11 @@
 			<FindingCard
 				mark={catching}
 				onshow={() => {
+					// Read before closing: both come from the dialog's state.
 					const id = catching.id;
+					const target = where;
 					catchUp = null;
-					goto(`${base}/slices/${where}?finding=${id}`);
+					goto(`${base}/slices/${target}?finding=${id}`);
 				}}
 			/>
 		{/key}
@@ -253,7 +246,7 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		margin: 14px 0 4px;
+		margin: 14px 0 12px;
 		padding: 10px 10px 10px 16px;
 		border-radius: 12px;
 		background: var(--popover);
