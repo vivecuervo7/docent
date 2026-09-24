@@ -2,11 +2,14 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import FileDiffs from '$lib/components/FileDiffs.svelte';
+	import FoldAll from '$lib/components/FoldAll.svelte';
 	import SliceRail from '$lib/components/SliceRail.svelte';
 	import ViewOptions from '$lib/components/ViewOptions.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 
 	const session = useSession();
+	// The last expand all / collapse all on this slice, which its files follow.
+	let fold = $state<{ open: boolean; at: number; slice: string } | null>(null);
 	const sliceId = $derived(page.params.slice);
 	const slices = $derived(session.slices);
 	const index = $derived(slices.findIndex((s) => s.id === sliceId));
@@ -62,6 +65,7 @@
 			<div class="top">
 				<span class="label">Slice {index + 1} of {slices.length}</span>
 				<span class="grow"></span>
+				<FoldAll onfold={(open) => (fold = { open, at: Date.now(), slice: slice.id })} />
 				<ViewOptions />
 				{#if index > 0}<a class="btn" href="{base}/slices/{slices[index - 1].id}">← Prev</a>{/if}
 				{#if index < slices.length - 1}<a class="btn" href="{base}/slices/{slices[index + 1].id}">Next →</a>{/if}
@@ -70,7 +74,7 @@
 			<p class="summary">{slice.summary}</p>
 			<p class="hint faint">Drag down the line numbers to select lines.</p>
 			{#key slice.id}
-				<FileDiffs keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} />
+				<FileDiffs keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} fold={fold?.slice === slice.id ? fold : null} />
 			{/key}
 
 			<div class="finish">

@@ -31,7 +31,8 @@
 		whitespace = false,
 		reviewed = false,
 		autoReviewed = false,
-		onToggleReviewed
+		onToggleReviewed,
+		fold = null
 	}: {
 		file: PrFile;
 		// Every hunk in the file, shown or not: expansion stops at its neighbours.
@@ -46,6 +47,8 @@
 		// Counted as reviewed because its note says what it tests.
 		autoReviewed?: boolean;
 		onToggleReviewed?: () => void;
+		// The page's last "expand all" or "collapse all", if any.
+		fold?: { open: boolean; at: number } | null;
 	} = $props();
 
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
@@ -197,6 +200,10 @@
 	// Reviewed files start closed, and close when marked reviewed.
 	let collapsed = $state(untrack(() => reviewed));
 
+	$effect(() => {
+		if (fold) collapsed = !fold.open;
+	});
+
 	function toggleReviewed() {
 		if (!reviewed) collapsed = true;
 		onToggleReviewed?.();
@@ -283,7 +290,7 @@
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 			<span class="path">{file.filename.split('/').pop()}</span>
 			<span class="gist faint">{#if note}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
-			<span class="stat faint">+{file.additions} −{file.deletions}</span>
+			<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
 		</button>
 		{#if onToggleReviewed}
 			<button
@@ -372,6 +379,12 @@
 		font-family: var(--mono);
 		font-size: 12px;
 		white-space: nowrap;
+	}
+	.plus {
+		color: var(--plus-dull);
+	}
+	.minus {
+		color: var(--minus-dull);
 	}
 	.diff {
 		margin-bottom: 18px;

@@ -32,6 +32,8 @@
 	--del-edit: #5a2b2e;
 	--plus: #8cc79a;
 	--minus: #e3a19b;
+	--plus-dull: #6f9679;
+	--minus-dull: #a87670;
 	--selection: rgba(122, 167, 255, 0.16);
 	--sans: 'IBM Plex Sans', system-ui, sans-serif;
 	--mono: 'IBM Plex Mono', ui-monospace, monospace;

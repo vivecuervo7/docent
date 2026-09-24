@@ -8,11 +8,13 @@
 	// pins, and a Reviewed control covering just those hunks.
 	let {
 		keys,
-		notes = []
+		notes = [],
+		fold = null
 	}: {
 		// The hunks to show, as `path#index`, in the PR's file order.
 		keys: string[];
 		notes?: FileNote[];
+		fold?: { open: boolean; at: number } | null;
 	} = $props();
 
 	const session = useSession();
@@ -49,6 +51,7 @@
 			{reviewed}
 			autoReviewed={reviewed && fileKeys.every((k) => session.autoReviewed.has(k))}
 			onToggleReviewed={() => session.setReviewed(fileKeys, !reviewed)}
+			{fold}
 		/>
 	{/each}
 </div>

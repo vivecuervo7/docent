@@ -1,11 +1,14 @@
 <script lang="ts">
 	import FileDiffs from '$lib/components/FileDiffs.svelte';
+	import FoldAll from '$lib/components/FoldAll.svelte';
 	import SliceRail from '$lib/components/SliceRail.svelte';
 	import ViewOptions from '$lib/components/ViewOptions.svelte';
 	import { useSession } from '$lib/session.svelte';
 
 	// Every file in the PR, whole, outside the slices.
 	const session = useSession();
+	// The last expand all / collapse all, which every file follows.
+	let fold = $state<{ open: boolean; at: number } | null>(null);
 	const reviewedFiles = $derived(
 		[...session.hunks].filter(([path, hunks]) => hunks.length && hunks.every((h) => session.reviewed[`${path}#${h.index}`])).length
 	);
@@ -19,11 +22,12 @@
 		<div class="top">
 			<span class="label">All files</span>
 			<span class="grow"></span>
-			<ViewOptions />
+			<FoldAll onfold={(open) => (fold = { open, at: Date.now() })} />
+				<ViewOptions />
 		</div>
 		<h1>All {session.files.length} files</h1>
 		<p class="faint">{reviewedFiles} of {session.files.length} reviewed</p>
-		<FileDiffs keys={session.hunkKeys} {notes} />
+		<FileDiffs keys={session.hunkKeys} {notes} {fold} />
 	</main>
 </div>
 
