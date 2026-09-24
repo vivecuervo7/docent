@@ -39,7 +39,7 @@
 				placement,
 				middleware: [
 					// Starting a little above its anchor sets the arrow in from the corner.
-					offset(pointer ? { mainAxis: 10, alignmentAxis: -18 } : 6),
+					offset(pointer ? { mainAxis: 26, alignmentAxis: -18 } : 6),
 					flip({ fallbackPlacements: fallback, padding: room }),
 					shift({ padding: room }),
 					size({
@@ -61,7 +61,7 @@
 						top: ay != null ? `${ay}px` : '',
 						right: '',
 						bottom: '',
-						[outside]: '-6px'
+						[outside]: '-18px'
 					});
 					tip.dataset.side = side;
 				}
@@ -104,23 +104,21 @@
 			0 0 0 1px var(--popover-line),
 			0 30px 70px -20px rgba(0, 0, 0, 0.7);
 	}
+	/* A long, narrow pointer, so the bubble stands off the diff's edge. */
 	.tip {
 		position: absolute;
-		width: 12px;
-		height: 12px;
+		width: 18px;
+		height: 14px;
 		background: var(--bubble, var(--surface-2));
-		transform: rotate(45deg);
+		clip-path: polygon(0 0, 100% 50%, 0 100%);
 	}
 	.floating :global(.tip[data-side='right']) {
-		box-shadow: -1px 1px 0 0 var(--bubble-line, var(--line-2));
-	}
-	.floating :global(.tip[data-side='left']) {
-		box-shadow: 1px -1px 0 0 var(--bubble-line, var(--line-2));
-	}
-	.floating :global(.tip[data-side='bottom']) {
-		box-shadow: -1px -1px 0 0 var(--bubble-line, var(--line-2));
+		transform: rotate(180deg);
 	}
 	.floating :global(.tip[data-side='top']) {
-		box-shadow: 1px 1px 0 0 var(--bubble-line, var(--line-2));
+		transform: rotate(90deg);
+	}
+	.floating :global(.tip[data-side='bottom']) {
+		transform: rotate(-90deg);
 	}
 </style>

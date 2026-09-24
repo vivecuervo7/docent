@@ -127,9 +127,9 @@
 		padding: 12px 16px;
 		border-bottom: 1px solid var(--line);
 	}
-	/* Docent's replies sit on a faint band, so the turns read at a glance. */
-	.messages li.assistant {
-		background: rgba(255, 255, 255, 0.03);
+	/* Your turns carry your blue, faintly, so the turns read at a glance. */
+	.messages li.user {
+		background: var(--you-tint);
 	}
 	.role {
 		font-size: 12px;
