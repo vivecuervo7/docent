@@ -332,14 +332,15 @@
 	{@const added = rows.filter((r) => r.kind === 'add').length}
 	{@const removed = rows.filter((r) => r.kind === 'del').length}
 	<button class="fold-row" aria-expanded={isOpen} title={isOpen ? 'Fold this code' : 'Show this code'} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
-		<span class="fold-dots">{isOpen ? '⌃' : '⋯'}</span>
+		<span class="fold-tab" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg></span>
+		<svg class="fold-triangle" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg>
+		{#if label}<span>{label}</span>{/if}
 		{#if isOpen}
-			<span>Fold{label ? ` ${label}` : ''}</span>
+			<span class="faint">{label ? '' : 'Fold'}</span>
+		{:else if added || removed}
+			<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
 		{:else}
-			<span>{label ? `${label} · ` : ''}{rows.length} lines</span>
-			{#if label && (added || removed)}
-				<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
-			{/if}
+			<span>{rows.length} unchanged lines</span>
 		{/if}
 		{#each hidden as m (m.id)}
 			<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
@@ -499,15 +500,16 @@
 		margin: 0;
 	}
 	.fold-row {
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 10px;
 		width: 100%;
-		height: 26px;
-		padding: 0 16px 0 112px;
+		height: 28px;
+		padding: 0 16px 0 106px;
 		border: 0;
-		background: none;
-		color: var(--faint);
+		background: var(--hunk-bg);
+		color: var(--muted);
 		font-family: var(--sans);
 		font-size: 12.5px;
 		text-align: left;
@@ -515,15 +517,32 @@
 	}
 	.fold-row:hover {
 		color: var(--text);
-		background: rgba(255, 255, 255, 0.03);
+		background: #202127;
+	}
+	.fold-triangle {
+		flex-shrink: 0;
+		color: var(--hunk-text);
+		transition: transform 0.12s;
 	}
 	.fold-changes {
 		font-family: var(--mono);
 		font-size: 12px;
 	}
-	.fold-dots {
-		font-family: var(--mono);
-		letter-spacing: 1px;
+	/* Hangs off the block's left edge, so a fold is seen even at a glance. */
+	.fold-tab {
+		position: absolute;
+		left: -20px;
+		top: 5px;
+		display: grid;
+		place-items: center;
+		width: 16px;
+		height: 18px;
+		border-radius: 5px 0 0 5px;
+		background: var(--hunk-bg);
+		color: var(--hunk-text);
+	}
+	.fold-row:hover .fold-tab {
+		background: #202127;
 	}
 	.fold-pin {
 		display: grid;
@@ -557,7 +576,7 @@
 		padding: 0 8px 0 16px;
 		font-family: var(--mono);
 		font-size: 12px;
-		color: var(--faint);
+		color: var(--hunk-text);
 		background: var(--hunk-bg);
 	}
 	.hunk-text {
