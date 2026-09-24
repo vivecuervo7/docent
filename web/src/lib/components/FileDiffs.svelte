@@ -67,7 +67,6 @@
 			prRef={session.ref}
 			whitespace={!session.hideWhitespace}
 			{reviewed}
-			autoReviewed={reviewed && fileKeys.every((k) => session.autoReviewed.has(k))}
 			onToggleReviewed={() => session.setReviewed(fileKeys, !reviewed)}
 			{fold}
 			foldTests={session.foldTests}

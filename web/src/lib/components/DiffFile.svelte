@@ -31,7 +31,6 @@
 		prRef,
 		whitespace = false,
 		reviewed = false,
-		autoReviewed = false,
 		onToggleReviewed,
 		fold = null,
 		onopenchange,
@@ -47,8 +46,6 @@
 		// Show whitespace-only changes as changes.
 		whitespace?: boolean;
 		reviewed?: boolean;
-		// Counted as reviewed because its note says what it tests.
-		autoReviewed?: boolean;
 		onToggleReviewed?: () => void;
 		// The page's last "expand all" or "collapse all", if any.
 		fold?: { open: boolean; at: number } | null;
@@ -388,7 +385,6 @@
 				class="review"
 				class:done={reviewed}
 				aria-pressed={reviewed}
-				title={autoReviewed ? 'Counted as reviewed: its note says what it tests. Click to review it yourself.' : undefined}
 				onclick={toggleReviewed}
 			>
 				<StateMark state={reviewed ? 'done' : 'todo'} size={15} />
@@ -519,7 +515,6 @@
 	.fold-kind {
 		font-family: var(--mono);
 		font-size: 12px;
-		color: var(--hunk-text);
 	}
 	.fold-changes {
 		margin-left: auto;
@@ -535,7 +530,7 @@
 		place-items: center;
 		width: 16px;
 		height: 18px;
-		color: var(--hunk-text);
+		color: var(--muted);
 	}
 	.fold-pin {
 		display: grid;

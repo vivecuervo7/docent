@@ -37,13 +37,6 @@
 					<small class="faint">Imports, test setup and new test bodies fold, showing what changed inside.</small>
 				</span>
 			</label>
-			<label>
-				<input type="checkbox" checked={session.autoReviewTests} onchange={(e) => session.setAutoReviewTests(e.currentTarget.checked)} />
-				<span>
-					Review tests automatically
-					<small class="faint">A test file whose note says what it tests counts as reviewed.</small>
-				</span>
-			</label>
 		</div>
 	{/if}
 </div>

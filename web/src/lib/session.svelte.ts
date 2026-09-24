@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import * as api from './api';
 import { parseFilePatch, type Hunk } from './diff/parse';
 import { Panel } from './panel.svelte';
-import { autoReviewedKeys, everythingElse, isSliceReviewed, readPref, writePref } from './review';
+import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
 import type { Generation, PrFile, PrMeta, PrRecord, PrRef, Slice, StepName } from './types';
 
@@ -29,7 +29,6 @@ export class PrSession {
 	readonly preparing = $derived(!this.record.summary && this.generation !== null);
 	// Viewing preferences, kept in this browser.
 	hideWhitespace = $state(readPref('docent.hideWhitespace', true));
-	autoReviewTests = $state(readPref('docent.autoReviewTests', false));
 	foldTests = $state(readPref('docent.foldTests', true));
 
 	// Each file's hunks, parsed once.
@@ -41,14 +40,7 @@ export class PrSession {
 		const rest = prepared.length ? everythingElse(this.hunkKeys, prepared) : null;
 		return rest ? [...prepared, rest] : prepared;
 	});
-	// Test files counted as reviewed from their notes; see review.ts.
-	readonly autoReviewed = $derived(autoReviewedKeys(this.record, this.autoReviewTests));
-	readonly reviewed = $derived.by(() => {
-		if (!this.autoReviewed.size) return this.record.reviewed;
-		const merged = { ...this.record.reviewed };
-		for (const key of this.autoReviewed) merged[key] = true;
-		return merged;
-	});
+	readonly reviewed = $derived(this.record.reviewed);
 	readonly reviewedSlices = $derived(this.slices.filter((s) => isSliceReviewed(s, this.reviewed)).length);
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
@@ -107,11 +99,6 @@ export class PrSession {
 	setFoldTests(value: boolean) {
 		this.foldTests = value;
 		writePref('docent.foldTests', value);
-	}
-
-	setAutoReviewTests(value: boolean) {
-		this.autoReviewTests = value;
-		writePref('docent.autoReviewTests', value);
 	}
 
 	// Ticks or unticks hunks, by key (`path#index`).
