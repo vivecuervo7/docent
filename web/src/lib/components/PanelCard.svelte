@@ -76,6 +76,21 @@
 		await panel.remove(r.id);
 	}
 
+	// The reviewer whose "what runs it" menu is open.
+	let menuFor = $state<AgentId | null>(null);
+	$effect(() => {
+		if (!menuFor) return;
+		const close = (e: Event) => {
+			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.picker')) menuFor = null;
+		};
+		window.addEventListener('pointerdown', close);
+		window.addEventListener('keydown', close);
+		return () => {
+			window.removeEventListener('pointerdown', close);
+			window.removeEventListener('keydown', close);
+		};
+	});
+
 	let copied = $state<AgentId | null>(null);
 	function copy(id: AgentId) {
 		navigator.clipboard.writeText(mcpCommand(session, id)).then(() => {
@@ -103,24 +118,39 @@
 			{@const found = panel.findings(r.id)}
 			<li>
 				<div class="text">
-					<span class="name">{nameOf(r)}</span>
-					{#if !running}
-						<select
-							aria-label="What runs this reviewer"
-							value={setup.mode === 'external' ? 'external' : setup.model}
-							onchange={(e) => choose(r, e.currentTarget.value)}
-						>
-							<optgroup label="Docent’s reviewer">
-								{#if setup.mode === 'builtin' && setup.model && !models.some((m) => m.id === setup.model)}
-									<option value={setup.model}>{modelLabel(setup.model)}</option>
-								{/if}
-								{#each models as m (m.id)}<option value={m.id}>{m.label}{m.group === 'claude-code' ? ' (Claude Code)' : ''}</option>{/each}
-							</optgroup>
-							<optgroup label="Your own agent">
-								<option value="external">Over MCP — Claude Code or any agent</option>
-							</optgroup>
-						</select>
-					{/if}
+					<div class="picker">
+						{#if running}
+							<span class="name">{nameOf(r)}</span>
+						{:else}
+							<button
+								class="name trigger"
+								aria-haspopup="menu"
+								aria-expanded={menuFor === r.id}
+								onclick={() => (menuFor = menuFor === r.id ? null : r.id)}
+							>
+								{nameOf(r)}
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+							</button>
+						{/if}
+						{#if menuFor === r.id}
+							<div class="menu" role="menu" aria-label="What runs this reviewer">
+								<span class="group">Docent’s reviewer</span>
+								{#each models as m (m.id)}
+									{@const current = setup.mode === 'builtin' && setup.model === m.id}
+									<button role="menuitemradio" aria-checked={current} onclick={() => { choose(r, m.id); menuFor = null; }}>
+										<span class="tick">{#if current}✓{/if}</span>
+										<span>{m.label}</span>
+										<span class="hint">{m.group === 'claude-code' ? 'Claude Code' : 'Endpoint'}</span>
+									</button>
+								{/each}
+								<span class="group">Your own agent</span>
+								<button role="menuitemradio" aria-checked={setup.mode === 'external'} onclick={() => { choose(r, 'external'); menuFor = null; }}>
+									<span class="tick">{#if setup.mode === 'external'}✓{/if}</span>
+									<span>Claude Code or any MCP agent</span>
+								</button>
+							</div>
+						{/if}
+					</div>
 
 					{#if running && review.source === 'builtin'}
 						<span class="status working">
@@ -174,9 +204,11 @@
 						</button>
 					{/if}
 					{#if r.id !== FIRST_AGENT}
-						<button class="icon" aria-label="Remove {nameOf(r)}" onclick={() => remove(r)}>
+						<button class="icon remove" aria-label="Remove {nameOf(r)}" onclick={() => remove(r)}>
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
 						</button>
+					{:else}
+						<span class="remove" aria-hidden="true"></span>
 					{/if}
 				</div>
 			</li>
@@ -259,18 +291,81 @@
 		font-size: 15px;
 		font-weight: 500;
 	}
-	select {
+	.picker {
+		position: relative;
 		align-self: flex-start;
-		max-width: 100%;
-		height: 28px;
-		padding: 0 6px;
+	}
+	.trigger {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin: -3px 0 -3px -8px;
+		padding: 3px 8px;
 		border: 0;
-		border-radius: 7px;
-		background: #14120e;
-		box-shadow: inset 0 0 0 1px #2e281d;
-		color: var(--muted);
+		border-radius: 8px;
+		background: none;
+		color: var(--text);
 		font: inherit;
+		font-size: 15px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.trigger svg {
+		color: var(--faint);
+	}
+	.trigger:hover,
+	.trigger[aria-expanded='true'] {
+		background: #26221a;
+	}
+	.menu {
+		position: absolute;
+		z-index: 10;
+		top: calc(100% + 6px);
+		left: -8px;
+		min-width: 280px;
+		padding: 6px;
+		border-radius: 12px;
+		background: #221e17;
+		box-shadow:
+			0 0 0 1px #3a3226,
+			0 24px 60px -20px rgba(0, 0, 0, 0.8);
+		display: flex;
+		flex-direction: column;
+	}
+	.menu .group {
+		padding: 8px 10px 4px;
+		font-size: 11px;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		font-weight: 600;
+		color: var(--faint);
+	}
+	.menu button {
+		display: grid;
+		grid-template-columns: 16px minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 8px;
+		height: 34px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 8px;
+		background: none;
+		color: var(--text);
+		font: inherit;
+		font-size: 14px;
+		text-align: left;
+		cursor: pointer;
+	}
+	.menu button:hover {
+		background: #2e281e;
+	}
+	.tick {
+		color: var(--agent);
 		font-size: 13px;
+	}
+	.hint {
+		font-size: 12px;
+		color: var(--faint);
 	}
 	.status {
 		display: flex;
@@ -320,7 +415,12 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		padding-top: 2px;
+		padding-top: 1px;
+	}
+	.remove {
+		width: 24px;
+		height: 24px;
+		flex-shrink: 0;
 	}
 	.switch {
 		position: relative;
