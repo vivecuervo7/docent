@@ -21,6 +21,8 @@
 	import InlineText from './InlineText.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import { isUnread } from '$lib/types';
+	import type { ReferenceElement } from '@floating-ui/dom';
+	import Floating from './Floating.svelte';
 	import MarkPopover from './MarkPopover.svelte';
 	import ThreadPanel from './ThreadPanel.svelte';
 	import NoteText from './NoteText.svelte';
@@ -276,6 +278,43 @@
 		open = id;
 	}
 
+	// What the open bubble and the composer point at: the pin, and the code
+	// of the selection's last line. Looked up once they're on the page.
+	let sectionEl = $state<HTMLElement | null>(null);
+	let openAnchor = $state<HTMLElement | null>(null);
+	let composerAnchor = $state<ReferenceElement | null>(null);
+	$effect(() => {
+		const id = open;
+		if (!id || !sectionEl) {
+			openAnchor = null;
+			return;
+		}
+		requestAnimationFrame(() => (openAnchor = sectionEl?.querySelector<HTMLElement>(`[data-pin="${id}"]`) ?? null));
+	});
+	$effect(() => {
+		if (!selection || dragging || !sectionEl) {
+			composerAnchor = null;
+			return;
+		}
+		const [from, to] = [selFrom, selTo];
+		requestAnimationFrame(() => {
+			const first = sectionEl?.querySelector<HTMLElement>(`[data-pos="${from}"] .code`);
+			const last = sectionEl?.querySelector<HTMLElement>(`[data-pos="${to}"] .code`);
+			// The whole selection, so the composer sits clear of it above or below.
+			composerAnchor =
+				first && last
+					? {
+							contextElement: first,
+							getBoundingClientRect: () => {
+								const a = first.getBoundingClientRect();
+								const b = last.getBoundingClientRect();
+								return new DOMRect(a.left, a.top, a.width, b.bottom - a.top);
+							}
+						}
+					: null;
+		});
+	});
+
 	// A click anywhere but the open thread, finding or composer closes it.
 	$effect(() => {
 		if (!open && !(selection && !dragging)) return;
@@ -344,6 +383,7 @@
 	{@const pins = pinsAt.get(r.key)}
 	<div
 		class="row {r.kind} {tint(pos)}"
+		data-pos={pos}
 		class:selected={pos >= selFrom && pos <= selTo}
 		role="presentation"
 		onpointerenter={() => dragging && selection && (selection = { ...selection, head: pos })}
@@ -361,6 +401,7 @@
 				<button
 					class="pin {p.mark.kind}"
 					class:active={open === p.mark.id}
+					data-pin={p.mark.id}
 					aria-label="{p.mark.kind === 'finding' ? 'Finding' : 'Thread'} from {p.mark.who}"
 					onclick={() => (open = open === p.mark.id ? null : p.mark.id)}
 					onpointerenter={() => (hovered = p.mark.id)}
@@ -377,15 +418,18 @@
 		</span>
 		{#each pins ?? [] as p (p.mark.id)}
 			{#if open === p.mark.id}
-				{#if p.mark.note}
-					<ThreadPanel note={p.mark.note} onclose={() => (open = null)} />
-				{:else}
-					<MarkPopover mark={p.mark} onclose={() => (open = null)} />
-				{/if}
+				<Floating anchor={openAnchor} label={p.mark.note ? 'Thread' : 'Finding'} tone={p.mark.note ? 'plain' : 'agent'}>
+					{#if p.mark.note}
+						<ThreadPanel note={p.mark.note} onclose={() => (open = null)} />
+					{:else}
+						<MarkPopover mark={p.mark} onclose={() => (open = null)} />
+					{/if}
+				</Floating>
 			{/if}
 		{/each}
 		{#if selection && !dragging && pos === selTo}
-			<div class="composer" role="dialog" aria-label="Ask or comment on {describe(selFrom, selTo)}">
+			<Floating anchor={composerAnchor} placement="bottom-start" fallback={['top-start']} pointer={false} label="Ask or comment on {describe(selFrom, selTo)}">
+			<div class="composer">
 				<div class="composer-head">
 					<span class="faint">{describe(selFrom, selTo)}</span>
 					<button class="icon" aria-label="Cancel" onclick={() => (selection = null)}>
@@ -410,6 +454,7 @@
 					<button class="btn primary" disabled={!draft.trim()} onclick={startThread}>Send</button>
 				</div>
 			</div>
+			</Floating>
 		{/if}
 	</div>
 {/snippet}
@@ -419,9 +464,9 @@
 	{@const hidden = isOpen ? [] : hiddenMarks(rows)}
 	{@const added = rows.filter((r) => r.kind === 'add').length}
 	{@const removed = rows.filter((r) => r.kind === 'del').length}
-	<button class="fold-row" aria-expanded={isOpen} title={isOpen ? 'Fold this code' : 'Show this code'} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
+	<button class="fold-row" aria-expanded={isOpen} title={`${isOpen ? 'Fold' : 'Show'} ${label ? `the ${label}` : 'this code'}`} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
 		<span class="fold-tab" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg></span>
-		<span class="fold-kind">{label ?? '…'}</span>
+		<span class="fold-kind">…</span>
 		<!-- The counts say what's hidden, so they go once it's open. -->
 		{#if !isOpen}
 			{#if added || removed}
@@ -470,7 +515,7 @@
 	{/if}
 {/snippet}
 
-<section class="file">
+<section class="file" bind:this={sectionEl}>
 	<header>
 		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
@@ -649,11 +694,9 @@
 		border-radius: 9px;
 	}
 	.fold-pin.finding {
-		background: var(--agent-chip);
 		fill: var(--agent);
 	}
 	.fold-pin.note {
-		background: var(--you-chip);
 		fill: var(--you);
 	}
 	.diff {
@@ -807,19 +850,17 @@
 	.pin {
 		display: grid;
 		place-items: center;
-		width: 22px;
+		width: 20px;
 		height: 18px;
 		padding: 0;
 		border: 0;
-		border-radius: 9px;
+		background: none;
 		cursor: pointer;
 	}
 	.pin.finding {
-		background: var(--agent-chip);
 		fill: var(--agent);
 	}
 	.pin.note {
-		background: var(--you-chip);
 		fill: var(--you);
 	}
 	.pin.active,
@@ -849,21 +890,10 @@
 		background: var(--surface);
 	}
 	.composer {
-		position: absolute;
-		left: 104px;
-		top: calc(100% + 6px);
-		z-index: 15;
-		width: 460px;
-		max-width: calc(100% - 120px);
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 		padding: 12px 14px;
-		border-radius: 14px;
-		background: var(--surface-2);
-		box-shadow:
-			0 0 0 1px var(--line-2),
-			0 20px 50px -20px rgba(0, 0, 0, 0.8);
 		font-family: var(--sans);
 		font-size: 13px;
 		white-space: normal;

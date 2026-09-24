@@ -21,6 +21,7 @@
 		"vite": "^8.0.16"
 	},
 	"dependencies": {
+		"@floating-ui/dom": "^1.8.0",
 		"diff": "^9.0.0",
 		"shiki": "^4.4.3",
 		"unique-names-generator": "^4.7.1"

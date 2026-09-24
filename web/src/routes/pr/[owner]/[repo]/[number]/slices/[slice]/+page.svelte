@@ -160,6 +160,11 @@
 		padding: 16px 0 24px;
 		background: linear-gradient(transparent, var(--bg) 30%);
 		font-size: 13.5px;
+		/* Clicks reach the code under the fade; only the bar's own controls take them. */
+		pointer-events: none;
+	}
+	.finish > * {
+		pointer-events: auto;
 	}
 	.big {
 		height: 42px;
