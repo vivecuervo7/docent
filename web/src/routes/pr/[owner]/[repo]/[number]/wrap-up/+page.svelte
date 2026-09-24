@@ -22,8 +22,6 @@
 	const skipped = $derived(findings.filter((f) => f.item.decided && !f.item.included));
 	const yours = $derived(session.record.feedback.yours?.items ?? []);
 
-	let showKept = $state(false);
-	let showSkipped = $state(false);
 
 	// Opens a finding or a thread where it sits in the diff.
 	function show(id: string, path: string | undefined, start: FeedbackItem['start']) {
@@ -91,7 +89,6 @@
 				{#each yours as item (item.id)}
 					<WrapRow
 						kind="yours"
-						who="You"
 						path={item.path}
 						start={item.start}
 						end={item.end}
@@ -115,21 +112,21 @@
 
 	{#if kept.length}
 		<section>
-			<button class="fold-head" aria-expanded={showKept} onclick={() => (showKept = !showKept)}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showKept ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+			<button class="fold-head" aria-expanded={session.wrapUpOpen.kept} onclick={() => (session.wrapUpOpen.kept = !session.wrapUpOpen.kept)}>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={session.wrapUpOpen.kept ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
 				Kept from the panel <span class="count">{kept.length}</span>
 			</button>
-			{#if showKept}<ul>{#each kept as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
+			{#if session.wrapUpOpen.kept}<ul>{#each kept as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
 		</section>
 	{/if}
 
 	{#if skipped.length}
 		<section>
-			<button class="fold-head" aria-expanded={showSkipped} onclick={() => (showSkipped = !showSkipped)}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showSkipped ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+			<button class="fold-head" aria-expanded={session.wrapUpOpen.skipped} onclick={() => (session.wrapUpOpen.skipped = !session.wrapUpOpen.skipped)}>
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={session.wrapUpOpen.skipped ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
 				Skipped <span class="count">{skipped.length}</span>
 			</button>
-			{#if showSkipped}<ul>{#each skipped as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
+			{#if session.wrapUpOpen.skipped}<ul>{#each skipped as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
 		</section>
 	{/if}
 </main>

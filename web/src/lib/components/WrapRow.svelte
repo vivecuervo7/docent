@@ -19,7 +19,8 @@
 		onshow
 	}: {
 		kind: 'finding' | 'yours';
-		who: string;
+		// Who raised it; your own comments go without.
+		who?: string;
 		path?: string;
 		start?: LineRef;
 		end?: LineRef;
@@ -44,7 +45,7 @@
 <li class="row">
 	<div class="text">
 		<div class="head">
-			<span class="who {kind}">{who}</span>
+			{#if who}<span class="who">{who}</span>{/if}
 			<span class="where" title={path}>{where}</span>
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}
 		</div>
@@ -87,13 +88,8 @@
 	}
 	.who {
 		font-weight: 500;
-		white-space: nowrap;
-	}
-	.who.finding {
 		color: var(--agent-text);
-	}
-	.who.yours {
-		color: var(--you-text);
+		white-space: nowrap;
 	}
 	.where {
 		min-width: 0;

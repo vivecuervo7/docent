@@ -39,13 +39,13 @@
 	});
 
 	function goNext() {
-		goto(next ? `${base}/slices/${next.id}` : base);
+		goto(next ? `${base}/slices/${next.id}` : `${base}/wrap-up`);
 	}
 
 	const markById = (id: string): Mark | undefined => session.findings.find((f) => f.mark.id === id)?.mark;
 
 	function go(target: string | null) {
-		goto(target ? `${base}/slices/${target}` : base);
+		goto(target ? `${base}/slices/${target}` : `${base}/wrap-up`);
 		window.scrollTo(0, 0);
 	}
 
@@ -132,7 +132,7 @@
 				<span class="faint">{fileCounts.reviewed} of {fileCounts.total} {fileCounts.total === 1 ? 'file' : 'files'} reviewed</span>
 				{#if done}
 					<button class="btn" onclick={() => session.setReviewed(slice.hunks, false)}>Mark not reviewed</button>
-					<button class="btn primary big" onclick={goNext}>{next ? 'Next slice →' : 'Back to the Overview'}</button>
+					<button class="btn primary big" onclick={goNext}>{next ? 'Next slice →' : 'Wrap up →'}</button>
 				{:else}
 					<button class="btn primary big" onclick={markReviewed}>Mark slice reviewed <kbd>R</kbd></button>
 				{/if}

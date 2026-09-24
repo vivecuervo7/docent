@@ -294,6 +294,10 @@ export class PrSession {
 	// Late findings the reviewer chose to leave for Wrap up, for this visit.
 	readonly lateLeft = new SvelteSet<string>();
 
+	// Wrap up's folded lists, kept here so going to the diff and back finds
+	// them as they were left, with the scroll position intact.
+	wrapUpOpen = $state({ kept: false, skipped: false });
+
 	// Findings waiting on a decision in slices already reviewed: they landed
 	// after the reviewer had moved on.
 	readonly late = $derived(
