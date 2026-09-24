@@ -57,7 +57,11 @@ export interface FileNote {
 	path: string;
 	kind: 'tests' | 'context';
 	note: string;
+	// In notes from before the note itself gave a verdict.
 	quality?: string;
+	// Parts of the diff safe to skim once summarised: new-file lines, or no
+	// lines for the whole file.
+	folds?: { startLine?: number; endLine?: number; summary: string }[];
 }
 
 export interface FeedbackItem {

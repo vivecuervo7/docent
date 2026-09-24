@@ -31,6 +31,13 @@
 				<span>Hide whitespace changes</span>
 			</label>
 			<label>
+				<input type="checkbox" checked={session.foldSummaries} onchange={(e) => session.setFoldSummaries(e.currentTarget.checked)} />
+				<span>
+					Fold summarised code
+					<small class="faint">Code a note has summarised shows as its summary until opened.</small>
+				</span>
+			</label>
+			<label>
 				<input type="checkbox" checked={session.autoReviewTests} onchange={(e) => session.setAutoReviewTests(e.currentTarget.checked)} />
 				<span>
 					Review tests automatically

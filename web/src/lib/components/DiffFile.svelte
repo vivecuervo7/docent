@@ -34,7 +34,8 @@
 		autoReviewed = false,
 		onToggleReviewed,
 		fold = null,
-		onopenchange
+		onopenchange,
+		foldSummaries = true
 	}: {
 		file: PrFile;
 		// Every hunk in the file, shown or not: expansion stops at its neighbours.
@@ -53,6 +54,8 @@
 		fold?: { open: boolean; at: number } | null;
 		// Told whenever the file opens or closes, and that it's closed when it goes.
 		onopenchange?: (open: boolean) => void;
+		// Show the note's summarised parts folded, with the summary in their place.
+		foldSummaries?: boolean;
 	} = $props();
 
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
@@ -127,13 +130,84 @@
 		return () => (live = false);
 	});
 
+	// The note's summarised parts, shown folded with the summary in their
+	// place until opened. A fold with no lines covers the whole file.
+	type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; summary: string; rows: Row[] };
+	const openFolds = new SvelteSet<string>();
+	const folds = $derived(foldSummaries ? (note?.folds ?? []) : []);
+	// A file deleted outright folds to its note, when it has one.
+	const wholeFold = $derived(
+		folds.find((f) => f.startLine === undefined) ??
+			(foldSummaries && note && file.status === 'removed' ? { summary: note.note, fromNote: true } : null)
+	);
+
+	const inFold = (r: Row, f: { startLine?: number; endLine?: number }) =>
+		r.kind !== 'del' && r.new !== undefined && r.new >= f.startLine! && r.new <= f.endLine!;
+
+	// A fold within one hunk sits among its rows; one spanning hunks stands in
+	// for all of them (see spans below).
+	function pieces(hunk: Hunk): Piece[] {
+		const { rows } = hunk;
+		const ranges = folds
+			.map((f, k) => {
+				if (spans.has(`fold-${k}`)) return null;
+				const from = rows.findIndex((r) => inFold(r, f));
+				const to = rows.findLastIndex((r) => inFold(r, f));
+				return from < 0 ? null : { from, to, summary: f.summary, id: `fold-${k}` };
+			})
+			.filter((r) => r !== null)
+			.sort((a, b) => a.from - b.from);
+		const out: Piece[] = [];
+		let i = 0;
+		for (const range of ranges) {
+			if (range.from < i) continue;
+			for (; i < range.from; i++) out.push({ type: 'row', row: rows[i] });
+			out.push({ type: 'fold', id: range.id, summary: range.summary, rows: rows.slice(range.from, range.to + 1) });
+			i = range.to + 1;
+		}
+		for (; i < rows.length; i++) out.push({ type: 'row', row: rows[i] });
+		return out;
+	}
+
+	// Folds that touch more than one hunk: while closed, the first of those
+	// hunks becomes the fold's row and the rest aren't shown.
+	const spans = $derived.by(() => {
+		const out = new Map<string, { id: string; summary: string; hunks: number[]; rows: Row[] }>();
+		folds.forEach((f, k) => {
+			if (f.startLine === undefined) return;
+			const touched = hunks.filter((h) => h.rows.some((r) => inFold(r, f)));
+			if (touched.length > 1) {
+				const id = `fold-${k}`;
+				out.set(id, { id, summary: f.summary, hunks: touched.map((h) => h.index), rows: touched.flatMap((h) => h.rows) });
+			}
+		});
+		return out;
+	});
+	const spanOf = (h: Hunk) => [...spans.values()].find((s) => s.hunks.includes(h.index)) ?? null;
+	const hiddenBySpan = (h: Hunk) => {
+		const span = spanOf(h);
+		return !!span && !openFolds.has(span.id);
+	};
+
+	const piecesOf = $derived(new Map(hunks.map((h) => [h.index, pieces(h)])));
+	const visible = (h: Hunk) =>
+		hiddenBySpan(h)
+			? []
+			: (piecesOf.get(h.index) ?? []).flatMap((p) => (p.type === 'row' ? [p.row] : openFolds.has(p.id) ? p.rows : []));
+	const wholeFolded = $derived(!!wholeFold && !openFolds.has('file'));
+
 	// The rows on screen, in order: a mark's range and a selection are both
 	// spans of these.
 	const shown = $derived(
-		items.flatMap((item) =>
-			item.type === 'hunk' ? item.hunk.rows : item.expanded ? item.hunks.flatMap((h) => h.rows) : []
-		)
+		wholeFolded
+			? []
+			: items.flatMap((item) => (item.type === 'hunk' ? [item.hunk] : item.expanded ? item.hunks : []).flatMap(visible))
 	);
+
+	// Marks on lines a fold is hiding, shown on the fold instead.
+	const matchesRow = (r: Row, ref: LineRef) =>
+		ref.side === 'new' ? r.new === ref.line && r.kind !== 'del' : r.old === ref.line && r.kind !== 'add';
+	const hiddenMarks = (rows: Row[]) => marks.filter((m) => rows.some((r) => matchesRow(r, m.start)));
 	const position = $derived(new Map(shown.map((r, i) => [r.key, i])));
 
 	function rowAt(ref: LineRef): Row | undefined {
@@ -272,7 +346,25 @@
 	</div>
 {/snippet}
 
+{#snippet foldRow(id: string, summary: string, rows: Row[])}
+	{@const isOpen = openFolds.has(id)}
+	{@const hidden = isOpen ? [] : hiddenMarks(rows)}
+	<button class="fold-row" aria-expanded={isOpen} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
+		<svg class="fold-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+		<span class="fold-summary"><InlineText text={summary} /></span>
+		{#each hidden as m (m.id)}
+			<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
+				{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
+			</span>
+		{/each}
+		<span class="fold-lines">{rows.length} {rows.length === 1 ? 'line' : 'lines'}</span>
+	</button>
+{/snippet}
+
 {#snippet hunkBlock(hunk: Hunk)}
+	{@const span = spanOf(hunk)}
+	{#if span && span.hunks[0] === hunk.index}{@render foldRow(span.id, span.summary, span.rows)}{/if}
+	{#if !hiddenBySpan(hunk)}
 	<div class="hunk-header">
 		<span class="hunk-text">{hunk.header}</span>
 		{#if hiddenAbove(hunk.index) > 0}
@@ -282,7 +374,14 @@
 			</button>
 		{/if}
 	</div>
-	{#each hunk.rows as r (r.key)}{@render row(r)}{/each}
+	{#each piecesOf.get(hunk.index) ?? [] as piece (piece.type === 'row' ? piece.row.key : piece.id)}
+		{#if piece.type === 'row'}
+			{@render row(piece.row)}
+		{:else}
+			{@render foldRow(piece.id, piece.summary, piece.rows)}
+			{#if openFolds.has(piece.id)}{#each piece.rows as r (r.key)}{@render row(r)}{/each}{/if}
+		{/if}
+	{/each}
 	{#if !shownIndices.has(hunk.index + 1) && hiddenBelow(hunk.index) > 0}
 		<div class="hunk-footer">
 			<button class="expand" onclick={() => expand(hunk.index, 'down')}>
@@ -291,6 +390,7 @@
 			</button>
 		</div>
 	{/if}
+{/if}
 {/snippet}
 
 <section class="file">
@@ -314,19 +414,20 @@
 			</button>
 		{/if}
 	</header>
-	{#if !collapsed && note}
+	{#if !collapsed && note && !(wholeFold && 'fromNote' in wholeFold)}
 		<div class="note">
-			<span class="note-label">{note.kind === 'tests' ? 'What’s tested' : 'About this change'}</span>
 			<NoteText text={note.note} />
-			{#if note.quality}<p class="quality"><span class="faint">Test quality:</span> <InlineText text={note.quality} /></p>{/if}
+			{#if note.quality}<p><InlineText text={note.quality} /></p>{/if}
 		</div>
 	{/if}
 	{#if !collapsed}
 		<div class="diff">
+			{#if wholeFold}{@render foldRow('file', wholeFold.summary, hunks.flatMap((h) => h.rows))}{/if}
+			{#if !wholeFolded}
 			{#each items as item (item.type === 'hunk' ? `h${item.hunk.index}` : item.id)}
 				{#if item.type === 'hunk'}
 					{@render hunkBlock(item.hunk)}
-				{:else}
+				{:else if !item.hunks.every(hiddenBySpan)}
 					<button
 						class="fold"
 						aria-expanded={item.expanded}
@@ -342,6 +443,7 @@
 					{/if}
 				{/if}
 			{/each}
+			{/if}
 		</div>
 	{/if}
 </section>
@@ -412,16 +514,61 @@
 		line-height: 1.6;
 		color: var(--muted);
 	}
-	.note-label {
-		font-size: 11px;
-		letter-spacing: 0.09em;
-		text-transform: uppercase;
-		font-weight: 600;
+	.note p {
+		margin: 0;
+	}
+	.fold-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		width: 100%;
+		padding: 9px 16px 9px 20px;
+		border: 0;
+		border-top: 1px solid var(--line);
+		border-bottom: 1px solid var(--line);
+		background: var(--hunk-bg);
+		color: var(--muted);
+		font-family: var(--sans);
+		font-size: 13.5px;
+		line-height: 1.55;
+		text-align: left;
+		cursor: pointer;
+	}
+	.fold-row:hover {
+		color: var(--text);
+	}
+	.fold-chevron {
+		flex-shrink: 0;
+		margin-top: 3px;
 		color: var(--faint);
 	}
-	.quality {
-		margin: 2px 0 0;
-		font-size: 13.5px;
+	.fold-summary {
+		flex-grow: 1;
+		min-width: 0;
+	}
+	.fold-lines {
+		flex-shrink: 0;
+		font-family: var(--mono);
+		font-size: 12px;
+		color: var(--faint);
+		padding-top: 1px;
+	}
+	.fold-pin {
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: 22px;
+		height: 18px;
+		margin-top: 1px;
+		border-radius: 9px;
+	}
+	.fold-pin.finding {
+		background: var(--agent-chip);
+		fill: var(--agent);
+	}
+	.fold-pin.note {
+		background: var(--you-chip);
+		fill: var(--you);
 	}
 	.diff {
 		margin-bottom: 18px;

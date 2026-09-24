@@ -27,6 +27,14 @@
 	});
 
 	const session = useSession();
+
+	// Tests sort just after the file they test: "src/a.test.ts" and
+	// "src/__tests__/a.ts" both sit beneath "src/a.ts".
+	function fileOrder(path: string): string {
+		const isTest = /\.(test|spec)\.[^/]+$/.test(path) || /(^|\/)(__tests__|tests?)\//.test(path);
+		const subject = path.replace(/(^|\/)(__tests__|tests?)\//, '$1').replace(/\.(test|spec)(\.[^/.]+)$/, '$2');
+		return `${subject}\u0000${isTest ? 1 : 0}`;
+	}
 	const marks = $derived(marksFrom(session.record));
 
 	const files = $derived.by(() => {
@@ -38,6 +46,7 @@
 		}
 		return session.files
 			.filter((f) => byFile.has(f.filename))
+			.sort((a, b) => fileOrder(a.filename).localeCompare(fileOrder(b.filename)))
 			.map((file) => {
 				const indices = byFile.get(file.filename)!;
 				const fileKeys = indices.map((i) => `${file.filename}#${i}`);
@@ -61,6 +70,7 @@
 			autoReviewed={reviewed && fileKeys.every((k) => session.autoReviewed.has(k))}
 			onToggleReviewed={() => session.setReviewed(fileKeys, !reviewed)}
 			{fold}
+			foldSummaries={session.foldSummaries}
 			onopenchange={(isOpen) => (isOpen ? open.add(file.filename) : open.delete(file.filename))}
 		/>
 	{/each}

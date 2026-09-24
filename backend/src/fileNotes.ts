@@ -1,7 +1,7 @@
 import type { PrFile } from "./github.js";
 import { chatWithTool } from "./modelProvider.js";
 import { inLane } from "./notes.js";
-import { numberedFileDiff } from "./prDiff.js";
+import { linesInDiff, numberedFileDiff } from "./prDiff.js";
 import type { FileNote, Slice } from "./types.js";
 
 // Notes on individual files within a slice, where a file needs more than the
@@ -22,10 +22,19 @@ const REPORT_FILE_NOTES_TOOL = {
           properties: {
             path: { type: "string" },
             kind: { type: "string", enum: ["tests", "context"] },
-            note: { type: "string" },
-            quality: {
-              type: "string",
-              description: "For tests only: whether the tests are well-formed, in a sentence.",
+            note: { type: "string", description: "One or two sentences of plain prose: a verdict, not a list." },
+            folds: {
+              type: "array",
+              description: "Parts of this file's diff that are safe to skim once summarised.",
+              items: {
+                type: "object",
+                properties: {
+                  start_line: { type: "integer", description: "First new-file line, as numbered in the diff." },
+                  end_line: { type: "integer", description: "Last new-file line, as numbered in the diff." },
+                  summary: { type: "string", description: "One sentence: what the folded code does." },
+                },
+                required: ["summary"],
+              },
             },
           },
           required: ["path", "kind", "note"],
@@ -40,13 +49,21 @@ const SYSTEM_PROMPT = `You are helping someone review one slice of a pull reques
 it, already summarised. Decide which of its files deserve a note of their own, to spare the reviewer \
 reading them line by line or to tell them what to look for. Most files don't: skip small or obvious \
 changes, and never restate the slice's summary.
-Two kinds of note:
-- tests: for a test file. "note" lists the scenarios actually tested, as a short markdown list, so \
-the reviewer knows what's covered without reading the file. "quality" says in a sentence whether \
-the tests are well-formed - clear assertions, realistic setups, names that match what they test - \
-or what's off.
-- context: for a large or intricate change in a non-test file. "note" says in two or three \
-sentences what the change amounts to and what's worth checking.
+Each note is one or two sentences of plain prose - a verdict, with no headings or lists:
+- tests: for a test file. Whether the tests cover the change well, and whether they're \
+well-formed (clear assertions, realistic setups, names that match what they test), or what's off.
+- context: for a large or intricate change in a non-test file. What the change amounts to, and \
+what's worth checking.
+A note can also fold parts of the file's diff that are safe to skim once summarised, so the \
+reviewer reads the summary in their place:
+- In a test file, fold each describe block (or a run of related it blocks) whose scenarios you can \
+name; the summary lists them, e.g. "Checks each PA-429 entity syncs through its filter input type, \
+and that paged wrappers are exempt." Leave unfolded only test code that's surprising or suspect.
+- Fold a long mechanical run: a list of similar entries, or the same edit repeated.
+- Fold a file that's deleted outright or generated, as a whole: leave the lines out.
+Each fold gives start_line and end_line as new-file line numbers from the diff (both inside the \
+block), and a one-sentence summary of what the folded code does. Never fold logic the reviewer \
+should read.
 Only note files that are in this slice, using their paths exactly as shown. Report no notes if \
 none are needed.`;
 
@@ -85,20 +102,32 @@ async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal
 
   const raw = (call.arguments as { notes?: unknown }).notes;
   return (Array.isArray(raw) ? raw : []).flatMap((entry): FileNote[] => {
-    const { path, kind, note, quality } = (entry ?? {}) as Record<string, unknown>;
+    const { path, kind, note, folds } = (entry ?? {}) as Record<string, unknown>;
     // Only files in this slice, and one note per file.
     if (typeof path !== "string" || !byFile.has(path) || typeof note !== "string" || !note.trim()) return [];
     if (kind !== "tests" && kind !== "context") return [];
-    return [
-      {
-        path,
-        kind,
-        note: note.trim(),
-        ...(kind === "tests" && typeof quality === "string" && quality.trim() ? { quality: quality.trim() } : {}),
-      },
-    ];
+    const file = files.find((f) => f.filename === path);
+    const checked = file ? checkFolds(folds, linesInDiff(file)) : [];
+    return [{ path, kind, note: note.trim(), ...(checked.length ? { folds: checked } : {}) }];
   })
     .filter((n, i, all) => all.findIndex((m) => m.path === n.path) === i);
+}
+
+// Folds whose lines are in the diff, in order and not overlapping; a fold
+// with no lines covers the whole file, so it stands alone.
+function checkFolds(raw: unknown, inDiff: Set<number>): NonNullable<FileNote["folds"]> {
+  const folds: NonNullable<FileNote["folds"]> = [];
+  for (const entry of Array.isArray(raw) ? raw : []) {
+    const { start_line, end_line, summary } = (entry ?? {}) as Record<string, unknown>;
+    if (typeof summary !== "string" || !summary.trim()) continue;
+    if (start_line === undefined && end_line === undefined) return [{ summary: summary.trim() }];
+    if (typeof start_line !== "number" || typeof end_line !== "number") continue;
+    const [startLine, endLine] = start_line <= end_line ? [start_line, end_line] : [end_line, start_line];
+    if (!inDiff.has(startLine) || !inDiff.has(endLine)) continue;
+    folds.push({ startLine, endLine, summary: summary.trim() });
+  }
+  folds.sort((a, b) => a.startLine! - b.startLine!);
+  return folds.filter((f, i) => i === 0 || f.startLine! > folds[i - 1].endLine!);
 }
 
 // Notes for every slice, by slice id. Slices are done side by side, as many
