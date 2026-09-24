@@ -256,8 +256,11 @@
 		font-family: var(--mono);
 		font-size: 12px;
 		color: var(--faint);
-		padding: 7px 16px 6px 112px;
+		padding: 7px 16px 6px;
 		background: var(--hunk-bg);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.diff > .hunk-header:first-child {
 		border-radius: 12px 12px 0 0;
