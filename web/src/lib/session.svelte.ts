@@ -60,7 +60,7 @@ export class PrSession {
 
 	async open() {
 		try {
-			const [pr, { record }, existing] = await Promise.all([
+			const [pr, { record, version }, existing] = await Promise.all([
 				api.fetchPr(this.ref),
 				getRecord(this.ref),
 				api.getGeneration(this.ref).catch(() => null)
@@ -69,7 +69,8 @@ export class PrSession {
 			this.files = pr.files;
 			this.meta = pr.meta;
 			this.record = record;
-			this.panel.load();
+			// A record never saved is a PR opened for the first time.
+			this.panel.load({ fresh: version === 0 });
 			this.update((r) => {
 				if (pr.meta?.title) r.title = pr.meta.title;
 				r.lastOpenedAt = Date.now();

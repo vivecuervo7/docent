@@ -23,13 +23,10 @@
 			.catch(() => {});
 	});
 
-	// Choices made here before starting; a reviewer's saved `ranWith` is what
-	// it last ran with.
-	let setups = $state<Partial<Record<AgentId, ReviewerSetup>>>({});
 	let ticked = $state<Partial<Record<AgentId, boolean>>>({});
 	let starting = $state(false);
 
-	const setupOf = (r: AgentReviewer): ReviewerSetup => setups[r.id] ?? setupFrom(r, defaultModel);
+	const setupOf = (r: AgentReviewer): ReviewerSetup => setupFrom(r, defaultModel);
 	// Reviewers that haven't run are ticked to start; rerunning one replaces
 	// its findings, so that's opted into.
 	const isTicked = (r: AgentReviewer) => ticked[r.id] ?? (!r.ranWith && panel.findings(r.id) === 0);
@@ -46,7 +43,7 @@
 	}
 
 	function choose(r: AgentReviewer, value: string) {
-		setups[r.id] = value === 'external' ? { mode: 'external' } : { mode: 'builtin', model: value };
+		panel.plan(r.id, value === 'external' ? { mode: 'external' } : { mode: 'builtin', model: value });
 	}
 
 	function read() {
@@ -219,10 +216,19 @@
 		{/each}
 	</ul>
 
-	<button class="add" onclick={add}>
-		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-		Add a reviewer
-	</button>
+	<div class="add-row">
+		<button class="add" onclick={add}>
+			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+			Add a reviewer
+		</button>
+		{#if defaultModel}
+			{#if panel.isDefault(defaultModel)}
+				<span class="faint default">Your default panel</span>
+			{:else}
+				<button class="link default" onclick={() => panel.saveAsDefault(defaultModel)}>Make this my default panel</button>
+			{/if}
+		{/if}
+	</div>
 
 	<div class="actions">
 		{#if toStart.length}
@@ -466,6 +472,15 @@
 	.switch[aria-checked='true'] span {
 		transform: translateX(16px);
 		background: #141413;
+	}
+	.add-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.default {
+		font-size: 12.5px;
 	}
 	.add {
 		display: flex;

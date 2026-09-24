@@ -28,7 +28,7 @@ import {
   type ReviewContext,
 } from "./agentReview.js";
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
-import { modelName, setModelName } from "./config.js";
+import { defaultPanel, modelName, setDefaultPanel, setModelName } from "./config.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
 import { listModelOptions } from "./modelProvider.js";
@@ -364,6 +364,25 @@ app.put("/api/models/selected", (req, res) => {
   }
   setModelName(model.trim());
   res.json({ selected: modelName() });
+});
+
+// The review panel a new PR starts with, the same for every repo.
+app.get("/api/panel/default", (_req, res) => {
+  res.json({ panel: defaultPanel() });
+});
+
+app.put("/api/panel/default", (req, res) => {
+  const panel = req.body?.panel;
+  if (
+    !Array.isArray(panel) ||
+    panel.length === 0 ||
+    panel.length > 10 ||
+    panel.some((p) => typeof p !== "string" || !p.trim() || p.length > 200)
+  ) {
+    return res.status(400).json({ error: "invalid panel" });
+  }
+  setDefaultPanel(panel.map((p: string) => p.trim()));
+  res.json({ panel: defaultPanel() });
 });
 
 // Saved reviews: one record per PR, owned here rather than in the browser so

@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 // Where the model lives and how to reach it. The endpoint, key and limits
 // come from backend/.env (see .env.example), so the key stays on this
 // machine and out of the browser. The model can also be picked from the
-// start page; that choice is kept in backend/data/settings.json.
+// start page; that choice is kept in backend/data/settings.json, along with
+// the review panel a new PR starts with.
 
 const backendDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const envFile = join(backendDir, ".env");
@@ -18,6 +19,9 @@ const DEFAULT_MODEL = "gemma-4-12B-it-8bit";
 
 interface Settings {
   model?: string;
+  // Each reviewer in the default panel: a model, or "external" for the
+  // reviewer's own agent.
+  panel?: string[];
 }
 
 function readSettings(): Settings {
@@ -41,9 +45,21 @@ export function modelName(): string {
   return readSettings().model || process.env.DOCENT_MODEL || DEFAULT_MODEL;
 }
 
-export function setModelName(model: string): void {
+function writeSettings(change: Settings): void {
   mkdirSync(dirname(settingsFile), { recursive: true });
-  writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), model }, null, 2), { mode: 0o600 });
+  writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), ...change }, null, 2), { mode: 0o600 });
+}
+
+export function setModelName(model: string): void {
+  writeSettings({ model });
+}
+
+export function defaultPanel(): string[] | null {
+  return readSettings().panel ?? null;
+}
+
+export function setDefaultPanel(panel: string[]): void {
+  writeSettings({ panel });
 }
 
 // Claude Code models are picked with this prefix (see modelProvider.ts).

@@ -14,9 +14,10 @@
 	const onPost = $derived(page.url.pathname === `${base}/post`);
 	const total = $derived(session.slices.length);
 	const allRead = $derived(total > 0 && session.reviewedSlices === total);
-	// Wrap up is done once nothing from the panel waits on a decision and your
-	// comments are drafted from your threads as they stand.
+	// Wrap up is done once the PR is read, nothing from the panel waits on a
+	// decision, and your comments are drafted from your threads as they stand.
 	const wrappedUp = $derived(
+		allRead &&
 		Object.entries(session.record.feedback).every(([key, draft]) => !key.startsWith('agent-') || !draft?.items.some((i) => !i.decided)) &&
 			(!session.threads.length || (!!session.record.feedback.yours && !session.threadsChanged))
 	);

@@ -122,6 +122,9 @@ export interface AgentReviewer {
 	// of the id.
 	name?: string;
 	ranWith?: string;
+	// What it's set to run with next: a model, or "external". Chosen on the
+	// panel card, or given by the default panel.
+	planned?: string;
 }
 
 export interface PrRecord {

@@ -151,3 +151,17 @@ export async function endAgentReview(ref: PrRef, reviewer: string, action: 'stop
 export async function dismissAgentReview(ref: PrRef, reviewer: string, force = false): Promise<void> {
 	await fetch(`${reviewUrl(ref, reviewer)}${force ? '&force=1' : ''}`, { method: 'DELETE' }).catch(() => {});
 }
+
+// The review panel a new PR starts with: a model or "external" per reviewer.
+export async function getDefaultPanel(): Promise<string[] | null> {
+	return (await readOk<{ panel: string[] | null }>(await fetch('/api/panel/default'))).panel;
+}
+
+export async function setDefaultPanel(panel: string[]): Promise<string[] | null> {
+	const res = await fetch('/api/panel/default', {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ panel })
+	});
+	return (await readOk<{ panel: string[] | null }>(res)).panel;
+}

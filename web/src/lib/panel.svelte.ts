@@ -10,9 +10,12 @@ import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type F
 export type ReviewerSetup = { mode: 'builtin'; model: string } | { mode: 'external' };
 
 export function setupFrom(reviewer: AgentReviewer, defaultModel: string): ReviewerSetup {
-	if (reviewer.ranWith === 'external') return { mode: 'external' };
-	return { mode: 'builtin', model: reviewer.ranWith ?? defaultModel };
+	const chosen = reviewer.planned ?? reviewer.ranWith;
+	if (chosen === 'external') return { mode: 'external' };
+	return { mode: 'builtin', model: chosen ?? defaultModel };
 }
+
+const setupValue = (setup: ReviewerSetup) => (setup.mode === 'external' ? 'external' : setup.model);
 
 export function modelLabel(model: string): string {
 	const name = model.replace(/^claude-code:/, '');
@@ -43,6 +46,7 @@ export class Panel {
 	#session: PrSession;
 	reviews = $state<Partial<Record<AgentId, AgentReview>>>({});
 	errors = $state<Partial<Record<AgentId, string>>>({});
+	defaultPanel = $state<string[] | null>(null);
 
 	readonly reviewers = $derived.by(() => this.#session.record.agentReviewers);
 	readonly running = $derived.by(() => this.reviewers.filter((r) => this.reviews[r.id]?.status === 'running'));
@@ -60,10 +64,21 @@ export class Panel {
 		this.#session = session;
 	}
 
-	// Names any reviewers from before names, and picks up reviews still
-	// running from an earlier visit.
-	async load() {
-		if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
+	// Starts a PR opened for the first time with the default panel, names any
+	// reviewers from before names, and picks up reviews still running from an
+	// earlier visit.
+	async load({ fresh }: { fresh: boolean }) {
+		const saved = await api.getDefaultPanel().catch(() => null);
+		this.defaultPanel = saved;
+		if (fresh && saved?.length) {
+			await this.#session
+				.update((r) => {
+					r.agentReviewers = saved.map((planned, i) => ({ id: `agent-${i + 1}`, planned }));
+					r.agentHighest = saved.length;
+					nameAll(r);
+				})
+				.catch(() => {});
+		} else if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
 		await Promise.all(
 			this.reviewers.map(async ({ id }) => {
 				const review = await api.getAgentReview(this.#session.ref, id).catch(() => null);
@@ -90,13 +105,34 @@ export class Panel {
 			});
 			delete this.#seen[id];
 			this.#collect(id, review);
-			const ranWith = setup.mode === 'external' ? 'external' : setup.model;
+			const ranWith = setupValue(setup);
 			session.update((r) => {
-				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, ranWith } : a));
+				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, ranWith, planned: undefined } : a));
 			});
 		} catch (err) {
 			this.errors[id] = (err as Error).message;
 		}
+	}
+
+	// What a reviewer runs with next.
+	plan(id: AgentId, setup: ReviewerSetup) {
+		const planned = setupValue(setup);
+		this.#session
+			.update((r) => {
+				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, planned } : a));
+			})
+			.catch(() => {});
+	}
+
+	// This PR's panel, as what every new PR starts with.
+	async saveAsDefault(defaultModel: string) {
+		const panel = this.reviewers.map((r) => setupValue(setupFrom(r, defaultModel)));
+		this.defaultPanel = await api.setDefaultPanel(panel);
+	}
+
+	isDefault(defaultModel: string): boolean {
+		const panel = this.reviewers.map((r) => setupValue(setupFrom(r, defaultModel)));
+		return !!this.defaultPanel && JSON.stringify(panel) === JSON.stringify(this.defaultPanel);
 	}
 
 	async end(id: AgentId, action: 'stop' | 'finish') {
