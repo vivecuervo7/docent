@@ -43,4 +43,7 @@ export interface FileNote {
   // For tests: new-file lines that name a test or group of tests, so the
   // code between them can be folded away.
   scenarioLines?: number[];
+  // Code the reviewer would only skim - imports, test setup - shown folded
+  // with what changed inside. New-file lines.
+  quietRanges?: { kind: "imports" | "setup"; startLine: number; endLine: number }[];
 }

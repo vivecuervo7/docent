@@ -11,7 +11,7 @@ import type { FileNote, Slice } from "./types.js";
 
 const REPORT_FILE_NOTES_TOOL = {
   name: "report_file_notes",
-  description: "Report notes on the files in this slice that need one.",
+  description: "Report notes on the files in this slice that need one, and the quiet parts of each file.",
   parameters: {
     type: "object",
     properties: {
@@ -22,11 +22,27 @@ const REPORT_FILE_NOTES_TOOL = {
           properties: {
             path: { type: "string" },
             kind: { type: "string", enum: ["tests", "context"] },
-            note: { type: "string", description: "One or two sentences of plain prose: a verdict, not a list." },
+            note: {
+              type: "string",
+              description: "One or two sentences of plain prose: a verdict, not a list. Empty for a file that only has quiet_ranges.",
+            },
             scenario_lines: {
               type: "array",
               items: { type: "integer" },
               description: "For tests only: new-file line numbers of the lines that name a test or a group of tests.",
+            },
+            quiet_ranges: {
+              type: "array",
+              description: "Imports and test setup: code the reviewer would only skim.",
+              items: {
+                type: "object",
+                properties: {
+                  kind: { type: "string", enum: ["imports", "setup"] },
+                  start_line: { type: "integer" },
+                  end_line: { type: "integer" },
+                },
+                required: ["kind", "start_line", "end_line"],
+              },
             },
           },
           required: ["path", "kind", "note"],
@@ -51,6 +67,14 @@ every line that names a test or a group of tests - whatever this file's framewor
 describe/it/test calls, def test_ functions, func TestX or t.Run, [Fact] or [Test] methods, \
 RSpec's describe/context/it. The reviewer then reads those lines with the code between them \
 folded, so include every one, and nothing else.
+For any file in this slice, also give quiet_ranges for code the reviewer would only skim, shown \
+folded with a count of what changed inside:
+- imports: a file's block of imports, using directives, includes or requires, in whatever \
+language it's in.
+- setup: in a test file, the setup before its first test - mocks, fixtures, helpers - but not \
+the tests themselves.
+Each range is start_line and end_line, new-file line numbers from the diff covering the whole \
+block. A file that only has quiet ranges gets an entry with an empty note.
 Only note files that are in this slice, using their paths exactly as shown. Report no notes if \
 none are needed.`;
 
@@ -89,15 +113,39 @@ async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal
 
   const raw = (call.arguments as { notes?: unknown }).notes;
   return (Array.isArray(raw) ? raw : []).flatMap((entry): FileNote[] => {
-    const { path, kind, note, scenario_lines } = (entry ?? {}) as Record<string, unknown>;
+    const { path, kind, note, scenario_lines, quiet_ranges } = (entry ?? {}) as Record<string, unknown>;
     // Only files in this slice, and one note per file.
-    if (typeof path !== "string" || !byFile.has(path) || typeof note !== "string" || !note.trim()) return [];
+    if (typeof path !== "string" || !byFile.has(path) || typeof note !== "string") return [];
     if (kind !== "tests" && kind !== "context") return [];
     const file = files.find((f) => f.filename === path);
-    const scenarios = kind === "tests" && file ? checkLines(scenario_lines, linesInDiff(file)) : [];
-    return [{ path, kind, note: note.trim(), ...(scenarios.length ? { scenarioLines: scenarios } : {}) }];
+    const inDiff = file ? linesInDiff(file) : new Set<number>();
+    const scenarios = kind === "tests" ? checkLines(scenario_lines, inDiff) : [];
+    const quiet = checkRanges(quiet_ranges, inDiff);
+    if (!note.trim() && !quiet.length) return [];
+    return [
+      {
+        path,
+        kind,
+        note: note.trim(),
+        ...(scenarios.length ? { scenarioLines: scenarios } : {}),
+        ...(quiet.length ? { quietRanges: quiet } : {}),
+      },
+    ];
   })
     .filter((n, i, all) => all.findIndex((m) => m.path === n.path) === i);
+}
+
+// Ranges whose ends are in the diff, in order and not overlapping.
+function checkRanges(raw: unknown, inDiff: Set<number>): NonNullable<FileNote["quietRanges"]> {
+  const ranges: NonNullable<FileNote["quietRanges"]> = [];
+  for (const entry of Array.isArray(raw) ? raw : []) {
+    const { kind, start_line, end_line } = (entry ?? {}) as Record<string, unknown>;
+    if ((kind !== "imports" && kind !== "setup") || typeof start_line !== "number" || typeof end_line !== "number") continue;
+    const [startLine, endLine] = start_line <= end_line ? [start_line, end_line] : [end_line, start_line];
+    if (inDiff.has(startLine) && inDiff.has(endLine)) ranges.push({ kind, startLine, endLine });
+  }
+  ranges.sort((a, b) => a.startLine - b.startLine);
+  return ranges.filter((r, i) => i === 0 || r.startLine > ranges[i - 1].endLine);
 }
 
 // Line numbers that are in the diff, in order, once each.

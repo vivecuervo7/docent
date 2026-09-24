@@ -29,7 +29,7 @@ export class PrSession {
 	readonly preparing = $derived(!this.record.summary && this.generation !== null);
 	// Viewing preferences, kept in this browser.
 	hideWhitespace = $state(readPref('docent.hideWhitespace', true));
-	autoReviewTests = $state(readPref('docent.autoReviewTests', true));
+	autoReviewTests = $state(readPref('docent.autoReviewTests', false));
 	foldTests = $state(readPref('docent.foldTests', true));
 
 	// Each file's hunks, parsed once.

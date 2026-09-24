@@ -61,6 +61,8 @@ export interface FileNote {
 	quality?: string;
 	// For tests: new-file lines that name a test or group of tests.
 	scenarioLines?: number[];
+	// Code only worth skimming - imports, test setup - as new-file lines.
+	quietRanges?: { kind: 'imports' | 'setup'; startLine: number; endLine: number }[];
 }
 
 export interface FeedbackItem {

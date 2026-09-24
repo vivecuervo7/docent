@@ -33,8 +33,8 @@
 			<label>
 				<input type="checkbox" checked={session.foldTests} onchange={(e) => session.setFoldTests(e.currentTarget.checked)} />
 				<span>
-					Fold test bodies
-					<small class="faint">New test code shows as its test names, with the code between them folded.</small>
+					Fold quiet code
+					<small class="faint">Imports, test setup and new test bodies fold, showing what changed inside.</small>
 				</span>
 			</label>
 			<label>

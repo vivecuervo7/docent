@@ -88,7 +88,7 @@
 
 	function progress(pr: SavedPr) {
 		const slices = pr.record.slices ?? [];
-		const reviewed = effectiveReviewed(pr.record, readPref('docent.autoReviewTests', true));
+		const reviewed = effectiveReviewed(pr.record, readPref('docent.autoReviewTests', false));
 		const done = slices.filter((s) => isSliceReviewed(s, reviewed)).length;
 		return { done, total: slices.length };
 	}

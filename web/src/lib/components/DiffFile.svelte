@@ -130,29 +130,46 @@
 		return () => (live = false);
 	});
 
-	// Test files read as their scenarios: the code between the lines that
-	// name a test (marked by the note) folds away until opened. Only code
-	// that's wholly new or unchanged folds; a body with a real edit, or any
-	// deletion, stays open because that edit is what needs reading.
-	type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; rows: Row[] };
+	// Quiet, not hidden: code only worth skimming folds, and its row says
+	// what's inside.
+	// - Test files read as their scenarios: the code between the lines that
+	//   name a test folds, but only when it's wholly new or unchanged - an
+	//   edit or a deletion is what needs reading, so it stays open.
+	// - Imports and test setup fold whatever changed, with +/- on the row.
+	type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; rows: Row[]; label?: string };
 	const openFolds = new SvelteSet<string>();
 	const scenarioLines = $derived(new Set(foldTests && note?.kind === 'tests' ? (note.scenarioLines ?? []) : []));
+	const quietRanges = $derived(foldTests ? (note?.quietRanges ?? []) : []);
 	const MIN_FOLD = 3;
 
 	function pieces(hunk: Hunk): Piece[] {
 		const { rows } = hunk;
+		const onNew = (r: Row, from: number, to: number) => r.kind !== 'del' && r.new !== undefined && r.new >= from && r.new <= to;
+		const ranges: { from: number; to: number; label?: string }[] = [];
+		for (const q of quietRanges) {
+			const from = rows.findIndex((r) => onNew(r, q.startLine, q.endLine));
+			const to = rows.findLastIndex((r) => onNew(r, q.startLine, q.endLine));
+			const body = rows.slice(from, to + 1);
+			// Setup, like test bodies, only folds when nothing in it was edited.
+			const uniform = body.every((r) => r.kind === 'add') || body.every((r) => r.kind === 'context');
+			if (from >= 0 && to - from + 1 >= MIN_FOLD && (q.kind === 'imports' || uniform)) ranges.push({ from, to, label: q.kind });
+		}
 		const titles = rows.flatMap((r, i) => (r.kind !== 'del' && r.new !== undefined && scenarioLines.has(r.new) ? [i] : []));
-		const out: Piece[] = [];
-		let i = 0;
 		titles.forEach((t, n) => {
 			const end = n + 1 < titles.length ? titles[n + 1] : rows.length;
 			const body = rows.slice(t + 1, end);
 			const uniform = body.every((r) => r.kind === 'add') || body.every((r) => r.kind === 'context');
-			if (body.length < MIN_FOLD || !uniform) return;
-			for (; i <= t; i++) out.push({ type: 'row', row: rows[i] });
-			out.push({ type: 'fold', id: `${hunk.index}:${t}`, rows: body });
-			i = end;
+			if (body.length >= MIN_FOLD && uniform) ranges.push({ from: t + 1, to: end - 1 });
 		});
+		ranges.sort((a, b) => a.from - b.from);
+		const out: Piece[] = [];
+		let i = 0;
+		for (const range of ranges) {
+			if (range.from < i) continue;
+			for (; i < range.from; i++) out.push({ type: 'row', row: rows[i] });
+			out.push({ type: 'fold', id: `${hunk.index}:${range.from}`, rows: rows.slice(range.from, range.to + 1), label: range.label });
+			i = range.to + 1;
+		}
 		for (; i < rows.length; i++) out.push({ type: 'row', row: rows[i] });
 		return out;
 	}
@@ -309,12 +326,21 @@
 	</div>
 {/snippet}
 
-{#snippet foldRow(id: string, rows: Row[])}
+{#snippet foldRow(id: string, rows: Row[], label?: string)}
 	{@const isOpen = openFolds.has(id)}
 	{@const hidden = isOpen ? [] : hiddenMarks(rows)}
-	<button class="fold-row" aria-expanded={isOpen} title={isOpen ? 'Fold this test’s code' : 'Show this test’s code'} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
+	{@const added = rows.filter((r) => r.kind === 'add').length}
+	{@const removed = rows.filter((r) => r.kind === 'del').length}
+	<button class="fold-row" aria-expanded={isOpen} title={isOpen ? 'Fold this code' : 'Show this code'} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
 		<span class="fold-dots">{isOpen ? '⌃' : '⋯'}</span>
-		<span>{isOpen ? 'Fold' : `${rows.length} lines`}</span>
+		{#if isOpen}
+			<span>Fold{label ? ` ${label}` : ''}</span>
+		{:else}
+			<span>{label ? `${label} · ` : ''}{rows.length} lines</span>
+			{#if label && (added || removed)}
+				<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
+			{/if}
+		{/if}
 		{#each hidden as m (m.id)}
 			<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
 				{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
@@ -337,7 +363,7 @@
 		{#if piece.type === 'row'}
 			{@render row(piece.row)}
 		{:else}
-			{@render foldRow(piece.id, piece.rows)}
+			{@render foldRow(piece.id, piece.rows, piece.label)}
 			{#if openFolds.has(piece.id)}{#each piece.rows as r (r.key)}{@render row(r)}{/each}{/if}
 		{/if}
 	{/each}
@@ -356,7 +382,7 @@
 		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 			<span class="path">{file.filename.split('/').pop()}</span>
-			<span class="gist faint">{#if note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
+			<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
 			<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
 		</button>
 		{#if onToggleReviewed}
@@ -372,7 +398,7 @@
 			</button>
 		{/if}
 	</header>
-	{#if !collapsed && note}
+	{#if !collapsed && note?.note}
 		<div class="note">
 			<NoteText text={note.note} />
 			{#if note.quality}<p><InlineText text={note.quality} /></p>{/if}
@@ -490,6 +516,10 @@
 	.fold-row:hover {
 		color: var(--text);
 		background: rgba(255, 255, 255, 0.03);
+	}
+	.fold-changes {
+		font-family: var(--mono);
+		font-size: 12px;
 	}
 	.fold-dots {
 		font-family: var(--mono);
