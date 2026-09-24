@@ -337,7 +337,7 @@
 		{#if added || removed}
 			<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
 		{:else}
-			<span>{rows.length} unchanged lines</span>
+			<span class="fold-changes">{rows.length} unchanged lines</span>
 		{/if}
 		{#each hidden as m (m.id)}
 			<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
@@ -522,6 +522,7 @@
 		color: var(--hunk-text);
 	}
 	.fold-changes {
+		margin-left: auto;
 		font-family: var(--mono);
 		font-size: 12px;
 	}
@@ -534,12 +535,7 @@
 		place-items: center;
 		width: 16px;
 		height: 18px;
-		border-radius: 5px 0 0 5px;
-		background: var(--hunk-bg);
 		color: var(--hunk-text);
-	}
-	.fold-row:hover .fold-tab {
-		background: #202127;
 	}
 	.fold-pin {
 		display: grid;
@@ -574,6 +570,8 @@
 		font-family: var(--mono);
 		font-size: 12px;
 		color: var(--hunk-text);
+	}
+	.hunk-header {
 		background: var(--hunk-bg);
 	}
 	.hunk-text {
