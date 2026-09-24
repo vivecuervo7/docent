@@ -4,7 +4,7 @@ import { parseFilePatch, type Hunk } from './diff/parse';
 import { Panel } from './panel.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
-import type { Generation, PrFile, PrMeta, PrRecord, PrRef, Slice, StepName } from './types';
+import { isUnread, type Generation, type LineRef, type Note, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -106,6 +106,92 @@ export class PrSession {
 		return this.update((r) => {
 			for (const key of keys) r.reviewed[key] = value;
 		});
+	}
+
+	// Threads: asking about or remarking on selected lines, and the model's
+	// replies. Replies in flight, or failed, are kept here, not saved.
+	noteStatus = $state<Record<string, { pending?: boolean; error?: string }>>({});
+
+	createNote(anchor: { path: string; hunk: number; start: LineRef; end: LineRef; code: string }, text: string): string {
+		const now = Date.now();
+		const note: Note = { id: crypto.randomUUID(), ...anchor, messages: [{ role: 'user', text, at: now }], createdAt: now, readAt: now };
+		this.update((r) => {
+			r.notes = [...r.notes, note];
+		})
+			.then(() => this.#requestReply(note.id))
+			.catch((err) => (this.noteStatus[note.id] = { error: (err as Error).message }));
+		return note.id;
+	}
+
+	sendNote(id: string, text: string) {
+		this.update((r) => {
+			r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, { role: 'user', text, at: Date.now() }] } : n));
+		})
+			.then(() => this.#requestReply(id))
+			.catch((err) => (this.noteStatus[id] = { error: (err as Error).message }));
+	}
+
+	retryNote(id: string) {
+		this.#requestReply(id);
+	}
+
+	removeNote(id: string) {
+		this.update((r) => {
+			r.notes = r.notes.filter((n) => n.id !== id);
+		}).catch(() => {});
+	}
+
+	markNoteRead(id: string) {
+		const note = this.record.notes.find((n) => n.id === id);
+		if (!note || !isUnread(note)) return;
+		const readAt = Date.now();
+		this.update((r) => {
+			r.notes = r.notes.map((n) => (n.id === id ? { ...n, readAt } : n));
+		}).catch(() => {});
+	}
+
+	async #requestReply(id: string) {
+		const note = this.record.notes.find((n) => n.id === id);
+		if (!note) return;
+		const file = this.files.find((f) => f.filename === note.path);
+		const slice = this.slices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
+		const lines = note.start.line === note.end.line ? `line ${note.start.line}` : `lines ${note.start.line}-${note.end.line}`;
+		this.noteStatus[id] = { pending: true };
+		try {
+			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/notes/reply`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					context: {
+						path: note.path,
+						lines,
+						code: note.code,
+						fileDiff: file?.patch ?? note.code,
+						prTitle: this.title,
+						prWhat: this.record.summary?.what,
+						sliceTitle: slice?.title,
+						sliceSummary: slice?.summary
+					},
+					messages: note.messages.map(({ role, text }) => ({ role, text }))
+				})
+			});
+			const { text } = await api.readOk<{ text: string }>(res);
+			// The thread may have been deleted while the reply was on its way.
+			await this.update((r) => {
+				r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, { role: 'assistant', text, at: Date.now() }] } : n));
+			});
+			this.noteStatus[id] = {};
+		} catch (err) {
+			this.noteStatus[id] = { error: (err as Error).message };
+		}
+	}
+
+	// Keeps or skips an agent's finding for the review.
+	setFindingIncluded(reviewer: string, id: string, included: boolean) {
+		this.update((r) => {
+			const draft = r.feedback[reviewer];
+			if (draft) r.feedback[reviewer] = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included } : i)) };
+		}).catch(() => {});
 	}
 
 	// Saves a change to the review, and shows the record as saved.

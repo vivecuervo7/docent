@@ -1,16 +1,18 @@
 <script lang="ts">
 	import type { Mark } from '$lib/api';
+	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
 
+	// An agent's finding, to keep for the review or skip.
 	let { mark, onclose }: { mark: Mark; onclose: () => void } = $props();
 
-	// Local only in the spike: nothing is saved back to the review.
-	let kept = $state<boolean | undefined>(undefined);
+	const session = useSession();
 	let showWhy = $state(false);
 	const lines = $derived(
 		mark.start.line === mark.end.line ? `line ${mark.start.line}` : `lines ${mark.start.line}–${mark.end.line}`
 	);
-	const isKept = $derived(kept ?? mark.included ?? true);
+	const isKept = $derived(mark.included ?? true);
+	const keep = (value: boolean) => mark.reviewer && session.setFindingIncluded(mark.reviewer, mark.id, value);
 </script>
 
 <div
@@ -34,9 +36,6 @@
 		</button>
 	</header>
 	<p class="body"><InlineText text={mark.body} /></p>
-	{#each mark.replies ?? [] as reply, i (i)}
-		<p class="reply"><InlineText text={reply} /></p>
-	{/each}
 	{#if mark.kind === 'finding'}
 		{#if mark.rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
@@ -46,8 +45,8 @@
 			{#if showWhy}<p class="rationale"><InlineText text={mark.rationale} /></p>{/if}
 		{/if}
 		<footer>
-			<button class="btn" class:primary={isKept} aria-pressed={isKept} onclick={() => (kept = true)}>Keep</button>
-			<button class="btn" class:primary={!isKept} aria-pressed={!isKept} onclick={() => (kept = false)}>Skip</button>
+			<button class="btn" class:primary={isKept} aria-pressed={isKept} onclick={() => keep(true)}>Keep</button>
+			<button class="btn" class:primary={!isKept} aria-pressed={!isKept} onclick={() => keep(false)}>Skip</button>
 		</footer>
 	{/if}
 </div>
@@ -75,12 +74,6 @@
 		cursor: auto;
 		outline: none;
 	}
-	.popover.note {
-		background: var(--surface-2);
-		box-shadow:
-			0 0 0 1px var(--line-2),
-			0 30px 70px -20px rgba(0, 0, 0, 0.7);
-	}
 	header {
 		display: flex;
 		align-items: center;
@@ -91,24 +84,15 @@
 		font-weight: 500;
 		color: var(--agent-text);
 	}
-	.note .who {
-		color: var(--you-text);
-	}
 	.grow {
 		flex-grow: 1;
 	}
 	.body,
-	.reply,
 	.rationale {
 		margin: 0;
 		font-size: 14.5px;
 		line-height: 1.6;
 		color: var(--text);
-	}
-	.reply {
-		padding-left: 12px;
-		color: var(--muted);
-		font-size: 14px;
 	}
 	.rationale {
 		color: var(--muted);

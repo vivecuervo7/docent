@@ -82,15 +82,32 @@ export interface FeedbackDraft {
 	basedOn?: Record<string, number>;
 }
 
+// A thread about lines the reviewer selected: a question or a remark, and
+// the model's replies.
+export interface NoteMessage {
+	role: 'user' | 'assistant';
+	text: string;
+	at: number;
+}
+
 export interface Note {
 	id: string;
 	path: string;
+	// The hunk the selection starts in, for showing its lines again.
 	hunk: number;
 	start: LineRef;
 	end: LineRef;
-	code?: string;
-	messages: { role: 'user' | 'assistant'; text: string; at?: number }[];
+	// The selected lines as they read when the thread began, with +/- markers.
+	code: string;
+	messages: NoteMessage[];
+	createdAt: number;
+	// When the reviewer last had the thread open; a reply after this is unread.
 	readAt?: number;
+}
+
+export function isUnread(note: Note): boolean {
+	const reply = note.messages.findLast((m) => m.role === 'assistant');
+	return !!reply && reply.at > (note.readAt ?? 0);
 }
 
 export type AgentId = `agent-${number}`;

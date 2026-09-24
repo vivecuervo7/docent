@@ -1,4 +1,4 @@
-import type { AgentReview, Generation, LineRef, ModelOption, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
+import type { AgentReview, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
 
 // Calls to Docent's backend, which this app shares with the React app.
 
@@ -69,8 +69,11 @@ export interface Mark {
 	who: string;
 	body: string;
 	rationale?: string;
-	replies?: string[];
 	included?: boolean;
+	// A thread's own record, for its messages and hunk.
+	note?: Note;
+	// The agent reviewer a finding came from.
+	reviewer?: string;
 }
 
 function agentName(id: string, ranWith: string | undefined): string {
@@ -96,7 +99,8 @@ export function marksFrom(record: PrRecord): Mark[] {
 						who: agentName(key, ranWith.get(key)),
 						body: item.body,
 						rationale: item.rationale,
-						included: item.included
+						included: item.included,
+						reviewer: key
 					})
 				)
 		);
@@ -109,7 +113,7 @@ export function marksFrom(record: PrRecord): Mark[] {
 			end: note.end,
 			who: 'You',
 			body: note.messages[0]?.text ?? '',
-			replies: note.messages.slice(1).map((m) => m.text)
+			note
 		})
 	);
 	return [...notes, ...findings];

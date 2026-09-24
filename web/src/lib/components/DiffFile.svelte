@@ -7,6 +7,7 @@
 	import {
 		EXPAND_STEP,
 		expandHunk,
+		expansionFor,
 		fileLines,
 		gapAbove,
 		gapBelow,
@@ -18,7 +19,10 @@
 		type Row
 	} from '$lib/diff/parse';
 	import InlineText from './InlineText.svelte';
+	import { useSession } from '$lib/session.svelte';
+	import { isUnread } from '$lib/types';
 	import MarkPopover from './MarkPopover.svelte';
+	import ThreadPanel from './ThreadPanel.svelte';
 	import NoteText from './NoteText.svelte';
 	import StateMark from './StateMark.svelte';
 
@@ -64,11 +68,30 @@
 	let loadingOld: Promise<void> | null = null;
 	const canExpand = $derived(file.status !== 'added');
 
+	// Lines threads were begun on outside their hunk's diff, which have to
+	// be shown again.
+	const needed = $derived.by(() => {
+		const out: Record<number, Expansion> = {};
+		for (const m of marks) {
+			const h = m.note && allHunks[m.note.hunk];
+			if (!h) continue;
+			const e = expansionFor(h, m.start, m.end);
+			const prev = out[h.index] ?? { up: 0, down: 0 };
+			out[h.index] = { up: Math.max(prev.up, e.up), down: Math.max(prev.down, e.down) };
+		}
+		return out;
+	});
+	$effect(() => {
+		if (canExpand && Object.values(needed).some((e) => e.up || e.down)) loadOld();
+	});
+
 	const expansion = $derived.by(() => {
 		const out: Expansion[] = [];
 		for (const h of allHunks) {
 			const i = h.index;
-			const want = requested[i] ?? { up: 0, down: 0 };
+			const asked = requested[i] ?? { up: 0, down: 0 };
+			const need = needed[i] ?? { up: 0, down: 0 };
+			const want = { up: Math.max(asked.up, need.up), down: Math.max(asked.down, need.down) };
 			if (!oldLines) {
 				out[i] = { up: 0, down: 0 };
 				continue;
@@ -91,9 +114,8 @@
 		return gapBelow(allHunks, i, oldLines.length) - expansion[i].down - (expansion[i + 1]?.up ?? 0);
 	}
 
-	async function expand(i: number, direction: 'up' | 'down') {
-		if (!oldLines) {
-			loadingOld ??= fetch(
+	function loadOld(): Promise<void> {
+		loadingOld ??= fetch(
 				`/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/old-content?path=${encodeURIComponent(file.previous_filename ?? file.filename)}`
 			)
 				.then((res) => (res.ok ? res.json() : { content: null }))
@@ -103,8 +125,11 @@
 				.catch(() => {
 					loadingOld = null;
 				});
-			await loadingOld;
-		}
+		return loadingOld ?? Promise.resolve();
+	}
+
+	async function expand(i: number, direction: 'up' | 'down') {
+		if (!oldLines) await loadOld();
 		const now = expansion[i] ?? { up: 0, down: 0 };
 		requested = { ...requested, [i]: { ...now, [direction]: now[direction] + EXPAND_STEP } };
 	}
@@ -226,6 +251,37 @@
 	const selFrom = $derived(selection ? Math.min(selection.anchor, selection.head) : -1);
 	const selTo = $derived(selection ? Math.max(selection.anchor, selection.head) : -1);
 
+	const session = useSession();
+	let draft = $state('');
+
+	// A thread on the selected lines, kept with the hunk the selection starts
+	// in and the lines as they read now.
+	function startThread() {
+		const text = draft.trim();
+		if (!text || !selection) return;
+		const rows = shown.slice(selFrom, selTo + 1);
+		const ref = (r: Row): LineRef => (r.kind === 'del' ? { side: 'old', line: r.old! } : { side: 'new', line: r.new! });
+		const id = session.createNote(
+			{
+				path: file.filename,
+				hunk: parseInt(rows[0].key, 10),
+				start: ref(rows[0]),
+				end: ref(rows[rows.length - 1]),
+				code: rows.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`).join('\n')
+			},
+			text
+		);
+		selection = null;
+		draft = '';
+		open = id;
+	}
+
+	// The composer takes focus as it opens, so typing goes to it and never to
+	// the page's shortcuts. Autofocus alone loses to whatever held focus.
+	function focusNow(node: HTMLElement) {
+		requestAnimationFrame(() => node.focus());
+	}
+
 	function startSelect(e: PointerEvent, pos: number) {
 		if (e.button !== 0) return;
 		e.preventDefault();
@@ -301,23 +357,45 @@
 						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
 					{:else}
 						<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+						{#if p.mark.note && isUnread(p.mark.note)}<span class="unread" aria-label="New reply"></span>{/if}
 					{/if}
 				</button>
 			{/each}
 		</span>
 		{#each pins ?? [] as p (p.mark.id)}
 			{#if open === p.mark.id}
-				<MarkPopover mark={p.mark} onclose={() => (open = null)} />
+				{#if p.mark.note}
+					<ThreadPanel note={p.mark.note} onclose={() => (open = null)} />
+				{:else}
+					<MarkPopover mark={p.mark} onclose={() => (open = null)} />
+				{/if}
 			{/if}
 		{/each}
 		{#if selection && !dragging && pos === selTo}
-			<div class="sel-actions">
-				<span class="faint">{describe(selFrom, selTo)}</span>
-				<button class="btn primary">Ask about this</button>
-				<button class="btn">Comment</button>
-				<button class="icon" aria-label="Clear selection" onclick={() => (selection = null)}>
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
-				</button>
+			<div class="composer" role="dialog" aria-label="Ask or comment on {describe(selFrom, selTo)}">
+				<div class="composer-head">
+					<span class="faint">{describe(selFrom, selTo)}</span>
+					<button class="icon" aria-label="Cancel" onclick={() => (selection = null)}>
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+					</button>
+				</div>
+				<textarea
+					bind:value={draft}
+					rows="2"
+					use:focusNow
+					placeholder="Ask a question, or jot a comment for the author…"
+					aria-label="Ask or comment"
+					onkeydown={(e) => {
+						if (e.key === 'Enter' && !e.shiftKey) {
+							e.preventDefault();
+							startThread();
+						} else if (e.key === 'Escape') selection = null;
+					}}
+				></textarea>
+				<div class="composer-foot">
+					<span class="faint">Enter to send · Shift+Enter for a new line</span>
+					<button class="btn primary" disabled={!draft.trim()} onclick={startThread}>Send</button>
+				</div>
 			</div>
 		{/if}
 	</div>
@@ -416,6 +494,13 @@
 						{item.expanded ? 'Showing' : 'The same change in'}
 						{item.hunks.length} more places
 						<span class="faint">· lines {foldLines(item)}</span>
+						{#if !item.expanded}
+							{#each hiddenMarks(item.hunks.flatMap((h) => h.rows)) as m (m.id)}
+								<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
+									{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
+								</span>
+							{/each}
+						{/if}
 					</button>
 					{#if item.expanded}
 						{#each item.hunks as hunk (hunk.index)}{@render hunkBlock(hunk)}{/each}
@@ -736,21 +821,66 @@
 		color: var(--text);
 		background: var(--surface);
 	}
-	.sel-actions {
+	.composer {
 		position: absolute;
 		left: 104px;
 		top: calc(100% + 6px);
 		z-index: 15;
+		width: 460px;
+		max-width: calc(100% - 120px);
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		gap: 8px;
-		padding: 6px 6px 6px 14px;
-		border-radius: 12px;
+		padding: 12px 14px;
+		border-radius: 14px;
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
 			0 20px 50px -20px rgba(0, 0, 0, 0.8);
 		font-family: var(--sans);
 		font-size: 13px;
+		white-space: normal;
+	}
+	.composer-head,
+	.composer-foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+	.composer-foot span {
+		font-size: 12px;
+	}
+	.composer textarea {
+		resize: vertical;
+		padding: 8px 10px;
+		border: 0;
+		border-radius: 9px;
+		background: var(--bg);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--text);
+		font: inherit;
+		font-size: 14px;
+		line-height: 1.5;
+		outline: none;
+	}
+	.composer textarea:focus {
+		box-shadow: inset 0 0 0 1px var(--you);
+	}
+	.composer .btn:disabled {
+		opacity: 0.5;
+	}
+	.pin {
+		position: relative;
+	}
+	.unread {
+		position: absolute;
+		top: -2px;
+		right: 0;
+		width: 7px;
+		height: 7px;
+		border-radius: 4px;
+		background: var(--you);
+		box-shadow: 0 0 0 2px var(--code-bg);
 	}
 </style>

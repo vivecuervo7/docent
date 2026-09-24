@@ -1,4 +1,5 @@
 import { diffArrays, diffWordsWithSpace, parsePatch } from 'diff';
+import type { LineRef } from '$lib/types';
 
 // A file's diff as rows we render ourselves, parsed from the patch GitHub
 // returns. Hunks keep their position in the patch, which is how slices refer
@@ -219,4 +220,26 @@ export function expandHunk(h: Hunk, { up, down }: Expansion, lines: string[]): H
 	const above = Array.from({ length: up }, (_, k) => context(first - up + k, offsetAbove(h)));
 	const below = Array.from({ length: down }, (_, k) => context(last + 1 + k, offsetBelow(h)));
 	return { ...h, rows: [...above, ...h.rows, ...below] };
+}
+
+// How far a hunk has to open to show a thread's lines, for threads begun on
+// lines that were expanded at the time.
+export function expansionFor(h: Hunk, start: LineRef, end: LineRef): Expansion {
+	const first = firstOld(h);
+	const last = lastOld(h);
+	const firstNew = first + offsetAbove(h);
+	const lastNew = last + offsetBelow(h);
+	// Where a line falls outside the hunk, as an old-file line; null inside.
+	const outside = ({ side, line }: LineRef): number | null => {
+		if (side === 'old') return line < first || line > last ? line : null;
+		if (line < firstNew) return line - offsetAbove(h);
+		if (line > lastNew) return line - offsetBelow(h);
+		return null;
+	};
+	const from = outside(start);
+	const to = outside(end);
+	return {
+		up: from !== null && from < first ? first - from : 0,
+		down: to !== null && to > last ? to - last : 0
+	};
 }
