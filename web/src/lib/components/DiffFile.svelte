@@ -331,10 +331,13 @@
 	<button class="fold-row" aria-expanded={isOpen} title={isOpen ? 'Fold this code' : 'Show this code'} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
 		<span class="fold-tab" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg></span>
 		<span class="fold-kind">{label ?? '…'}</span>
-		{#if added || removed}
-			<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
-		{:else}
-			<span class="fold-changes">{rows.length} unchanged lines</span>
+		<!-- The counts say what's hidden, so they go once it's open. -->
+		{#if !isOpen}
+			{#if added || removed}
+				<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
+			{:else}
+				<span class="fold-changes">{rows.length} unchanged lines</span>
+			{/if}
 		{/if}
 		{#each hidden as m (m.id)}
 			<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
