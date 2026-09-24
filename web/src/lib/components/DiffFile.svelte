@@ -163,9 +163,9 @@
 		<button class="icon" aria-label={collapsed ? 'Expand file' : 'Collapse file'} aria-expanded={!collapsed} onclick={() => (collapsed = !collapsed)}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 		</button>
-		<span class="path">{file.filename}</span>
+		<span class="path" title={file.filename}>{file.filename.split('/').pop()}</span>
 		<span class="gist faint">{note ? `${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}` : ''}</span>
-		<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
+		<span class="stat faint">+{file.additions} −{file.deletions}</span>
 	</header>
 	{#if !collapsed}
 		<div class="diff">
@@ -198,18 +198,18 @@
 
 <style>
 	.file {
-		border-radius: 12px;
-		background: var(--code-bg);
-		box-shadow: 0 0 0 1px var(--line);
+		border-bottom: 1px solid var(--line);
 	}
 	header {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		height: 48px;
-		padding: 0 14px 0 8px;
-		border-bottom: 1px solid var(--line);
-		font-size: 13px;
+		gap: 14px;
+		height: 52px;
+		padding: 0 4px 0 0;
+		font-size: 13.5px;
+	}
+	header .icon {
+		margin-left: -4px;
 	}
 	.path {
 		font-family: var(--mono);
@@ -226,15 +226,13 @@
 	.stat {
 		font-family: var(--mono);
 		font-size: 12px;
-	}
-	.plus {
-		color: var(--plus);
-	}
-	.minus {
-		color: var(--minus);
+		white-space: nowrap;
 	}
 	.diff {
+		margin-bottom: 18px;
 		padding-bottom: 6px;
+		border-radius: 12px;
+		background: var(--code-bg);
 	}
 	.hunk-header {
 		font-family: var(--mono);

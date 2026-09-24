@@ -161,6 +161,5 @@
 	.files {
 		display: flex;
 		flex-direction: column;
-		gap: 22px;
 	}
 </style>
