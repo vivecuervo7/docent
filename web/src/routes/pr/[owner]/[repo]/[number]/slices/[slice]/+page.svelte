@@ -65,15 +65,17 @@
 			<div class="top">
 				<span class="label">Slice {index + 1} of {slices.length}</span>
 				<span class="grow"></span>
-				<FoldAll onfold={(open) => (fold = { open, at: Date.now(), slice: slice.id })} />
 				<ViewOptions />
 				{#if index > 0}<a class="btn" href="{base}/slices/{slices[index - 1].id}">← Prev</a>{/if}
 				{#if index < slices.length - 1}<a class="btn" href="{base}/slices/{slices[index + 1].id}">Next →</a>{/if}
 			</div>
 			<h1>{slice.title}</h1>
 			<p class="summary">{slice.summary}</p>
-			<p class="hint faint">Drag down the line numbers to select lines.</p>
 			{#key slice.id}
+				<div class="above-files">
+					<p class="hint faint">Drag down the line numbers to select lines.</p>
+					<FoldAll onfold={(open) => (fold = { open, at: Date.now(), slice: slice.id })} />
+				</div>
 				<FileDiffs keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} fold={fold?.slice === slice.id ? fold : null} />
 			{/key}
 
@@ -136,8 +138,14 @@
 		font-size: 15px;
 		line-height: 1.6;
 	}
+	.above-files {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 4px;
+	}
 	.hint {
-		margin: 0 0 12px;
+		margin: 0;
 		font-size: 13px;
 	}
 	.finish {

@@ -22,11 +22,13 @@
 		<div class="top">
 			<span class="label">All files</span>
 			<span class="grow"></span>
-			<FoldAll onfold={(open) => (fold = { open, at: Date.now() })} />
-				<ViewOptions />
+			<ViewOptions />
 		</div>
 		<h1>All {session.files.length} files</h1>
-		<p class="faint">{reviewedFiles} of {session.files.length} reviewed</p>
+		<div class="above-files">
+			<p class="faint">{reviewedFiles} of {session.files.length} reviewed</p>
+			<FoldAll onfold={(open) => (fold = { open, at: Date.now() })} />
+		</div>
 		<FileDiffs keys={session.hunkKeys} {notes} {fold} />
 	</main>
 </div>
@@ -63,8 +65,14 @@
 		font-size: 32px;
 		font-weight: 500;
 	}
+	.above-files {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 4px;
+	}
 	p {
-		margin: 0 0 16px;
+		margin: 0;
 		font-size: 14px;
 	}
 </style>

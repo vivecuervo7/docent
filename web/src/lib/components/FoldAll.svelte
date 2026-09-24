@@ -1,25 +1,38 @@
 <script lang="ts">
-	// Opens or closes every file on the page at once.
+	// One quiet button that closes every file on the page, then opens them
+	// all again: it offers whichever its last press didn't do.
 	let { onfold }: { onfold: (open: boolean) => void } = $props();
+	let opens = $state(false);
+
+	function press() {
+		onfold(opens);
+		opens = !opens;
+	}
 </script>
 
-<div class="fold-all">
-	<button class="btn icon-btn" aria-label="Expand all files" title="Expand all files" onclick={() => onfold(true)}>
+<button class="fold-all" aria-label={opens ? 'Expand all files' : 'Collapse all files'} title={opens ? 'Expand all files' : 'Collapse all files'} onclick={press}>
+	{#if opens}
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
-	</button>
-	<button class="btn icon-btn" aria-label="Collapse all files" title="Collapse all files" onclick={() => onfold(false)}>
+	{:else}
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5" /><path d="m7 4 5 5 5-5" /></svg>
-	</button>
-</div>
+	{/if}
+</button>
 
 <style>
 	.fold-all {
-		display: flex;
-		gap: 4px;
-	}
-	.icon-btn {
-		width: 32px;
+		display: grid;
+		place-items: center;
+		width: 28px;
+		height: 28px;
 		padding: 0;
-		justify-content: center;
+		border: 0;
+		border-radius: 7px;
+		background: none;
+		color: var(--faint);
+		cursor: pointer;
+	}
+	.fold-all:hover {
+		color: var(--text);
+		background: rgba(255, 255, 255, 0.05);
 	}
 </style>
