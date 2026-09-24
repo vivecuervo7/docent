@@ -8,6 +8,7 @@
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 
 	const session = useSession();
+	let anyOpen = $state(false);
 	// The last expand all / collapse all on this slice, which its files follow.
 	let fold = $state<{ open: boolean; at: number; slice: string } | null>(null);
 	const sliceId = $derived(page.params.slice);
@@ -74,9 +75,9 @@
 			{#key slice.id}
 				<div class="above-files">
 					<p class="hint faint">Drag down the line numbers to select lines.</p>
-					<FoldAll onfold={(open) => (fold = { open, at: Date.now(), slice: slice.id })} />
+					<FoldAll {anyOpen} onfold={(open) => (fold = { open, at: Date.now(), slice: slice.id })} />
 				</div>
-				<FileDiffs keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} fold={fold?.slice === slice.id ? fold : null} />
+				<FileDiffs bind:anyOpen keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} fold={fold?.slice === slice.id ? fold : null} />
 			{/key}
 
 			<div class="finish">

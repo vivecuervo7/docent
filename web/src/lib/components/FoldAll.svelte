@@ -1,20 +1,15 @@
 <script lang="ts">
-	// One quiet button that closes every file on the page, then opens them
-	// all again: it offers whichever its last press didn't do.
-	let { onfold }: { onfold: (open: boolean) => void } = $props();
-	let opens = $state(false);
-
-	function press() {
-		onfold(opens);
-		opens = !opens;
-	}
+	// One quiet button: collapses every file while any is open, and expands
+	// them all when none are.
+	let { anyOpen, onfold }: { anyOpen: boolean; onfold: (open: boolean) => void } = $props();
+	const label = $derived(anyOpen ? 'Collapse all files' : 'Expand all files');
 </script>
 
-<button class="fold-all" aria-label={opens ? 'Expand all files' : 'Collapse all files'} title={opens ? 'Expand all files' : 'Collapse all files'} onclick={press}>
-	{#if opens}
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
-	{:else}
+<button class="fold-all" aria-label={label} title={label} onclick={() => onfold(!anyOpen)}>
+	{#if anyOpen}
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5" /><path d="m7 4 5 5 5-5" /></svg>
+	{:else}
+		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
 	{/if}
 </button>
 

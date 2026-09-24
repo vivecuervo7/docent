@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import { marksFrom } from '$lib/api';
 	import { useSession } from '$lib/session.svelte';
 	import type { FileNote } from '$lib/types';
@@ -9,13 +10,21 @@
 	let {
 		keys,
 		notes = [],
-		fold = null
+		fold = null,
+		anyOpen = $bindable(false)
 	}: {
 		// The hunks to show, as `path#index`, in the PR's file order.
 		keys: string[];
 		notes?: FileNote[];
 		fold?: { open: boolean; at: number } | null;
+		// Whether any file here is open, for the page's fold-all button.
+		anyOpen?: boolean;
 	} = $props();
+
+	const open = new SvelteSet<string>();
+	$effect(() => {
+		anyOpen = open.size > 0;
+	});
 
 	const session = useSession();
 	const marks = $derived(marksFrom(session.record));
@@ -52,6 +61,7 @@
 			autoReviewed={reviewed && fileKeys.every((k) => session.autoReviewed.has(k))}
 			onToggleReviewed={() => session.setReviewed(fileKeys, !reviewed)}
 			{fold}
+			onopenchange={(isOpen) => (isOpen ? open.add(file.filename) : open.delete(file.filename))}
 		/>
 	{/each}
 </div>

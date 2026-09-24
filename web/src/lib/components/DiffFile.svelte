@@ -32,7 +32,8 @@
 		reviewed = false,
 		autoReviewed = false,
 		onToggleReviewed,
-		fold = null
+		fold = null,
+		onopenchange
 	}: {
 		file: PrFile;
 		// Every hunk in the file, shown or not: expansion stops at its neighbours.
@@ -49,6 +50,8 @@
 		onToggleReviewed?: () => void;
 		// The page's last "expand all" or "collapse all", if any.
 		fold?: { open: boolean; at: number } | null;
+		// Told whenever the file opens or closes, and that it's closed when it goes.
+		onopenchange?: (open: boolean) => void;
 	} = $props();
 
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
@@ -202,6 +205,11 @@
 
 	$effect(() => {
 		if (fold) collapsed = !fold.open;
+	});
+
+	$effect(() => {
+		onopenchange?.(!collapsed);
+		return () => onopenchange?.(false);
 	});
 
 	function toggleReviewed() {
