@@ -24,7 +24,7 @@ const REPORT_FILE_NOTES_TOOL = {
             kind: { type: "string", enum: ["tests", "context"] },
             note: {
               type: "string",
-              description: "One or two sentences of plain prose: a verdict, not a list. Empty for a file that only has quiet_ranges.",
+              description: "Usually empty. When warranted: one plain sentence, 25 words at most.",
             },
             scenario_lines: {
               type: "array",
@@ -54,14 +54,16 @@ const REPORT_FILE_NOTES_TOOL = {
 };
 
 const SYSTEM_PROMPT = `You are helping someone review one slice of a pull request - a coherent part of \
-it, already summarised. Decide which of its files deserve a note of their own, to spare the reviewer \
-reading them line by line or to tell them what to look for. Most files don't: skip small or obvious \
-changes, and never restate the slice's summary.
-Each note is one or two sentences of plain prose - a verdict, with no headings or lists:
-- tests: for a test file. Whether the tests cover the change well, and whether they're \
-well-formed (clear assertions, realistic setups, names that match what they test), or what's off.
-- context: for a large or intricate change in a non-test file. What the change amounts to, and \
-what's worth checking.
+it, already summarised. For each file, you may add a short note, and you mark the parts of it the \
+reviewer will only skim.
+Notes are the exception, not the rule. Most files get no note: leave it empty. Write one only when:
+- a non-test file's change is large or intricate enough that reading it line by line costs real \
+time, and one sentence can say what it amounts to or what specifically to check; or
+- a test file has a problem: a case the change needs that isn't tested, or a test that's weak or \
+doesn't test what its name says. Well-covered tests get no note - the reviewer reads the test \
+names themselves.
+Never note a small change, edits to prose, docs or strings, or anything the slice summary \
+already says. A note is one plain sentence, 25 words at most: no headings, lists or praise.
 For a test file, also give scenario_lines: the new-file line numbers, as numbered in the diff, of \
 every line that names a test or a group of tests - whatever this file's framework uses, e.g. \
 describe/it/test calls, def test_ functions, func TestX or t.Run, [Fact] or [Test] methods, \
@@ -74,7 +76,7 @@ language it's in.
 - setup: in a test file, the setup before its first test - mocks, fixtures, helpers - but not \
 the tests themselves.
 Each range is start_line and end_line, new-file line numbers from the diff covering the whole \
-block. A file that only has quiet ranges gets an entry with an empty note.
+block. A file that only has quiet ranges or scenario lines gets an entry with an empty note.
 Only note files that are in this slice, using their paths exactly as shown. Report no notes if \
 none are needed.`;
 
@@ -121,7 +123,7 @@ async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal
     const inDiff = file ? linesInDiff(file) : new Set<number>();
     const scenarios = kind === "tests" ? checkLines(scenario_lines, inDiff) : [];
     const quiet = checkRanges(quiet_ranges, inDiff);
-    if (!note.trim() && !quiet.length) return [];
+    if (!note.trim() && !quiet.length && !scenarios.length) return [];
     return [
       {
         path,
