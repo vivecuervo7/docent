@@ -10,6 +10,7 @@
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 	const onSlice = $derived(page.url.pathname.startsWith(`${base}/slices/`) || page.url.pathname === `${base}/files`);
 	const onOverview = $derived(page.url.pathname === base);
+	const onWrapUp = $derived(page.url.pathname === `${base}/wrap-up`);
 	const total = $derived(session.slices.length);
 	const allRead = $derived(total > 0 && session.reviewedSlices === total);
 	// Read goes to the first slice not yet reviewed.
@@ -36,7 +37,9 @@
 			<span class="stage off"><StateMark state="todo" />Read</span>
 		{/if}
 		<span class="joint"></span>
-		<span class="stage off"><StateMark state="todo" />Wrap up</span>
+		<a href="{base}/wrap-up" class="stage" class:current={onWrapUp} aria-current={onWrapUp ? 'page' : undefined}>
+			<StateMark state={onWrapUp ? 'now' : 'todo'} />Wrap up
+		</a>
 		<span class="joint"></span>
 		<span class="stage off"><StateMark state="todo" />Post</span>
 	</nav>

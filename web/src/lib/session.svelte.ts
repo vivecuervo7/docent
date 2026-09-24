@@ -188,6 +188,71 @@ export class PrSession {
 		}
 	}
 
+	// Your comments for the review, drafted from your threads.
+	yourDraft = $state<{ pending?: boolean; error?: string }>({});
+
+	// Threads in file order, as they're drafted from.
+	readonly threads = $derived.by(() => {
+		const order = new Map(this.files.map((f, i) => [f.filename, i]));
+		return [...this.record.notes].sort(
+			(a, b) => (order.get(a.path) ?? 0) - (order.get(b.path) ?? 0) || a.hunk - b.hunk || a.start.line - b.start.line
+		);
+	});
+
+	// Whether threads have been added, removed or replied to since the draft.
+	readonly threadsChanged = $derived.by(() => {
+		const basedOn = this.record.feedback.yours?.basedOn;
+		if (!basedOn) return this.threads.length > 0;
+		const now = Object.fromEntries(this.threads.map((n) => [n.id, n.messages.length]));
+		return JSON.stringify(now) !== JSON.stringify(basedOn);
+	});
+
+	async draftYourComments() {
+		const threads = this.threads;
+		if (!threads.length) return;
+		this.yourDraft = { pending: true };
+		try {
+			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/feedback/yours`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					prTitle: this.title,
+					threads: threads.map((n) => ({
+						path: n.path,
+						lines: n.start.line === n.end.line ? `line ${n.start.line}` : `lines ${n.start.line}-${n.end.line}`,
+						code: n.code,
+						messages: n.messages.map(({ role, text }) => ({ role, text }))
+					}))
+				})
+			});
+			const { comments } = await api.readOk<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
+			const items = comments.map(({ threads: indices, body, rationale }) => ({
+				id: crypto.randomUUID(),
+				body,
+				rationale,
+				included: true,
+				...placeFromThreads(indices.map((i) => threads[i]).filter(Boolean))
+			}));
+			await this.update((r) => {
+				r.feedback.yours = {
+					items,
+					draftedAt: Date.now(),
+					basedOn: Object.fromEntries(threads.map((n) => [n.id, n.messages.length]))
+				};
+			});
+			this.yourDraft = {};
+		} catch (err) {
+			this.yourDraft = { error: (err as Error).message };
+		}
+	}
+
+	setYourIncluded(id: string, included: boolean) {
+		this.update((r) => {
+			const draft = r.feedback.yours;
+			if (draft) r.feedback.yours = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included } : i)) };
+		}).catch(() => {});
+	}
+
 	// Keeps or skips an agent's finding for the review.
 	setFindingIncluded(reviewer: string, id: string, included: boolean) {
 		this.update((r) => {
@@ -202,10 +267,10 @@ export class PrSession {
 	readonly findings = $derived.by(() =>
 		marksFrom(this.record)
 			.filter((m) => m.kind === 'finding')
-			.map((mark) => ({ mark, slices: this.#slicesOf(mark.path, mark.start) }))
+			.map((mark) => ({ mark, slices: this.slicesOf(mark.path, mark.start) }))
 	);
 
-	#slicesOf(path: string, start: LineRef | undefined): string[] {
+	slicesOf(path: string, start: LineRef | undefined): string[] {
 		const hunks = this.hunks.get(path) ?? [];
 		const keys = start
 			? hunks
@@ -313,6 +378,16 @@ export class PrSession {
 		if (this.#poll) clearInterval(this.#poll);
 		this.#poll = null;
 	}
+}
+
+// Where a comment drafted from threads sits: on their lines when they're all
+// in one file, else on the PR as a whole.
+function placeFromThreads(sources: Note[]) {
+	const noteIds = sources.map((n) => n.id);
+	if (new Set(sources.map((n) => n.path)).size !== 1) return { noteIds };
+	const first = [...sources].sort((a, b) => a.hunk - b.hunk || a.start.line - b.start.line)[0];
+	const last = [...sources].sort((a, b) => b.hunk - a.hunk || b.end.line - a.end.line)[0];
+	return { path: first.path, start: first.start, end: last.end, noteIds };
 }
 
 export function emptyGeneration(): Generation {
