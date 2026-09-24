@@ -4,6 +4,7 @@ import * as api from './api';
 import { marksFrom } from './api';
 import { parseFilePatch, type Hunk } from './diff/parse';
 import { Panel } from './panel.svelte';
+import { ReviewPost } from './post.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
 import { isUnread, type Generation, type LineRef, type Note, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
@@ -47,6 +48,7 @@ export class PrSession {
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
 	readonly panel: Panel = new Panel(this);
+	readonly post: ReviewPost = new ReviewPost(this);
 
 	#collected: { id: string; steps: Set<StepName> } | null = null;
 	#poll: ReturnType<typeof setInterval> | null = null;

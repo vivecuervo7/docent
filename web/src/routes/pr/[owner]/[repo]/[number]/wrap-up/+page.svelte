@@ -32,6 +32,12 @@
 		goto(`${base}/slices/${slice}`);
 	}
 
+	// The first time through, preparing starts on the way to Post.
+	function toPost() {
+		if (!session.post.draft) session.post.prepare();
+		goto(`${base}/post`);
+	}
+
 	function showThread(item: FeedbackItem) {
 		const note = session.record.notes.find((n) => n.id === item.noteIds?.[0]);
 		if (note) show(note.id, note.path, note.start);
@@ -129,6 +135,10 @@
 			{#if session.wrapUpOpen.skipped}<ul>{#each skipped as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
 		</section>
 	{/if}
+
+	<div class="next">
+		<button class="btn primary big" onclick={toPost}>{session.post.draft ? 'On to Post →' : 'Prepare the review →'}</button>
+	</div>
 </main>
 
 <style>
@@ -206,6 +216,16 @@
 		margin: 4px 0 0;
 		color: var(--faint);
 		font-size: 14px;
+	}
+	.next {
+		display: flex;
+		justify-content: flex-end;
+	}
+	.big {
+		height: 42px;
+		padding: 0 18px;
+		border-radius: 12px;
+		font-size: 14.5px;
 	}
 	.bad {
 		margin: 4px 0 8px;

@@ -11,6 +11,7 @@
 	const onSlice = $derived(page.url.pathname.startsWith(`${base}/slices/`) || page.url.pathname === `${base}/files`);
 	const onOverview = $derived(page.url.pathname === base);
 	const onWrapUp = $derived(page.url.pathname === `${base}/wrap-up`);
+	const onPost = $derived(page.url.pathname === `${base}/post`);
 	const total = $derived(session.slices.length);
 	const allRead = $derived(total > 0 && session.reviewedSlices === total);
 	// Read goes to the first slice not yet reviewed.
@@ -41,7 +42,9 @@
 			<StateMark state={onWrapUp ? 'now' : 'todo'} />Wrap up
 		</a>
 		<span class="joint"></span>
-		<span class="stage off"><StateMark state="todo" />Post</span>
+		<a href="{base}/post" class="stage" class:current={onPost} aria-current={onPost ? 'page' : undefined}>
+			<StateMark state={onPost ? 'now' : session.record.review?.posted ? 'done' : 'todo'} />Post
+		</a>
 	</nav>
 	<div class="right">
 		{#if session.panel.running.length}

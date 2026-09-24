@@ -136,8 +136,7 @@ export interface PrRecord {
 	agentHighest?: number;
 	// Every reviewer name handed out on this PR, so none is reused.
 	agentNamesUsed?: string[];
-	// The prepared review; its shape is Post review's concern.
-	review?: unknown;
+	review?: ReviewDraft;
 	title?: string;
 	lastOpenedAt?: number;
 }
@@ -183,4 +182,38 @@ export interface AgentReview {
 	progress?: { done: number; total: number; current?: string };
 	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string }[];
 	error?: string;
+}
+
+export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
+
+// One comment in the prepared review. Shared with the React app's records.
+export interface ReviewComment {
+	id: string;
+	body: string;
+	included: boolean;
+	// The feedback items it covers.
+	from: string[];
+	path?: string;
+	start?: LineRef;
+	end?: LineRef;
+}
+
+// The review as prepared from what was kept in Wrap up, then worded.
+export interface ReviewDraft {
+	preparedAt: number;
+	// The feedback items that were kept when it was prepared.
+	basedOn: string[];
+	comments: ReviewComment[];
+	// Kept feedback left out, with why: usually that someone already said it.
+	dropped: { from: string[]; reason: string }[];
+	summary: string;
+	event: ReviewEvent;
+	posted?: { at: number; url: string };
+}
+
+// What would be sent to GitHub, as the backend builds it.
+export interface ReviewPayload {
+	event: ReviewEvent;
+	body: string;
+	comments: { path: string; line: number; start_line?: number; body: string }[];
 }

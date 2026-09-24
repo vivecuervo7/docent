@@ -4,7 +4,7 @@
 
 	// The few diff lines a finding is about, with a line either side, for
 	// deciding on it away from the slice.
-	let { mark }: { mark: Mark } = $props();
+	let { mark }: { mark: Pick<Mark, 'path' | 'start' | 'end'> } = $props();
 	const session = useSession();
 
 	const rows = $derived.by(() => {
