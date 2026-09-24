@@ -8,15 +8,23 @@
 	interface SetupCheck {
 		gh: { installed: boolean; login?: string };
 		claude: { installed: boolean; version?: string };
-		mcp: { added: boolean };
+		codex: { installed: boolean; version?: string };
+		mcp: { claude: boolean; codex: boolean };
 	}
 
 	const MCP_URL = 'http://localhost:3001/mcp';
-	const ADD_MCP = `claude mcp add --scope user --transport http docent ${MCP_URL}`;
-
+	// How each agent adds Docent's MCP server, for all your projects.
+	const AGENTS = {
+		claude: { name: 'Claude Code', command: `claude mcp add --scope user --transport http docent ${MCP_URL}` },
+		codex: { name: 'Codex', command: `codex mcp add docent --url ${MCP_URL}` }
+	} as const;
+	type Agent = keyof typeof AGENTS;
 	let check = $state<SetupCheck | null>(null);
 	// The models available right now, by where they run.
 	let sources = $state<string[] | null>(null);
+	// The one chosen here, else whichever is installed.
+	let picked = $state<Agent | null>(null);
+	const agent = $derived<Agent>(picked ?? (check && !check.claude.installed && check.codex.installed ? 'codex' : 'claude'));
 	let checking = $state(false);
 	let error = $state<string | null>(null);
 	let copied = $state(false);
@@ -42,7 +50,7 @@
 	});
 
 	function copy() {
-		navigator.clipboard.writeText(ADD_MCP).then(() => {
+		navigator.clipboard.writeText(AGENTS[agent].command).then(() => {
 			copied = true;
 			setTimeout(() => (copied = false), 1500);
 		});
@@ -105,15 +113,21 @@
 		</li>
 
 		<li>
-			<StateMark state={check?.mcp.added ? 'done' : 'todo'} />
+			<StateMark state={check?.mcp.claude || check?.mcp.codex ? 'done' : 'todo'} />
 			<div class="step">
 				<h2>Bring your own agent <span class="faint optional">optional</span></h2>
-				<p>
-					Your own agent can sit on a PR’s review panel beside Docent’s reviewers. Add Docent’s MCP server to Claude Code
-					once, for all your projects:
-				</p>
+				<p>Your own agent can sit on a PR’s review panel beside Docent’s reviewers. Add Docent’s MCP server to it once, for all your projects.</p>
+				<div class="agent-box">
+					<div class="tabs" role="tablist" aria-label="Your agent">
+						{#each Object.entries(AGENTS) as [key, a] (key)}
+							<button role="tab" aria-selected={agent === key} class:on={agent === key} onclick={() => (picked = key as Agent)}>
+								{a.name}
+								{#if check?.mcp[key as Agent]}<StateMark state="done" size={13} />{/if}
+							</button>
+						{/each}
+					</div>
 				<div class="command">
-					<code>{ADD_MCP}</code>
+					<code>{AGENTS[agent].command}</code>
 					<button class="icon" aria-label="Copy the command" onclick={copy}>
 						{#if copied}
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
@@ -122,18 +136,25 @@
 						{/if}
 					</button>
 				</div>
-				<p>
-					Then choose “Claude Code or any MCP agent” for a reviewer on the panel. After your usual review, tell your agent
-					the sentence the panel shows, and its findings land on the code as you read. Other MCP agents can connect to
-					<code>{MCP_URL}</code>.
-				</p>
 				{#if !check}
 					<p class="status faint">Checking…</p>
-				{:else if check.mcp.added}
-					<p class="status ok">Docent’s MCP server is added to Claude Code.</p>
-				{:else if check.claude.installed}
-					<p class="status">Not added yet.</p>
+				{:else if check.mcp[agent]}
+					<p class="status ok">Docent’s MCP server is added to {AGENTS[agent].name}.</p>
+				{:else if check[agent].installed}
+					<p class="status">Not added to {AGENTS[agent].name} yet.</p>
+				{:else}
+					<p class="status">{AGENTS[agent].name} isn’t installed.</p>
 				{/if}
+				<p>
+					Then set a reviewer on the panel to “Your own agent” and start it. After your usual review, tell your agent the
+					sentence the panel shows, and its findings land on the code as you read.
+					{#if agent === 'claude'}
+						In Claude Code, <code>/mcp__docent__review owner/repo#123</code> also asks it to review a PR, and
+						<code>/mcp__docent__submit owner/repo#123</code> sends a review it has already done.
+					{/if}
+				</p>
+				</div>
+				<p class="faint small">Other MCP agents can connect to <code>{MCP_URL}</code>.</p>
 			</div>
 		</li>
 	</ol>
@@ -226,13 +247,51 @@
 	.step .status.ok {
 		color: var(--done);
 	}
+	.agent-box {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: 14px 16px 16px;
+		border-radius: 12px;
+		background: var(--surface);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	.tabs {
+		display: flex;
+		align-self: flex-start;
+		padding: 2px;
+		border-radius: 10px;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	.tabs button {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		height: 30px;
+		padding: 0 14px;
+		border: 0;
+		border-radius: 8px;
+		background: none;
+		color: var(--muted);
+		font: inherit;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.tabs button.on {
+		background: #ece8df;
+		color: #141413;
+	}
+	.step p.small {
+		font-size: 13px;
+	}
 	.command {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		padding: 8px 8px 8px 14px;
 		border-radius: 10px;
-		background: var(--surface);
+		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.command code {

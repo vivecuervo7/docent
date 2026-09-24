@@ -146,7 +146,7 @@
 								<span class="group">Your own agent</span>
 								<button role="menuitemradio" aria-checked={setup.mode === 'external'} onclick={() => { choose(r, 'external'); menuFor = null; }}>
 									<span class="tick">{#if setup.mode === 'external'}✓{/if}</span>
-									<span>Claude Code or any MCP agent</span>
+									<span>Claude Code, Codex or any MCP agent</span>
 								</button>
 							</div>
 						{/if}
