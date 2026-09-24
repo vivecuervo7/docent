@@ -29,6 +29,7 @@ import {
 } from "./agentReview.js";
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import { defaultPanel, modelName, setDefaultPanel, setModelName } from "./config.js";
+import { checkSetup } from "./setup.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
 import { listModelOptions } from "./modelProvider.js";
@@ -364,6 +365,11 @@ app.put("/api/models/selected", (req, res) => {
   }
   setModelName(model.trim());
   res.json({ selected: modelName() });
+});
+
+// What's set up on this machine, for the Getting started page.
+app.get("/api/setup", async (_req, res) => {
+  res.json(await checkSetup());
 });
 
 // The review panel a new PR starts with, the same for every repo.

@@ -1,0 +1,247 @@
+<script lang="ts">
+	import { readOk } from '$lib/api';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import StateMark from '$lib/components/StateMark.svelte';
+
+	// What Docent needs on this machine, each step checked live.
+	interface SetupCheck {
+		gh: { installed: boolean; login?: string };
+		claude: { installed: boolean; version?: string };
+		mcp: { added: boolean };
+	}
+
+	const MCP_URL = 'http://localhost:3001/mcp';
+	const ADD_MCP = `claude mcp add --scope user --transport http docent ${MCP_URL}`;
+
+	let check = $state<SetupCheck | null>(null);
+	let checking = $state(false);
+	let error = $state<string | null>(null);
+	let copied = $state(false);
+
+	async function recheck() {
+		checking = true;
+		error = null;
+		try {
+			check = await readOk<SetupCheck>(await fetch('/api/setup'));
+		} catch (err) {
+			error = (err as Error).message;
+		} finally {
+			checking = false;
+		}
+	}
+	$effect(() => {
+		recheck();
+	});
+
+	function copy() {
+		navigator.clipboard.writeText(ADD_MCP).then(() => {
+			copied = true;
+			setTimeout(() => (copied = false), 1500);
+		});
+	}
+</script>
+
+<svelte:head><title>Getting started · Docent</title></svelte:head>
+
+<main>
+	<a class="back faint" href="/">← Docent</a>
+	<h1>Getting started</h1>
+	<p class="lede">
+		Docent runs on your machine. It reads pull requests and posts your reviews through GitHub’s own CLI, as you, and uses
+		a model you choose for the summaries, slices and reviewers.
+	</p>
+
+	{#if error}
+		<p class="bad">Couldn’t reach Docent’s backend: {error}. Is it running (<code>cd backend && npm run dev</code>)?</p>
+	{/if}
+
+	<ol>
+		<li>
+			<StateMark state={check?.gh.login ? 'done' : 'todo'} />
+			<div class="step">
+				<h2>Sign in to the GitHub CLI</h2>
+				<p>Docent reads each PR and posts your review with <code>gh</code>, so it sees what you can see.</p>
+				{#if !check}
+					<p class="status faint">Checking…</p>
+				{:else if check.gh.login}
+					<p class="status ok">Signed in as {check.gh.login}.</p>
+				{:else if check.gh.installed}
+					<p class="status">Installed, but not signed in. Run <code>gh auth login</code>.</p>
+				{:else}
+					<p class="status">
+						Not installed. Get it from <a href="https://cli.github.com" target="_blank" rel="noreferrer">cli.github.com</a>, then
+						run <code>gh auth login</code>.
+					</p>
+				{/if}
+			</div>
+		</li>
+
+		<li>
+			<StateMark state={check?.claude.installed ? 'done' : 'todo'} />
+			<div class="step">
+				<h2>Choose a model</h2>
+				<p>
+					With <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> installed and signed in, its
+					models run on your own login. Otherwise, point Docent at an OpenAI-compatible endpoint in <code>backend/.env</code>
+					(copy <code>backend/.env.example</code>). Pick the model from the menu on the start page.
+				</p>
+				{#if !check}
+					<p class="status faint">Checking…</p>
+				{:else if check.claude.installed}
+					<p class="status ok">Claude Code {check.claude.version} is installed; its models are in the menu.</p>
+				{:else}
+					<p class="status">Claude Code isn’t installed, so the menu lists your endpoint’s models.</p>
+				{/if}
+			</div>
+		</li>
+
+		<li>
+			<StateMark state={check?.mcp.added ? 'done' : 'todo'} />
+			<div class="step">
+				<h2>Bring your own agent <span class="faint optional">optional</span></h2>
+				<p>
+					Your own agent can sit on a PR’s review panel beside Docent’s reviewers. Add Docent’s MCP server to Claude Code
+					once, for all your projects:
+				</p>
+				<div class="command">
+					<code>{ADD_MCP}</code>
+					<button class="icon" aria-label="Copy the command" onclick={copy}>
+						{#if copied}
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+						{:else}
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
+						{/if}
+					</button>
+				</div>
+				<p>
+					Then choose “Claude Code or any MCP agent” for a reviewer on the panel. After your usual review, tell your agent
+					the sentence the panel shows, and its findings land on the code as you read. Other MCP agents can connect to
+					<code>{MCP_URL}</code>.
+				</p>
+				{#if !check}
+					<p class="status faint">Checking…</p>
+				{:else if check.mcp.added}
+					<p class="status ok">Docent’s MCP server is added to Claude Code.</p>
+				{:else if check.claude.installed}
+					<p class="status">Not added yet.</p>
+				{/if}
+			</div>
+		</li>
+	</ol>
+
+	<div class="foot">
+		<button class="btn" disabled={checking} onclick={recheck}>
+			{#if checking}<Spinner size={13} />{/if} Check again
+		</button>
+	</div>
+</main>
+
+<style>
+	main {
+		max-width: 720px;
+		margin: 0 auto;
+		padding: 56px 24px 96px;
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+	}
+	.back {
+		align-self: flex-start;
+		font-size: 13.5px;
+		text-decoration: none;
+	}
+	.back:hover {
+		color: var(--text);
+	}
+	h1 {
+		margin: 0 0 -8px;
+		font-family: var(--serif);
+		font-size: 38px;
+		font-weight: 500;
+		letter-spacing: -0.015em;
+	}
+	.lede {
+		margin: 0;
+		color: var(--muted);
+		font-size: 15px;
+		line-height: 1.6;
+	}
+	ol {
+		list-style: none;
+		margin: 8px 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	li {
+		display: flex;
+		gap: 16px;
+		padding: 20px 0;
+		border-top: 1px solid var(--line);
+	}
+	li > :global(svg) {
+		flex-shrink: 0;
+		margin-top: 5px;
+	}
+	.step {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	h2 {
+		margin: 0;
+		font-family: var(--serif);
+		font-size: 22px;
+		font-weight: 500;
+	}
+	.optional {
+		margin-left: 6px;
+		font-family: var(--sans);
+		font-size: 13px;
+		font-weight: 400;
+	}
+	.step p {
+		margin: 0;
+		color: var(--muted);
+		font-size: 14.5px;
+		line-height: 1.6;
+	}
+	.step a {
+		text-underline-offset: 3px;
+	}
+	.step .status {
+		color: var(--text);
+		font-size: 14px;
+	}
+	.step .status.ok {
+		color: var(--done);
+	}
+	.command {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 8px 8px 14px;
+		border-radius: 10px;
+		background: var(--surface);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	.command code {
+		flex-grow: 1;
+		min-width: 0;
+		padding: 0;
+		background: none;
+		overflow-x: auto;
+		white-space: nowrap;
+		font-size: 12.5px;
+	}
+	.foot {
+		display: flex;
+		justify-content: flex-end;
+	}
+	.bad {
+		margin: 0;
+		color: var(--danger);
+		font-size: 14px;
+	}
+</style>

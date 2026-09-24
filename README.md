@@ -12,19 +12,22 @@ in `backend/data/docent.db`.
 ## Requirements
 
 - A recent Node.js
-- [GitHub CLI](https://cli.github.com/), authenticated (`gh auth login`) with
-  access to the repos you want to review
-- An OpenAI-compatible chat endpoint: a local server such as oMLX, or a hosted
-  proxy such as LiteLLM. Copy `backend/.env.example` to `backend/.env` and set
-  the endpoint, API key (if it needs one) and model there. The key stays in
-  that file on your machine. Restart the backend after changing it.
+- [GitHub CLI](https://cli.github.com/), signed in (`gh auth login`) with
+  access to the repos you want to review. Docent reads PRs and posts your
+  reviews through it, as you.
+- A model, either of:
+  - [Claude Code](https://code.claude.com), installed and signed in. Its
+    models are listed on the start page, and choosing one runs every model
+    call through `claude -p` on your own login. Those calls have no tools, MCP
+    servers or user settings, so they can only read the prompt Docent sends.
+  - An OpenAI-compatible chat endpoint: a local server such as oMLX, or a
+    hosted proxy such as LiteLLM. Copy `backend/.env.example` to
+    `backend/.env` and set the endpoint, API key (if it needs one) and model
+    there. The key stays in that file on your machine. Restart the backend
+    after changing it.
 
-The model can also be switched from the start page, which lists the models
-the endpoint offers. If [Claude Code](https://code.claude.com) is installed
-and logged in, its models are listed too: choosing one runs every model call
-through `claude -p` on your own login instead of the endpoint. Those calls
-have no tools, MCP servers or user settings, so they can only read the
-prompt Docent sends.
+Pick the model from the menu on the start page. The app's **Getting started**
+page (linked from the start page) checks each of these for you.
 
 ## Running
 
@@ -35,19 +38,24 @@ cd web && npm install && npm run dev        # http://localhost:5174
 
 Open http://localhost:5174 and paste a GitHub PR URL.
 
-## Using your own agent for the agent review
+## Bringing your own agent
 
+A PR's review panel can include your own agent beside Docent's reviewers.
 The backend serves an MCP server at `http://localhost:3001/mcp` (Streamable
-HTTP, local connections only). With Claude Code, add it once:
+HTTP, local connections only). With Claude Code, add it once for all your
+projects:
 
 ```sh
 claude mcp add --scope user --transport http docent http://localhost:3001/mcp
 ```
 
-Then choose "Use your own agent" on a PR's Agent feedback page and run
-`/mcp__docent__review owner/repo#123` to review it your usual way, or
-`/mcp__docent__submit owner/repo#123` to send the findings of a review you've
-already run in the session. Other MCP-capable agents can connect to the same
-address; the page shows a prompt to give them. The agent reads the PR through `get_review_context`, `get_diff`,
-`read_file` and `get_existing_comments`, and its `submit_finding` calls appear
-on the page as they arrive.
+Then set a reviewer on the panel to "Claude Code or any MCP agent" and start
+it. After your usual review, tell your agent the sentence the panel shows
+(it names the PR and the reviewer), and the findings are pinned on the code
+as you read. You can also run `/mcp__docent__review owner/repo#123` to have
+it review the PR, or `/mcp__docent__submit owner/repo#123` to send the
+findings of a review already done in the session.
+
+The agent reads the PR through `get_review_context`, `get_diff`, `read_file`
+and `get_existing_comments`, and sends its findings with `submit_review`.
+Other MCP-capable agents can connect to the same address.

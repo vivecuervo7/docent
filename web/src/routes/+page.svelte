@@ -13,6 +13,14 @@
 	let saved = $state<SavedPr[] | null>(null);
 	let generations = $state<(PrRef & { generation: Generation })[]>([]);
 	let now = $state(Date.now());
+	// Without a signed-in GitHub CLI nothing opens, so say where to start.
+	let ghMissing = $state(false);
+	$effect(() => {
+		fetch('/api/setup')
+			.then((res) => api.readOk<{ gh: { login?: string } }>(res))
+			.then((check) => (ghMissing = !check.gh.login))
+			.catch(() => {});
+	});
 
 	const keyOf = (ref: PrRef) => `${ref.owner}/${ref.repo}/${ref.number}`;
 	// Runs whose results are already saved, so each is written once.
@@ -95,7 +103,10 @@
 <svelte:head><title>Docent</title></svelte:head>
 
 <div class="page">
-	<div class="picker"><ModelPicker /></div>
+	<div class="picker">
+		<a class="guide faint" href="/getting-started">Getting started</a>
+		<ModelPicker />
+	</div>
 
 	<main>
 		<form onsubmit={open}>
@@ -113,6 +124,9 @@
 				<button class="btn primary big" type="submit">Open</button>
 			</div>
 			{#if formError}<p class="error">{formError}</p>{/if}
+			{#if ghMissing}
+				<p class="setup">Docent can’t reach GitHub yet. <a href="/getting-started">Getting started</a> shows what to set up.</p>
+			{/if}
 		</form>
 
 		{#if saved && saved.length > 0}
@@ -166,6 +180,21 @@
 		position: absolute;
 		top: 22px;
 		right: 28px;
+		display: flex;
+		align-items: center;
+		gap: 18px;
+	}
+	.setup {
+		margin: 0;
+		color: var(--agent-text);
+		font-size: 14px;
+	}
+	.guide {
+		font-size: 13.5px;
+		text-decoration: none;
+	}
+	.guide:hover {
+		color: var(--text);
 	}
 	main {
 		max-width: 760px;
