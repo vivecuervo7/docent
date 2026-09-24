@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { ask } from '$lib/confirm.svelte';
 	import { listModels } from '$lib/api';
 	import { agentInstruction, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
@@ -70,7 +71,7 @@
 
 	async function remove(r: AgentReviewer) {
 		const n = panel.findings(r.id);
-		if (n > 0 && !confirm(`Remove ${nameOf(r)}? Its ${n} ${n === 1 ? 'finding' : 'findings'} will be discarded.`)) return;
+		if (n > 0 && !(await ask({ title: `Remove ${nameOf(r)}?`, body: `Its ${n} ${n === 1 ? 'finding' : 'findings'} will be discarded.`, action: 'Remove' }))) return;
 		await panel.remove(r.id);
 	}
 

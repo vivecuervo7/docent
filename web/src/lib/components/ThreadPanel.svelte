@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ask } from '$lib/confirm.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import type { Note } from '$lib/types';
 	import NoteText from './NoteText.svelte';
@@ -35,8 +36,8 @@
 		draft = '';
 	}
 
-	function remove() {
-		if (!confirm('Delete this thread?')) return;
+	async function remove() {
+		if (!(await ask({ title: 'Delete this thread?', body: 'Its messages go with it.', action: 'Delete' }))) return;
 		session.removeNote(note.id);
 		onclose();
 	}

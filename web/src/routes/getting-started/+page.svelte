@@ -61,7 +61,12 @@
 
 <main>
 	<a class="back faint" href="/">← Docent</a>
-	<h1>Getting started</h1>
+	<div class="head">
+		<h1>Getting started</h1>
+		<button class="btn" disabled={checking} onclick={recheck}>
+			{#if checking}<Spinner size={13} />{/if} Check again
+		</button>
+	</div>
 	<p class="lede">
 		Docent runs on your machine. It reads pull requests and posts your reviews through GitHub’s own CLI, as you, and uses
 		a model you choose for the summaries, slices and reviewers.
@@ -159,11 +164,6 @@
 		</li>
 	</ol>
 
-	<div class="foot">
-		<button class="btn" disabled={checking} onclick={recheck}>
-			{#if checking}<Spinner size={13} />{/if} Check again
-		</button>
-	</div>
 </main>
 
 <style>
@@ -183,8 +183,14 @@
 	.back:hover {
 		color: var(--text);
 	}
+	.head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: -8px;
+	}
 	h1 {
-		margin: 0 0 -8px;
+		margin: 0;
 		font-family: var(--serif);
 		font-size: 38px;
 		font-weight: 500;
@@ -302,10 +308,6 @@
 		overflow-x: auto;
 		white-space: nowrap;
 		font-size: 12.5px;
-	}
-	.foot {
-		display: flex;
-		justify-content: flex-end;
 	}
 	.bad {
 		margin: 0;

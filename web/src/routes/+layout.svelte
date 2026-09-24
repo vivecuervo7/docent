@@ -1,5 +1,6 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -15,3 +16,4 @@
 </svelte:head>
 
 {@render children()}
+<ConfirmDialog />

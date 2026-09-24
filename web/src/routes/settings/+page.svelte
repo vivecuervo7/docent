@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { readOk } from '$lib/api';
+	import { ask } from '$lib/confirm.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 
@@ -86,7 +87,7 @@
 	}
 
 	async function remove(p: Provider) {
-		if (!confirm(`Remove ${p.name}? Reviewers set to its models will use the first available model instead.`)) return;
+		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Anything set to its models uses the first available model instead.', action: 'Remove' }))) return;
 		await fetch(`/api/providers/${p.id}`, { method: 'DELETE' });
 		await load();
 	}

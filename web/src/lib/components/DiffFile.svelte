@@ -342,7 +342,7 @@
 		if (!open && !(selection && !dragging)) return;
 		const close = (e: PointerEvent) => {
 			const el = e.target as Element;
-			if (el.closest('.popover, .composer, .pin, .n')) return;
+			if (el.closest('.popover, .composer, .pin, .n, [role="dialog"], .scrim')) return;
 			open = null;
 			selection = null;
 		};

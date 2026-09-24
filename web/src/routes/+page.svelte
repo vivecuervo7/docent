@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import * as api from '$lib/api';
+	import { ask } from '$lib/confirm.svelte';
 	import ModelPicker from '$lib/components/ModelPicker.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { parsePrUrl, timeAgo } from '$lib/format';
@@ -85,7 +86,8 @@
 	}
 
 	async function remove(pr: SavedPr) {
-		if (!confirm(`Delete your review of “${pr.record.title ?? `#${pr.number}`}”? Its threads and feedback go with it.`)) return;
+		const title = pr.record.title ?? `#${pr.number}`;
+		if (!(await ask({ title: `Delete your review of “${title}”?`, body: 'Its threads and feedback go with it.', action: 'Delete' }))) return;
 		const generation = generationFor(pr);
 		if (isGenerating(generation)) await api.stopGeneration(pr).catch(() => {});
 		await api.dismissGeneration(pr);
