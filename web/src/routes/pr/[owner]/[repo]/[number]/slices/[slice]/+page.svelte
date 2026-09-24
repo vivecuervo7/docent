@@ -1,14 +1,17 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { marksFrom } from '$lib/api';
 	import DiffFile from '$lib/components/DiffFile.svelte';
+	import StateMark from '$lib/components/StateMark.svelte';
+	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 
-	let { data } = $props();
-
-	const slices = $derived(data.record.slices ?? []);
-	const index = $derived(slices.findIndex((s) => s.id === data.slice));
+	const session = useSession();
+	const sliceId = $derived(page.params.slice);
+	const slices = $derived(session.slices);
+	const index = $derived(slices.findIndex((s) => s.id === sliceId));
 	const slice = $derived(slices[index]);
-	const base = $derived(`/pr/${data.owner}/${data.repo}/${data.number}`);
-	const marks = $derived(marksFrom(data.record));
+	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const marks = $derived(marksFrom(session.record));
 
 	// The slice's files, each with the hunks it covers, in the PR's order.
 	const files = $derived.by(() => {
@@ -18,20 +21,18 @@
 			const path = ref.slice(0, at);
 			byFile.set(path, [...(byFile.get(path) ?? []), Number(ref.slice(at + 1))]);
 		}
-		return data.files.filter((f) => byFile.has(f.filename)).map((file) => ({ file, hunks: byFile.get(file.filename)! }));
+		return session.files.filter((f) => byFile.has(f.filename)).map((file) => ({ file, hunks: byFile.get(file.filename)! }));
 	});
 </script>
-
-<svelte:head><title>{slice?.title ?? 'Slice'} · Docent</title></svelte:head>
 
 <div class="page">
 	<nav aria-label="Slices">
 		<span class="label">Slices</span>
 		<ol>
-			{#each slices as s, i (s.id)}
+			{#each slices as s (s.id)}
 				<li>
-					<a href="{base}/slices/{s.id}" class:current={s.id === data.slice} aria-current={s.id === data.slice ? 'page' : undefined}>
-						<span class="num">{i + 1}</span>
+					<a href="{base}/slices/{s.id}" class:current={s.id === sliceId} aria-current={s.id === sliceId ? 'page' : undefined}>
+						<span class="mark"><StateMark state={isSliceReviewed(s, session.record.reviewed) ? 'done' : s.id === sliceId ? 'now' : 'todo'} /></span>
 						<span class="title">{s.title}</span>
 					</a>
 				</li>
@@ -56,13 +57,13 @@
 						{file}
 						hunkIndices={hunks}
 						marks={marks.filter((m) => m.path === file.filename)}
-						note={data.record.fileNotes?.[slice.id]?.find((n) => n.path === file.filename)}
+						note={session.record.fileNotes?.[slice.id]?.find((n) => n.path === file.filename)}
 					/>
 				{/each}
 			</div>
 		</main>
 	{:else}
-		<main><p>No slice “{data.slice}” in this PR.</p></main>
+		<main><p>No slice “{sliceId}” in this PR.</p></main>
 	{/if}
 </div>
 
@@ -70,13 +71,13 @@
 	.page {
 		display: grid;
 		grid-template-columns: 300px minmax(0, 1fr);
-		min-height: 100vh;
+		min-height: calc(100vh - 64px);
 	}
 	nav {
 		position: sticky;
-		top: 0;
+		top: 64px;
 		align-self: start;
-		height: 100vh;
+		height: calc(100vh - 64px);
 		box-sizing: border-box;
 		padding: 28px 16px;
 		border-right: 1px solid var(--line);
@@ -119,11 +120,8 @@
 		color: var(--text);
 		font-weight: 500;
 	}
-	.num {
-		font-family: var(--mono);
-		font-size: 12px;
-		color: var(--faint);
-		padding-top: 2px;
+	.mark {
+		padding-top: 1px;
 	}
 	main {
 		padding: 36px 56px 120px;

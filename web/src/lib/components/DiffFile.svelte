@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
-	import type { FileNote, LineRef, Mark, PrFile } from '$lib/api';
+	import type { Mark } from '$lib/api';
+	import type { FileNote, LineRef, PrFile } from '$lib/types';
 	import { highlightHunks, segments, type Token } from '$lib/diff/highlight';
 	import { layout, parseFilePatch, wordEdits, type Row } from '$lib/diff/parse';
 	import MarkPopover from './MarkPopover.svelte';

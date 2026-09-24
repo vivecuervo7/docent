@@ -1,29 +1,56 @@
 <script lang="ts">
-	let { data } = $props();
-	const base = $derived(`/pr/${data.owner}/${data.repo}/${data.number}`);
+	import PreparingView from '$lib/components/PreparingView.svelte';
+	import { isSliceReviewed, useSession } from '$lib/session.svelte';
+	import StateMark from '$lib/components/StateMark.svelte';
+
+	// A stand-in Overview; step 2 of the rewrite replaces it with mockup A's.
+	const session = useSession();
+	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 </script>
 
-<main>
-	<h1>{data.title}</h1>
-	<ol>
-		{#each data.record.slices ?? [] as slice (slice.id)}
-			<li><a href="{base}/slices/{slice.id}">{slice.title}</a></li>
-		{/each}
-	</ol>
-</main>
+{#if session.preparing}
+	<PreparingView />
+{:else}
+	<main>
+		<h1>{session.title}</h1>
+		{#if session.record.summary}
+			<p>{session.record.summary.what}</p>
+		{/if}
+		<ol>
+			{#each session.slices as slice (slice.id)}
+				<li>
+					<StateMark state={isSliceReviewed(slice, session.record.reviewed) ? 'done' : 'todo'} />
+					<a href="{base}/slices/{slice.id}">{slice.title}</a>
+				</li>
+			{/each}
+		</ol>
+	</main>
+{/if}
 
 <style>
 	main {
 		max-width: 760px;
 		margin: 0 auto;
-		padding: 64px 24px;
+		padding: 56px 24px;
 	}
 	h1 {
 		font-family: var(--serif);
 		font-weight: 500;
 		font-size: 36px;
+		line-height: 1.15;
+	}
+	p {
+		color: var(--muted);
+		line-height: 1.6;
+	}
+	ol {
+		list-style: none;
+		padding: 0;
 	}
 	li {
-		padding: 8px 0;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 9px 0;
 	}
 </style>

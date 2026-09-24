@@ -19,6 +19,9 @@
 	--you-chip: #1c2740;
 	--you-tint: rgba(122, 167, 255, 0.07);
 	--done: #8fb39a;
+	--done-bg: #2b3a30;
+	--todo: #44464c;
+	--danger: #f08a7e;
 	--code-bg: #141518;
 	--code-text: #c9c6bf;
 	--line-num: #5f6168;
