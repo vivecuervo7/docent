@@ -221,12 +221,8 @@
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
 			Add a reviewer
 		</button>
-		{#if defaultModel}
-			{#if panel.isDefault(defaultModel)}
-				<span class="faint default">Your default panel</span>
-			{:else}
-				<button class="link default" onclick={() => panel.saveAsDefault(defaultModel)}>Make this my default panel</button>
-			{/if}
+		{#if defaultModel && !panel.isDefault(defaultModel)}
+			<button class="link default" onclick={() => panel.saveAsDefault(defaultModel)}>Make this my default panel</button>
 		{/if}
 	</div>
 
@@ -478,20 +474,19 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
+		margin: 2px 0 14px;
+		border-top: 1px solid #2a261f;
 	}
 	.default {
 		font-size: 12.5px;
+		white-space: nowrap;
 	}
 	.add {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		align-self: flex-start;
-		margin: 2px 0 14px;
 		padding: 8px 0;
 		border: 0;
-		border-top: 1px solid #2a261f;
-		width: 100%;
 		background: none;
 		color: var(--faint);
 		font: inherit;
