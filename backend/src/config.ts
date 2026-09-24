@@ -1,27 +1,37 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Where the model lives and how to reach it. The endpoint, key and limits
-// come from backend/.env (see .env.example), so the key stays on this
-// machine and out of the browser. The model can also be picked from the
-// start page; that choice is kept in backend/data/settings.json, along with
-// the review panel a new PR starts with.
+// Docent's settings, all in backend/data/settings.json: the model providers
+// (OpenAI-compatible endpoints, keys included, so the file is written
+// owner-only and never sent to the browser as it is), the model picked on
+// the start page, and the review panel a new PR starts with.
 
 const backendDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-const envFile = join(backendDir, ".env");
 const settingsFile = join(backendDir, "data", "settings.json");
 
-if (existsSync(envFile)) process.loadEnvFile(envFile);
+// A model from Claude Code's group is saved with this prefix; one from a
+// provider with the provider's id and a colon.
+export const CLAUDE_CODE_PREFIX = "claude-code:";
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:8000/v1";
-const DEFAULT_MODEL = "gemma-4-12B-it-8bit";
+export interface Provider {
+  id: string;
+  name: string;
+  // Up to and including /v1.
+  baseUrl: string;
+  apiKey?: string;
+  // Requests it takes at once: 1 for a local server, which serves one at a
+  // time, so running more only makes each slower.
+  concurrency: number;
+}
 
 interface Settings {
   model?: string;
   // Each reviewer in the default panel: a model, or "external" for the
   // reviewer's own agent.
   panel?: string[];
+  providers?: Provider[];
 }
 
 function readSettings(): Settings {
@@ -32,22 +42,88 @@ function readSettings(): Settings {
   }
 }
 
-export function modelBaseUrl(): string {
-  return (process.env.DOCENT_MODEL_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
-}
-
-export function modelApiKey(): string | undefined {
-  return process.env.DOCENT_MODEL_API_KEY || undefined;
-}
-
-// The model picked on the start page, else the one in .env.
-export function modelName(): string {
-  return readSettings().model || process.env.DOCENT_MODEL || DEFAULT_MODEL;
-}
-
 function writeSettings(change: Settings): void {
   mkdirSync(dirname(settingsFile), { recursive: true });
   writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), ...change }, null, 2), { mode: 0o600 });
+}
+
+const newProviderId = () => `p${randomUUID().slice(0, 6)}`;
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+// Settings used to come from backend/.env. Its endpoint becomes the first
+// provider, once; after that .env isn't read.
+function importEnvOnce(): void {
+  const settings = readSettings();
+  if (settings.providers) return;
+  const envFile = join(backendDir, ".env");
+  if (existsSync(envFile)) process.loadEnvFile(envFile);
+  const baseUrl = process.env.DOCENT_MODEL_BASE_URL?.trim().replace(/\/+$/, "");
+  if (!baseUrl) return writeSettings({ providers: [] });
+  const provider: Provider = {
+    id: newProviderId(),
+    name: hostOf(baseUrl),
+    baseUrl,
+    apiKey: process.env.DOCENT_MODEL_API_KEY || undefined,
+    concurrency: Number(process.env.DOCENT_MAX_CONCURRENT_REQUESTS) || 1,
+  };
+  const legacy = settings.model ?? process.env.DOCENT_MODEL;
+  const model = legacy && !legacy.startsWith(CLAUDE_CODE_PREFIX) ? `${provider.id}:${legacy}` : legacy;
+  writeSettings({ providers: [provider], model });
+}
+importEnvOnce();
+
+export function providers(): Provider[] {
+  return readSettings().providers ?? [];
+}
+
+export function addProvider(fields: Omit<Provider, "id">): Provider {
+  const provider = { ...fields, id: newProviderId() };
+  writeSettings({ providers: [...providers(), provider] });
+  return provider;
+}
+
+// `apiKey: null` clears the key; leaving it out keeps it.
+export function updateProvider(id: string, change: Partial<Omit<Provider, "id" | "apiKey">> & { apiKey?: string | null }): Provider | null {
+  const current = providers().find((p) => p.id === id);
+  if (!current) return null;
+  const { apiKey, ...rest } = change;
+  const next: Provider = { ...current, ...rest };
+  if (apiKey === null) delete next.apiKey;
+  else if (apiKey !== undefined) next.apiKey = apiKey;
+  writeSettings({ providers: providers().map((p) => (p.id === id ? next : p)) });
+  return next;
+}
+
+export function removeProvider(id: string): boolean {
+  const list = providers();
+  if (!list.some((p) => p.id === id)) return false;
+  writeSettings({ providers: list.filter((p) => p.id !== id) });
+  return true;
+}
+
+// What a saved model id refers to. A bare name, saved before providers had
+// ids, is taken as the first provider's.
+export type ResolvedModel = { kind: "claude-code"; alias: string } | { kind: "provider"; provider: Provider; model: string };
+
+export function resolveModel(id: string): ResolvedModel | null {
+  if (id.startsWith(CLAUDE_CODE_PREFIX)) return { kind: "claude-code", alias: id.slice(CLAUDE_CODE_PREFIX.length) };
+  const list = providers();
+  const colon = id.indexOf(":");
+  const owner = colon > 0 ? list.find((p) => p.id === id.slice(0, colon)) : undefined;
+  if (owner) return { kind: "provider", provider: owner, model: id.slice(colon + 1) };
+  return list[0] ? { kind: "provider", provider: list[0], model: id } : null;
+}
+
+// The model picked on the start page.
+export function modelName(): string {
+  return readSettings().model ?? "";
 }
 
 export function setModelName(model: string): void {
@@ -62,30 +138,23 @@ export function setDefaultPanel(panel: string[]): void {
   writeSettings({ panel });
 }
 
-// Claude Code models are picked with this prefix (see modelProvider.ts).
-export function usingClaudeCode(): boolean {
-  return modelName().startsWith("claude-code:");
+// How much runs at once follows the picked model's provider. Claude Code
+// calls are separate processes, so several run side by side: a few, to leave
+// the reviewer's own sessions room. Read on every call, so picking another
+// model applies straight away.
+function selected(): ResolvedModel | null {
+  return resolveModel(modelName());
 }
-
-function positiveInt(value: string | undefined, fallback: number): number {
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
-}
-
-// How much runs at once depends on the model. A local model serves one
-// request at a time, so running more only makes each slower; a hosted
-// endpoint can take more, set in .env. Claude Code calls are separate
-// processes, so several run side by side - a few, to leave the reviewer's
-// own sessions room. Read on every call, so picking another model applies
-// straight away.
 
 // PRs being prepared at once; the rest wait in a queue.
 export function maxConcurrentGenerations(): number {
-  return usingClaudeCode() ? 3 : positiveInt(process.env.DOCENT_MAX_CONCURRENT_GENERATIONS, 1);
+  const model = selected();
+  return model?.kind === "claude-code" ? 3 : (model?.provider.concurrency ?? 1);
 }
 
 // Other model calls at once: question replies, drafting, the agent review
 // and preparing the review.
 export function maxConcurrentRequests(): number {
-  return usingClaudeCode() ? 4 : positiveInt(process.env.DOCENT_MAX_CONCURRENT_REQUESTS, 1);
+  const model = selected();
+  return model?.kind === "claude-code" ? 4 : (model?.provider.concurrency ?? 1);
 }

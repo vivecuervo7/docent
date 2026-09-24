@@ -28,11 +28,22 @@ import {
   type ReviewContext,
 } from "./agentReview.js";
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
-import { defaultPanel, modelName, setDefaultPanel, setModelName } from "./config.js";
+import {
+  addProvider,
+  defaultPanel,
+  modelName,
+  providers,
+  removeProvider,
+  setDefaultPanel,
+  setModelName,
+  updateProvider,
+  type Provider,
+} from "./config.js";
+import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
-import { listModelOptions } from "./modelProvider.js";
+import { listModelOptions, listProviderModels } from "./modelProvider.js";
 import {
   buildReviewPayload,
   fetchViewer,
@@ -351,11 +362,17 @@ app.all("/mcp", (_req, res) => {
   res.status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null });
 });
 
-// The models that can be picked - the endpoint's, and Claude Code's when
-// it's installed - and which one Docent uses.
+// The models that can be picked right now, and which one Docent uses. When
+// the picked one isn't among them (its provider was removed, or none was
+// ever picked), the first that is takes its place.
 app.get("/api/models", async (_req, res) => {
-  const { options, error } = await listModelOptions();
-  res.json({ options, selected: modelName(), error });
+  const options = await listModelOptions();
+  let selected = modelName();
+  if (options.length && !options.some((o) => o.id === selected)) {
+    selected = options[0].id;
+    setModelName(selected);
+  }
+  res.json({ options, selected });
 });
 
 app.put("/api/models/selected", (req, res) => {
@@ -365,6 +382,64 @@ app.put("/api/models/selected", (req, res) => {
   }
   setModelName(model.trim());
   res.json({ selected: modelName() });
+});
+
+// The Settings page: Claude Code, and the OpenAI-compatible providers with
+// whether each answers. A provider's key is never sent back, only whether
+// it has one.
+const publicProvider = ({ apiKey, ...rest }: Provider) => ({ ...rest, hasKey: !!apiKey });
+
+app.get("/api/providers", async (_req, res) => {
+  const list = providers();
+  const [claude, statuses] = await Promise.all([claudeCodeAvailable(), Promise.all(list.map(listProviderModels))]);
+  res.json({
+    claudeCode: { installed: claude, models: claude ? CLAUDE_CODE_MODELS : [] },
+    providers: list.map((p, i) => ({ ...publicProvider(p), ...statuses[i] })),
+  });
+});
+
+// Checks and tidies a provider's fields from the page; `partial` for an edit.
+function providerFields(body: unknown, partial: boolean): { fields: Record<string, unknown> } | { error: string } {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  if (b.name !== undefined || !partial) {
+    if (typeof b.name !== "string" || !b.name.trim() || b.name.length > 60) return { error: "Give it a name, up to 60 characters." };
+    fields.name = b.name.trim();
+  }
+  if (b.baseUrl !== undefined || !partial) {
+    const url = typeof b.baseUrl === "string" ? b.baseUrl.trim().replace(/\/+$/, "") : "";
+    if (!/^https?:\/\/[^\s]+$/.test(url) || url.length > 500) return { error: "The address should start with http:// or https://." };
+    fields.baseUrl = url;
+  }
+  if (b.concurrency !== undefined || !partial) {
+    const n = b.concurrency ?? 1;
+    if (!Number.isInteger(n) || (n as number) < 1 || (n as number) > 16) return { error: "Requests at once should be from 1 to 16." };
+    fields.concurrency = n;
+  }
+  if (b.apiKey !== undefined) {
+    if (b.apiKey !== null && (typeof b.apiKey !== "string" || b.apiKey.length > 1000)) return { error: "That key isn't valid." };
+    fields.apiKey = typeof b.apiKey === "string" && b.apiKey.trim() ? b.apiKey.trim() : partial ? null : undefined;
+  }
+  return { fields };
+}
+
+app.post("/api/providers", (req, res) => {
+  const checked = providerFields(req.body, false);
+  if ("error" in checked) return res.status(400).json(checked);
+  res.json({ provider: publicProvider(addProvider(checked.fields as Omit<Provider, "id">)) });
+});
+
+app.put("/api/providers/:id", (req, res) => {
+  const checked = providerFields(req.body, true);
+  if ("error" in checked) return res.status(400).json(checked);
+  const provider = updateProvider(req.params.id, checked.fields);
+  if (!provider) return res.status(404).json({ error: "No such provider." });
+  res.json({ provider: publicProvider(provider) });
+});
+
+app.delete("/api/providers/:id", (req, res) => {
+  if (!removeProvider(req.params.id)) return res.status(404).json({ error: "No such provider." });
+  res.status(204).end();
 });
 
 // What's set up on this machine, for the Getting started page.

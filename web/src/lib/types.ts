@@ -166,7 +166,8 @@ export interface Generation {
 export interface ModelOption {
 	id: string;
 	label: string;
-	group: 'endpoint' | 'claude-code';
+	// Where it runs, as the menu groups it: "Claude Code" or a provider's name.
+	source: string;
 }
 
 // Results a generation can skip because they're already saved.

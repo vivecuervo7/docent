@@ -46,7 +46,7 @@ export async function listGenerations(): Promise<(PrRef & { generation: Generati
 		.generations;
 }
 
-export async function listModels(): Promise<{ options: ModelOption[]; selected: string; error?: string }> {
+export async function listModels(): Promise<{ options: ModelOption[]; selected: string }> {
 	return readOk(await fetch('/api/models'));
 }
 

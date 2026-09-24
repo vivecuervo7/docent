@@ -140,7 +140,7 @@
 									<button role="menuitemradio" aria-checked={current} onclick={() => { choose(r, m.id); menuFor = null; }}>
 										<span class="tick">{#if current}✓{/if}</span>
 										<span>{m.label}</span>
-										<span class="hint">{m.group === 'claude-code' ? 'Claude Code' : 'Endpoint'}</span>
+										<span class="hint">{m.source}</span>
 									</button>
 								{/each}
 								<span class="group">Your own agent</span>

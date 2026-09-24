@@ -1,20 +1,12 @@
-// Thin provider abstraction over an OpenAI-compatible chat endpoint: a local
-// one like oMLX, or a hosted proxy like LiteLLM. Kept generic (messages +
-// tool schema in, tool calls out) so callers don't care which. Where it
-// points is set in config.ts.
+// Model calls, to wherever the model lives: an OpenAI-compatible provider
+// (a local server like oMLX, or a hosted proxy like LiteLLM) or Claude Code.
+// Kept generic (messages + tool schema in, tool calls out) so callers don't
+// care which. The providers are set on the Settings page (config.ts).
 
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.js";
-import { modelApiKey, modelBaseUrl, modelName } from "./config.js";
-
-// A model picked from Claude Code's group is saved with this prefix; calls
-// for it go through `claude -p` (claudeCode.ts) instead of the endpoint.
-const CLAUDE_CODE_PREFIX = "claude-code:";
-
-function claudeCodeModel(name: string): string | null {
-  return name.startsWith(CLAUDE_CODE_PREFIX) ? name.slice(CLAUDE_CODE_PREFIX.length) : null;
-}
+import { CLAUDE_CODE_PREFIX, modelName, providers, resolveModel, type Provider } from "./config.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -32,9 +24,8 @@ export interface ToolCall {
   arguments: unknown;
 }
 
-function headers(): Record<string, string> {
-  const key = modelApiKey();
-  return { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) };
+function headers(provider: Provider): Record<string, string> {
+  return { "Content-Type": "application/json", ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}) };
 }
 
 // node:http(s) rather than fetch: fetch gives up after five minutes without a
@@ -42,16 +33,18 @@ function headers(): Record<string, string> {
 // longer. There's no time limit here - a generation ends when it finishes or
 // is stopped through `signal`.
 function send(
+  provider: Provider,
   method: "GET" | "POST",
-  url: string,
+  path: string,
   body: unknown,
   signal?: AbortSignal,
 ): Promise<{ status: number; text: string }> {
+  const url = `${provider.baseUrl}${path}`;
   const request = url.startsWith("https:") ? httpsRequest : httpRequest;
   return new Promise((resolve, reject) => {
     const req = request(
       url,
-      { method, headers: headers(), signal },
+      { method, headers: headers(provider), signal },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -64,42 +57,51 @@ function send(
   });
 }
 
-const postJson = (url: string, body: unknown, signal?: AbortSignal) => send("POST", url, body, signal);
+const postJson = (provider: Provider, path: string, body: unknown, signal?: AbortSignal) => send(provider, "POST", path, body, signal);
 
 export interface ModelOption {
   id: string;
   label: string;
-  group: "endpoint" | "claude-code";
+  // Where it runs, as the menu groups it: "Claude Code" or a provider's name.
+  source: string;
 }
 
-// Everything that can be picked: the endpoint's models, then Claude Code's
-// when `claude` is installed. An unreachable endpoint still leaves Claude
-// Code's, with the error to show.
-export async function listModelOptions(): Promise<{ options: ModelOption[]; error?: string }> {
-  const [endpoint, claude] = await Promise.all([
-    listModels().then(
-      (models) => ({ models, error: undefined }),
-      (err: Error) => ({ models: [] as string[], error: err.message }),
-    ),
-    claudeCodeAvailable(),
-  ]);
-  const options: ModelOption[] = [
-    ...endpoint.models.map((id) => ({ id, label: id, group: "endpoint" as const })),
-    ...(claude
-      ? CLAUDE_CODE_MODELS.map((alias) => ({ id: `${CLAUDE_CODE_PREFIX}${alias}`, label: alias, group: "claude-code" as const }))
-      : []),
-  ];
-  return { options, error: endpoint.error };
+export interface ProviderStatus {
+  models: string[];
+  error?: string;
 }
 
-// The models the endpoint offers, from its OpenAI-style model list.
-async function listModels(): Promise<string[]> {
-  const res = await send("GET", `${modelBaseUrl()}/models`, undefined);
-  if (res.status < 200 || res.status >= 300) {
-    throw new Error(`model backend returned ${res.status}`);
+// A provider's models, from its OpenAI-style model list. Short on time, so a
+// server that's off doesn't hold up the menu.
+export async function listProviderModels(provider: Provider): Promise<ProviderStatus> {
+  try {
+    const res = await send(provider, "GET", "/models", undefined, AbortSignal.timeout(5000));
+    if (res.status < 200 || res.status >= 300) return { models: [], error: `It answered ${res.status}.` };
+    const data = JSON.parse(res.text) as { data?: { id?: unknown }[] };
+    const models = (data.data ?? []).flatMap((m) => (typeof m.id === "string" ? [m.id] : [])).sort();
+    if (!models.length) return { models, error: "It answered, but listed no models. Does the address end in /v1?" };
+    return { models };
+  } catch (err) {
+    const e = err as Error & { code?: string };
+    return { models: [], error: e.name === "TimeoutError" ? "It didn't answer within 5 seconds." : e.code ? `Couldn't connect (${e.code}).` : e.message };
   }
-  const data = JSON.parse(res.text) as { data?: { id?: unknown }[] };
-  return (data.data ?? []).flatMap((m) => (typeof m.id === "string" ? [m.id] : [])).sort();
+}
+
+// Everything that can be picked right now: Claude Code's models when
+// `claude` is installed, then each provider's that answers.
+export async function listModelOptions(): Promise<ModelOption[]> {
+  const list = providers();
+  const [claude, statuses] = await Promise.all([claudeCodeAvailable(), Promise.all(list.map(listProviderModels))]);
+  return [
+    ...(claude ? CLAUDE_CODE_MODELS.map((alias) => ({ id: `${CLAUDE_CODE_PREFIX}${alias}`, label: alias, source: "Claude Code" })) : []),
+    ...list.flatMap((provider, i) => statuses[i].models.map((model) => ({ id: `${provider.id}:${model}`, label: model, source: provider.name }))),
+  ];
+}
+
+function target(model: string) {
+  const resolved = resolveModel(model);
+  if (!resolved) throw new Error("No model is set up. Add a provider on the Settings page, or install Claude Code.");
+  return resolved;
 }
 
 // `model` picks a model for this call alone - a reviewer entry with its own
@@ -110,13 +112,14 @@ export async function chatWithTool(
   signal?: AbortSignal,
   model = modelName(),
 ): Promise<ToolCall> {
-  const claude = claudeCodeModel(model);
-  if (claude) return claudeCodeChatWithTool(claude, messages, tool, signal);
+  const resolved = target(model);
+  if (resolved.kind === "claude-code") return claudeCodeChatWithTool(resolved.alias, messages, tool, signal);
 
   const res = await postJson(
-    `${modelBaseUrl()}/chat/completions`,
+    resolved.provider,
+    "/chat/completions",
     {
-      model,
+      model: resolved.model,
       messages,
       tools: [{ type: "function", function: tool }],
       tool_choice: "required",
@@ -143,10 +146,10 @@ export async function chatWithTool(
 // For free-form replies, where a tool call adds nothing: the model answers
 // in the message content.
 export async function chat(messages: ChatMessage[], signal?: AbortSignal, model = modelName()): Promise<string> {
-  const claude = claudeCodeModel(model);
-  if (claude) return claudeCodeChat(claude, messages, signal);
+  const resolved = target(model);
+  if (resolved.kind === "claude-code") return claudeCodeChat(resolved.alias, messages, signal);
 
-  const res = await postJson(`${modelBaseUrl()}/chat/completions`, { model, messages }, signal);
+  const res = await postJson(resolved.provider, "/chat/completions", { model: resolved.model, messages }, signal);
 
   if (res.status < 200 || res.status >= 300) {
     throw new Error(`model backend returned ${res.status}`);

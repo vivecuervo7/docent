@@ -15,16 +15,20 @@ in `backend/data/docent.db`.
 - [GitHub CLI](https://cli.github.com/), signed in (`gh auth login`) with
   access to the repos you want to review. Docent reads PRs and posts your
   reviews through it, as you.
-- A model, either of:
-  - [Claude Code](https://code.claude.com), installed and signed in. Its
-    models are listed on the start page, and choosing one runs every model
-    call through `claude -p` on your own login. Those calls have no tools, MCP
-    servers or user settings, so they can only read the prompt Docent sends.
-  - An OpenAI-compatible chat endpoint: a local server such as oMLX, or a
-    hosted proxy such as LiteLLM. Copy `backend/.env.example` to
-    `backend/.env` and set the endpoint, API key (if it needs one) and model
-    there. The key stays in that file on your machine. Restart the backend
-    after changing it.
+- A model, from either or both of:
+  - [Claude Code](https://code.claude.com), installed and signed in. Choosing
+    one of its models runs every model call through `claude -p` on your own
+    login. Those calls have no tools, MCP servers or user settings, so they
+    can only read the prompt Docent sends.
+  - Any number of OpenAI-compatible providers: a local server such as oMLX
+    or LM Studio, or a hosted proxy such as LiteLLM. Add them on the
+    **Settings** page, with a key if they need one and how many requests
+    each takes at once.
+
+Settings are saved on your machine in `backend/data/settings.json` (keys
+included; the file is written owner-only and keys never go back to the
+browser). An endpoint from an older `backend/.env` is imported there the
+first time the backend starts, after which the `.env` file isn't used.
 
 Pick the model from the menu on the start page. The app's **Getting started**
 page (linked from the start page) checks each of these for you.

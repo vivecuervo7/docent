@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { readOk } from '$lib/api';
+	import type { ModelOption } from '$lib/types';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 
@@ -14,6 +15,8 @@
 	const ADD_MCP = `claude mcp add --scope user --transport http docent ${MCP_URL}`;
 
 	let check = $state<SetupCheck | null>(null);
+	// The models available right now, by where they run.
+	let sources = $state<string[] | null>(null);
 	let checking = $state(false);
 	let error = $state<string | null>(null);
 	let copied = $state(false);
@@ -22,7 +25,12 @@
 		checking = true;
 		error = null;
 		try {
-			check = await readOk<SetupCheck>(await fetch('/api/setup'));
+			const [setup, models] = await Promise.all([
+				readOk<SetupCheck>(await fetch('/api/setup')),
+				readOk<{ options: ModelOption[] }>(await fetch('/api/models'))
+			]);
+			check = setup;
+			sources = [...new Set(models.options.map((o) => o.source))];
 		} catch (err) {
 			error = (err as Error).message;
 		} finally {
@@ -77,20 +85,20 @@
 		</li>
 
 		<li>
-			<StateMark state={check?.claude.installed ? 'done' : 'todo'} />
+			<StateMark state={sources?.length ? 'done' : 'todo'} />
 			<div class="step">
-				<h2>Choose a model</h2>
+				<h2>Have a model available</h2>
 				<p>
-					With <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> installed and signed in, its
-					models run on your own login. Otherwise, point Docent at an OpenAI-compatible endpoint in <code>backend/.env</code>
-					(copy <code>backend/.env.example</code>). Pick the model from the menu on the start page.
+					Any one will do: <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a>, installed and
+					signed in, runs its models on your own login; or add an OpenAI-compatible provider, such as a local oMLX server or
+					a LiteLLM proxy, in <a href="/settings">Settings</a>. Pick the model from the menu on the start page.
 				</p>
-				{#if !check}
+				{#if !sources}
 					<p class="status faint">Checking…</p>
-				{:else if check.claude.installed}
-					<p class="status ok">Claude Code {check.claude.version} is installed; its models are in the menu.</p>
+				{:else if sources.length}
+					<p class="status ok">Models available from {sources.join(' and ')}.</p>
 				{:else}
-					<p class="status">Claude Code isn’t installed, so the menu lists your endpoint’s models.</p>
+					<p class="status">No models available yet. Install Claude Code, or add a provider in <a href="/settings">Settings</a>.</p>
 				{/if}
 			</div>
 		</li>
