@@ -1,0 +1,98 @@
+/* Mockup A's palette: a warm dark ground, amber for agents, blue for you. */
+:root {
+	--bg: #121315;
+	--surface: #17181b;
+	--surface-2: #1b1c20;
+	--line: #202226;
+	--line-2: #2e3035;
+	--text: #e8e6e1;
+	--muted: #b0aea6;
+	--faint: #8d8b83;
+	--agent: #f0a94b;
+	--agent-text: #f2d9b0;
+	--agent-chip: #3a2f1d;
+	--agent-tint: rgba(240, 169, 75, 0.08);
+	--popover: #1f1c17;
+	--popover-line: #342d21;
+	--you: #7aa7ff;
+	--you-text: #c3d7ff;
+	--you-chip: #1c2740;
+	--you-tint: rgba(122, 167, 255, 0.07);
+	--done: #8fb39a;
+	--code-bg: #141518;
+	--code-text: #c9c6bf;
+	--line-num: #5f6168;
+	--add-bg: #17261c;
+	--del-bg: #2a1c1e;
+	--add-edit: #24472f;
+	--del-edit: #5a2b2e;
+	--plus: #8cc79a;
+	--minus: #e3a19b;
+	--selection: rgba(122, 167, 255, 0.16);
+	--sans: 'IBM Plex Sans', system-ui, sans-serif;
+	--mono: 'IBM Plex Mono', ui-monospace, monospace;
+	--serif: 'Newsreader', Georgia, serif;
+	color-scheme: dark;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--sans);
+	-webkit-font-smoothing: antialiased;
+}
+
+code {
+	font-family: var(--mono);
+	font-size: 0.88em;
+	padding: 1px 4px;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+a {
+	color: inherit;
+}
+
+.faint {
+	color: var(--faint);
+}
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 32px;
+	padding: 0 13px;
+	border: 0;
+	border-radius: 9px;
+	background: transparent;
+	color: var(--text);
+	box-shadow: inset 0 0 0 1px #3a3c42;
+	font: inherit;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.btn.primary {
+	background: #ece8df;
+	color: #141413;
+	box-shadow: none;
+}
+
+.icon {
+	display: grid;
+	place-items: center;
+	padding: 4px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--faint);
+	cursor: pointer;
+}
+
+.icon:hover {
+	color: var(--text);
+}
