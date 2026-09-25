@@ -1,4 +1,4 @@
-import { fetchPrConversation, fetchPrFiles, fetchPrMeta } from "./github.js";
+import { fetchPrConversation, fetchPrFiles, fetchPrHeadSha, fetchPrMeta } from "./github.js";
 import { maxConcurrentGenerations } from "./config.js";
 import { generateConversationSummary, generateSummary } from "./overview.js";
 import { generateFileNotes } from "./fileNotes.js";
@@ -29,6 +29,9 @@ export interface Generation {
     conversation?: ConversationSummary;
     summary?: PrSummary;
     fileNotes?: Record<string, FileNote[]>;
+    // The PR's head commit the slices were made from, to tell later when
+    // it's had new commits.
+    head?: string;
   };
   error?: string;
 }
@@ -159,7 +162,9 @@ async function run(job: Job) {
     const [slices, conversation] = await Promise.all([
       reuse.slices ??
         step("slices", async () => {
-          const slices = await generateSlices(await fetchPrFiles(owner, repo, number), signal, model);
+          const [files, head] = await Promise.all([fetchPrFiles(owner, repo, number), fetchPrHeadSha(owner, repo, number)]);
+          const slices = await generateSlices(files, signal, model);
+          generation.results.head = head;
           generation.results.slices = slices;
           return slices;
         }),

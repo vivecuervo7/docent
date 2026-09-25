@@ -248,6 +248,7 @@ export interface ReviewRequest {
   url: string;
   author?: string;
   updatedAt: string;
+  createdAt: string;
   isDraft: boolean;
   // GitHub's verdict so far, and each reviewer's latest review.
   decision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
@@ -260,7 +261,7 @@ export async function fetchReviewRequests(): Promise<ReviewRequest[]> {
   const query = `query {
     search(query: "is:pr is:open user-review-requested:@me archived:false", type: ISSUE, first: 50) {
       nodes { ... on PullRequest {
-        number title url updatedAt isDraft
+        number title url updatedAt createdAt isDraft
         repository { nameWithOwner }
         author { login }
         reviewDecision
@@ -274,6 +275,7 @@ export async function fetchReviewRequests(): Promise<ReviewRequest[]> {
     title: string;
     url: string;
     updatedAt: string;
+    createdAt: string;
     isDraft: boolean;
     repository: { nameWithOwner: string };
     author: { login: string } | null;
@@ -292,9 +294,48 @@ export async function fetchReviewRequests(): Promise<ReviewRequest[]> {
         url: n.url,
         author: n.author?.login,
         updatedAt: n.updatedAt,
+        createdAt: n.createdAt,
         isDraft: n.isDraft,
         decision: n.reviewDecision,
         reviews: n.latestReviews.nodes.map((r) => ({ state: r.state, author: r.author?.login })),
       };
     });
+}
+
+export interface PrStatus {
+  owner: string;
+  repo: string;
+  number: string;
+  head: string;
+  createdAt: string;
+  author?: string;
+  state: "OPEN" | "CLOSED" | "MERGED";
+}
+
+// Where several PRs stand on GitHub now, in one query: for the start page,
+// to order by when each was raised and tell which have had new commits.
+export async function fetchPrStatuses(prs: { owner: string; repo: string; number: string }[]): Promise<PrStatus[]> {
+  if (!prs.length) return [];
+  const fields = prs
+    .map(
+      (pr, i) =>
+        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt state author { login } } }`,
+    )
+    .join("\n");
+  const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
+    // A PR that's gone or out of reach fails the whole query; its partial
+    // data still comes back on stdout.
+    if (err?.stdout) return { stdout: err.stdout as string };
+    throw err;
+  });
+  const data = (JSON.parse(stdout).data ?? {}) as Record<
+    string,
+    { pullRequest: { headRefOid: string; createdAt: string; state: PrStatus["state"]; author: { login: string } | null } | null } | null
+  >;
+  return prs.flatMap((pr, i) => {
+    const found = data[`p${i}`]?.pullRequest;
+    return found
+      ? [{ ...pr, head: found.headRefOid, createdAt: found.createdAt, author: found.author?.login, state: found.state }]
+      : [];
+  });
 }

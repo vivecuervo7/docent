@@ -1,5 +1,5 @@
 import express from "express";
-import { fetchReviewRequests,
+import { fetchPrStatuses, fetchReviewRequests,
   fetchAttachment,
   fetchPrConversation,
   fetchFileContentAtRef,
@@ -236,6 +236,25 @@ function reviewerParam(req: express.Request): string | null {
   const reviewer = req.query.reviewer ?? DEFAULT_REVIEWER;
   return typeof reviewer === "string" && REVIEWER_RE.test(reviewer) ? reviewer : null;
 }
+
+// Where saved PRs stand on GitHub now, for the start page.
+app.post("/api/pr-statuses", async (req, res) => {
+  const prs = req.body?.prs;
+  if (
+    !Array.isArray(prs) ||
+    prs.length > 200 ||
+    !prs.every((p) => p && validParams(String(p.owner), String(p.repo), String(p.number)))
+  ) {
+    return res.status(400).json({ error: "invalid PRs" });
+  }
+  try {
+    res.json({
+      statuses: await fetchPrStatuses(prs.map((p: Record<string, unknown>) => ({ owner: String(p.owner), repo: String(p.repo), number: String(p.number) }))),
+    });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
 
 // PRs the reviewer has been asked to review, for the start page.
 app.get("/api/review-requests", async (_req, res) => {
