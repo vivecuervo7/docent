@@ -127,6 +127,8 @@ export interface AgentReviewer {
 	// What it's set to run with next: a model, or "external". Chosen on the
 	// panel card, or given by the default panel.
 	planned?: string;
+	// Its latest review, kept after the backend has let it go.
+	lastRun?: { startedAt: number; endedAt?: number; status: AgentReview['status']; findings: number };
 }
 
 export interface PrRecord {
@@ -139,6 +141,9 @@ export interface PrRecord {
 	feedback: Record<string, FeedbackDraft | undefined>;
 	agentReviewers: AgentReviewer[];
 	agentHighest?: number;
+	// Set once the reviewer changes the panel, or the default panel has been
+	// applied: after that the default isn't applied again.
+	panelSettled?: boolean;
 	// Every reviewer name handed out on this PR, so none is reused.
 	agentNamesUsed?: string[];
 	review?: ReviewDraft;
@@ -188,6 +193,8 @@ export interface AgentReview {
 	progress?: { done: number; total: number; current?: string };
 	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string }[];
 	error?: string;
+	startedAt: number;
+	endedAt?: number;
 }
 
 export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';

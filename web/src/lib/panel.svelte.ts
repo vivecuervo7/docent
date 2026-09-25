@@ -66,21 +66,11 @@ export class Panel {
 		this.#session = session;
 	}
 
-	// Starts a PR opened for the first time with the default panel, names any
-	// reviewers from before names, and picks up reviews still running from an
-	// earlier visit.
-	async load({ fresh }: { fresh: boolean }) {
-		const saved = await api.getDefaultPanel().catch(() => null);
-		this.defaultPanel = saved;
-		if (fresh && saved?.length) {
-			await this.#session
-				.update((r) => {
-					r.agentReviewers = saved.map((planned, i) => ({ id: `agent-${i + 1}`, planned }));
-					r.agentHighest = saved.length;
-					nameAll(r);
-				})
-				.catch(() => {});
-		} else if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
+	// Names any reviewers from before names, and picks up reviews still
+	// running from an earlier visit.
+	async load() {
+		this.defaultPanel = await api.getDefaultPanel().catch(() => null);
+		if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
 		await Promise.all(
 			this.reviewers.map(async ({ id }) => {
 				const review = await api.getAgentReview(this.#session.ref, id).catch(() => null);
@@ -91,6 +81,55 @@ export class Panel {
 
 	close() {
 		this.#stopPolling();
+	}
+
+	// Whether the panel is as a new PR starts it: one reviewer, never run or
+	// changed.
+	#untouched(r: { panelSettled?: boolean; agentReviewers: AgentReviewer[]; feedback: Record<string, FeedbackDraft | undefined> }) {
+		return (
+			!r.panelSettled &&
+			r.agentReviewers.length <= 1 &&
+			r.agentReviewers.every((a) => !a.ranWith && !a.planned && !a.lastRun && !r.feedback[a.id]?.items.length)
+		);
+	}
+
+	// Gives a PR the default panel once it's prepared, fetching the default
+	// then, so one saved while other PRs were still preparing reaches them.
+	async applyDefault() {
+		if (!this.#untouched(this.#session.record)) return;
+		const saved = await api.getDefaultPanel().catch(() => null);
+		this.defaultPanel = saved;
+		await this.#session
+			.update((r) => {
+				if (!this.#untouched(r)) return;
+				r.panelSettled = true;
+				if (saved?.length) r.agentReviewers = saved.map((planned, i) => ({ id: `agent-${i + 1}`, planned }));
+				r.agentHighest = Math.max(r.agentHighest ?? 0, r.agentReviewers.length);
+				nameAll(r);
+			})
+			.catch(() => {});
+	}
+
+	// The default can replace a panel none of whose reviewers has run yet.
+	canUseDefault(defaultModel: string): boolean {
+		return (
+			!!this.defaultPanel?.length &&
+			!this.isDefault(defaultModel) &&
+			this.reviewers.every((a) => !a.ranWith && !a.lastRun && !this.findings(a.id) && !this.reviews[a.id])
+		);
+	}
+
+	async useDefault() {
+		const saved = this.defaultPanel;
+		if (!saved?.length) return;
+		await this.#session.update((r) => {
+			const highest = Math.max(0, r.agentHighest ?? 0, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length))));
+			// Keeps the first reviewer's id; the rest get fresh numbers, never reused.
+			r.agentReviewers = saved.map((planned, i) => ({ id: i === 0 ? FIRST_AGENT : `agent-${highest + i}`, planned }));
+			r.agentHighest = highest + saved.length - 1;
+			r.panelSettled = true;
+			nameAll(r);
+		});
 	}
 
 	findings(id: AgentId): number {
@@ -110,6 +149,7 @@ export class Panel {
 			const ranWith = setupValue(setup);
 			session.update((r) => {
 				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, ranWith, planned: undefined } : a));
+				r.panelSettled = true;
 			});
 		} catch (err) {
 			this.errors[id] = (err as Error).message;
@@ -122,6 +162,7 @@ export class Panel {
 		this.#session
 			.update((r) => {
 				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, planned } : a));
+				r.panelSettled = true;
 			})
 			.catch(() => {});
 	}
@@ -151,6 +192,7 @@ export class Panel {
 			added = `agent-${highest + 1}`;
 			r.agentHighest = highest + 1;
 			r.agentReviewers = [...r.agentReviewers.filter((a) => a.id !== added), { id: added }];
+			r.panelSettled = true;
 			nameAll(r);
 		});
 		return added;
@@ -164,6 +206,7 @@ export class Panel {
 		await this.#session.update((r) => {
 			r.agentReviewers = r.agentReviewers.filter((a) => a.id !== id);
 			delete r.feedback[id];
+			r.panelSettled = true;
 		});
 	}
 
@@ -196,6 +239,16 @@ export class Panel {
 				};
 				r.feedback[id] = draft;
 			});
+		}
+		// The run itself, kept for after the backend lets it go.
+		const lastRun = { startedAt: review.startedAt, endedAt: review.endedAt, status: review.status, findings: review.findings.length };
+		const saved = this.reviewers.find((a) => a.id === id)?.lastRun;
+		if (JSON.stringify(saved) !== JSON.stringify(lastRun)) {
+			this.#session
+				.update((r) => {
+					r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, lastRun } : a));
+				})
+				.catch(() => {});
 		}
 		if (review.status === 'running') this.#startPolling();
 		else {

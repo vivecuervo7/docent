@@ -223,7 +223,13 @@
 			Add a reviewer
 		</button>
 		{#if defaultModel && !panel.isDefault(defaultModel)}
-			<button class="link default" onclick={() => panel.saveAsDefault(defaultModel)}>Make this my default panel</button>
+			<span class="defaults">
+				{#if panel.canUseDefault(defaultModel)}
+					<button class="link default" onclick={() => panel.useDefault()}>Use my default panel</button>
+					<span class="faint">·</span>
+				{/if}
+				<button class="link default" onclick={() => panel.saveAsDefault(defaultModel)}>Make this my default</button>
+			</span>
 		{/if}
 	</div>
 
@@ -477,6 +483,12 @@
 		gap: 12px;
 		margin: 2px 0 14px;
 		border-top: 1px solid #2a261f;
+	}
+	.defaults {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 12.5px;
 	}
 	.default {
 		font-size: 12.5px;
