@@ -148,6 +148,10 @@ export interface PrRecord {
 	agentNamesUsed?: string[];
 	review?: ReviewDraft;
 	title?: string;
+	// The PR's author, saved when it's opened, for the start page.
+	author?: string;
+	// Set once the reviewer marks the review complete, after posting.
+	completedAt?: number;
 	lastOpenedAt?: number;
 }
 

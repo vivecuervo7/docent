@@ -73,6 +73,7 @@ export class PrSession {
 			if (record.summary) this.panel.applyDefault();
 			this.update((r) => {
 				if (pr.meta?.title) r.title = pr.meta.title;
+				if (pr.meta?.author) r.author = pr.meta.author;
 				r.lastOpenedAt = Date.now();
 			}).catch(() => {});
 

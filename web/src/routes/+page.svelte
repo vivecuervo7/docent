@@ -16,6 +16,71 @@
 	// Agent reviews running, or finished and not yet collected by the PR.
 	let agentReviews = $state<(PrRef & { reviewer: string; status: string; findings: number })[]>([]);
 	let now = $state(Date.now());
+
+	// Asked for a review on GitHub, by name; refreshed on load and every few
+	// minutes. Ones already opened here are under Your reviews instead.
+	interface ReviewRequest extends PrRef {
+		title: string;
+		author?: string;
+		updatedAt: string;
+		isDraft: boolean;
+		decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+		reviews: { state: string; author?: string }[];
+	}
+	let requests = $state<ReviewRequest[]>([]);
+	function loadRequests() {
+		fetch('/api/review-requests')
+			.then((res) => api.readOk<{ requests: ReviewRequest[] }>(res))
+			.then((r) => (requests = r.requests))
+			.catch(() => {});
+	}
+	$effect(() => {
+		loadRequests();
+		const every = setInterval(loadRequests, 5 * 60_000);
+		return () => clearInterval(every);
+	});
+	const waiting = $derived(requests.filter((r) => !saved?.some((s) => keyOf(s) === keyOf(r))));
+
+	function reviewState(r: ReviewRequest): string {
+		const draft = r.isDraft ? 'Draft · ' : '';
+		if (r.decision === 'APPROVED') return `${draft}Approved`;
+		if (r.decision === 'CHANGES_REQUESTED') return `${draft}Changes requested`;
+		const by = [...new Set(r.reviews.map((v) => v.author).filter(Boolean))];
+		if (!by.length) return `${draft}No reviews yet`;
+		return `${draft}Reviewed by ${by.slice(0, 2).join(', ')}${by.length > 2 ? ` and ${by.length - 2} more` : ''}`;
+	}
+
+	// How Your reviews are ordered, kept in this browser.
+	type Sort = 'recent' | 'repo' | 'author';
+	let sort = $state<Sort>(readSort());
+	function readSort(): Sort {
+		try {
+			const value = localStorage.getItem('docent.sort');
+			return value === 'repo' || value === 'author' ? value : 'recent';
+		} catch {
+			return 'recent';
+		}
+	}
+	function setSort(value: Sort) {
+		sort = value;
+		try {
+			localStorage.setItem('docent.sort', value);
+		} catch {
+			// Remembering it is a nicety.
+		}
+	}
+	let showComplete = $state(false);
+
+	const active = $derived((saved ?? []).filter((pr) => !pr.record.completedAt));
+	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt));
+	// Your reviews in groups: one group by recency, else one per repo or author.
+	const groups = $derived.by(() => {
+		if (sort === 'recent') return [{ label: '', items: active }];
+		const labelOf = (pr: SavedPr) => (sort === 'repo' ? `${pr.owner}/${pr.repo}` : (pr.record.author ?? 'Author not known yet'));
+		const byLabel = new Map<string, SavedPr[]>();
+		for (const pr of active) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
+		return [...byLabel.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, items]) => ({ label, items }));
+	});
 	// Without a signed-in GitHub CLI nothing opens, so say where to start.
 	let ghMissing = $state(false);
 	$effect(() => {
@@ -59,12 +124,32 @@
 			if (!list.some((s) => keyOf(s) === keyOf(ref))) list.push({ ...ref, record: normalize({}) });
 		}
 		saved = list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0));
+		fillAuthors(list);
 		generations = listed.filter(({ generation }) => generation.status !== 'done');
 	}
 
 	$effect(() => {
 		refresh();
 	});
+
+	// Reviews saved before authors were kept get theirs, once each.
+	const askedAuthor = new Set<string>();
+	function fillAuthors(list: SavedPr[]) {
+		for (const pr of list) {
+			if (pr.record.author || !pr.record.title || askedAuthor.has(keyOf(pr))) continue;
+			askedAuthor.add(keyOf(pr));
+			api
+				.fetchPr(pr)
+				.then(({ meta }) => {
+					const author = meta?.author;
+					if (!author) return;
+					return updateRecord(pr, (r) => (r.author = author)).then(() => {
+						saved = (saved ?? []).map((s) => (keyOf(s) === keyOf(pr) ? { ...s, record: { ...s.record, author } } : s));
+					});
+				})
+				.catch(() => {});
+		}
+	}
 
 	const anyRunning = $derived(
 		generations.some(({ generation }) => isGenerating(generation)) || agentReviews.some((r) => r.status === 'running')
@@ -154,65 +239,173 @@
 			{/if}
 		</form>
 
-		{#if saved && saved.length > 0}
-			<section aria-labelledby="saved-heading">
-				<h2 id="saved-heading" class="caps">Your reviews</h2>
+		{#snippet reviewRow(pr: SavedPr)}
+			{@const generation = generationFor(pr)}
+			{@const { done, total } = progress(pr)}
+			<li>
+				<a href="/pr/{pr.owner}/{pr.repo}/{pr.number}">
+					<span class="text">
+						<span class="title">{pr.record.title ?? `#${pr.number}`}</span>
+						<span class="faint meta">
+							{pr.owner}/{pr.repo} #{pr.number}{pr.record.author ? ` · by ${pr.record.author}` : ''}{pr.record.lastOpenedAt
+									? ` · opened ${timeAgo(pr.record.lastOpenedAt, now)}`
+									: ''}
+							{#if panelFor(pr)}
+								{@const p = panelFor(pr)!}
+								<span class="panel" class:working={p.running}>
+									·
+									{#if p.running}<Spinner size={11} /> Panel reviewing{:else}Panel done{/if}{p.findings
+										? ` · ${p.findings} ${p.findings === 1 ? 'finding' : 'findings'}`
+										: ''}
+								</span>
+							{/if}
+						</span>
+					</span>
+					{#if generation?.status === 'queued'}
+						<span class="state faint">Queued</span>
+					{:else if isGenerating(generation) && generation?.steps.summary.status !== 'done'}
+						<span class="state working"><Spinner size={14} />Preparing</span>
+					{:else if isGenerating(generation)}
+						<!-- Readable now; only the file notes are still coming. -->
+						<span class="state faint" title="Ready to read; notes on the tests and larger changes are still coming">
+							<Spinner size={12} />
+							{done} of {total} slices
+						</span>
+					{:else if generation?.status === 'failed'}
+						<span class="state bad">Preparing failed</span>
+					{:else if generation?.status === 'stopped'}
+						<span class="state faint">Stopped</span>
+					{:else if total > 0}
+						<span class="state faint">
+							<span class="bar" aria-hidden="true"><span style:width="{(done / total) * 100}%"></span></span>
+							{done} of {total} slices
+						</span>
+					{/if}
+				</a>
+				<button class="icon delete" aria-label="Delete this review" onclick={() => remove(pr)}>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+						><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg
+					>
+				</button>
+			</li>
+		{/snippet}
+
+		{#if waiting.length}
+			<section aria-labelledby="requests-heading">
+				<h2 id="requests-heading" class="caps">Waiting for your review</h2>
 				<ul>
-					{#each saved as pr (keyOf(pr))}
-						{@const generation = generationFor(pr)}
-						{@const { done, total } = progress(pr)}
+					{#each waiting as r (keyOf(r))}
 						<li>
-							<a href="/pr/{pr.owner}/{pr.repo}/{pr.number}">
+							<a href="/pr/{r.owner}/{r.repo}/{r.number}">
 								<span class="text">
-									<span class="title">{pr.record.title ?? `#${pr.number}`}</span>
+									<span class="title">{r.title}</span>
 									<span class="faint meta">
-										{pr.owner}/{pr.repo} #{pr.number}{pr.record.lastOpenedAt ? ` · opened ${timeAgo(pr.record.lastOpenedAt, now)}` : ''}
-										{#if panelFor(pr)}
-											{@const p = panelFor(pr)!}
-											<span class="panel" class:working={p.running}>
-												·
-												{#if p.running}<Spinner size={11} /> Panel reviewing{:else}Panel done{/if}{p.findings
-													? ` · ${p.findings} ${p.findings === 1 ? 'finding' : 'findings'}`
-													: ''}
-											</span>
-										{/if}
+										{r.owner}/{r.repo} #{r.number}{r.author ? ` · by ${r.author}` : ''} · updated {timeAgo(Date.parse(r.updatedAt), now)}
 									</span>
 								</span>
-								{#if generation?.status === 'queued'}
-									<span class="state faint">Queued</span>
-								{:else if isGenerating(generation) && generation?.steps.summary.status !== 'done'}
-									<span class="state working"><Spinner size={14} />Preparing</span>
-								{:else if isGenerating(generation)}
-									<!-- Readable now; only the file notes are still coming. -->
-									<span class="state faint" title="Ready to read; notes on the tests and larger changes are still coming">
-										<Spinner size={12} />
-										{done} of {total} slices
-									</span>
-								{:else if generation?.status === 'failed'}
-									<span class="state bad">Preparing failed</span>
-								{:else if generation?.status === 'stopped'}
-									<span class="state faint">Stopped</span>
-								{:else if total > 0}
-									<span class="state faint">
-										<span class="bar" aria-hidden="true"><span style:width="{(done / total) * 100}%"></span></span>
-										{done} of {total} slices
-									</span>
-								{/if}
+								<span class="state faint">{reviewState(r)}</span>
 							</a>
-							<button class="icon delete" aria-label="Delete this review" onclick={() => remove(pr)}>
-								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-									><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg
-								>
-							</button>
 						</li>
 					{/each}
 				</ul>
+			</section>
+		{/if}
+
+		{#if active.length}
+			<section aria-labelledby="saved-heading">
+				<div class="section-head">
+					<h2 id="saved-heading" class="caps">Your reviews</h2>
+					<div class="sort" role="group" aria-label="Order by">
+						{#each [['recent', 'Recent'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
+							<button class:on={sort === value} aria-pressed={sort === value} onclick={() => setSort(value as Sort)}>{label}</button>
+						{/each}
+					</div>
+				</div>
+				{#each groups as group (group.label)}
+					{#if group.label}<h3 class="group">{group.label}</h3>{/if}
+					<ul>
+						{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
+					</ul>
+				{/each}
+			</section>
+		{/if}
+
+		{#if complete.length}
+			<section>
+				<button class="fold-head" aria-expanded={showComplete} onclick={() => (showComplete = !showComplete)}>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showComplete ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+					Complete <span class="count">{complete.length}</span>
+				</button>
+				{#if showComplete}
+					<ul class="done-list">
+						{#each complete as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
+					</ul>
+				{/if}
 			</section>
 		{/if}
 	</main>
 </div>
 
 <style>
+	.section-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.sort {
+		display: flex;
+		gap: 4px;
+	}
+	.sort button {
+		padding: 3px 8px;
+		border: 0;
+		border-radius: 7px;
+		background: none;
+		color: var(--faint);
+		font: inherit;
+		font-size: 12.5px;
+		cursor: pointer;
+	}
+	.sort button:hover {
+		color: var(--text);
+	}
+	.sort button.on {
+		background: var(--surface-2);
+		color: var(--text);
+	}
+	.group {
+		margin: 18px 0 4px;
+		font-family: var(--mono);
+		font-size: 12px;
+		font-weight: 400;
+		color: var(--muted);
+	}
+	.fold-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--faint);
+		font: inherit;
+		font-size: 11.5px;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.fold-head:hover {
+		color: var(--text);
+	}
+	.count {
+		font-family: var(--mono);
+		letter-spacing: 0;
+	}
+	.done-list {
+		opacity: 0.7;
+	}
 	.panel {
 		display: inline-flex;
 		align-items: center;
