@@ -369,7 +369,12 @@ export class PrSession {
 
 	// A finding that turned out to be a point of its own leaves its group.
 	splitFinding(reviewer: string, id: string) {
-		this.#changeFinding(reviewer, id, ({ joins: _, ...rest }) => ({ ...rest, matched: true })).catch(() => {});
+		this.#changeFinding(reviewer, id, ({ joins: _, ...rest }) => rest).catch(() => {});
+	}
+
+	// A finding the editor filtered out, shown after all.
+	keepFiltered(reviewer: string, id: string) {
+		this.#changeFinding(reviewer, id, ({ filtered: _, ...rest }) => rest).catch(() => {});
 	}
 
 	// Every agent finding on a file, with the slices its lines are in: the

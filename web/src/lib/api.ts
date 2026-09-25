@@ -1,4 +1,4 @@
-import type { AgentReview, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
+import type { AgentReview, FeedbackItem, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
 import { isUnread } from './types';
 
 // Calls to Docent's backend, which this app shares with the React app.
@@ -83,12 +83,18 @@ export interface Mark {
 	alsoBy?: { reviewer: string; id: string; who: string; body: string; rationale?: string }[];
 }
 
+// Whether a panel finding is shown: once the editor has been through it,
+// unless it filtered it out.
+export const isShown = (item: Pick<FeedbackItem, 'edited' | 'editFailed' | 'filtered'>) =>
+	(!!item.edited || !!item.editFailed) && !item.filtered;
+
 // Findings that joined another as the same point, by the lead they joined;
-// a finding whose lead has gone stands on its own again.
+// a finding whose lead has gone stands on its own again. Only findings
+// shown count.
 export function groupsOf(record: PrRecord) {
 	const items = Object.entries(record.feedback)
 		.filter(([key]) => key.startsWith('agent-'))
-		.flatMap(([reviewer, draft]) => (draft?.items ?? []).map((item) => ({ reviewer, item })));
+		.flatMap(([reviewer, draft]) => (draft?.items ?? []).filter(isShown).map((item) => ({ reviewer, item })));
 	const exists = (reviewer: string, id: string) => items.some((x) => x.reviewer === reviewer && x.item.id === id);
 	const members = new Map<string, typeof items>();
 	for (const x of items) {
@@ -113,7 +119,7 @@ export function marksFrom(record: PrRecord): Mark[] {
 		.filter(([key]) => key.startsWith('agent-'))
 		.flatMap(([key, draft]) =>
 			(draft?.items ?? [])
-				.filter((item) => item.path && item.start && !joined(key, item))
+				.filter((item) => item.path && item.start && isShown(item) && !joined(key, item))
 				.map(
 					(item): Mark => ({
 						id: item.id,

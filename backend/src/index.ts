@@ -47,7 +47,7 @@ import {
 } from "./config.js";
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
-import { matchFindings } from "./grouping.js";
+import { editFindings } from "./grouping.js";
 import { ALWAYS_ALLOWED } from "./sessions.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
@@ -269,22 +269,30 @@ app.get("/api/involved-prs", async (_req, res) => {
 });
 
 // Which new findings make the same point as ones already on the PR.
-app.post("/api/pr/:owner/:repo/:number/findings/match", async (req, res) => {
+// The panel's editor, over new findings: which repeat a point already made,
+// and, unless the reviewer sifted their own, which to filter out.
+app.post("/api/pr/:owner/:repo/:number/findings/edit", async (req, res) => {
   const { owner, repo, number } = req.params;
+  const text = (v: unknown, max: number) => typeof v === "string" && v.length <= max;
   const valid = (list: unknown) =>
     Array.isArray(list) &&
-    list.length <= 200 &&
-    list.every((f) => f && typeof f.id === "string" && typeof f.body === "string" && typeof f.location === "string");
-  if (!validParams(owner, repo, number) || !valid(req.body?.fresh) || !valid(req.body?.existing)) {
+    list.length <= 300 &&
+    list.every(
+      (f) =>
+        f && text(f.id, 100) && text(f.who, 200) && text(f.location, 1000) && text(f.body, 20_000) && (f.rationale === undefined || text(f.rationale, 20_000)),
+    );
+  const { slice, fresh, shown, filter } = req.body ?? {};
+  if (!validParams(owner, repo, number) || !valid(fresh) || !valid(shown) || (slice !== undefined && !text(slice, 100))) {
     return res.status(400).json({ error: "invalid findings" });
   }
-  if (!req.body.fresh.length || !req.body.existing.length) return res.json({ matches: {} });
+  if (!fresh.length) return res.json({ edits: {} });
   const controller = new AbortController();
   res.on("close", () => {
     if (!res.writableEnded) controller.abort();
   });
   try {
-    res.json({ matches: Object.fromEntries(await matchFindings(req.body.fresh, req.body.existing, controller.signal)) });
+    const edits = await editFindings(owner, repo, number, { slice, fresh, shown, filter: filter === true, model: reviewModel(req) }, controller.signal);
+    res.json({ edits: Object.fromEntries(edits) });
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }

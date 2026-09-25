@@ -1,5 +1,6 @@
 import type { PrFile } from "./github.js";
 import { splitPatchIntoHunks } from "./slices.js";
+import type { Slice } from "./types.js";
 
 // Diffs as reviewers read them: each line numbered by where it sits in the
 // new file, so a finding can say exactly which lines it's about. Deleted
@@ -86,4 +87,15 @@ export function describeRanges(lines: Set<number>): string {
     prev = n;
   }
   return ranges.join(", ");
+}
+
+// A slice's hunks, by the file they're in.
+export function hunkIndicesByFile(slice: Slice): Map<string, number[]> {
+  const byFile = new Map<string, number[]>();
+  for (const ref of slice.hunks) {
+    const at = ref.lastIndexOf("#");
+    const path = ref.slice(0, at);
+    byFile.set(path, [...(byFile.get(path) ?? []), Number(ref.slice(at + 1))]);
+  }
+  return byFile;
 }

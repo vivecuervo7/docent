@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { groupsOf, reviewerName } from '$lib/api';
+	import { groupsOf, isShown, reviewerName } from '$lib/api';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import WrapRow from '$lib/components/WrapRow.svelte';
 	import { useSession } from '$lib/session.svelte';
@@ -15,7 +15,7 @@
 	const findings = $derived(
 		Object.entries(session.record.feedback)
 			.filter(([key]) => key.startsWith('agent-'))
-			.flatMap(([reviewer, draft]) => (draft?.items ?? []).map((item) => ({ reviewer, item })))
+			.flatMap(([reviewer, draft]) => (draft?.items ?? []).filter(isShown).map((item) => ({ reviewer, item })))
 			// A group is listed once, under its lead.
 			.filter(({ reviewer, item }) => !groups.joined(reviewer, item))
 	);

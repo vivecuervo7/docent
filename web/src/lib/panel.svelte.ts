@@ -138,6 +138,9 @@ export class Panel {
 				if (review) this.#collect(id, review);
 			})
 		);
+		// Catching up on findings the editor hasn't been through: from an
+		// earlier visit, or a try that failed.
+		this.#edit();
 	}
 
 	close() {
@@ -306,6 +309,7 @@ export class Panel {
 							body: f.body,
 							rationale: f.rationale,
 							path: f.path,
+							...(f.slice ? { slice: f.slice } : {}),
 							...(f.startLine
 								? {
 										start: { side: 'new' as const, line: f.startLine },
@@ -317,9 +321,9 @@ export class Panel {
 					};
 					r.feedback[id] = draft;
 				})
-				.then(() => this.#group())
+				.then(() => this.#edit())
 				.catch(() => {});
-		}
+		} else this.#edit();
 		// The run itself, kept for after the backend lets it go.
 		const lastRun = {
 			startedAt: review.startedAt,
@@ -343,61 +347,176 @@ export class Panel {
 		}
 	}
 
-	// Grouping findings that make the same point, one reviewer's new ones at a
-	// time, so the first to arrive leads and later ones join it. Queued, so
-	// two reviewers finishing together can't both lead.
-	#grouping: Promise<void> = Promise.resolve();
-
-	#group() {
-		this.#grouping = this.#grouping.then(() => this.#groupNext()).catch(() => {});
-		return this.#grouping;
+	// Whether a reviewer is Docent's own, whose findings the editor may filter;
+	// an external reviewer or the reviewer's own agent sifted theirs already.
+	#isDocents(id: AgentId): boolean {
+		const ranWith = this.reviewers.find((a) => a.id === id)?.ranWith;
+		return !!ranWith && ranWith !== 'external' && !sessionId(ranWith);
 	}
 
-	async #groupNext(): Promise<void> {
-		const session = this.#session;
-		const all = Object.entries(session.record.feedback)
+	// The slices each of Docent's reviewers still running has finished.
+	#finishedByRunning(): Set<string>[] {
+		return this.reviewers
+			.filter((a) => this.reviews[a.id]?.status === 'running' && this.#isDocents(a.id))
+			.map((a) => new Set(this.reviews[a.id]?.progress?.finished ?? []));
+	}
+
+	// The slices a finding is in: the one it was found in, else where its
+	// lines are.
+	#slicesOf(item: FeedbackItem): string[] {
+		if (item.slice) return [item.slice];
+		return item.path ? this.#session.slicesOf(item.path, item.start) : [];
+	}
+
+	// Findings waiting for the editor, and whether each is ready for it: a
+	// slice's once every Docent reviewer still running has finished it (one
+	// about the whole PR, once none is running); anyone else's once their
+	// review is over.
+	#waiting() {
+		const running = this.#finishedByRunning();
+		return Object.entries(this.#session.record.feedback)
 			.filter(([key]) => key.startsWith('agent-'))
-			.flatMap(([reviewer, draft]) => (draft?.items ?? []).map((item) => ({ reviewer, item })));
-		const waiting = all.filter(({ item }) => !item.matched);
-		if (!waiting.length) return;
-		const reviewer = waiting[0].reviewer;
-		const fresh = waiting.filter((w) => w.reviewer === reviewer);
-		const leads = all.filter(({ reviewer: other, item }) => other !== reviewer && item.matched && !item.joins);
-		// Likely matches only: the same file within a few lines, or both about
-		// the whole PR.
-		const near = (a: FeedbackItem, b: FeedbackItem) =>
-			(a.path ?? '') === (b.path ?? '') && (!a.start || !b.start || Math.abs(a.start.line - b.start.line) <= 15);
-		const asked = fresh.filter((f) => leads.some((l) => near(f.item, l.item)));
-		const existing = leads.filter((l) => asked.some((f) => near(f.item, l.item)));
-		let matches: Record<string, string> = {};
-		if (asked.length) {
-			const where = (i: FeedbackItem) => (i.path ? `${i.path}${i.start ? ` line ${i.start.line}` : ''}` : 'the PR as a whole');
-			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/match`, {
+			.flatMap(([key, draft]) => {
+				const reviewer = key as AgentId;
+				return (draft?.items ?? [])
+					.filter((item) => !item.edited && !this.#tried.has(item.id))
+					.map((item) => {
+						const docents = this.#isDocents(reviewer);
+						const slices = this.#slicesOf(item);
+						const ready = docents
+							? running.every((finished) => slices.length > 0 && slices.every((s) => finished.has(s)))
+							: this.reviews[reviewer]?.status !== 'running';
+						return { reviewer, item, docents, slices, ready };
+					});
+			});
+	}
+
+	// Whether the panel is still at work on a slice, so its findings aren't
+	// all shown yet.
+	reviewing(sliceId: string): boolean {
+		return (
+			this.#finishedByRunning().some((finished) => !finished.has(sliceId)) ||
+			this.#waiting().some((w) => w.slices.includes(sliceId))
+		);
+	}
+
+	// Findings on a slice the editor filtered out.
+	filteredIn(sliceId: string) {
+		return Object.entries(this.#session.record.feedback)
+			.filter(([key]) => key.startsWith('agent-'))
+			.flatMap(([reviewer, draft]) =>
+				(draft?.items ?? [])
+					.filter((item) => item.filtered && this.#slicesOf(item).includes(sliceId))
+					.map((item) => ({ reviewer, item }))
+			);
+	}
+
+	// The editor's runs, one after another, so each sees what the last one
+	// grouped. Findings it failed on are shown as they are, and tried again
+	// on the next visit.
+	#editing: Promise<void> = Promise.resolve();
+	#tried = new Set<string>();
+
+	#edit() {
+		this.#editing = this.#editing.then(() => this.#editNext()).catch(() => {});
+		return this.#editing;
+	}
+
+	async #editNext(): Promise<void> {
+		const session = this.#session;
+		const ready = this.#waiting().filter((w) => w.ready);
+		if (!ready.length) return;
+		// A slice at a time, in order, for Docent's reviewers; everyone else's
+		// together, first.
+		const order = (w: (typeof ready)[number]) =>
+			!w.docents ? -1 : w.slices.length ? session.slices.findIndex((s) => s.id === w.slices[0]) : session.slices.length;
+		ready.sort((a, b) => order(a) - order(b));
+		const first = ready[0];
+		const batch = ready.filter((w) => w.docents === first.docents && (!w.docents || w.slices[0] === first.slices[0]));
+		const shown = Object.entries(session.record.feedback)
+			.filter(([key]) => key.startsWith('agent-'))
+			.flatMap(([reviewer, draft]) =>
+				(draft?.items ?? []).filter((i) => i.edited && !i.filtered && !i.joins).map((item) => ({ reviewer, item }))
+			);
+		const where = (i: FeedbackItem) => (i.path ? `${i.path}${i.start ? ` line ${i.start.line}` : ''}` : 'the PR as a whole');
+		const describe = ({ reviewer, item }: { reviewer: string; item: FeedbackItem }) => ({
+			id: item.id,
+			who: api.reviewerName(session.record, reviewer),
+			location: where(item),
+			body: item.body,
+			...(item.rationale ? { rationale: item.rationale } : {})
+		});
+		let edits: Record<string, { sameAs?: string; filtered?: string }>;
+		try {
+			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/edit`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					fresh: asked.map(({ item }) => ({ id: item.id, location: where(item), body: item.body })),
-					existing: existing.map(({ item }) => ({ id: item.id, location: where(item), body: item.body }))
+					...(first.docents && first.slices[0] ? { slice: first.slices[0] } : {}),
+					fresh: batch.map(describe),
+					shown: shown.map(describe),
+					filter: first.docents,
+					model: session.record.model
 				})
 			});
-			matches = (await api.readOk<{ matches: Record<string, string> }>(res)).matches;
+			edits = (await api.readOk<{ edits: typeof edits }>(res)).edits;
+		} catch {
+			for (const w of batch) this.#tried.add(w.item.id);
+			await this.#settle(batch, () => ({ editFailed: true }));
+			return this.#editNext();
 		}
-		const leadReviewer = new Map(existing.map(({ reviewer: r, item }) => [item.id, r]));
-		await session.update((r) => {
-			const draft = r.feedback[reviewer];
-			if (!draft) return;
-			const ids = new Set(fresh.map(({ item }) => item.id));
-			r.feedback[reviewer] = {
-				...draft,
-				items: draft.items.map((i) => {
-					if (!ids.has(i.id)) return i;
-					const same = matches[i.id];
-					return same && leadReviewer.has(same) ? { ...i, matched: true, joins: { reviewer: leadReviewer.get(same)!, id: same } } : { ...i, matched: true };
-				})
-			};
+
+		// Following each finding's "same as" to the one its group gathers
+		// round: one already shown, or else a new one.
+		const reviewerOf = new Map([...shown, ...batch].map(({ reviewer, item }) => [item.id, reviewer]));
+		const shownIds = new Set(shown.map(({ item }) => item.id));
+		const rootOf = (id: string) => {
+			const seen = new Set<string>();
+			let at = id;
+			while (!shownIds.has(at) && edits[at]?.sameAs && !seen.has(at)) {
+				seen.add(at);
+				at = edits[at].sameAs!;
+			}
+			return at;
+		};
+		const clusters = new Map<string, string[]>();
+		for (const { item } of batch) {
+			const root = rootOf(item.id);
+			clusters.set(root, [...(clusters.get(root) ?? []), item.id]);
+		}
+		// A group is filtered out only if every finding in it was; otherwise
+		// its first kept finding leads it, or the one already shown.
+		const outcome = new Map<string, Partial<FeedbackItem>>();
+		for (const [root, members] of clusters) {
+			const lead = shownIds.has(root) ? root : members.find((id) => !edits[id]?.filtered);
+			for (const id of members) {
+				if (!lead) outcome.set(id, { filtered: edits[id]?.filtered });
+				else if (id !== lead) outcome.set(id, { joins: { reviewer: reviewerOf.get(lead)!, id: lead } });
+			}
+		}
+		await this.#settle(batch, (id) => ({ edited: true, ...outcome.get(id) }));
+		return this.#editNext();
+	}
+
+	// Saves what the editor made of a batch, over whatever grouping its
+	// findings had before.
+	async #settle(batch: { reviewer: string; item: FeedbackItem }[], change: (id: string) => Partial<FeedbackItem>) {
+		const ids = new Set(batch.map(({ item }) => item.id));
+		const reviewers = new Set(batch.map(({ reviewer }) => reviewer));
+		await this.#session.update((r) => {
+			for (const reviewer of reviewers) {
+				const draft = r.feedback[reviewer];
+				if (!draft) continue;
+				r.feedback[reviewer] = {
+					...draft,
+					items: draft.items.map((i) => {
+						if (!ids.has(i.id)) return i;
+						const { joins: _j, filtered: _f, editFailed: _e, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
+						return { ...rest, ...change(i.id) };
+					})
+				};
+			}
 		});
-		// Other reviewers' new findings, in turn.
-		return this.#groupNext();
 	}
 
 	#startPolling() {

@@ -1,5 +1,5 @@
 import * as api from './api';
-import { groupsOf } from './api';
+import { groupsOf, isShown } from './api';
 import type { Hunk } from './diff/parse';
 import type { PrSession } from './session.svelte';
 import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewPayload } from './types';
@@ -35,7 +35,9 @@ export class ReviewPost {
 		const { joined } = groupsOf(this.#session.record);
 		// A group goes in once, as its lead.
 		return Object.entries(feedback).flatMap(([source, draft]) =>
-			(draft?.items ?? []).filter((item) => item.included && !joined(source, item)).map((item) => ({ item, source }))
+			(draft?.items ?? [])
+				.filter((item) => item.included && (!source.startsWith('agent-') || isShown(item)) && !joined(source, item))
+				.map((item) => ({ item, source }))
 		);
 	});
 

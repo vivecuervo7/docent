@@ -81,10 +81,17 @@ export interface FeedbackItem {
 	messages?: NoteMessage[];
 	// When the reviewer last had the finding open; an answer after this is unread.
 	readAt?: number;
-	// Checked against the panel's other findings for the same point.
-	matched?: boolean;
+	// Been through the panel's editor, which groups and filters findings;
+	// until then it isn't shown. `editFailed` shows it anyway, as it is,
+	// until the editor's next try.
+	edited?: boolean;
+	editFailed?: boolean;
+	// Why the editor filtered it out, as trivial or unfounded.
+	filtered?: string;
 	// The finding it makes the same point as, which leads their group.
 	joins?: { reviewer: string; id: string };
+	// The slice Docent's reviewer found it in.
+	slice?: string;
 }
 
 export interface FeedbackDraft {
@@ -214,8 +221,8 @@ export interface AgentReview {
 	model?: string;
 	status: 'running' | 'done' | 'failed' | 'stopped';
 	// `waiting` while its next call is queued behind others.
-	progress?: { done: number; total: number; current?: string; waiting?: boolean };
-	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string }[];
+	progress?: { done: number; total: number; current?: string; waiting?: boolean; finished?: string[] };
+	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string; slice?: string }[];
 	error?: string;
 	startedAt: number;
 	endedAt?: number;

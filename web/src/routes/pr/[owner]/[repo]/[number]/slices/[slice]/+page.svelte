@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import type { Mark } from '$lib/api';
+	import { reviewerName, type Mark } from '$lib/api';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import FileDiffs from '$lib/components/FileDiffs.svelte';
 	import FindingCard from '$lib/components/FindingCard.svelte';
@@ -94,6 +94,11 @@
 	// Catching up on them, each with its lines.
 	let catchUp = $state<string[] | null>(null);
 
+	// The panel's editor at work on this slice, and what it filtered out.
+	const reviewing = $derived(sliceId ? session.panel.reviewing(sliceId) : false);
+	const filtered = $derived(sliceId ? session.panel.filteredIn(sliceId) : []);
+	let showFiltered = $state(false);
+
 	// The second opinion's Done completes the move it interrupted.
 	function finishOpinion() {
 		const current = opinion;
@@ -142,6 +147,28 @@
 					<button class="btn" onclick={() => lateHere.forEach((m) => session.lateLeft.add(m.id))}>Later</button>
 					<button class="btn primary" onclick={() => (catchUp = lateHere.map((m) => m.id))}>Catch up</button>
 				</div>
+			{/if}
+			{#if reviewing || filtered.length}
+				<div class="editor faint">
+					{#if reviewing}<span>The panel is still reviewing this slice</span>{/if}
+					{#if filtered.length}
+						<button class="link" onclick={() => (showFiltered = !showFiltered)} aria-expanded={showFiltered}>
+							{filtered.length} filtered
+						</button>
+					{/if}
+				</div>
+				{#if showFiltered && filtered.length}
+					<ul class="filtered">
+						{#each filtered as { reviewer, item } (item.id)}
+							<li>
+								<div class="who faint">{reviewerName(session.record, reviewer)}{item.path ? ` · ${item.path}` : ''}</div>
+								<NoteText text={item.body} />
+								<div class="why faint">Filtered: {item.filtered}</div>
+								<button class="btn" onclick={() => session.keepFiltered(reviewer, item.id)}>Show it</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			{/if}
 			{#key slice.id}
 				<div class="above-files">
@@ -255,6 +282,42 @@
 		background: var(--popover);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		font-size: 14px;
+	}
+	.editor {
+		display: flex;
+		gap: 16px;
+		margin: 12px 0;
+		font-size: 13.5px;
+	}
+	.link {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		cursor: pointer;
+	}
+	.filtered {
+		list-style: none;
+		margin: 0 0 16px;
+		padding: 0;
+		display: grid;
+		gap: 10px;
+	}
+	.filtered li {
+		display: grid;
+		gap: 6px;
+		justify-items: start;
+		padding: 12px 14px;
+		border-radius: 10px;
+		box-shadow: 0 0 0 1px var(--line-2);
+		font-size: 14px;
+	}
+	.filtered .who,
+	.filtered .why {
+		font-size: 12.5px;
 	}
 	.done-label {
 		font-size: 11.5px;

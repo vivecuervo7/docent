@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { fetchPrFiles, type PrFile } from "./github.js";
 import { chatWithTool } from "./modelProvider.js";
 import { inLane } from "./notes.js";
-import { describeRanges, linesInDiff, numberedFileDiff } from "./prDiff.js";
+import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";
 import type { PrSummary, Slice } from "./types.js";
 import { runSession } from "./sessions.js";
@@ -22,6 +22,8 @@ export interface Finding {
   body: string;
   // For the reviewer deciding whether to keep it; never posted.
   rationale?: string;
+  // The slice the built-in reviewer found it in; none from the whole-PR pass.
+  slice?: string;
 }
 
 export interface AgentReview {
@@ -31,8 +33,9 @@ export interface AgentReview {
   model?: string;
   status: "running" | "done" | "failed" | "stopped";
   // The built-in reviewer goes a slice at a time.
-  // `waiting` while its next call is queued behind others.
-  progress?: { done: number; total: number; current?: string; waiting?: boolean };
+  // `waiting` while its next call is queued behind others; `finished`, the
+  // slices it's done with.
+  progress?: { done: number; total: number; current?: string; waiting?: boolean; finished?: string[] };
   findings: Finding[];
   error?: string;
   startedAt: number;
@@ -268,8 +271,9 @@ export async function submitFinding(
   finding: SubmittedFinding,
   files?: PrFile[],
   reviewer = DEFAULT_REVIEWER,
+  slice?: string,
 ): Promise<Finding> {
-  const recorded = checkFinding(finding, files ?? (await fetchPrFiles(owner, repo, number)));
+  const recorded = { ...checkFinding(finding, files ?? (await fetchPrFiles(owner, repo, number))), ...(slice ? { slice } : {}) };
   openReview(owner, repo, number, reviewer).review.findings.push(recorded);
   return recorded;
 }
@@ -385,16 +389,6 @@ counterpart, or a new case left untested; problems within one part are for the p
 // review.
 const WHOLE_DIFF_LIMIT = 120_000;
 
-function hunkIndicesByFile(slice: Slice): Map<string, number[]> {
-  const byFile = new Map<string, number[]>();
-  for (const ref of slice.hunks) {
-    const at = ref.lastIndexOf("#");
-    const path = ref.slice(0, at);
-    byFile.set(path, [...(byFile.get(path) ?? []), Number(ref.slice(at + 1))]);
-  }
-  return byFile;
-}
-
 // Docent's own reviewer: one focused pass per slice with the configured
 // model, rather than open-ended exploring, which a small local model does
 // poorly. The passes share the interactive lane, so questions asked meanwhile
@@ -432,9 +426,10 @@ async function runBuiltin(
   const { signal } = controller;
   try {
     const files = await fetchPrFiles(owner, repo, number);
-    const parts: { title: string; diff: string }[] =
+    const parts: { id?: string; title: string; diff: string }[] =
       context.slices && context.slices.length > 0
         ? context.slices.map((slice) => ({
+            id: slice.id,
             title: slice.title,
             diff: [...hunkIndicesByFile(slice)]
               .map(([path, indices]) => {
@@ -457,7 +452,7 @@ async function runBuiltin(
     const fits = wholeDiff.length <= WHOLE_DIFF_LIMIT;
     const fileList = files.map((f) => `${f.filename} (+${f.additions} -${f.deletions})`).join("\n");
     const focusNote = focus ? `\n\nThis review has a particular focus, and raises only what falls within it:\n${focus}` : "";
-    const keep = async (raw: unknown) => {
+    const keep = async (raw: unknown, slice?: string) => {
       for (const item of Array.isArray(raw) ? raw : []) {
         const { path, start_line, end_line, body, rationale } = (item ?? {}) as Record<string, unknown>;
         if (typeof body !== "string") continue;
@@ -469,18 +464,20 @@ async function runBuiltin(
           rationale: typeof rationale === "string" ? rationale : undefined,
         };
         try {
-          await submitFinding(owner, repo, number, finding, files, reviewer);
+          await submitFinding(owner, repo, number, finding, files, reviewer, slice);
         } catch {
           // Lines outside the diff: keep the point, on the file as a whole.
           if (finding.path) {
-            await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files, reviewer).catch(() => {});
+            await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files, reviewer, slice).catch(
+              () => {},
+            );
           }
         }
       }
     };
 
     // First the whole PR, for the brief every part's review starts from.
-    review.progress = { done: 0, total: parts.length + 1, current: "the whole PR", waiting: true };
+    review.progress = { done: 0, total: parts.length + 1, current: "the whole PR", waiting: true, finished: [] };
     const briefCall = await inLane(() => {
       signal.throwIfAborted();
       review.progress = { ...review.progress!, waiting: false };
@@ -545,8 +542,12 @@ elsewhere in it, or deliberate. Problems that span parts have been raised alread
         );
       }, model);
       if (review.status !== "running") return;
-      await keep((call.arguments as { findings?: unknown }).findings);
-      review.progress = { ...review.progress!, done: review.progress!.done + 1 };
+      await keep((call.arguments as { findings?: unknown }).findings, part.id);
+      review.progress = {
+        ...review.progress!,
+        done: review.progress!.done + 1,
+        finished: [...(review.progress!.finished ?? []), ...(part.id ? [part.id] : [])],
+      };
     };
     // The first part alone writes the shared block to the cache; the rest,
     // side by side, then read it.
