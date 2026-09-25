@@ -314,12 +314,14 @@
 			</li>
 		{/snippet}
 
+		{#if waiting.length || active.length || mine.length}
+			<!-- How every list below is ordered. -->
+			<div class="list-tools">{@render viewMenu()}</div>
+		{/if}
+
 		{#if waiting.length}
 			<section aria-labelledby="requests-heading">
-				<div class="section-head">
-					<h2 id="requests-heading" class="caps">Waiting for your review</h2>
-					{@render viewMenu()}
-				</div>
+				<h2 id="requests-heading" class="caps">Waiting for your review</h2>
 				{#each grouped(waitingSorted, (r) => r.author) as group (group.label)}
 					{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
 					<ul>
@@ -397,7 +399,6 @@
 			<section aria-labelledby="saved-heading">
 				<div class="section-head">
 					<h2 id="saved-heading" class="caps">Your reviews</h2>
-					{#if !waiting.length}{@render viewMenu()}{/if}
 				</div>
 				{#if active.length}{@render groups(active)}{:else}<p class="faint hidden-note">Nothing open for anyone else’s PRs.</p>{/if}
 			</section>
@@ -427,6 +428,11 @@
 </div>
 
 <style>
+	.list-tools {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: -28px;
+	}
 	.section-head {
 		display: flex;
 		align-items: center;
