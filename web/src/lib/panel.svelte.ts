@@ -7,26 +7,66 @@ import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type F
 // with the React app), the review each is running, and copying their
 // findings into the record as they arrive.
 
-export type ReviewerSetup = { mode: 'builtin'; model: string } | { mode: 'external' } | { mode: 'persona'; persona: string };
+// What runs a reviewer: Docent's reviewer on a model, with a persona (none
+// is the default); one of the reviewer's external reviewers, a session of
+// their own tooling; or their own agent, over MCP.
+export type ReviewerSetup =
+	| { mode: 'builtin'; model: string; persona?: string }
+	| { mode: 'external' }
+	| { mode: 'session'; session: string };
 
-// A review persona, as Settings defines it.
+// Docent's reviewer with a point of view.
 export interface Persona {
 	id: string;
 	name: string;
+	instructions: string;
+}
+
+// The reviewer's own prompt or skill, run as a Claude Code or Codex session.
+export interface ExternalReviewer {
+	id: string;
+	name: string;
+	runner: 'claude-code' | 'codex';
 	command: string;
 	model?: string;
 	tools?: string;
 }
 
+// A reviewer in the default panel.
+export interface PanelEntry {
+	runs: string;
+	persona?: string;
+}
+
+// Sessions were saved as "persona:<id>" before personas meant Docent's own
+// reviewer; the ids carried over.
+export const sessionId = (value: string | undefined) =>
+	value?.startsWith('session:') ? value.slice('session:'.length) : value?.startsWith('persona:') ? value.slice('persona:'.length) : null;
+
+function setupOfValue(runs: string | undefined, persona: string | undefined, defaultModel: string): ReviewerSetup {
+	if (runs === 'external') return { mode: 'external' };
+	const session = sessionId(runs);
+	if (session) return { mode: 'session', session };
+	return { mode: 'builtin', model: runs ?? defaultModel, ...(persona ? { persona } : {}) };
+}
+
 export function setupFrom(reviewer: AgentReviewer, defaultModel: string): ReviewerSetup {
-	const chosen = reviewer.planned ?? reviewer.ranWith;
-	if (chosen === 'external') return { mode: 'external' };
-	if (chosen?.startsWith('persona:')) return { mode: 'persona', persona: chosen.slice('persona:'.length) };
-	return { mode: 'builtin', model: chosen ?? defaultModel };
+	return setupOfValue(reviewer.planned ?? reviewer.ranWith, reviewer.persona, defaultModel);
 }
 
 const setupValue = (setup: ReviewerSetup) =>
-	setup.mode === 'external' ? 'external' : setup.mode === 'persona' ? `persona:${setup.persona}` : setup.model;
+	setup.mode === 'external' ? 'external' : setup.mode === 'session' ? `session:${setup.session}` : setup.model;
+
+const entryOf = (setup: ReviewerSetup): PanelEntry => ({
+	runs: setupValue(setup),
+	...(setup.mode === 'builtin' && setup.persona ? { persona: setup.persona } : {})
+});
+
+// A reviewer as the default panel gives it.
+const reviewerFrom = (entry: PanelEntry, id: AgentId): AgentReviewer => {
+	const session = sessionId(entry.runs);
+	return { id, planned: session ? `session:${session}` : entry.runs, ...(entry.persona ? { persona: entry.persona } : {}) };
+};
 
 // A model's name without where it runs: Claude Code's or Codex's prefix,
 // or the provider id it's saved with.
@@ -59,8 +99,9 @@ export class Panel {
 	#session: PrSession;
 	reviews = $state<Partial<Record<AgentId, AgentReview>>>({});
 	errors = $state<Partial<Record<AgentId, string>>>({});
-	defaultPanel = $state<string[] | null>(null);
+	defaultPanel = $state<PanelEntry[] | null>(null);
 	personas = $state<Persona[]>([]);
+	externals = $state<ExternalReviewer[]>([]);
 
 	readonly reviewers = $derived.by(() => this.#session.record.agentReviewers);
 	readonly running = $derived.by(() => this.reviewers.filter((r) => this.reviews[r.id]?.status === 'running'));
@@ -82,8 +123,12 @@ export class Panel {
 	// running from an earlier visit.
 	async load() {
 		fetch('/api/personas')
-			.then((res) => api.readOk<{ personas: Persona[] }>(res))
-			.then((r) => (this.personas = r.personas))
+			.then((res) => api.readOk<{ items: Persona[] }>(res))
+			.then((r) => (this.personas = r.items))
+			.catch(() => {});
+		fetch('/api/external-reviewers')
+			.then((res) => api.readOk<{ items: ExternalReviewer[] }>(res))
+			.then((r) => (this.externals = r.items))
 			.catch(() => {});
 		this.defaultPanel = await api.getDefaultPanel().catch(() => null);
 		if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
@@ -119,7 +164,7 @@ export class Panel {
 			.update((r) => {
 				if (!this.#untouched(r)) return;
 				r.panelSettled = true;
-				if (saved?.length) r.agentReviewers = saved.map((planned, i) => ({ id: `agent-${i + 1}`, planned }));
+				if (saved?.length) r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, `agent-${i + 1}`));
 				r.agentHighest = Math.max(r.agentHighest ?? 0, r.agentReviewers.length);
 				nameAll(r);
 			})
@@ -141,7 +186,7 @@ export class Panel {
 		await this.#session.update((r) => {
 			const highest = Math.max(0, r.agentHighest ?? 0, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length))));
 			// Keeps the first reviewer's id; the rest get fresh numbers, never reused.
-			r.agentReviewers = saved.map((planned, i) => ({ id: i === 0 ? FIRST_AGENT : `agent-${highest + i}`, planned }));
+			r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, i === 0 ? FIRST_AGENT : `agent-${highest + i}`));
 			r.agentHighest = highest + saved.length - 1;
 			r.panelSettled = true;
 			nameAll(r);
@@ -157,7 +202,9 @@ export class Panel {
 		this.errors[id] = undefined;
 		try {
 			const review = await api.startAgentReview(session.ref, id, {
-				...setup,
+				mode: setup.mode,
+				...(setup.mode === 'builtin' ? { model: setup.model, persona: setup.persona } : {}),
+				...(setup.mode === 'session' ? { session: setup.session } : {}),
 				context: { title: session.title, summary: session.record.summary, slices: session.slices }
 			});
 			delete this.#seen[id];
@@ -172,12 +219,13 @@ export class Panel {
 		}
 	}
 
-	// What a reviewer runs with next.
+	// What a reviewer runs with next, and for Docent's reviewer its persona.
 	plan(id: AgentId, setup: ReviewerSetup) {
 		const planned = setupValue(setup);
+		const persona = setup.mode === 'builtin' ? setup.persona : undefined;
 		this.#session
 			.update((r) => {
-				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, planned } : a));
+				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, planned, persona } : a));
 				r.panelSettled = true;
 			})
 			.catch(() => {});
@@ -185,13 +233,23 @@ export class Panel {
 
 	// This PR's panel, as what every new PR starts with.
 	async saveAsDefault(defaultModel: string) {
-		const panel = this.reviewers.map((r) => setupValue(setupFrom(r, defaultModel)));
+		const panel = this.reviewers.map((r) => entryOf(setupFrom(r, defaultModel)));
 		this.defaultPanel = await api.setDefaultPanel(panel);
 	}
 
 	isDefault(defaultModel: string): boolean {
-		const panel = this.reviewers.map((r) => setupValue(setupFrom(r, defaultModel)));
-		return !!this.defaultPanel && JSON.stringify(panel) === JSON.stringify(this.defaultPanel);
+		const panel = this.reviewers.map((r) => entryOf(setupFrom(r, defaultModel)));
+		const saved = this.defaultPanel?.map((e) => entryOf(setupOfValue(e.runs, e.persona, defaultModel)));
+		return !!saved && JSON.stringify(panel) === JSON.stringify(saved);
+	}
+
+	personaName(id: string | undefined): string {
+		return (id && this.personas.find((p) => p.id === id)?.name) || 'Default';
+	}
+
+	externalName(value: string | undefined): string | null {
+		const id = sessionId(value);
+		return id ? (this.externals.find((e) => e.id === id)?.name ?? 'removed') : null;
 	}
 
 	async end(id: AgentId, action: 'stop' | 'finish') {

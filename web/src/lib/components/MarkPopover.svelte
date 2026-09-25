@@ -17,8 +17,10 @@
 	const model = $derived.by(() => {
 		if (!ranWith) return null;
 		if (ranWith === 'external') return 'your own agent';
-		if (ranWith.startsWith('persona:')) return session.panel.personas.find((p) => `persona:${p.id}` === ranWith)?.name ?? 'a persona';
-		return modelLabel(ranWith);
+		const external = session.panel.externalName(ranWith);
+		if (external) return external;
+		const persona = session.record.agentReviewers.find((r) => r.id === mark.reviewer)?.persona;
+		return persona ? `${modelLabel(ranWith)} · ${session.panel.personaName(persona)}` : modelLabel(ranWith);
 	});
 	const isKept = $derived(mark.included ?? true);
 	// The finding as saved, for its conversation as it grows.

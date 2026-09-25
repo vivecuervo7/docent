@@ -4,24 +4,27 @@
 	import MenuSelect from './MenuSelect.svelte';
 	import Spinner from './Spinner.svelte';
 
-	// Review personas: your own tooling as a reviewer on the panel. Each runs
-	// its prompt in an unattended Claude Code session, reading the PR through
-	// Docent, and its findings come back like any reviewer's.
+	// External reviewers: your own tooling as a reviewer on the panel. Each
+	// runs its prompt in an unattended Claude Code or Codex session, reading
+	// the PR through Docent, and its findings come back like any reviewer's.
 	interface Persona {
 		id: string;
 		name: string;
+		runner: 'claude-code' | 'codex';
 		command: string;
 		model?: string;
 		tools?: string;
 	}
 	interface Draft {
 		name: string;
+		runner: 'claude-code' | 'codex';
 		command: string;
 		model: string;
 		tools: string;
 	}
 
 	let personas = $state<Persona[] | null>(null);
+	let codexModels = $state<string[]>([]);
 	let always = $state<string[]>([]);
 	let editing = $state<string | null>(null);
 	let draft = $state<Draft>(blank());
@@ -29,22 +32,38 @@
 	let formError = $state<string | null>(null);
 
 	function blank(): Draft {
-		return { name: '', command: '', model: '', tools: '' };
+		return { name: '', runner: 'claude-code', command: '', model: '', tools: '' };
 	}
 
 	async function load() {
-		const res = await readOk<{ personas: Persona[]; alwaysAllowed: string[] }>(await fetch('/api/personas'));
-		personas = res.personas;
+		const res = await readOk<{ items: Persona[]; alwaysAllowed: string[] }>(await fetch('/api/external-reviewers'));
+		personas = res.items;
 		always = res.alwaysAllowed;
 	}
 	$effect(() => {
 		load().catch(() => (personas = []));
+		fetch('/api/providers')
+			.then((res) => readOk<{ codex?: { models: string[] } }>(res))
+			.then((r) => (codexModels = r.codex?.models ?? []))
+			.catch(() => {});
 	});
+
+	// The models the chosen tool offers.
+	const modelOptions = $derived(
+		draft.runner === 'codex'
+			? [{ value: '', label: 'Codex’s default' }, ...codexModels.map((m) => ({ value: m, label: m }))]
+			: [
+					{ value: '', label: 'Claude Code’s default' },
+					{ value: 'opus', label: 'opus' },
+					{ value: 'sonnet', label: 'sonnet' },
+					{ value: 'haiku', label: 'haiku' }
+				]
+	);
 
 	function edit(p: Persona | null) {
 		formError = null;
 		editing = p?.id ?? 'new';
-		draft = p ? { name: p.name, command: p.command, model: p.model ?? '', tools: p.tools ?? '' } : blank();
+		draft = p ? { name: p.name, runner: p.runner, command: p.command, model: p.model ?? '', tools: p.tools ?? '' } : blank();
 	}
 
 	async function save() {
@@ -53,10 +72,16 @@
 		const isNew = editing === 'new';
 		try {
 			await readOk(
-				await fetch(isNew ? '/api/personas' : `/api/personas/${editing}`, {
+				await fetch(isNew ? '/api/external-reviewers' : `/api/external-reviewers/${editing}`, {
 					method: isNew ? 'POST' : 'PUT',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ name: draft.name, command: draft.command, model: draft.model || null, tools: draft.tools || null })
+					body: JSON.stringify({
+						name: draft.name,
+						runner: draft.runner,
+						command: draft.command,
+						model: draft.model || null,
+						tools: draft.runner === 'claude-code' ? draft.tools || null : null
+					})
 				})
 			);
 			editing = null;
@@ -69,8 +94,8 @@
 	}
 
 	async function remove(p: Persona) {
-		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Reviewers set to it go back to the start page’s model.', action: 'Remove' }))) return;
-		await fetch(`/api/personas/${p.id}`, { method: 'DELETE' });
+		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Reviewers set to it will need something else to run them.', action: 'Remove' }))) return;
+		await fetch(`/api/external-reviewers/${p.id}`, { method: 'DELETE' });
 		await load();
 	}
 </script>
@@ -87,6 +112,17 @@
 			<span>Name</span>
 			<input bind:value={draft.name} placeholder="thorough-reviewer" required maxlength="60" />
 		</label>
+		<div class="field">
+			<span>Runs in</span>
+			<MenuSelect
+				bind:value={draft.runner}
+				label="Runs in"
+				options={[
+					{ value: 'claude-code', label: 'Claude Code' },
+					{ value: 'codex', label: 'Codex' }
+				]}
+			/>
+		</div>
 		<label>
 			<span>Prompt</span>
 			<textarea bind:value={draft.command} rows="1" placeholder="Review {'{pr_url}'} for correctness and security issues" required></textarea>
@@ -98,17 +134,9 @@
 		</label>
 		<div class="field">
 			<span>Model</span>
-			<MenuSelect
-				bind:value={draft.model}
-				label="Model"
-				options={[
-					{ value: '', label: 'Claude Code’s default' },
-					{ value: 'opus', label: 'opus' },
-					{ value: 'sonnet', label: 'sonnet' },
-					{ value: 'haiku', label: 'haiku' }
-				]}
-			/>
+			{#key draft.runner}<MenuSelect bind:value={draft.model} label="Model" options={modelOptions} />{/key}
 		</div>
+		{#if draft.runner === 'claude-code'}
 		<label>
 			<span>Also allow</span>
 			<input class="mono" bind:value={draft.tools} placeholder="e.g. Bash(gh pr view:*) Bash(gh pr diff:*)" />
@@ -117,6 +145,9 @@
 				approve it.
 			</small>
 		</label>
+		{:else}
+			<p class="faint note">On Codex it reads the PR through Docent’s tools only, with its shell and the rest switched off.</p>
+		{/if}
 		{#if formError}<p class="bad">{formError}</p>{/if}
 		<div class="actions">
 			<button type="button" class="btn" onclick={() => (editing = null)}>Cancel</button>
@@ -126,10 +157,10 @@
 {/snippet}
 
 <section>
-	<h2>Personas</h2>
+	<h2>External reviewers</h2>
 	<p class="faint intro">
-		Your own review tooling as a reviewer on the panel: a prompt or skill run in an unattended Claude Code session, which
-		reads the PR through Docent and hands its findings back.
+		Your own review tooling as a reviewer on the panel: a prompt or skill run in an unattended Claude Code or Codex
+		session, which reads the PR through Docent and hands its findings back.
 	</p>
 	{#if personas}
 		<ul>
@@ -142,7 +173,9 @@
 							<div class="text">
 								<span class="name">{p.name}</span>
 								<p class="command">{p.command}</p>
-								<p class="faint meta">{p.model ?? 'Claude Code’s default model'}{p.tools ? ` · also allows ${p.tools}` : ''}</p>
+								<p class="faint meta">
+									{p.runner === 'codex' ? 'Codex' : 'Claude Code'} · {p.model ?? 'default model'}{p.tools ? ` · also allows ${p.tools}` : ''}
+								</p>
 							</div>
 							<div class="controls">
 								<button class="link" onclick={() => edit(p)}>Edit</button>
@@ -159,7 +192,7 @@
 		{#if editing !== 'new'}
 			<button class="add" onclick={() => edit(null)}>
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-				Add a persona
+				Add an external reviewer
 			</button>
 		{/if}
 	{/if}
@@ -311,6 +344,10 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: 8px;
+	}
+	.note {
+		margin: 0;
+		font-size: 13px;
 	}
 	.bad {
 		margin: 0;

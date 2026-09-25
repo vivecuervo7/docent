@@ -136,9 +136,10 @@ export async function startAgentReview(
 	ref: PrRef,
 	reviewer: string,
 	body: {
-		mode: 'builtin' | 'external' | 'persona';
+		mode: 'builtin' | 'external' | 'session';
 		model?: string;
 		persona?: string;
+		session?: string;
 		context: { title?: string; summary: PrSummary | null; slices: Slice[] };
 	}
 ): Promise<AgentReview> {
@@ -162,15 +163,15 @@ export async function dismissAgentReview(ref: PrRef, reviewer: string, force = f
 }
 
 // The review panel a new PR starts with: a model or "external" per reviewer.
-export async function getDefaultPanel(): Promise<string[] | null> {
-	return (await readOk<{ panel: string[] | null }>(await fetch('/api/panel/default'))).panel;
+export async function getDefaultPanel(): Promise<{ runs: string; persona?: string }[] | null> {
+	return (await readOk<{ panel: { runs: string; persona?: string }[] | null }>(await fetch('/api/panel/default'))).panel;
 }
 
-export async function setDefaultPanel(panel: string[]): Promise<string[] | null> {
+export async function setDefaultPanel(panel: { runs: string; persona?: string }[]): Promise<{ runs: string; persona?: string }[] | null> {
 	const res = await fetch('/api/panel/default', {
 		method: 'PUT',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ panel })
 	});
-	return (await readOk<{ panel: string[] | null }>(res)).panel;
+	return (await readOk<{ panel: { runs: string; persona?: string }[] | null }>(res)).panel;
 }

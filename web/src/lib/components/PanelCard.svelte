@@ -41,13 +41,24 @@
 	function runsWith(r: AgentReviewer): string {
 		const setup = setupOf(r);
 		if (setup.mode === 'external') return 'Your own agent';
-		if (setup.mode === 'persona') return `Persona · ${panel.personas.find((p) => p.id === setup.persona)?.name ?? 'removed'}`;
+		if (setup.mode === 'session') return `External · ${panel.externalName(`session:${setup.session}`)}`;
 		return `Docent · ${modelLabel(setup.model)}`;
 	}
 
+	// Choosing a model keeps the reviewer's persona.
 	function choose(r: AgentReviewer, value: string) {
-		panel.plan(r.id, value === 'external' ? { mode: 'external' } : { mode: 'builtin', model: value });
+		const setup = setupOf(r);
+		const persona = setup.mode === 'builtin' ? setup.persona : undefined;
+		panel.plan(r.id, value === 'external' ? { mode: 'external' } : { mode: 'builtin', model: value, persona });
 	}
+
+	function choosePersona(r: AgentReviewer, persona: string | undefined) {
+		const setup = setupOf(r);
+		if (setup.mode === 'builtin') panel.plan(r.id, { ...setup, persona });
+	}
+
+	// The reviewer whose persona menu is open.
+	let personaMenuFor = $state<AgentId | null>(null);
 
 	function read() {
 		const next = session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0];
@@ -80,9 +91,12 @@
 	// The reviewer whose "what runs it" menu is open.
 	let menuFor = $state<AgentId | null>(null);
 	$effect(() => {
-		if (!menuFor) return;
+		if (!menuFor && !personaMenuFor) return;
 		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.picker')) menuFor = null;
+			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.picker, .persona-picker')) {
+				menuFor = null;
+				personaMenuFor = null;
+			}
 		};
 		window.addEventListener('pointerdown', close);
 		window.addEventListener('keydown', close);
@@ -146,14 +160,14 @@
 										<span class="hint">{m.source}</span>
 									</button>
 								{/each}
-								{#if panel.personas.length}
-									<span class="group">Your personas</span>
-									{#each panel.personas as p (p.id)}
-										{@const current = setup.mode === 'persona' && setup.persona === p.id}
-										<button role="menuitemradio" aria-checked={current} onclick={() => { panel.plan(r.id, { mode: 'persona', persona: p.id }); menuFor = null; }}>
+								{#if panel.externals.length}
+									<span class="group">External reviewers</span>
+									{#each panel.externals as e (e.id)}
+										{@const current = setup.mode === 'session' && setup.session === e.id}
+										<button role="menuitemradio" aria-checked={current} onclick={() => { panel.plan(r.id, { mode: 'session', session: e.id }); menuFor = null; }}>
 											<span class="tick">{#if current}✓{/if}</span>
-											<span>{p.name}</span>
-											<span class="hint">{p.model ?? 'Claude Code'}</span>
+											<span>{e.name}</span>
+											<span class="hint">{e.runner === 'codex' ? 'Codex' : 'Claude Code'}{e.model ? ` · ${e.model}` : ''}</span>
 										</button>
 									{/each}
 								{/if}
@@ -162,6 +176,39 @@
 									<span class="tick">{#if setup.mode === 'external'}✓{/if}</span>
 									<span>Connect via MCP</span>
 								</button>
+							</div>
+						{/if}
+						{#if setup.mode === 'builtin' && (panel.personas.length || setup.persona)}
+							<div class="persona-picker">
+								{#if running}
+									<span class="runs faint">Persona · {panel.personaName(setup.persona)}</span>
+								{:else}
+									<button
+										class="trigger"
+										aria-haspopup="menu"
+										aria-label="Persona for {nameOf(r)}: {panel.personaName(setup.persona)}"
+										aria-expanded={personaMenuFor === r.id}
+										onclick={() => (personaMenuFor = personaMenuFor === r.id ? null : r.id)}
+									>
+										Persona · {panel.personaName(setup.persona)}
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+									</button>
+								{/if}
+								{#if personaMenuFor === r.id}
+									<div class="menu" role="menu" aria-label="Persona">
+										<button role="menuitemradio" aria-checked={!setup.persona} onclick={() => { choosePersona(r, undefined); personaMenuFor = null; }}>
+											<span class="tick">{#if !setup.persona}✓{/if}</span>
+											<span>Default</span>
+											<span class="hint">A general review</span>
+										</button>
+										{#each panel.personas as p (p.id)}
+											<button role="menuitemradio" aria-checked={setup.persona === p.id} onclick={() => { choosePersona(r, p.id); personaMenuFor = null; }}>
+												<span class="tick">{#if setup.persona === p.id}✓{/if}</span>
+												<span>{p.name}</span>
+											</button>
+										{/each}
+									</div>
+								{/if}
 							</div>
 						{/if}
 					</div>
@@ -174,10 +221,11 @@
 								: 'Starting…'}
 							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
 						</span>
-					{:else if running && review.source === 'persona'}
+					{:else if running && review.source === 'session'}
+						{@const external = panel.externals.find((e) => `session:${e.id}` === (r.ranWith ?? ''))}
 						<span class="status working">
 							<Spinner size={13} />
-							Reviewing in a Claude Code session
+							Reviewing in a {external?.runner === 'codex' ? 'Codex' : 'Claude Code'} session
 							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
 						</span>
 					{:else if running}
@@ -334,6 +382,10 @@
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 2px;
+	}
+	.persona-picker {
+		position: relative;
+		align-self: flex-start;
 	}
 	.runs {
 		font-size: 13px;

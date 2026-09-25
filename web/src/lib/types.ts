@@ -127,9 +127,11 @@ export interface AgentReviewer {
 	// of the id.
 	name?: string;
 	ranWith?: string;
-	// What it's set to run with next: a model, or "external". Chosen on the
-	// panel card, or given by the default panel.
+	// What it's set to run with next: a model, "external", or a session
+	// ("session:<id>"). Chosen on the panel card, or given by the default panel.
 	planned?: string;
+	// For Docent's reviewer, the persona it takes; none is the default.
+	persona?: string;
 	// Its latest review, kept after the backend has let it go.
 	lastRun?: { startedAt: number; endedAt?: number; status: AgentReview['status']; findings: number; error?: string };
 }
@@ -204,7 +206,7 @@ export interface Reuse {
 // An agent review as the backend reports it, while running or just ended.
 export interface AgentReview {
 	id: string;
-	source: 'builtin' | 'external' | 'persona';
+	source: 'builtin' | 'external' | 'session';
 	model?: string;
 	status: 'running' | 'done' | 'failed' | 'stopped';
 	progress?: { done: number; total: number; current?: string };

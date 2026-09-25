@@ -3,7 +3,7 @@ import { SvelteSet } from 'svelte/reactivity';
 import * as api from './api';
 import { marksFrom } from './api';
 import { nearestHunk, parseFilePatch, type Hunk } from './diff/parse';
-import { Panel } from './panel.svelte';
+import { Panel, sessionId } from './panel.svelte';
 import { ReviewPost } from './post.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
@@ -269,13 +269,16 @@ export class PrSession {
 		}
 	}
 
-	// Who answers questions about a finding: the model that raised it; a
-	// persona's own model, else the review's; the review's for your own agent.
+	// Who answers questions about a finding: the model that raised it; an
+	// external reviewer's own model, else the review's; the review's for your
+	// own agent.
 	#answeringModel(ranWith: string | undefined): string | undefined {
 		if (!ranWith || ranWith === 'external') return this.record.model;
-		if (ranWith.startsWith('persona:')) {
-			const persona = this.panel.personas.find((p) => `persona:${p.id}` === ranWith);
-			return persona?.model ? `claude-code:${persona.model}` : this.record.model;
+		const id = sessionId(ranWith);
+		if (id) {
+			const external = this.panel.externals.find((e) => e.id === id);
+			if (!external?.model) return this.record.model;
+			return `${external.runner === 'codex' ? 'codex' : 'claude-code'}:${external.model}`;
 		}
 		return ranWith;
 	}

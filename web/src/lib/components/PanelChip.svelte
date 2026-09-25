@@ -49,8 +49,10 @@
 	function runsWith(r: AgentReviewer): string {
 		const value = r.ranWith ?? r.planned;
 		if (!value) return '';
-		if (value.startsWith('persona:')) return panel.personas.find((p) => `persona:${p.id}` === value)?.name ?? 'persona';
-		return value === 'external' ? 'your own agent' : modelLabel(value);
+		const external = panel.externalName(value);
+		if (external) return external;
+		if (value === 'external') return 'your own agent';
+		return r.persona ? `${modelLabel(value)} · ${panel.personaName(r.persona)}` : modelLabel(value);
 	}
 
 	// Where a reviewer is, in a line.
@@ -64,7 +66,7 @@
 		if (run.status === 'running') {
 			const elapsed = run.startedAt ? ` · ${duration(now - run.startedAt)}` : '';
 			if (live?.source === 'external') return { text: `Waiting for your agent${elapsed}`, working: true };
-			if (live?.source === 'persona') return { text: `Reviewing${elapsed}`, working: true };
+			if (live?.source === 'session') return { text: `Reviewing${elapsed}`, working: true };
 			const p = live?.progress;
 			const where = p?.total ? `Slice ${Math.min(p.done + 1, p.total)} of ${p.total}` : 'Starting';
 			return { text: `${where}${elapsed}`, working: true };
