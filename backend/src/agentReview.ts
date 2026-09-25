@@ -31,6 +31,8 @@ export interface AgentReview {
   progress?: { done: number; total: number; current?: string };
   findings: Finding[];
   error?: string;
+  startedAt: number;
+  endedAt?: number;
 }
 
 // What the browser knows about the PR that GitHub doesn't: the slices and
@@ -118,7 +120,7 @@ function begin(
   reviews.get(key)?.controller.abort();
   if (context) contexts.set(prKey(owner, repo, number), context);
   const entry: Entry = {
-    review: { id: randomUUID(), source, model, status: "running", findings: [] },
+    review: { id: randomUUID(), source, model, status: "running", findings: [], startedAt: Date.now() },
     controller: new AbortController(),
   };
   reviews.set(key, entry);
@@ -130,16 +132,34 @@ export function openExternalReview(owner: string, repo: string, number: string, 
   return begin(owner, repo, number, reviewer, "external", context).review;
 }
 
+// Ends a running review, noting when.
+function end(review: AgentReview, status: "done" | "failed" | "stopped") {
+  if (review.status !== "running") return;
+  review.status = status;
+  review.endedAt = Date.now();
+}
+
+// Every review running or not yet collected, for the start page and the
+// panel's summary.
+export function listAgentReviews() {
+  return [...reviews.entries()].map(([key, { review }]) => {
+    const [pr, reviewer] = key.split("#");
+    const [owner, repo, number] = pr.split("/");
+    const { findings, ...rest } = review;
+    return { owner, repo, number, reviewer, ...rest, findings: findings.length };
+  });
+}
+
 export function finishAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER): AgentReview | null {
   const entry = reviews.get(reviewKey(owner, repo, number, reviewer));
-  if (entry?.review.status === "running") entry.review.status = "done";
+  if (entry) end(entry.review, "done");
   return entry?.review ?? null;
 }
 
 export function stopAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER): AgentReview | null {
   const entry = reviews.get(reviewKey(owner, repo, number, reviewer));
   if (entry?.review.status === "running") {
-    entry.review.status = "stopped";
+    end(entry.review, "stopped");
     entry.controller.abort();
   }
   return entry?.review ?? null;
@@ -234,7 +254,7 @@ export async function submitReview(
   }
   const entry = openReview(owner, repo, number, reviewer);
   entry.review.findings.push(...checked);
-  entry.review.status = "done";
+  end(entry.review, "done");
   return entry.review;
 }
 
@@ -381,11 +401,11 @@ async function runBuiltin(
         review.progress = { ...review.progress!, done: review.progress!.done + 1 };
       }),
     );
-    if (review.status === "running") review.status = "done";
+    end(review, "done");
   } catch (err) {
     if (review.status === "running") {
-      review.status = "failed";
       review.error = (err as Error).message;
+      end(review, "failed");
     }
   }
 }

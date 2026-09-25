@@ -16,7 +16,7 @@ import {
   type Reuse,
 } from "./generation.js";
 import { localhostHostValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
-import {
+import { listAgentReviews,
   DEFAULT_REVIEWER,
   REVIEWER_RE,
   dismissAgentReview,
@@ -224,6 +224,11 @@ function reviewerParam(req: express.Request): string | null {
   const reviewer = req.query.reviewer ?? DEFAULT_REVIEWER;
   return typeof reviewer === "string" && REVIEWER_RE.test(reviewer) ? reviewer : null;
 }
+
+// Every agent review running or waiting to be collected, across PRs.
+app.get("/api/agent-reviews", (_req, res) => {
+  res.json({ reviews: listAgentReviews() });
+});
 
 // The agent review: Docent's own reviewer ("builtin"), or waiting for the
 // reviewer's own agent to submit findings over MCP ("external").
