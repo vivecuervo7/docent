@@ -204,6 +204,14 @@ export class PrSession {
 			.catch((err) => (this.findingStatus[id] = { error: (err as Error).message }));
 	}
 
+	// Seeing a finding's answer clears it from unread.
+	markFindingRead(reviewer: string, id: string) {
+		const item = this.record.feedback[reviewer]?.items.find((i) => i.id === id);
+		if (!item || !isUnread(item)) return;
+		const readAt = Date.now();
+		this.#changeFinding(reviewer, id, (i) => ({ ...i, readAt })).catch(() => {});
+	}
+
 	retryFinding(reviewer: string, id: string) {
 		this.#answerFinding(reviewer, id);
 	}

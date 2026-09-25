@@ -1,4 +1,5 @@
 import type { AgentReview, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
+import { isUnread } from './types';
 
 // Calls to Docent's backend, which this app shares with the React app.
 
@@ -76,6 +77,8 @@ export interface Mark {
 	reviewer?: string;
 	// Whether the reviewer has kept or skipped the finding yet.
 	decided?: boolean;
+	// A finding with an answer to a question the reviewer hasn't read yet.
+	unread?: boolean;
 }
 
 // A reviewer's name, as the panel shows it.
@@ -101,6 +104,7 @@ export function marksFrom(record: PrRecord): Mark[] {
 						rationale: item.rationale,
 						included: item.included,
 						decided: item.decided,
+						unread: isUnread(item),
 						reviewer: key
 					})
 				)

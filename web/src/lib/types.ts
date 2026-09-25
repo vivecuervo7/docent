@@ -79,6 +79,8 @@ export interface FeedbackItem {
 	decided?: boolean;
 	// The reviewer's questions about a finding, and the answers.
 	messages?: NoteMessage[];
+	// When the reviewer last had the finding open; an answer after this is unread.
+	readAt?: number;
 }
 
 export interface FeedbackDraft {
@@ -110,9 +112,10 @@ export interface Note {
 	readAt?: number;
 }
 
-export function isUnread(note: Note): boolean {
-	const reply = note.messages.findLast((m) => m.role === 'assistant');
-	return !!reply && reply.at > (note.readAt ?? 0);
+// A thread, or a finding asked about, with a reply since it was last open.
+export function isUnread(talk: { messages?: NoteMessage[]; readAt?: number }): boolean {
+	const reply = talk.messages?.findLast((m) => m.role === 'assistant');
+	return !!reply && reply.at > (talk.readAt ?? 0);
 }
 
 export type AgentId = `agent-${number}`;

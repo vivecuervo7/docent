@@ -437,6 +437,7 @@
 				>
 					{#if p.mark.kind === 'finding'}
 						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
+						{#if p.mark.unread}<span class="unread" aria-label="New answer"></span>{/if}
 					{:else}
 						<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
 						{#if p.mark.note && isUnread(p.mark.note)}<span class="unread" aria-label="New reply"></span>{/if}
