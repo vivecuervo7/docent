@@ -53,14 +53,14 @@
 	}
 
 	// How Your reviews are ordered, kept in this browser.
-	type Sort = 'raised' | 'repo' | 'author';
+	type Sort = 'none' | 'repo' | 'author';
 	let sort = $state<Sort>(readSort());
 	function readSort(): Sort {
 		try {
 			const value = localStorage.getItem('docent.sort');
-			return value === 'repo' || value === 'author' ? value : 'raised';
+			return value === 'repo' || value === 'author' ? value : 'none';
 		} catch {
-			return 'raised';
+			return 'none';
 		}
 	}
 	function setSort(value: Sort) {
@@ -75,19 +75,6 @@
 
 	// PRs the reviewer wrote get a section of their own.
 	const isMine = (pr: SavedPr) => !!login && pr.record.author === login;
-	let viewOpen = $state(false);
-	$effect(() => {
-		if (!viewOpen) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.view')) viewOpen = false;
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
-	});
 
 	const notComplete = $derived((saved ?? []).filter((pr) => !pr.record.completedAt));
 	const active = $derived(notComplete.filter((pr) => !isMine(pr)));
@@ -97,7 +84,7 @@
 	// Oldest first throughout: the longest-waiting PRs are cleared first.
 	function grouped<T extends PrRef>(list: T[], authorOf: (item: T) => string | undefined, raised: (item: T) => number) {
 		list = [...list].sort((a, b) => raised(a) - raised(b));
-		if (sort === 'raised') return [{ label: '', items: list }];
+		if (sort === 'none') return [{ label: '', items: list }];
 		const labelOf = (item: T) => (sort === 'repo' ? `${item.owner}/${item.repo}` : (authorOf(item) ?? 'Author not known yet'));
 		const byLabel = new Map<string, T[]>();
 		for (const pr of list) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
@@ -307,8 +294,8 @@
 					<span class="text">
 						<span class="title">{pr.record.title ?? `#${pr.number}`}</span>
 						<span class="faint meta">
-							{pr.owner}/{pr.repo} #{pr.number}{authorOf(pr) ? ` · by ${authorOf(pr)}` : ''}{pr.record.lastOpenedAt
-									? ` · opened ${timeAgo(pr.record.lastOpenedAt, now)}`
+							{pr.owner}/{pr.repo} #{pr.number}{authorOf(pr) ? ` · by ${authorOf(pr)}` : ''}{raisedAt(pr)
+									? ` · raised ${timeAgo(raisedAt(pr), now)}`
 									: ''}
 							{#if panelFor(pr)}
 								{@const p = panelFor(pr)!}
@@ -354,7 +341,7 @@
 						<span class="text">
 							<span class="title">{r.title}</span>
 							<span class="faint meta">
-								{r.owner}/{r.repo} #{r.number}{r.author ? ` · by ${r.author}` : ''} · updated {timeAgo(Date.parse(r.updatedAt), now)}
+								{r.owner}/{r.repo} #{r.number}{r.author ? ` · by ${r.author}` : ''} · raised {timeAgo(Date.parse(r.createdAt), now)}
 							</span>
 						</span>
 						<span class="state faint">{reviewState(r)}</span>
@@ -390,23 +377,14 @@
 		{/snippet}
 
 		{#snippet viewMenu()}
-		<div class="view">
-			<button class="view-trigger" aria-haspopup="menu" aria-expanded={viewOpen} onclick={() => (viewOpen = !viewOpen)}>
-				View
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-			</button>
-			{#if viewOpen}
-				<div class="view-menu" role="menu" aria-label="View">
-					<span class="menu-group">Order by</span>
-					{#each [['raised', 'Raised, oldest first'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
-						<button role="menuitemradio" aria-checked={sort === value} onclick={() => setSort(value as Sort)}>
-							<span class="tick">{#if sort === value}✓{/if}</span>
-							<span>{label}</span>
-						</button>
+			<div class="grouping" role="group" aria-label="Group by">
+				<span class="faint">Group by</span>
+				<div class="segments">
+					{#each [['none', 'None'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
+						<button class:on={sort === value} aria-pressed={sort === value} onclick={() => setSort(value as Sort)}>{label}</button>
 					{/each}
 				</div>
-			{/if}
-		</div>
+			</div>
 		{/snippet}
 
 		{#snippet groups(list: SavedPr[])}
@@ -451,40 +429,75 @@
 </div>
 
 <style>
+	.grouping {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-size: 13px;
+	}
+	.segments {
+		display: flex;
+		padding: 2px;
+		border-radius: 9px;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	.segments button {
+		height: 26px;
+		padding: 0 11px;
+		border: 0;
+		border-radius: 7px;
+		background: none;
+		color: var(--muted);
+		font: inherit;
+		font-size: 12.5px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.segments button:hover {
+		color: var(--text);
+	}
+	.segments button.on {
+		background: #ece8df;
+		color: #141413;
+	}
+	/* The state as a badge, tinted in its colour. */
 	.status-label {
+		--tone: var(--muted);
 		display: inline-flex;
 		align-items: center;
-		gap: 7px;
-		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: 0.09em;
-		text-transform: uppercase;
+		gap: 6px;
+		padding: 3px 10px 3px 8px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--tone) 16%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
+		color: var(--tone);
+		font-size: 12.5px;
+		font-weight: 500;
 		white-space: nowrap;
-		color: var(--muted);
 	}
 	.status-label .dot {
-		width: 7px;
-		height: 7px;
+		width: 6px;
+		height: 6px;
 		border-radius: 50%;
 		background: currentColor;
 	}
 	.status-label.working {
-		color: #ffb85c;
+		--tone: #ffb85c;
 	}
 	.status-label.ready {
-		color: #8ab4ff;
+		--tone: #8ab4ff;
 	}
 	.status-label.going {
-		color: #f4efe6;
+		--tone: #e8e2d6;
 	}
 	.status-label.done {
-		color: #7fd89b;
+		--tone: #7fd89b;
 	}
 	.status-label.bad {
-		color: #ff8a7a;
+		--tone: #ff8a7a;
 	}
 	.status-label.quiet {
-		color: var(--faint);
+		--tone: var(--faint);
 	}
 	.updated {
 		padding: 2px 8px;
@@ -538,69 +551,6 @@
 		font-size: 12px;
 		font-weight: 400;
 		color: var(--faint);
-	}
-	.view {
-		position: relative;
-	}
-	.view-trigger {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		padding: 4px 8px;
-		border: 0;
-		border-radius: 7px;
-		background: none;
-		color: var(--muted);
-		font: inherit;
-		font-size: 13px;
-		cursor: pointer;
-	}
-	.view-trigger:hover,
-	.view-trigger[aria-expanded='true'] {
-		color: var(--text);
-		background: var(--surface-2);
-	}
-	.view-menu {
-		position: absolute;
-		z-index: 20;
-		top: calc(100% + 6px);
-		right: 0;
-		min-width: 220px;
-		padding: 6px;
-		border-radius: 12px;
-		background: var(--surface-2);
-		box-shadow:
-			0 0 0 1px var(--line-2),
-			0 24px 60px -20px rgba(0, 0, 0, 0.8);
-		display: flex;
-		flex-direction: column;
-	}
-	.menu-group {
-		padding: 8px 10px 4px;
-		font-size: 11px;
-		letter-spacing: 0.09em;
-		text-transform: uppercase;
-		font-weight: 600;
-		color: var(--faint);
-	}
-	.view-menu button {
-		display: grid;
-		grid-template-columns: 16px minmax(0, 1fr);
-		align-items: center;
-		gap: 8px;
-		height: 32px;
-		padding: 0 10px;
-		border: 0;
-		border-radius: 8px;
-		background: none;
-		color: var(--text);
-		font: inherit;
-		font-size: 14px;
-		text-align: left;
-		cursor: pointer;
-	}
-	.view-menu button:hover {
-		background: var(--line-2);
 	}
 	.tick {
 		color: var(--done);
