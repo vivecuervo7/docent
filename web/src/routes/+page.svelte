@@ -53,14 +53,14 @@
 	}
 
 	// How Your reviews are ordered, kept in this browser.
-	type Sort = 'recent' | 'raised' | 'repo' | 'author';
+	type Sort = 'raised' | 'repo' | 'author';
 	let sort = $state<Sort>(readSort());
 	function readSort(): Sort {
 		try {
 			const value = localStorage.getItem('docent.sort');
-			return value === 'raised' || value === 'repo' || value === 'author' ? value : 'recent';
+			return value === 'repo' || value === 'author' ? value : 'raised';
 		} catch {
-			return 'recent';
+			return 'raised';
 		}
 	}
 	function setSort(value: Sort) {
@@ -94,9 +94,10 @@
 	const mine = $derived(notComplete.filter(isMine));
 	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt));
 	// A list in groups: one group by recency, else one per repo or author.
+	// Oldest first throughout: the longest-waiting PRs are cleared first.
 	function grouped<T extends PrRef>(list: T[], authorOf: (item: T) => string | undefined, raised: (item: T) => number) {
-		if (sort === 'recent') return [{ label: '', items: list }];
-		if (sort === 'raised') return [{ label: '', items: [...list].sort((a, b) => raised(b) - raised(a)) }];
+		list = [...list].sort((a, b) => raised(a) - raised(b));
+		if (sort === 'raised') return [{ label: '', items: list }];
 		const labelOf = (item: T) => (sort === 'repo' ? `${item.owner}/${item.repo}` : (authorOf(item) ?? 'Author not known yet'));
 		const byLabel = new Map<string, T[]>();
 		for (const pr of list) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
@@ -397,7 +398,7 @@
 			{#if viewOpen}
 				<div class="view-menu" role="menu" aria-label="View">
 					<span class="menu-group">Order by</span>
-					{#each [['recent', 'Last opened'], ['raised', 'Raised'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
+					{#each [['raised', 'Raised, oldest first'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
 						<button role="menuitemradio" aria-checked={sort === value} onclick={() => setSort(value as Sort)}>
 							<span class="tick">{#if sort === value}✓{/if}</span>
 							<span>{label}</span>
@@ -454,7 +455,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 7px;
-		font-size: 13px;
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
 		white-space: nowrap;
 		color: var(--muted);
 	}
@@ -465,19 +469,19 @@
 		background: currentColor;
 	}
 	.status-label.working {
-		color: var(--agent-text);
+		color: #ffb85c;
 	}
 	.status-label.ready {
-		color: var(--you-text);
+		color: #8ab4ff;
 	}
 	.status-label.going {
-		color: var(--text);
+		color: #f4efe6;
 	}
 	.status-label.done {
-		color: var(--done);
+		color: #7fd89b;
 	}
 	.status-label.bad {
-		color: var(--danger);
+		color: #ff8a7a;
 	}
 	.status-label.quiet {
 		color: var(--faint);
