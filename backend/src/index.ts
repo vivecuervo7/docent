@@ -174,12 +174,14 @@ app.post("/api/pr/:owner/:repo/:number/notes/reply", async (req, res) => {
   const { owner, repo, number } = req.params;
   const context = req.body?.context as NoteContext | undefined;
   const messages = req.body?.messages as NoteMessage[] | undefined;
+  const model = req.body?.model;
   if (
     !validParams(owner, repo, number) ||
     typeof context?.path !== "string" ||
     typeof context?.code !== "string" ||
     !Array.isArray(messages) ||
-    messages.length === 0
+    messages.length === 0 ||
+    (model !== undefined && (typeof model !== "string" || !model || model.length > 200))
   ) {
     return res.status(400).json({ error: "invalid note" });
   }
@@ -189,7 +191,7 @@ app.post("/api/pr/:owner/:repo/:number/notes/reply", async (req, res) => {
     if (!res.writableEnded) controller.abort();
   });
   try {
-    res.json({ text: await replyToNote(context, messages, controller.signal) });
+    res.json({ text: await replyToNote(context, messages, controller.signal, model) });
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }

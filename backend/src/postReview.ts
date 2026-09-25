@@ -27,6 +27,8 @@ export interface Candidate {
   // Whether it can be posted on its lines. The rest can only go in the
   // review's body.
   inline: boolean;
+  // The reviewer's questions about it and the answers, when they asked.
+  discussion?: string;
 }
 
 export interface PreparedComment {
@@ -96,7 +98,10 @@ decided: keep them all, however minor, except in the two cases below.
 clearest wording.
 - Drop a candidate only when its point has already been made in the existing conversation, and \
 say who made it. Only drop it if the point really is the same.
-Keep every other candidate exactly as written.
+Keep every other candidate exactly as written - unless the reviewer discussed it. A discussion \
+shows what the reviewer asked about the candidate and what they learned: word the comment in light \
+of what it settled, and if it showed the point is wrong or already resolved, drop it with that as \
+the reason.
 Candidates marked "no lines" can't be posted as comments on lines. Write each of them into the \
 review's body instead, and list its id in "in_body".
 The body is the review's own text, as the reviewer: one to three sentences about the PR overall \
@@ -117,7 +122,7 @@ export function prepareReview(
     const listed = candidates
       .map(
         (c) =>
-          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}`,
+          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
       )
       .join("\n\n");
     const call = await chatWithTool(
