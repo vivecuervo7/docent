@@ -16,7 +16,7 @@ import {
   type Reuse,
 } from "./generation.js";
 import { localhostHostValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
-import { startPersonaReview, listAgentReviews,
+import { startSessionReview, listAgentReviews,
   DEFAULT_REVIEWER,
   REVIEWER_RE,
   dismissAgentReview,
@@ -29,11 +29,9 @@ import { startPersonaReview, listAgentReviews,
 } from "./agentReview.js";
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import {
-  addPersona,
   addProvider,
+  externalReviewers,
   personas,
-  removePersona,
-  updatePersona,
   defaultPanel,
   modelName,
   providers,
@@ -45,7 +43,7 @@ import {
 } from "./config.js";
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
-import { ALWAYS_ALLOWED } from "./personas.js";
+import { ALWAYS_ALLOWED } from "./sessions.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
 import { codexStatus, listModelOptions, listProviderModels } from "./modelProvider.js";
@@ -277,12 +275,14 @@ app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   const mode = req.body?.mode;
   const reviewer = reviewerParam(req);
   const model = req.body?.model;
-  const persona = mode === "persona" ? personas().find((p) => p.id === req.body?.persona) : undefined;
+  const session = mode === "session" ? externalReviewers.list().find((p) => p.id === req.body?.session) : undefined;
+  // A persona's instructions, for Docent's reviewer; none means the default.
+  const persona = mode === "builtin" && req.body?.persona ? personas.list().find((p) => p.id === req.body.persona) : undefined;
   if (
     !validParams(owner, repo, number) ||
     !reviewer ||
-    (mode !== "builtin" && mode !== "external" && mode !== "persona") ||
-    (mode === "persona" && !persona) ||
+    (mode !== "builtin" && mode !== "external" && mode !== "session") ||
+    (mode === "session" && !session) ||
     (model !== undefined && (typeof model !== "string" || !model || model.length > 200))
   ) {
     return res.status(400).json({ error: "invalid PR, reviewer, mode or model" });
@@ -294,9 +294,9 @@ app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   };
   const review =
     mode === "builtin"
-      ? startBuiltinReview(owner, repo, number, context, reviewer, model)
-      : persona
-        ? startPersonaReview(owner, repo, number, context, persona, `http://localhost:${PORT}/mcp`, reviewer)
+      ? startBuiltinReview(owner, repo, number, context, reviewer, model, persona?.instructions)
+      : session
+        ? startSessionReview(owner, repo, number, context, session, `http://localhost:${PORT}/mcp`, reviewer)
         : openExternalReview(owner, repo, number, context, reviewer);
   res.json({ review });
 });
@@ -499,49 +499,65 @@ app.get("/api/setup", async (_req, res) => {
   res.json(await checkSetup());
 });
 
-// Review personas, for the Settings page and the panel.
-app.get("/api/personas", (_req, res) => {
-  res.json({ personas: personas(), alwaysAllowed: ALWAYS_ALLOWED });
-});
+// Personas (Docent's reviewer with a point of view) and external reviewers
+// (the reviewer's own sessions), for the Settings page and the panel.
+function textField(b: Record<string, unknown>, key: string, max: number, required: boolean, fields: Record<string, unknown>, message: string) {
+  if (b[key] === undefined && !required) return null;
+  if (b[key] === null && !required) {
+    fields[key] = null;
+    return null;
+  }
+  if (typeof b[key] !== "string" || (required && !(b[key] as string).trim()) || (b[key] as string).length > max) return message;
+  fields[key] = (b[key] as string).trim() || null;
+  return null;
+}
 
 function personaFields(body: unknown, partial: boolean): { fields: Record<string, unknown> } | { error: string } {
   const b = (body ?? {}) as Record<string, unknown>;
   const fields: Record<string, unknown> = {};
-  if (b.name !== undefined || !partial) {
-    if (typeof b.name !== "string" || !b.name.trim() || b.name.length > 60) return { error: "Give it a name, up to 60 characters." };
-    fields.name = b.name.trim();
-  }
-  if (b.command !== undefined || !partial) {
-    if (typeof b.command !== "string" || !b.command.trim() || b.command.length > 2000) return { error: "Give it a prompt to run." };
-    fields.command = b.command.trim();
-  }
-  for (const key of ["model", "tools"] as const) {
-    if (b[key] === undefined) continue;
-    if (b[key] !== null && (typeof b[key] !== "string" || (b[key] as string).length > 500)) return { error: `That ${key} isn't valid.` };
-    fields[key] = typeof b[key] === "string" && (b[key] as string).trim() ? (b[key] as string).trim() : null;
-  }
-  return { fields };
+  const error =
+    textField(b, "name", 60, !partial || b.name !== undefined, fields, "Give it a name, up to 60 characters.") ??
+    textField(b, "instructions", 4000, !partial || b.instructions !== undefined, fields, "Say what it looks for.");
+  return error ? { error } : { fields };
 }
 
-app.post("/api/personas", (req, res) => {
-  const checked = personaFields(req.body, false);
-  if ("error" in checked) return res.status(400).json(checked);
-  const { model, tools, ...rest } = checked.fields;
-  res.json({ persona: addPersona({ ...(rest as { name: string; command: string }), ...(model ? { model: model as string } : {}), ...(tools ? { tools: tools as string } : {}) }) });
-});
+function externalFields(body: unknown, partial: boolean): { fields: Record<string, unknown> } | { error: string } {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  if (b.runner !== undefined || !partial) {
+    if (b.runner !== "claude-code" && b.runner !== "codex") return { error: "Choose Claude Code or Codex." };
+    fields.runner = b.runner;
+  }
+  const error =
+    textField(b, "name", 60, !partial || b.name !== undefined, fields, "Give it a name, up to 60 characters.") ??
+    textField(b, "command", 2000, !partial || b.command !== undefined, fields, "Give it a prompt to run.") ??
+    textField(b, "model", 200, false, fields, "That model isn't valid.") ??
+    textField(b, "tools", 500, false, fields, "Those tools aren't valid.");
+  return error ? { error } : { fields };
+}
 
-app.put("/api/personas/:id", (req, res) => {
-  const checked = personaFields(req.body, true);
-  if ("error" in checked) return res.status(400).json(checked);
-  const persona = updatePersona(req.params.id, checked.fields);
-  if (!persona) return res.status(404).json({ error: "No such persona." });
-  res.json({ persona });
-});
-
-app.delete("/api/personas/:id", (req, res) => {
-  if (!removePersona(req.params.id)) return res.status(404).json({ error: "No such persona." });
-  res.status(204).end();
-});
+function crud(path: string, store: typeof personas | typeof externalReviewers, check: typeof personaFields, extra: () => object = () => ({})) {
+  app.get(path, (_req, res) => res.json({ items: store.list(), ...extra() }));
+  app.post(path, (req, res) => {
+    const checked = check(req.body, false);
+    if ("error" in checked) return res.status(400).json(checked);
+    const fields = Object.fromEntries(Object.entries(checked.fields).filter(([, v]) => v !== null));
+    res.json({ item: (store.add as (f: Record<string, unknown>) => object)(fields) });
+  });
+  app.put(`${path}/:id`, (req, res) => {
+    const checked = check(req.body, true);
+    if ("error" in checked) return res.status(400).json(checked);
+    const item = store.update(req.params.id, checked.fields);
+    if (!item) return res.status(404).json({ error: "Not found." });
+    res.json({ item });
+  });
+  app.delete(`${path}/:id`, (req, res) => {
+    if (!store.remove(req.params.id)) return res.status(404).json({ error: "Not found." });
+    res.status(204).end();
+  });
+}
+crud("/api/personas", personas, personaFields);
+crud("/api/external-reviewers", externalReviewers, externalFields, () => ({ alwaysAllowed: ALWAYS_ALLOWED }));
 
 // The review panel a new PR starts with, the same for every repo.
 app.get("/api/panel/default", (_req, res) => {
@@ -550,15 +566,14 @@ app.get("/api/panel/default", (_req, res) => {
 
 app.put("/api/panel/default", (req, res) => {
   const panel = req.body?.panel;
-  if (
-    !Array.isArray(panel) ||
-    panel.length === 0 ||
-    panel.length > 10 ||
-    panel.some((p) => typeof p !== "string" || !p.trim() || p.length > 200)
-  ) {
+  const valid = (e: unknown) => {
+    const { runs, persona } = (e ?? {}) as Record<string, unknown>;
+    return typeof runs === "string" && !!runs.trim() && runs.length <= 200 && (persona === undefined || (typeof persona === "string" && persona.length <= 40));
+  };
+  if (!Array.isArray(panel) || panel.length === 0 || panel.length > 10 || !panel.every(valid)) {
     return res.status(400).json({ error: "invalid panel" });
   }
-  setDefaultPanel(panel.map((p: string) => p.trim()));
+  setDefaultPanel(panel.map((e: { runs: string; persona?: string }) => ({ runs: e.runs.trim(), ...(e.persona ? { persona: e.persona } : {}) })));
   res.json({ panel: defaultPanel() });
 });
 

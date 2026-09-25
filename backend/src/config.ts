@@ -27,23 +27,42 @@ export interface Provider {
   concurrency: number;
 }
 
-// A review persona: a command run in an unattended Claude Code session.
+// A persona: Docent's own reviewer with a point of view, given by its
+// instructions ("Security: look for injection, auth gaps..."). A reviewer
+// on the panel runs one on whichever model it's set to.
 export interface Persona {
   id: string;
   name: string;
+  instructions: string;
+}
+
+// An external reviewer: the reviewer's own prompt or skill, run as an
+// unattended Claude Code or Codex session.
+export interface ExternalReviewer {
+  id: string;
+  name: string;
+  runner: "claude-code" | "codex";
   // What the reviewer would type, with {pr_url}, {owner}, {repo}, {number}.
   command: string;
   model?: string;
-  // Tools it may use beyond those every persona has, space-separated.
+  // Claude Code tools it may use beyond those it always has, space-separated.
   tools?: string;
+}
+
+// A reviewer in the default panel: what runs it (a model, "external" for
+// the reviewer's own agent, or "session:<id>"), and for Docent's reviewer
+// the persona it takes.
+export interface PanelEntry {
+  runs: string;
+  persona?: string;
 }
 
 interface Settings {
   model?: string;
   personas?: Persona[];
-  // Each reviewer in the default panel: a model, or "external" for the
-  // reviewer's own agent.
-  panel?: string[];
+  externalReviewers?: ExternalReviewer[];
+  // Plain strings are from before panels had personas.
+  panel?: (string | PanelEntry)[];
   providers?: Provider[];
 }
 
@@ -121,32 +140,51 @@ export function removeProvider(id: string): boolean {
   return true;
 }
 
-export function personas(): Persona[] {
-  return readSettings().personas ?? [];
+// Personas and external reviewers are kept alike: a list in settings,
+// each entry with an id.
+function listIn<T extends { id: string }>(key: "personas" | "externalReviewers", prefix: string) {
+  const list = (): T[] => (readSettings()[key] as T[] | undefined) ?? [];
+  return {
+    list,
+    add(fields: Omit<T, "id">): T {
+      const entry = { ...fields, id: `${prefix}${randomUUID().slice(0, 6)}` } as T;
+      writeSettings({ [key]: [...list(), entry] });
+      return entry;
+    },
+    // A field set to null is cleared.
+    update(id: string, change: Record<string, unknown>): T | null {
+      const current = list().find((e) => e.id === id);
+      if (!current) return null;
+      const merged: Record<string, unknown> = { ...current, ...change };
+      for (const k of Object.keys(merged)) if (merged[k] === undefined || merged[k] === null) delete merged[k];
+      const next = merged as unknown as T;
+      writeSettings({ [key]: list().map((e) => (e.id === id ? next : e)) });
+      return next;
+    },
+    remove(id: string): boolean {
+      if (!list().some((e) => e.id === id)) return false;
+      writeSettings({ [key]: list().filter((e) => e.id !== id) });
+      return true;
+    },
+  };
 }
 
-export function addPersona(fields: Omit<Persona, "id">): Persona {
-  const persona = { ...fields, id: `r${randomUUID().slice(0, 6)}` };
-  writeSettings({ personas: [...personas(), persona] });
-  return persona;
-}
+export const personas = listIn<Persona>("personas", "s");
+export const externalReviewers = listIn<ExternalReviewer>("externalReviewers", "r");
 
-export function updatePersona(id: string, change: Partial<Omit<Persona, "id">>): Persona | null {
-  const current = personas().find((p) => p.id === id);
-  if (!current) return null;
-  const merged: Record<string, unknown> = { ...current, ...change };
-  for (const key of Object.keys(merged)) if (merged[key] === undefined || merged[key] === null) delete merged[key];
-  const next = merged as unknown as Persona;
-  writeSettings({ personas: personas().map((p) => (p.id === id ? next : p)) });
-  return next;
+// "Personas" used to be Claude Code sessions; those are external reviewers
+// now, moved across once with their ids kept.
+function moveSessionsOnce(): void {
+  const settings = readSettings();
+  if (settings.externalReviewers) return;
+  const old = (settings.personas ?? []) as unknown as Record<string, unknown>[];
+  const sessions = old.filter((p) => typeof p.command === "string");
+  writeSettings({
+    externalReviewers: sessions.map((p) => ({ ...(p as unknown as ExternalReviewer), runner: "claude-code" })),
+    personas: old.filter((p) => typeof p.command !== "string") as unknown as Persona[],
+  });
 }
-
-export function removePersona(id: string): boolean {
-  const list = personas();
-  if (!list.some((p) => p.id === id)) return false;
-  writeSettings({ personas: list.filter((p) => p.id !== id) });
-  return true;
-}
+moveSessionsOnce();
 
 // What a saved model id refers to. A bare name, saved before providers had
 // ids, is taken as the first provider's.
@@ -174,11 +212,12 @@ export function setModelName(model: string): void {
   writeSettings({ model });
 }
 
-export function defaultPanel(): string[] | null {
-  return readSettings().panel ?? null;
+export function defaultPanel(): PanelEntry[] | null {
+  const panel = readSettings().panel;
+  return panel ? panel.map((e) => (typeof e === "string" ? { runs: e } : e)) : null;
 }
 
-export function setDefaultPanel(panel: string[]): void {
+export function setDefaultPanel(panel: PanelEntry[]): void {
   writeSettings({ panel });
 }
 

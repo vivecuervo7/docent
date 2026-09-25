@@ -103,7 +103,20 @@ function failure(stderr: string, code: number | null): Error {
   return new Error(`Codex: ${error ?? `exited with ${code}`}`);
 }
 
-function run(model: string, messages: ChatMessage[], schema: Schema | undefined, signal?: AbortSignal): Promise<string> {
+// Docent's MCP server, for an external reviewer's session: its read tools
+// only, approved ahead, since nobody is there to approve them.
+export interface CodexMcp {
+  url: string;
+  tools: string[];
+}
+
+function run(
+  model: string | undefined,
+  messages: ChatMessage[],
+  schema: Schema | undefined,
+  signal?: AbortSignal,
+  mcp?: CodexMcp,
+): Promise<string> {
   mkdirSync(workDir, { recursive: true });
   const dir = mkdtempSync(join(tmpdir(), "docent-codex-call-"));
   const lastMessage = join(dir, "last.txt");
@@ -120,11 +133,20 @@ function run(model: string, messages: ChatMessage[], schema: Schema | undefined,
     "read-only",
     "-C",
     workDir,
-    "-m",
-    model,
+    ...(model ? ["-m", model] : []),
     ...OFF.flatMap((feature) => ["--disable", feature]),
     "-c",
     "web_search=disabled",
+    ...(mcp
+      ? [
+          "-c",
+          `mcp_servers.docent.url=${JSON.stringify(mcp.url)}`,
+          "-c",
+          'mcp_servers.docent.default_tools_approval_mode="approve"',
+          "-c",
+          `mcp_servers.docent.enabled_tools=${JSON.stringify(mcp.tools)}`,
+        ]
+      : []),
     ...(schema ? ["--output-schema", schemaFile] : []),
     "-o",
     lastMessage,
@@ -169,4 +191,17 @@ export async function codexChatWithTool(
 
 export async function codexChat(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
   return run(model, messages, undefined, signal);
+}
+
+// An external reviewer's session on Codex: its prompt in, the findings out
+// in the given shape, reading the PR through Docent's MCP server.
+export async function codexSession(
+  model: string | undefined,
+  prompt: string,
+  schema: Schema,
+  mcp: CodexMcp,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const text = await run(model, [{ role: "user", content: prompt }], schema, signal, mcp);
+  return withoutNulls(JSON.parse(text));
 }

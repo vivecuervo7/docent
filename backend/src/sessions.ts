@@ -2,15 +2,16 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Persona } from "./config.js";
+import { codexSession } from "./codex.js";
+import type { ExternalReviewer } from "./config.js";
 
-// A review persona: the reviewer's own tooling - a skill, a command, a
+// An external reviewer: the reviewer's own tooling - a skill, a command, a
 // prompt - run as an unattended Claude Code session. It reads the PR through
 // Docent's MCP server, from an empty folder with no shell, and ends with its
 // findings in Docent's shape.
 
-// Tools every persona has; its own `tools` add to these. Anything else is
-// refused, since nobody is there to approve it.
+// Tools every Claude Code session has; its own `tools` add to these.
+// Anything else is refused, since nobody is there to approve it.
 export const ALWAYS_ALLOWED = [
   "mcp__docent__get_review_context",
   "mcp__docent__get_diff",
@@ -47,7 +48,7 @@ const FINDINGS_SCHEMA = {
   required: ["findings"],
 };
 
-export interface PersonaFinding {
+export interface SessionFinding {
   path?: string;
   startLine?: number;
   endLine?: number;
@@ -72,12 +73,12 @@ report every finding in the structured output: its file path and new-file lines,
 the author, and why it was raised.`;
 }
 
-export function runPersona(
-  persona: Persona,
+export function runClaudeSession(
+  persona: ExternalReviewer,
   pr: { owner: string; repo: string; number: string },
   mcpUrl: string,
   signal: AbortSignal,
-): Promise<PersonaFinding[]> {
+): Promise<SessionFinding[]> {
   const dir = mkdtempSync(join(tmpdir(), "docent-persona-"));
   const extra = (persona.tools ?? "").split(/\s+/).filter(Boolean);
   const args = [
@@ -100,7 +101,7 @@ export function runPersona(
     ...(persona.model ? ["--model", persona.model] : []),
   ];
 
-  return new Promise<PersonaFinding[]>((resolve, reject) => {
+  return new Promise<SessionFinding[]>((resolve, reject) => {
     const child = spawn("claude", args, { cwd: dir, signal });
     let stdout = "";
     let stderr = "";
@@ -114,7 +115,7 @@ export function runPersona(
       } catch {
         return reject(new Error(stderr.trim() || stdout.trim() || `claude exited with ${code}`));
       }
-      if (result?.is_error) return reject(new Error(result.result ?? "The persona's session failed."));
+      if (result?.is_error) return reject(new Error(result.result ?? "The session failed."));
       const raw = result?.structured_output?.findings;
       if (!Array.isArray(raw)) {
         return reject(
@@ -124,7 +125,7 @@ export function runPersona(
         );
       }
       resolve(
-        raw.flatMap((f): PersonaFinding[] => {
+        raw.flatMap((f): SessionFinding[] => {
           const { path, start_line, end_line, body, rationale } = (f ?? {}) as Record<string, unknown>;
           if (typeof body !== "string" || !body.trim()) return [];
           return [
@@ -141,4 +142,44 @@ export function runPersona(
     });
     child.stdin.end();
   }).finally(() => rmSync(dir, { recursive: true, force: true }));
+}
+
+function toFindings(raw: unknown[]): SessionFinding[] {
+  return raw.flatMap((f): SessionFinding[] => {
+    const { path, start_line, end_line, body, rationale } = (f ?? {}) as Record<string, unknown>;
+    if (typeof body !== "string" || !body.trim()) return [];
+    return [
+      {
+        body,
+        path: typeof path === "string" && path ? path : undefined,
+        startLine: typeof start_line === "number" ? start_line : undefined,
+        endLine: typeof end_line === "number" ? end_line : undefined,
+        rationale: typeof rationale === "string" ? rationale : undefined,
+      },
+    ];
+  });
+}
+
+// The same, on Codex: Docent's read tools approved ahead, its shell and the
+// rest switched off.
+async function runCodexSession(
+  reviewer: ExternalReviewer,
+  pr: { owner: string; repo: string; number: string },
+  mcpUrl: string,
+  signal: AbortSignal,
+): Promise<SessionFinding[]> {
+  const prompt = `${fillCommand(reviewer.command, pr)}\n\n---\n\n${handback(pr.owner, pr.repo, pr.number)}`;
+  const tools = ALWAYS_ALLOWED.filter((t) => t.startsWith("mcp__docent__")).map((t) => t.slice("mcp__docent__".length));
+  const answer = (await codexSession(reviewer.model, prompt, FINDINGS_SCHEMA, { url: mcpUrl, tools }, signal)) as { findings?: unknown };
+  if (!Array.isArray(answer?.findings)) throw new Error("It finished without handing its findings back.");
+  return toFindings(answer.findings);
+}
+
+export function runSession(
+  reviewer: ExternalReviewer,
+  pr: { owner: string; repo: string; number: string },
+  mcpUrl: string,
+  signal: AbortSignal,
+): Promise<SessionFinding[]> {
+  return reviewer.runner === "codex" ? runCodexSession(reviewer, pr, mcpUrl, signal) : runClaudeSession(reviewer, pr, mcpUrl, signal);
 }

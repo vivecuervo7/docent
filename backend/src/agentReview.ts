@@ -5,8 +5,8 @@ import { inLane } from "./notes.js";
 import { describeRanges, linesInDiff, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";
 import type { PrSummary, Slice } from "./types.js";
-import { runPersona } from "./personas.js";
-import type { Persona } from "./config.js";
+import { runSession } from "./sessions.js";
+import type { ExternalReviewer } from "./config.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
 // the reviewer's own agent, which submits them over MCP (see mcp.ts). Both
@@ -25,7 +25,7 @@ export interface Finding {
 
 export interface AgentReview {
   id: string;
-  source: "builtin" | "external" | "persona";
+  source: "builtin" | "external" | "session";
   // The model Docent's reviewer used.
   model?: string;
   status: "running" | "done" | "failed" | "stopped";
@@ -129,24 +129,24 @@ function begin(
   return entry;
 }
 
-// Runs one of the reviewer's personas: a Claude Code session of their own
+// Runs one of the reviewer's external reviewers: a session of their own
 // tooling. Its findings are held to the diff like any others, except that
 // one whose lines aren't in it is kept as a comment on its file.
-export function startPersonaReview(
+export function startSessionReview(
   owner: string,
   repo: string,
   number: string,
   context: ReviewContext,
-  persona: Persona,
+  persona: ExternalReviewer,
   mcpUrl: string,
   reviewer = DEFAULT_REVIEWER,
 ) {
-  const entry = begin(owner, repo, number, reviewer, "persona", context, `persona:${persona.id}`);
+  const entry = begin(owner, repo, number, reviewer, "session", context, `session:${persona.id}`);
   void (async () => {
     const { review, controller } = entry;
     try {
       const [findings, files] = await Promise.all([
-        runPersona(persona, { owner, repo, number }, mcpUrl, controller.signal),
+        runSession(persona, { owner, repo, number }, mcpUrl, controller.signal),
         fetchPrFiles(owner, repo, number),
       ]);
       for (const finding of findings) {
@@ -354,6 +354,7 @@ function hunkIndicesByFile(slice: Slice): Map<string, number[]> {
 // model, rather than open-ended exploring, which a small local model does
 // poorly. The passes share the interactive lane, so questions asked meanwhile
 // only wait for a free turn, not the whole review.
+// `focus` is a persona's instructions: what this reviewer looks for.
 export function startBuiltinReview(
   owner: string,
   repo: string,
@@ -361,9 +362,10 @@ export function startBuiltinReview(
   context: ReviewContext,
   reviewer = DEFAULT_REVIEWER,
   model?: string,
+  focus?: string,
 ) {
   const entry = begin(owner, repo, number, reviewer, "builtin", context, model);
-  void runBuiltin(owner, repo, number, context, entry, reviewer, model);
+  void runBuiltin(owner, repo, number, context, entry, reviewer, model, focus);
   return entry.review;
 }
 
@@ -375,8 +377,12 @@ async function runBuiltin(
   entry: Entry,
   reviewer: string,
   model?: string,
+  focus?: string,
 ) {
   const { review, controller } = entry;
+  const system = focus
+    ? `${SYSTEM_PROMPT}\n\nThis review has a particular focus, and raises only what falls within it:\n${focus}`
+    : SYSTEM_PROMPT;
   const { signal } = controller;
   try {
     const files = await fetchPrFiles(owner, repo, number);
@@ -410,7 +416,7 @@ async function runBuiltin(
           review.progress = { ...review.progress!, current: part.title };
           return chatWithTool(
             [
-              { role: "system", content: SYSTEM_PROMPT },
+              { role: "system", content: system },
               { role: "user", content: `${about}\n\nThis part: ${part.title}\n\n${part.diff}` },
             ],
             REPORT_FINDINGS_TOOL,
