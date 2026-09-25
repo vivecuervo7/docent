@@ -6,6 +6,7 @@ import { describeRanges, linesInDiff, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";
 import type { PrSummary, Slice } from "./types.js";
 import { runSession } from "./sessions.js";
+import { emptyUsage, usageScope, type Usage } from "./usage.js";
 import type { ExternalReviewer } from "./config.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
@@ -35,6 +36,8 @@ export interface AgentReview {
   error?: string;
   startedAt: number;
   endedAt?: number;
+  // Token use over the review, where the model reports it (Claude Code).
+  usage?: Usage;
 }
 
 // What the browser knows about the PR that GitHub doesn't: the slices and
@@ -340,6 +343,47 @@ Also give a rationale, for the reviewer deciding whether to post it (the author 
 why it matters, what in the code shows it, and how sure you are - say so plainly if you're \
 unsure, here rather than in the body. Two or three sentences.`;
 
+// The whole-PR pass: read everything first, so each part is reviewed
+// knowing what the rest of the PR does.
+const FINDING_ITEM = REPORT_FINDINGS_TOOL.parameters.properties.findings.items;
+
+const REPORT_BRIEF_TOOL = {
+  name: "report_brief",
+  description: "Report the review brief for the whole pull request.",
+  parameters: {
+    type: "object",
+    properties: {
+      brief: {
+        type: "string",
+        description:
+          "What the PR sets out to do, the rules it has to keep (e.g. every new entity needs a delete source and a test), and choices that look odd but are deliberate. A short paragraph or a few lines.",
+      },
+      checks: {
+        type: "array",
+        description: "What to look at closely in particular parts.",
+        items: {
+          type: "object",
+          properties: { part: { type: "string", description: "The part's title, as listed." }, check: { type: "string" } },
+          required: ["part", "check"],
+        },
+      },
+      findings: { type: "array", description: "Problems that only show across parts.", items: FINDING_ITEM },
+    },
+    required: ["brief", "checks", "findings"],
+  },
+};
+
+const BRIEF_PROMPT = `You're about to review a pull request in parts, as a careful senior engineer. \
+First read the whole of it and write a brief for yourself: what it sets out to do, the rules it has \
+to keep, and choices that look odd but are deliberate - so a part isn't faulted for something \
+handled elsewhere in the PR. Note anything worth checking closely in particular parts. Report as \
+findings only problems that show across parts, such as a change made in one place but not its \
+counterpart, or a new case left untested; problems within one part are for the part reviews.`;
+
+// A diff bigger than this is summed up by its files instead, in each part's
+// review.
+const WHOLE_DIFF_LIMIT = 120_000;
+
 function hunkIndicesByFile(slice: Slice): Map<string, number[]> {
   const byFile = new Map<string, number[]>();
   for (const ref of slice.hunks) {
@@ -365,7 +409,8 @@ export function startBuiltinReview(
   focus?: string,
 ) {
   const entry = begin(owner, repo, number, reviewer, "builtin", context, model);
-  void runBuiltin(owner, repo, number, context, entry, reviewer, model, focus);
+  entry.review.usage = emptyUsage();
+  void usageScope.run(entry.review.usage, () => runBuiltin(owner, repo, number, context, entry, reviewer, model, focus));
   return entry.review;
 }
 
@@ -400,54 +445,111 @@ async function runBuiltin(
           }))
         : files.map((file) => ({ title: file.filename, diff: numberedFileDiff(file) }));
 
-    review.progress = { done: 0, total: parts.length };
     const about = [
       context.title && `PR: ${context.title}`,
       context.summary && `What it does: ${context.summary.what}\nWhy: ${context.summary.why}`,
     ]
       .filter(Boolean)
       .join("\n");
-
-    // Slices are reviewed side by side, as many at once as the model allows.
-    await Promise.all(
-      parts.map(async (part) => {
-        const call = await inLane(async () => {
-          signal.throwIfAborted();
-          review.progress = { ...review.progress!, current: part.title };
-          return chatWithTool(
-            [
-              { role: "system", content: system },
-              { role: "user", content: `${about}\n\nThis part: ${part.title}\n\n${part.diff}` },
-            ],
-            REPORT_FINDINGS_TOOL,
-            signal,
-            model,
-          );
-        });
-        if (review.status !== "running") return;
-        const raw = (call.arguments as { findings?: unknown }).findings;
-        for (const item of Array.isArray(raw) ? raw : []) {
-          const { path, start_line, end_line, body, rationale } = (item ?? {}) as Record<string, unknown>;
-          if (typeof body !== "string") continue;
-          const finding: SubmittedFinding = {
-            path: typeof path === "string" ? path : undefined,
-            startLine: typeof start_line === "number" ? start_line : undefined,
-            endLine: typeof end_line === "number" ? end_line : undefined,
-            body,
-            rationale: typeof rationale === "string" ? rationale : undefined,
-          };
-          try {
-            await submitFinding(owner, repo, number, finding, files, reviewer);
-          } catch {
-            // Lines outside the diff: keep the point, on the file as a whole.
-            if (finding.path) {
-              await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files, reviewer).catch(() => {});
-            }
+    const partList = parts.map((p, i) => `${i + 1}. ${p.title}`).join("\n");
+    const wholeDiff = files.map((f) => numberedFileDiff(f)).join("\n\n");
+    const fits = wholeDiff.length <= WHOLE_DIFF_LIMIT;
+    const fileList = files.map((f) => `${f.filename} (+${f.additions} -${f.deletions})`).join("\n");
+    const focusNote = focus ? `\n\nThis review has a particular focus, and raises only what falls within it:\n${focus}` : "";
+    const keep = async (raw: unknown) => {
+      for (const item of Array.isArray(raw) ? raw : []) {
+        const { path, start_line, end_line, body, rationale } = (item ?? {}) as Record<string, unknown>;
+        if (typeof body !== "string") continue;
+        const finding: SubmittedFinding = {
+          path: typeof path === "string" ? path : undefined,
+          startLine: typeof start_line === "number" ? start_line : undefined,
+          endLine: typeof end_line === "number" ? end_line : undefined,
+          body,
+          rationale: typeof rationale === "string" ? rationale : undefined,
+        };
+        try {
+          await submitFinding(owner, repo, number, finding, files, reviewer);
+        } catch {
+          // Lines outside the diff: keep the point, on the file as a whole.
+          if (finding.path) {
+            await submitFinding(owner, repo, number, { ...finding, startLine: undefined, endLine: undefined }, files, reviewer).catch(() => {});
           }
         }
-        review.progress = { ...review.progress!, done: review.progress!.done + 1 };
-      }),
-    );
+      }
+    };
+
+    // First the whole PR, for the brief every part's review starts from.
+    review.progress = { done: 0, total: parts.length + 1, current: "the whole PR" };
+    const briefCall = await inLane(() => {
+      signal.throwIfAborted();
+      return chatWithTool(
+        [
+          { role: "system", content: BRIEF_PROMPT + focusNote },
+          {
+            role: "user",
+            content: `${about}\n\nIts parts:\n${partList}\n\n${fits ? `The whole diff:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}`,
+          },
+        ],
+        REPORT_BRIEF_TOOL,
+        signal,
+        model,
+      );
+    });
+    if (review.status !== "running") return;
+    const briefArgs = briefCall.arguments as { brief?: unknown; checks?: unknown; findings?: unknown };
+    const brief = typeof briefArgs.brief === "string" ? briefArgs.brief : "";
+    const checks = (Array.isArray(briefArgs.checks) ? briefArgs.checks : []).flatMap((c) => {
+      const { part, check } = (c ?? {}) as { part?: unknown; check?: unknown };
+      return typeof part === "string" && typeof check === "string" ? [{ part, check }] : [];
+    });
+    await keep(briefArgs.findings);
+    review.progress = { ...review.progress, done: 1 };
+
+    // Every part's review starts with the same block - instructions, the
+    // brief, the parts and the diff - in the system prompt, where Claude Code
+    // caches it; only the part itself follows.
+    const shared = `${system}
+
+## The whole pull request
+${about}
+
+Brief, from reading all of it first:
+${brief || "(none)"}
+
+Its parts:
+${partList}
+
+${fits ? `The whole diff, for context:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}
+
+Raise only what still holds given the whole PR: leave out anything the brief shows is handled \
+elsewhere in it, or deliberate. Problems that span parts have been raised already.`;
+    const reviewPart = async (part: (typeof parts)[number]) => {
+      const call = await inLane(async () => {
+        signal.throwIfAborted();
+        review.progress = { ...review.progress!, current: part.title };
+        const toCheck = checks.filter((c) => c.part.trim().toLowerCase() === part.title.trim().toLowerCase()).map((c) => `- ${c.check}`);
+        return chatWithTool(
+          [
+            { role: "system", content: shared },
+            {
+              role: "user",
+              content: `Review this part: ${part.title}${toCheck.length ? `\n\nCheck in particular:\n${toCheck.join("\n")}` : ""}\n\n${part.diff}`,
+            },
+          ],
+          REPORT_FINDINGS_TOOL,
+          signal,
+          model,
+        );
+      });
+      if (review.status !== "running") return;
+      await keep((call.arguments as { findings?: unknown }).findings);
+      review.progress = { ...review.progress!, done: review.progress!.done + 1 };
+    };
+    // The first part alone writes the shared block to the cache; the rest,
+    // side by side, then read it.
+    const [first, ...rest] = parts;
+    if (first) await reviewPart(first);
+    await Promise.all(rest.map(reviewPart));
     end(review, "done");
   } catch (err) {
     if (review.status === "running") {

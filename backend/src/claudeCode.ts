@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { ChatMessage, ToolCall, ToolDefinition } from "./modelProvider.js";
+import { addUsage } from "./usage.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,6 +37,7 @@ interface HeadlessResult {
   is_error?: boolean;
   result?: string;
   structured_output?: unknown;
+  usage?: Parameters<typeof addUsage>[0];
 }
 
 function run(model: string, messages: ChatMessage[], schema: object | undefined, signal?: AbortSignal): Promise<HeadlessResult> {
@@ -74,7 +76,9 @@ function run(model: string, messages: ChatMessage[], schema: object | undefined,
     child.on("error", reject);
     child.on("close", (code) => {
       try {
-        resolve(JSON.parse(stdout) as HeadlessResult);
+        const result = JSON.parse(stdout) as HeadlessResult;
+        addUsage(result.usage);
+        resolve(result);
       } catch {
         reject(new Error(stderr.trim() || stdout.trim() || `claude exited with ${code}`));
       }
