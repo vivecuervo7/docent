@@ -699,7 +699,7 @@
 		display: flex;
 		align-items: center;
 		gap: 20px;
-		padding: 16px 44px 16px 4px;
+		padding: 16px 4px;
 		text-decoration: none;
 	}
 	li a:hover .title {
@@ -748,9 +748,10 @@
 		height: 4px;
 		background: var(--done);
 	}
+	/* Floats just outside the row, so the states line up at its edge. */
 	.delete {
 		position: absolute;
-		right: 4px;
+		left: calc(100% + 6px);
 		opacity: 0;
 	}
 	li:hover .delete,
