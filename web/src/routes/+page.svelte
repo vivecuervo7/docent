@@ -95,8 +95,10 @@
 		await refresh();
 	}
 
+	// A run still going can already have its slices; they count as soon as
+	// they exist.
 	function progress(pr: SavedPr) {
-		const slices = pr.record.slices ?? [];
+		const slices = pr.record.slices ?? generationFor(pr)?.results.slices ?? [];
 		const done = slices.filter((s) => isSliceReviewed(s, pr.record.reviewed)).length;
 		return { done, total: slices.length };
 	}
@@ -147,8 +149,16 @@
 										{pr.owner}/{pr.repo} #{pr.number}{pr.record.lastOpenedAt ? ` · opened ${timeAgo(pr.record.lastOpenedAt, now)}` : ''}
 									</span>
 								</span>
-								{#if isGenerating(generation)}
+								{#if generation?.status === 'queued'}
+									<span class="state faint">Queued</span>
+								{:else if isGenerating(generation) && generation?.steps.summary.status !== 'done'}
 									<span class="state working"><Spinner size={14} />Preparing</span>
+								{:else if isGenerating(generation)}
+									<!-- Readable now; only the file notes are still coming. -->
+									<span class="state faint" title="Ready to read; notes on the tests and larger changes are still coming">
+										<Spinner size={12} />
+										{done} of {total} slices
+									</span>
 								{:else if generation?.status === 'failed'}
 									<span class="state bad">Preparing failed</span>
 								{:else if generation?.status === 'stopped'}
