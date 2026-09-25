@@ -493,7 +493,7 @@ function personaFields(body: unknown, partial: boolean): { fields: Record<string
     fields.name = b.name.trim();
   }
   if (b.command !== undefined || !partial) {
-    if (typeof b.command !== "string" || !b.command.trim() || b.command.length > 2000) return { error: "Give it a command to run." };
+    if (typeof b.command !== "string" || !b.command.trim() || b.command.length > 2000) return { error: "Give it a prompt to run." };
     fields.command = b.command.trim();
   }
   for (const key of ["model", "tools"] as const) {

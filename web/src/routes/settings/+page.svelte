@@ -141,7 +141,10 @@
 {/snippet}
 
 <main>
-	<a class="back faint" href="/">← Docent</a>
+	<a class="btn back" href="/">
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
+		Back to your reviews
+	</a>
 	<div class="head">
 		<h1>Settings</h1>
 		<button class="btn" disabled={loading} onclick={load}>{#if loading}<Spinner size={13} />{/if} Check again</button>
@@ -256,11 +259,7 @@
 	}
 	.back {
 		align-self: flex-start;
-		font-size: 13.5px;
 		text-decoration: none;
-	}
-	.back:hover {
-		color: var(--text);
 	}
 	.head {
 		display: flex;

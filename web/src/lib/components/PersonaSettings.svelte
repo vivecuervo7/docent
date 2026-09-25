@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { readOk } from '$lib/api';
 	import { ask } from '$lib/confirm.svelte';
+	import MenuSelect from './MenuSelect.svelte';
 	import Spinner from './Spinner.svelte';
 
 	// Review personas: your own tooling as a reviewer on the panel. Each runs
-	// its command in an unattended Claude Code session, reading the PR through
+	// its prompt in an unattended Claude Code session, reading the PR through
 	// Docent, and its findings come back like any reviewer's.
 	interface Persona {
 		id: string;
@@ -87,23 +88,27 @@
 			<input bind:value={draft.name} placeholder="thorough-reviewer" required maxlength="60" />
 		</label>
 		<label>
-			<span>Command</span>
-			<input class="mono" bind:value={draft.command} placeholder="Review {'{pr_url}'} for correctness and security issues" required />
+			<span>Prompt</span>
+			<textarea bind:value={draft.command} rows="3" placeholder="Review {'{pr_url}'} for correctness and security issues" required></textarea>
 			<small class="faint">
 				A prompt or a skill, as you’d type it in Claude Code. <code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>,
 				<code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in. It runs unattended, so include anything it needs to
 				skip questions or posting. Built-in commands like <code>/review</code> can’t hand their findings back.
 			</small>
 		</label>
-		<label class="narrow">
+		<div class="field">
 			<span>Model</span>
-			<select bind:value={draft.model}>
-				<option value="">Claude Code’s default</option>
-				<option value="opus">opus</option>
-				<option value="sonnet">sonnet</option>
-				<option value="haiku">haiku</option>
-			</select>
-		</label>
+			<MenuSelect
+				bind:value={draft.model}
+				label="Model"
+				options={[
+					{ value: '', label: 'Claude Code’s default' },
+					{ value: 'opus', label: 'opus' },
+					{ value: 'sonnet', label: 'sonnet' },
+					{ value: 'haiku', label: 'haiku' }
+				]}
+			/>
+		</div>
 		<label>
 			<span>Also allow</span>
 			<input class="mono" bind:value={draft.tools} placeholder="e.g. Bash(gh pr view:*) Bash(gh pr diff:*)" />
@@ -123,8 +128,8 @@
 <section>
 	<h2>Personas</h2>
 	<p class="faint intro">
-		Your own review tooling as a reviewer on the panel: a command run in an unattended Claude Code session, which reads the
-		PR through Docent and hands its findings back.
+		Your own review tooling as a reviewer on the panel: a prompt or skill run in an unattended Claude Code session, which
+		reads the PR through Docent and hands its findings back.
 	</p>
 	{#if personas}
 		<ul>
@@ -136,7 +141,7 @@
 						<div class="row">
 							<div class="text">
 								<span class="name">{p.name}</span>
-								<code class="command">{p.command}</code>
+								<p class="command">{p.command}</p>
 								<p class="faint meta">{p.model ?? 'Claude Code’s default model'}{p.tools ? ` · also allows ${p.tools}` : ''}</p>
 							</div>
 							<div class="controls">
@@ -203,12 +208,15 @@
 		color: var(--agent-text);
 	}
 	.command {
-		align-self: flex-start;
-		max-width: 100%;
+		margin: 0;
+		color: var(--muted);
+		font-size: 13.5px;
+		line-height: 1.5;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
 		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 12.5px;
 	}
 	.meta {
 		margin: 0;
@@ -254,7 +262,8 @@
 		flex-direction: column;
 		gap: 14px;
 	}
-	.form > label {
+	.form > label,
+	.field {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
@@ -262,7 +271,7 @@
 		color: var(--muted);
 	}
 	.form input,
-	.form select {
+	.form textarea {
 		height: 36px;
 		padding: 0 12px;
 		border: 0;
@@ -278,12 +287,20 @@
 		font-family: var(--mono);
 		font-size: 13px;
 	}
+	.form textarea {
+		height: auto;
+		min-height: 76px;
+		padding: 9px 12px;
+		resize: none;
+		field-sizing: content;
+		line-height: 1.5;
+	}
 	.form input:focus,
-	.form select:focus {
+	.form textarea:focus {
 		box-shadow: inset 0 0 0 1px var(--you);
 	}
-	.narrow select {
-		width: 220px;
+	.field {
+		align-items: flex-start;
 	}
 	small {
 		font-size: 12.5px;
