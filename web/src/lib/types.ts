@@ -108,6 +108,8 @@ export interface NoteMessage {
 	role: 'user' | 'assistant';
 	text: string;
 	at: number;
+	// What was asked, when a quick question's label stands for more.
+	prompt?: string;
 }
 
 export interface Note {

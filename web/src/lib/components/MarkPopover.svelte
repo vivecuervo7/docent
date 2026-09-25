@@ -63,6 +63,24 @@
 		session.askAboutFinding(mark.reviewer, mark.id, text);
 		draft = '';
 	}
+	// Quick questions, each offered until it's been asked.
+	const QUICK = [
+		{
+			label: 'How bad is this?',
+			prompt:
+				"How bad is this? In two or three sentences: how likely it is to happen, what breaks when it does, and who would notice. If it wouldn't cause a real problem, say so plainly."
+		},
+		{
+			label: 'Suggest a fix',
+			prompt: "Suggest a fix: the change you'd make, with a short code snippet where it helps. Keep to what this finding needs."
+		}
+	];
+	const quick = $derived(QUICK.filter((q) => !messages.some((m) => m.role === 'user' && m.text === q.label)));
+
+	function ask(q: (typeof QUICK)[number]) {
+		if (status.pending || !mark.reviewer) return;
+		session.askAboutFinding(mark.reviewer, mark.id, q.label, q.prompt);
+	}
 	const keep = (value: boolean) => mark.reviewer && session.setFindingIncluded(mark.reviewer, mark.id, value);
 </script>
 
@@ -141,6 +159,13 @@
 		{/if}
 	</div>
 	<div class="ask">
+		{#if quick.length && !status.pending}
+			<div class="quick">
+				{#each quick as q (q.label)}
+					<button class="chip" onclick={() => ask(q)}>{q.label}</button>
+				{/each}
+			</div>
+		{/if}
 		<textarea
 			bind:value={draft}
 			rows="1"
@@ -234,6 +259,27 @@
 		display: flex;
 		flex-direction: column;
 		gap: 3px;
+	}
+	.quick {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-bottom: 8px;
+	}
+	.chip {
+		padding: 4px 11px;
+		border: 0;
+		border-radius: 999px;
+		background: var(--popover);
+		box-shadow: 0 0 0 1px var(--popover-line);
+		color: var(--muted);
+		font: inherit;
+		font-size: 12.5px;
+		cursor: pointer;
+	}
+	.chip:hover {
+		color: var(--text);
+		box-shadow: 0 0 0 1px var(--line-2);
 	}
 	.also-body {
 		display: flex;

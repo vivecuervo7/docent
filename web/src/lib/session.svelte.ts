@@ -198,8 +198,9 @@ export class PrSession {
 	// on the finding, and goes with it into the prepared review.
 	findingStatus = $state<Record<string, { pending?: boolean; error?: string }>>({});
 
-	askAboutFinding(reviewer: string, id: string, text: string) {
-		this.#changeFinding(reviewer, id, (item) => ({ ...item, messages: [...(item.messages ?? []), { role: 'user', text, at: Date.now() }] }))
+	askAboutFinding(reviewer: string, id: string, text: string, prompt?: string) {
+		const message = { role: 'user' as const, text, at: Date.now(), ...(prompt ? { prompt } : {}) };
+		this.#changeFinding(reviewer, id, (item) => ({ ...item, messages: [...(item.messages ?? []), message] }))
 			.then(() => this.#answerFinding(reviewer, id))
 			.catch((err) => (this.findingStatus[id] = { error: (err as Error).message }));
 	}
@@ -257,7 +258,7 @@ export class PrSession {
 						sliceSummary: slice?.summary,
 						finding: { reviewer: api.reviewerName(this.record, reviewer), body: item.body, rationale: item.rationale }
 					},
-					messages: item.messages.map(({ role, text }) => ({ role, text })),
+					messages: item.messages.map(({ role, text, prompt }) => ({ role, text: prompt ?? text })),
 					model: this.#answeringModel(ranWith)
 				})
 			});
