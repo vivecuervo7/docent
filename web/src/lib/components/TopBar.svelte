@@ -1,4 +1,5 @@
 <script lang="ts">
+	import InlineText from './InlineText.svelte';
 	import { page } from '$app/state';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 	import PanelChip from './PanelChip.svelte';
@@ -30,7 +31,7 @@
 <header>
 	<div class="left">
 		<a class="brand" href="/">Docent</a>
-		<span class="faint title">{session.title}</span>
+		<span class="faint title"><InlineText text={session.title} /></span>
 	</div>
 	<nav aria-label="Review stages">
 		<a href={base} class="stage" class:current={onOverview} aria-current={onOverview ? 'page' : undefined}>

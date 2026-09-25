@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import * as api from '$lib/api';
 	import { ask } from '$lib/confirm.svelte';
+	import InlineText from '$lib/components/InlineText.svelte';
 	import ModelPicker from '$lib/components/ModelPicker.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { parsePrUrl, timeAgo } from '$lib/format';
@@ -17,9 +18,10 @@
 	let agentReviews = $state<(PrRef & { reviewer: string; status: string; findings: number })[]>([]);
 	let now = $state(Date.now());
 
-	// Asked for a review on GitHub, by name; refreshed on load and every few
-	// minutes. Ones already opened here are under Your reviews instead.
-	interface ReviewRequest extends PrRef {
+	// Open PRs you're part of on GitHub - asked to review, reviewed, or wrote -
+	// refreshed on load and every few minutes. They're always listed; ones not
+	// opened in Docent yet read as New.
+	interface InvolvedPr extends PrRef {
 		title: string;
 		author?: string;
 		updatedAt: string;
@@ -27,23 +29,35 @@
 		isDraft: boolean;
 		decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
 		reviews: { state: string; author?: string }[];
+		mine: boolean;
 	}
-	let requests = $state<ReviewRequest[]>([]);
-	function loadRequests() {
-		fetch('/api/review-requests')
-			.then((res) => api.readOk<{ requests: ReviewRequest[] }>(res))
-			.then((r) => (requests = r.requests))
+	let involved = $state<InvolvedPr[]>([]);
+	function loadInvolved() {
+		fetch('/api/involved-prs')
+			.then((res) => api.readOk<{ prs: InvolvedPr[] }>(res))
+			.then((r) => (involved = r.prs))
 			.catch(() => {});
 	}
 	$effect(() => {
-		loadRequests();
-		const every = setInterval(loadRequests, 5 * 60_000);
+		loadInvolved();
+		const every = setInterval(loadInvolved, 5 * 60_000);
 		return () => clearInterval(every);
 	});
-	const waiting = $derived(requests.filter((r) => !saved?.some((s) => keyOf(s) === keyOf(r))));
-	const waitingSorted = $derived([...waiting].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)));
 
-	function reviewState(r: ReviewRequest): string {
+	// A row on the page: a saved review, or a PR you're part of that Docent
+	// hasn't opened yet.
+	type Row = SavedPr & { unsaved?: boolean };
+	const involvedOf = (pr: PrRef) => involved.find((i) => keyOf(i) === keyOf(pr));
+	const rows = $derived.by((): Row[] => {
+		const list: Row[] = [...(saved ?? [])];
+		for (const i of involved) {
+			if (list.some((r) => keyOf(r) === keyOf(i))) continue;
+			list.push({ owner: i.owner, repo: i.repo, number: i.number, record: { ...normalize({}), title: i.title, author: i.author }, unsaved: true });
+		}
+		return list;
+	});
+
+	function reviewState(r: InvolvedPr): string {
 		const draft = r.isDraft ? 'Draft · ' : '';
 		if (r.decision === 'APPROVED') return `${draft}Approved`;
 		if (r.decision === 'CHANGES_REQUESTED') return `${draft}Changes requested`;
@@ -74,9 +88,9 @@
 	let showComplete = $state(false);
 
 	// PRs the reviewer wrote get a section of their own.
-	const isMine = (pr: SavedPr) => !!login && pr.record.author === login;
+	const isMine = (pr: SavedPr) => !!involvedOf(pr)?.mine || (!!login && authorOf(pr) === login);
 
-	const notComplete = $derived((saved ?? []).filter((pr) => !pr.record.completedAt));
+	const notComplete = $derived(rows.filter((pr) => !pr.record.completedAt));
 	const active = $derived(notComplete.filter((pr) => !isMine(pr)));
 	const mine = $derived(notComplete.filter(isMine));
 	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt));
@@ -174,8 +188,8 @@
 		const every = setInterval(() => saved && loadStatuses(saved, true), 5 * 60_000);
 		return () => clearInterval(every);
 	});
-	const authorOf = (pr: SavedPr) => pr.record.author ?? statuses[keyOf(pr)]?.author;
-	const raisedAt = (pr: SavedPr) => Date.parse(statuses[keyOf(pr)]?.createdAt ?? '') || 0;
+	const authorOf = (pr: SavedPr) => pr.record.author ?? statuses[keyOf(pr)]?.author ?? involvedOf(pr)?.author;
+	const raisedAt = (pr: SavedPr) => Date.parse(statuses[keyOf(pr)]?.createdAt ?? involvedOf(pr)?.createdAt ?? '') || 0;
 	// New commits since the slices were made.
 	const updatedSince = (pr: SavedPr) => {
 		const now = statuses[keyOf(pr)]?.head;
@@ -183,7 +197,8 @@
 	};
 
 	// Where a review stands, as one of a few states.
-	function stateOf(pr: SavedPr): { label: string; tone: 'working' | 'ready' | 'going' | 'done' | 'bad' | 'quiet' } {
+	function stateOf(pr: Row): { label: string; tone: 'new' | 'working' | 'ready' | 'going' | 'done' | 'bad' | 'quiet' } {
+		if (pr.unsaved) return { label: 'New', tone: 'new' };
 		const generation = generationFor(pr);
 		if (generation?.status === 'queued') return { label: 'Queued', tone: 'quiet' };
 		if (isGenerating(generation) && generation?.steps.summary.status !== 'done') return { label: 'Preparing', tone: 'working' };
@@ -287,24 +302,19 @@
 			{/if}
 		</form>
 
-		{#snippet reviewRow(pr: SavedPr)}
+		{#snippet reviewRow(pr: Row)}
 			{@const standing = stateOf(pr)}
 			<li>
 				<a href="/pr/{pr.owner}/{pr.repo}/{pr.number}">
 					<span class="text">
-						<span class="title">{pr.record.title ?? `#${pr.number}`}</span>
+						<span class="title"><InlineText text={pr.record.title ?? `#${pr.number}`} /></span>
 						<span class="faint meta">
 							{pr.owner}/{pr.repo} #{pr.number}{authorOf(pr) ? ` · by ${authorOf(pr)}` : ''}{raisedAt(pr)
 									? ` · raised ${timeAgo(raisedAt(pr), now)}`
 									: ''}
-							{#if panelFor(pr)}
-								{@const p = panelFor(pr)!}
-								<span class="panel" class:working={p.running}>
-									·
-									{#if p.running}<Spinner size={11} /> Panel reviewing{:else}Panel done{/if}{p.findings
-										? ` · ${p.findings} ${p.findings === 1 ? 'finding' : 'findings'}`
-										: ''}
-								</span>
+							{#if involvedOf(pr) && (pr.unsaved || !pr.record.review?.posted)}· {reviewState(involvedOf(pr)!)}{/if}
+							{#if panelFor(pr)?.findings && !panelFor(pr)?.running}
+								· {panelFor(pr)!.findings} {panelFor(pr)!.findings === 1 ? 'finding' : 'findings'}
 							{/if}
 						</span>
 					</span>
@@ -316,42 +326,19 @@
 						</span>
 					</span>
 				</a>
-				<button class="icon delete" aria-label="Delete this review" onclick={() => remove(pr)}>
+				{#if !pr.unsaved}<button class="icon delete" aria-label="Delete this review" onclick={() => remove(pr)}>
 					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
 						><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg
 					>
-				</button>
+				</button>{/if}
 			</li>
 		{/snippet}
 
-		{#if waiting.length || active.length || mine.length}
+		{#if active.length || mine.length}
 			<!-- How every list below is ordered. -->
 			<div class="list-tools">{@render viewMenu()}</div>
 		{/if}
 
-		{#if waiting.length}
-			<section aria-labelledby="requests-heading">
-				<h2 id="requests-heading" class="caps">Waiting for your review</h2>
-				{#each grouped(waitingSorted, (r) => r.author, (r) => Date.parse(r.createdAt) || 0) as group (group.label)}
-					{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
-					<ul>
-						{#each group.items as r (keyOf(r))}
-				<li>
-					<a href="/pr/{r.owner}/{r.repo}/{r.number}">
-						<span class="text">
-							<span class="title">{r.title}</span>
-							<span class="faint meta">
-								{r.owner}/{r.repo} #{r.number}{r.author ? ` · by ${r.author}` : ''} · raised {timeAgo(Date.parse(r.createdAt), now)}
-							</span>
-						</span>
-						<span class="state faint">{reviewState(r)}</span>
-					</a>
-				</li>
-						{/each}
-					</ul>
-				{/each}
-			</section>
-		{/if}
 
 		<!-- A repo links to its pull requests on GitHub; an author shows their avatar. -->
 		{#snippet groupHeading(label: string, count: number)}
@@ -387,7 +374,7 @@
 			</div>
 		{/snippet}
 
-		{#snippet groups(list: SavedPr[])}
+		{#snippet groups(list: Row[])}
 			{#each grouped(list, authorOf, raisedAt) as group (group.label)}
 				{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
 				<ul>
@@ -396,12 +383,12 @@
 			{/each}
 		{/snippet}
 
-		{#if active.length || mine.length}
+		{#if active.length}
 			<section aria-labelledby="saved-heading">
 				<div class="section-head">
 					<h2 id="saved-heading" class="caps">Your reviews</h2>
 				</div>
-				{#if active.length}{@render groups(active)}{:else}<p class="faint hidden-note">Nothing open for anyone else’s PRs.</p>{/if}
+				{@render groups(active)}
 			</section>
 		{/if}
 
@@ -480,6 +467,9 @@
 		height: 6px;
 		border-radius: 50%;
 		background: currentColor;
+	}
+	.status-label.new {
+		--tone: #c8a8ff;
 	}
 	.status-label.working {
 		--tone: #ffb85c;

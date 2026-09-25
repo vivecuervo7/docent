@@ -1,4 +1,5 @@
 <script lang="ts">
+	import InlineText from './InlineText.svelte';
 	import { modelLabel } from '$lib/panel.svelte';
 	import ReviewModel from './ReviewModel.svelte';
 	import { elapsed } from '$lib/format';
@@ -43,7 +44,7 @@
 						? 'Waiting for another review to finish'
 						: 'Preparing your review'}
 		</span>
-		<h1>{session.title}</h1>
+		<h1><InlineText text={session.title} /></h1>
 		<span class="faint mono">{session.ref.owner}/{session.ref.repo} #{session.ref.number} · <ReviewModel /></span>
 
 		<ol>

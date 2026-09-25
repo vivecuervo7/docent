@@ -24,7 +24,7 @@
 	<main>
 		<section class="about">
 			<div class="heading">
-				<h1>{session.title}</h1>
+				<h1><InlineText text={session.title} /></h1>
 				<p class="byline faint">
 					{session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if session.meta?.author}{' '}by {session.meta.author}{/if}
 					· <ReviewModel /> ·
