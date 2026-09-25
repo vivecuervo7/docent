@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePath from './FilePath.svelte';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Mark } from '$lib/api';
@@ -546,7 +547,7 @@
 	<header>
 		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
-			<span class="path">{file.filename.split('/').pop()}</span>
+			<span class="path"><FilePath path={file.filename} /></span>
 			<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
 			<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
 		</button>
@@ -657,6 +658,9 @@
 		color: #fff;
 	}
 	.path {
+		display: flex;
+		min-width: 0;
+		flex-shrink: 1;
 		font-family: var(--mono);
 		color: var(--text);
 		white-space: nowrap;

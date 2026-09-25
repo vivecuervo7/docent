@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePath from './FilePath.svelte';
 	import type { Mark } from '$lib/api';
 	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
@@ -19,7 +20,7 @@
 <article class="card">
 	<header>
 		<span class="who">{mark.who}</span>
-		<span class="where">{mark.path.split('/').pop()} · {lines}</span>
+		<span class="where"><FilePath path={mark.path} {lines} /></span>
 	</header>
 	<p class="body"><InlineText text={mark.body} /></p>
 	{#if mark.rationale}

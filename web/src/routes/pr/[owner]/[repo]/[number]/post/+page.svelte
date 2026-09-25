@@ -1,5 +1,6 @@
 <script lang="ts">
 	import EditableText from '$lib/components/EditableText.svelte';
+	import FilePath from '$lib/components/FilePath.svelte';
 	import FindingLines from '$lib/components/FindingLines.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { describeLines } from '$lib/post.svelte';
@@ -36,11 +37,6 @@
 	let confirming = $state<ReviewPayload | null>(null);
 	let posting = $state(false);
 	let postError = $state<string | null>(null);
-
-	function where(c: Pick<ReviewComment, 'path' | 'start' | 'end'>) {
-		if (!c.path) return 'About the PR as a whole';
-		return c.start && c.end ? `${c.path} · ${describeLines(c.start, c.end)}` : c.path;
-	}
 
 	// What will go out: comments on lines, comments in the review's text, and
 	// the review's own words.
@@ -171,7 +167,7 @@
 					{#each inBody as comment (comment.id)}
 						<div class="in-body" class:out={!comment.included}>
 							<div class="row-head">
-								<span class="where grow">{where(comment)}</span>
+								<span class="where grow">{#if comment.path}<FilePath path={comment.path} lines={comment.start && comment.end ? describeLines(comment.start, comment.end) : undefined} />{:else}About the PR as a whole{/if}</span>
 								{@render leaveOut(comment)}
 								{@render editButton(comment.id)}
 							</div>
@@ -192,7 +188,7 @@
 					{#each inline as comment (comment.id)}
 						<article class="card" class:out={!comment.included}>
 							<header>
-								<span class="where grow">{where(comment)}</span>
+								<span class="where grow">{#if comment.path}<FilePath path={comment.path} lines={comment.start && comment.end ? describeLines(comment.start, comment.end) : undefined} />{:else}About the PR as a whole{/if}</span>
 								{@render leaveOut(comment)}
 								{@render editButton(comment.id)}
 							</header>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePath from './FilePath.svelte';
 	import type { LineRef } from '$lib/types';
 	import NoteText from './NoteText.svelte';
 
@@ -33,12 +34,10 @@
 	} = $props();
 
 	let showWhy = $state(false);
-	const where = $derived.by(() => {
-		if (!path) return 'the PR as a whole';
-		const file = path.split('/').pop();
-		if (!start) return file;
+	const lines = $derived.by(() => {
+		if (!start) return undefined;
 		const endLine = end?.line ?? start.line;
-		return `${file} · ${start.line === endLine ? `line ${start.line}` : `lines ${start.line}–${endLine}`}`;
+		return start.line === endLine ? `line ${start.line}` : `lines ${start.line}–${endLine}`;
 	});
 </script>
 
@@ -46,7 +45,7 @@
 	<div class="text">
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
-			<span class="where" title={path}>{where}</span>
+			<span class="where">{#if path}<FilePath {path} {lines} />{:else}the PR as a whole{/if}</span>
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
