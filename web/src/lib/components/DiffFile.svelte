@@ -8,6 +8,7 @@
 		EXPAND_STEP,
 		expandHunk,
 		expansionFor,
+		nearestHunk,
 		fileLines,
 		gapAbove,
 		gapBelow,
@@ -61,8 +62,11 @@
 		foldTests?: boolean;
 	} = $props();
 
-	const findingMarks = $derived(marks.filter((m) => m.kind === 'finding'));
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
+	// A finding belongs with the hunk holding its line, or the nearest one
+	// for a line outside the diff; only those in hunks shown here count here.
+	const homeOf = (m: Mark) => (m.note ? allHunks[m.note.hunk] : nearestHunk(allHunks, m.start));
+	const findingMarks = $derived(marks.filter((m) => m.kind === 'finding' && shownIndices.has(homeOf(m)?.index ?? -1)));
 
 	// Unchanged lines shown around each hunk. They come from the file as it
 	// was, fetched the first time any are asked for.
@@ -71,13 +75,13 @@
 	let loadingOld: Promise<void> | null = null;
 	const canExpand = $derived(file.status !== 'added');
 
-	// Lines threads were begun on outside their hunk's diff, which have to
-	// be shown again.
+	// Lines threads were begun on, or findings point at, outside their hunk's
+	// diff, which have to be shown too.
 	const needed = $derived.by(() => {
 		const out: Record<number, Expansion> = {};
 		for (const m of marks) {
-			const h = m.note && allHunks[m.note.hunk];
-			if (!h) continue;
+			const h = homeOf(m);
+			if (!h || (!m.note && !shownIndices.has(h.index))) continue;
 			const e = expansionFor(h, m.start, m.end);
 			const prev = out[h.index] ?? { up: 0, down: 0 };
 			out[h.index] = { up: Math.max(prev.up, e.up), down: Math.max(prev.down, e.down) };

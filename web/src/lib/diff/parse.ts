@@ -243,3 +243,16 @@ export function expansionFor(h: Hunk, start: LineRef, end: LineRef): Expansion {
 		down: to !== null && to > last ? to - last : 0
 	};
 }
+
+// The hunk a line belongs with: the one holding it, else the nearest, for a
+// line outside the diff (an agent can point at unchanged code).
+export function nearestHunk(hunks: Hunk[], at: LineRef): Hunk | undefined {
+	let best: { hunk: Hunk; distance: number } | undefined;
+	for (const hunk of hunks) {
+		const e = expansionFor(hunk, at, at);
+		const distance = e.up + e.down;
+		if (!best || distance < best.distance) best = { hunk, distance };
+		if (distance === 0) break;
+	}
+	return best?.hunk;
+}

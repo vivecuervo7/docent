@@ -2,7 +2,7 @@ import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import * as api from './api';
 import { marksFrom } from './api';
-import { parseFilePatch, type Hunk } from './diff/parse';
+import { nearestHunk, parseFilePatch, type Hunk } from './diff/parse';
 import { Panel } from './panel.svelte';
 import { ReviewPost } from './post.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
@@ -275,13 +275,8 @@ export class PrSession {
 
 	slicesOf(path: string, start: LineRef | undefined): string[] {
 		const hunks = this.hunks.get(path) ?? [];
-		const keys = start
-			? hunks
-					.filter((h) =>
-						h.rows.some((r) => (start.side === 'new' ? r.kind !== 'del' && r.new === start.line : r.kind !== 'add' && r.old === start.line))
-					)
-					.map((h) => `${path}#${h.index}`)
-			: hunks.map((h) => `${path}#${h.index}`);
+		const nearest = start && nearestHunk(hunks, start);
+		const keys = start ? (nearest ? [`${path}#${nearest.index}`] : []) : hunks.map((h) => `${path}#${h.index}`);
 		return this.slices.filter((s) => s.hunks.some((k) => keys.includes(k))).map((s) => s.id);
 	}
 
