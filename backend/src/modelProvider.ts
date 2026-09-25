@@ -26,6 +26,18 @@ export interface ToolCall {
   arguments: unknown;
 }
 
+// Docent's own read tools, over MCP, for a call that should look at the
+// code before answering. Only Claude Code and Codex can use them.
+export interface CodeAccess {
+  mcpUrl: string;
+  tools: string[];
+}
+
+export function canReadCode(model: string): boolean {
+  const kind = resolveModel(model)?.kind;
+  return kind === "claude-code" || kind === "codex";
+}
+
 function headers(provider: Provider): Record<string, string> {
   return { "Content-Type": "application/json", ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}) };
 }
@@ -121,10 +133,11 @@ export async function chatWithTool(
   tool: ToolDefinition,
   signal?: AbortSignal,
   model = modelName(),
+  access?: CodeAccess,
 ): Promise<ToolCall> {
   const resolved = target(model);
-  if (resolved.kind === "claude-code") return claudeCodeChatWithTool(resolved.alias, messages, tool, signal);
-  if (resolved.kind === "codex") return codexChatWithTool(resolved.model, messages, tool, signal);
+  if (resolved.kind === "claude-code") return claudeCodeChatWithTool(resolved.alias, messages, tool, signal, access);
+  if (resolved.kind === "codex") return codexChatWithTool(resolved.model, messages, tool, signal, access);
 
   const res = await postJson(
     resolved.provider,

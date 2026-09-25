@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { ChatMessage, ToolCall, ToolDefinition } from "./modelProvider.js";
+import type { ChatMessage, CodeAccess, ToolCall, ToolDefinition } from "./modelProvider.js";
 import { addUsage } from "./usage.js";
 
 const execFileAsync = promisify(execFile);
@@ -11,7 +11,8 @@ const execFileAsync = promisify(execFile);
 // Model calls through Claude Code's headless mode (`claude -p`), using the
 // reviewer's own Claude Code login - for when running a local model isn't
 // practical. Each call is prompt in, answer out:
-// - no tools and no MCP servers, so it can't read or change anything;
+// - no tools and no MCP servers, so it can't read or change anything -
+//   except, where a call asks, Docent's own read-only tools;
 // - only local settings, from an empty working folder, so the reviewer's
 //   plugins, hooks and CLAUDE.md files stay out of it (and it starts in a few
 //   seconds rather than ten or more);
@@ -40,7 +41,13 @@ interface HeadlessResult {
   usage?: Parameters<typeof addUsage>[0];
 }
 
-function run(model: string, messages: ChatMessage[], schema: object | undefined, signal?: AbortSignal): Promise<HeadlessResult> {
+function run(
+  model: string,
+  messages: ChatMessage[],
+  schema: object | undefined,
+  signal?: AbortSignal,
+  access?: CodeAccess,
+): Promise<HeadlessResult> {
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
   const turns = messages.filter((m) => m.role !== "system");
   // A single request goes in as it is; a conversation (a thread with
@@ -64,6 +71,14 @@ function run(model: string, messages: ChatMessage[], schema: object | undefined,
     "--no-session-persistence",
     ...(system ? ["--system-prompt", system] : []),
     ...(schema ? ["--json-schema", JSON.stringify(schema)] : []),
+    ...(access
+      ? [
+          "--mcp-config",
+          JSON.stringify({ mcpServers: { docent: { type: "http", url: access.mcpUrl } } }),
+          "--allowedTools",
+          ...access.tools.map((t) => `mcp__docent__${t}`),
+        ]
+      : []),
   ];
 
   mkdirSync(workDir, { recursive: true });
@@ -92,8 +107,9 @@ export async function claudeCodeChatWithTool(
   messages: ChatMessage[],
   tool: ToolDefinition,
   signal?: AbortSignal,
+  access?: CodeAccess,
 ): Promise<ToolCall> {
-  const result = await run(model, messages, tool.parameters, signal);
+  const result = await run(model, messages, tool.parameters, signal, access);
   if (result.is_error) throw new Error(`Claude Code: ${result.result ?? "the call failed"}`);
   if (typeof result.structured_output !== "object" || result.structured_output === null) {
     throw new Error("Claude Code didn't return the structured answer asked for");

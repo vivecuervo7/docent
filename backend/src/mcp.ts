@@ -8,9 +8,10 @@ import {
   fetchPrBaseSha,
   fetchPrConversation,
   fetchPrFiles,
-  fetchPrHeadSha,
   fetchPrMeta,
+  searchRepoCode,
 } from "./github.js";
+import { listFiles, prHead, readFile, searchCode } from "./repoCache.js";
 import { conversationText } from "./postReview.js";
 import { numberedFileDiff } from "./prDiff.js";
 
@@ -144,20 +145,65 @@ function buildServer(): McpServer {
   server.registerTool(
     "read_file",
     {
-      description: "A file's full contents, as of the PR's head (the new version) or its base (the old one).",
+      description:
+        "Any file in the repository, as of the PR's head (the new version, numbered by line) or its base (the old one). Not just the files the PR changes.",
       inputSchema: {
         pr: prArg,
-        path: z.string(),
+        path: z.string().describe("Relative to the repository's root."),
         version: z.enum(["head", "base"]).optional().describe("Defaults to head."),
+        start_line: z.number().int().optional().describe("Only from this line (head only)."),
+        end_line: z.number().int().optional().describe("Only up to this line (head only)."),
       },
     },
-    async ({ pr, path, version }) => {
+    async ({ pr, path, version, start_line, end_line }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
-        const sha = version === "base" ? await fetchPrBaseSha(owner, repo, number) : await fetchPrHeadSha(owner, repo, number);
-        const content = await fetchFileContentAtRef(owner, repo, sha, path);
-        if (content === null) throw new Error(`Couldn't read ${path} at the PR's ${version ?? "head"}.`);
+        if (version !== "base") return text(await readFile(owner, repo, await prHead(owner, repo, number), path, start_line, end_line));
+        const content = await fetchFileContentAtRef(owner, repo, await fetchPrBaseSha(owner, repo, number), path);
+        if (content === null) throw new Error(`Couldn't read ${path} at the PR's base.`);
         return text(content);
+      } catch (err) {
+        return failure(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "list_files",
+    {
+      description: "The files in the repository at the PR's head, under a directory (or all of them).",
+      inputSchema: {
+        pr: prArg,
+        directory: z.string().optional().describe("Relative to the repository's root; leave out for the whole repository."),
+      },
+    },
+    async ({ pr, directory }) => {
+      try {
+        const { owner, repo, number } = parsePr(pr);
+        return text(await listFiles(owner, repo, await prHead(owner, repo, number), directory));
+      } catch (err) {
+        return failure(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "search_code",
+    {
+      description:
+        "Lines matching a regular expression in a directory at the PR's head, with their paths and line numbers. Without a directory it searches the whole repository through GitHub's index instead: plain words rather than a pattern, the default branch rather than the PR, and files rather than lines - for finding where to look, then read_file.",
+      inputSchema: {
+        pr: prArg,
+        pattern: z.string().describe("An extended regular expression, or plain words without a directory."),
+        directory: z.string().optional().describe("Where to search, relative to the repository's root. Leave out to search the whole repository."),
+      },
+    },
+    async ({ pr, pattern, directory }) => {
+      try {
+        const { owner, repo, number } = parsePr(pr);
+        if (directory?.trim()) return text(await searchCode(owner, repo, await prHead(owner, repo, number), pattern, directory));
+        const files = await searchRepoCode(owner, repo, pattern);
+        return text(files.length ? `Files mentioning it on the default branch:\n${files.join("\n")}` : "No files found.");
       } catch (err) {
         return failure(err);
       }

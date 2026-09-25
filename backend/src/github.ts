@@ -354,3 +354,22 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
       : [];
   });
 }
+
+// Files matching a search across a whole repository, from GitHub's code
+// search - which covers the default branch only, so it's for finding where
+// to look, not what the PR's head says.
+export async function searchRepoCode(owner: string, repo: string, query: string): Promise<string[]> {
+  const { stdout } = await execFileAsync("gh", [
+    "api",
+    "-X",
+    "GET",
+    "search/code",
+    "-f",
+    `q=${query} repo:${owner}/${repo}`,
+    "-f",
+    "per_page=50",
+    "--jq",
+    ".items[].path",
+  ]);
+  return stdout.split("\n").filter(Boolean);
+}

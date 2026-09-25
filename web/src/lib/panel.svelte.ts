@@ -484,14 +484,15 @@ export class Panel {
 			const root = rootOf(item.id);
 			clusters.set(root, [...(clusters.get(root) ?? []), item.id]);
 		}
-		// A group is filtered out only if every finding in it was; otherwise
-		// its first kept finding leads it, or the one already shown.
+		// A group gathers round the finding its repeats point at: one already
+		// shown, else a new one. If that one is filtered out, its repeats make
+		// the same filtered point, and go with it.
 		const outcome = new Map<string, Partial<FeedbackItem>>();
 		for (const [root, members] of clusters) {
-			const lead = shownIds.has(root) ? root : members.find((id) => !edits[id]?.filtered);
+			const rootFiltered = !shownIds.has(root) && edits[root]?.filtered;
 			for (const id of members) {
-				if (!lead) outcome.set(id, { filtered: edits[id]?.filtered });
-				else if (id !== lead) outcome.set(id, { joins: { reviewer: reviewerOf.get(lead)!, id: lead } });
+				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
+				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root } });
 			}
 		}
 		await this.#settle(batch, (id) => ({ edited: true, ...outcome.get(id) }));

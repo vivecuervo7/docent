@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { ChatMessage, ToolCall, ToolDefinition } from "./modelProvider.js";
+import type { ChatMessage, CodeAccess, ToolCall, ToolDefinition } from "./modelProvider.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -180,8 +180,9 @@ export async function codexChatWithTool(
   messages: ChatMessage[],
   tool: ToolDefinition,
   signal?: AbortSignal,
+  access?: CodeAccess,
 ): Promise<ToolCall> {
-  const text = await run(model, messages, tool.parameters, signal);
+  const text = await run(model, messages, tool.parameters, signal, access && { url: access.mcpUrl, tools: access.tools });
   try {
     return { name: tool.name, arguments: withoutNulls(JSON.parse(text)) };
   } catch {

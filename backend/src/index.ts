@@ -291,7 +291,7 @@ app.post("/api/pr/:owner/:repo/:number/findings/edit", async (req, res) => {
     if (!res.writableEnded) controller.abort();
   });
   try {
-    const edits = await editFindings(owner, repo, number, { slice, fresh, shown, filter: filter === true, model: reviewModel(req) }, controller.signal);
+    const edits = await editFindings(owner, repo, number, { slice, fresh, shown, filter: filter === true, model: reviewModel(req), mcpUrl: `http://localhost:${PORT}/mcp` }, controller.signal);
     res.json({ edits: Object.fromEntries(edits) });
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });

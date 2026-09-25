@@ -1,16 +1,23 @@
 import { modelName } from "./config.js";
-import { fetchPrFiles } from "./github.js";
-import { chatWithTool } from "./modelProvider.js";
+import { fetchPrConversation, fetchPrFiles } from "./github.js";
+import { canReadCode, chatWithTool } from "./modelProvider.js";
 import { inNamedLane } from "./notes.js";
+import { conversationText } from "./postReview.js";
 import { hunkIndicesByFile, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";
 import type { PrSummary, Slice } from "./types.js";
 
 // The panel's editor: with several reviewers on a PR, the same point is
-// often raised more than once, and a small model raises points that don't
-// hold up. As each slice's reviews come in, the editor reads its new
-// findings against its diff and the findings already shown, and says which
-// make a point already made, and which are too trivial or unfounded to show.
+// often raised more than once, and reviewers seeing only the diff raise
+// points the rest of the code disproves. As each slice's reviews come in,
+// the editor reads its new findings against its diff, the findings already
+// shown and the PR's conversation, and says which make a point already
+// made, and which to filter out: trivial, unfounded, settled on the PR, or -
+// on Claude Code or Codex, which can look through the repo - disproved by
+// the code.
+
+// Docent's read tools the editor looks through the code with.
+const EDITOR_TOOLS = ["get_diff", "read_file", "list_files", "search_code"];
 
 export interface Editable {
   id: string;
@@ -43,7 +50,8 @@ const EDIT_TOOL = {
             },
             filter: {
               type: "string",
-              description: "Why it's filtered out, in a few words. Leave out to keep it.",
+              description:
+                "Why it's filtered out, in a sentence: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Leave out to keep it.",
             },
           },
           required: ["id"],
@@ -54,28 +62,45 @@ const EDIT_TOOL = {
   },
 };
 
-const SYSTEM_PROMPT = `You're the editor of a code review, in which several reviewers commented \\
-on the same pull request. The person reviewing the PR decides what's posted; your job is to \\
+const BASE_PROMPT = `You're the editor of a code review, in which several reviewers commented \
+on the same pull request. The person reviewing the PR decides what's posted; your job is to \
 save them reading the same point twice, or a point with nothing behind it.
 
 For each new finding:
-- Say which finding it repeats, if any: one already shown, or another new one. It repeats one \\
-when it makes the same point - the same problem in the same code, or the same concern raised \\
-about several places - however it's worded, or even if the fix suggested differs. The same kind \\
+- Say which finding it repeats, if any: one already shown, or another new one. It repeats one \
+when it makes the same point - the same problem in the same code, or the same concern raised \
+about several places - however it's worded, or even if the fix suggested differs. The same kind \
 of problem in unrelated code is a point of its own.
-- Filter it out if it's trivial or unfounded: nothing in the diff shows the problem it claims; \\
-it asks for boilerplate with no reason in this code (a try/catch, a timeout, logging, validation \\
-the types already guarantee); it speculates about code the PR doesn't show; it describes the \\
-code without raising a problem; or it's about generated code. Keep anything plausible, even if \\
-minor or uncertain - a question worth asking the author is worth keeping. When in doubt, keep it.`;
+- Filter it out if it's trivial or unfounded: nothing in the diff shows the problem it claims; \
+it asks for boilerplate with no reason in this code (a try/catch, a timeout, logging, validation \
+the types already guarantee); it speculates about code the PR doesn't show; it describes the \
+code without raising a problem; or it's about generated code. Keep anything plausible, even if \
+minor or uncertain - a question worth asking the author is worth keeping. When in doubt, keep it.
+- Filter it out if the PR's conversation has already raised its point and settled it - answered, \
+fixed, or explained. Say which thread, briefly.`;
+
+const LOOK_PROMPT = (pr: string) => `
+
+You can look through the whole repository at the PR's head, not just the diff, with Docent's tools \
+(pass ${pr} as the PR): read_file for any file, list_files to see what's there, search_code to find \
+where something is defined or used, get_diff for other parts of the PR. Before keeping a finding, \
+check its claim against the code: the file it's about, and whatever it depends on beyond the diff - \
+the type or column it says is nullable, the caller it says is missing, the check it says doesn't \
+exist, the test it says isn't there. If the code shows the claim is wrong, filter it out as \
+disproved, citing the file and line that shows it. If you can't settle it, keep it. Check the \
+claims made, briefly; this isn't a fresh review of the PR.`;
 
 export async function editFindings(
   owner: string,
   repo: string,
   number: string,
-  args: { slice?: string; fresh: Editable[]; shown: Editable[]; filter: boolean; model?: string },
+  args: { slice?: string; fresh: Editable[]; shown: Editable[]; filter: boolean; model?: string; mcpUrl: string },
   signal: AbortSignal,
 ): Promise<Map<string, Edit>> {
+  const model = args.model || modelName();
+  // Looking through the code is for checking claims, so only when filtering.
+  const looks = args.filter && canReadCode(model);
+  const conversation = conversationText(await fetchPrConversation(owner, repo, number));
   const record = getRecord(keyFor(owner, repo, number)).record as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
   const slice = args.slice ? record.slices?.find((s) => s.id === args.slice) : undefined;
   const files = slice ? await fetchPrFiles(owner, repo, number) : [];
@@ -107,12 +132,13 @@ export async function editFindings(
     signal.throwIfAborted();
     const call = await chatWithTool(
       [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: BASE_PROMPT + (looks ? LOOK_PROMPT(`${owner}/${repo}#${number}`) : "") },
         {
           role: "user",
           content: [
             about,
             diff && `The diff of this part:\n\n${diff}`,
+            `Already said on the PR:\n\n${conversation || "(nothing yet)"}`,
             `Findings already shown:\n\n${list(args.shown, false) || "(none)"}`,
             `New findings:\n\n${list(args.fresh, true)}`,
             task,
@@ -123,7 +149,8 @@ export async function editFindings(
       ],
       EDIT_TOOL,
       signal,
-      args.model || modelName(),
+      model,
+      looks ? { mcpUrl: args.mcpUrl, tools: EDITOR_TOOLS } : undefined,
     );
     const known = new Set([...args.shown, ...args.fresh].map((f) => f.id));
     const asked = new Set(args.fresh.map((f) => f.id));
