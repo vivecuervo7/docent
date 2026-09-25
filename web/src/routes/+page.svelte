@@ -8,11 +8,57 @@
 	import { parsePrUrl, timeAgo } from '$lib/format';
 	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/record';
 	import { isGenerating, isSliceReviewed } from '$lib/session.svelte';
-	import type { Generation, PrRef, SavedPr } from '$lib/types';
+	import type { Generation, PrRecord, PrRef, SavedPr } from '$lib/types';
 
 	let url = $state('');
 	let formError = $state<string | null>(null);
-	let saved = $state<SavedPr[] | null>(null);
+	// The page as it was last time, shown straight away so the lists don't
+	// reshuffle as each fetch lands; fresh results then update it in place.
+	const CACHE_KEY = 'docent.landing';
+	const cached = readCache();
+	function readCache(): { saved?: SavedPr[]; involved?: InvolvedPr[]; statuses?: Record<string, PrStatus>; hidden?: string[] } {
+		try {
+			return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}');
+		} catch {
+			return {};
+		}
+	}
+	// Only what the rows need is kept, not each review's slices and notes.
+	function trimmed(pr: SavedPr): SavedPr {
+		const r = pr.record;
+		return {
+			owner: pr.owner,
+			repo: pr.repo,
+			number: pr.number,
+			record: {
+				...normalize({}),
+				title: r.title,
+				author: r.author,
+				completedAt: r.completedAt,
+				preparedHead: r.preparedHead,
+				lastOpenedAt: r.lastOpenedAt,
+				summary: r.summary ? { what: '', why: '' } : null,
+				slices: r.slices?.map((sl) => ({ ...sl, title: '', summary: '' })) ?? null,
+				reviewed: r.reviewed,
+				review: r.review?.posted ? ({ posted: r.review.posted } as PrRecord['review']) : undefined,
+				agentReviewers: r.agentReviewers.map((a) => ({ id: a.id, lastRun: a.lastRun })),
+				feedback: Object.fromEntries(
+					Object.entries(r.feedback).map(([k, d]) => [k, d ? { ...d, items: d.items.map((i) => ({ id: i.id, body: '', included: i.included })) } : d])
+				)
+			}
+		};
+	}
+	let saved = $state<SavedPr[] | null>(cached.saved ?? null);
+	$effect(() => {
+		try {
+			localStorage.setItem(
+				CACHE_KEY,
+				JSON.stringify({ saved: saved?.map(trimmed), involved, statuses, hidden: hiddenKeys })
+			);
+		} catch {
+			// Keeping it is a nicety; the page still works without.
+		}
+	});
 	let generations = $state<(PrRef & { generation: Generation })[]>([]);
 	// Agent reviews running, or finished and not yet collected by the PR.
 	let agentReviews = $state<(PrRef & { reviewer: string; status: string; findings: number })[]>([]);
@@ -31,7 +77,7 @@
 		reviews: { state: string; author?: string }[];
 		mine: boolean;
 	}
-	let involved = $state<InvolvedPr[]>([]);
+	let involved = $state<InvolvedPr[]>(cached.involved ?? []);
 	function loadInvolved() {
 		fetch('/api/involved-prs')
 			.then((res) => api.readOk<{ prs: InvolvedPr[] }>(res))
@@ -95,7 +141,7 @@
 	const mine = $derived(notComplete.filter(isMine));
 	// Old PRs that can't be closed can be hidden: they leave the lists above
 	// for a section of their own. Kept in Docent's settings.
-	let hiddenKeys = $state<string[]>([]);
+	let hiddenKeys = $state<string[]>(cached.hidden ?? []);
 	$effect(() => {
 		fetch('/api/hidden-prs')
 			.then((res) => api.readOk<{ hidden: string[] }>(res))
@@ -209,7 +255,7 @@
 		author?: string;
 		state: 'OPEN' | 'CLOSED' | 'MERGED';
 	}
-	let statuses = $state<Record<string, PrStatus>>({});
+	let statuses = $state<Record<string, PrStatus>>(cached.statuses ?? {});
 	let statusesAt = 0;
 	function loadStatuses(list: SavedPr[], force = false) {
 		if (!list.length || (!force && Date.now() - statusesAt < 5 * 60_000)) return;
