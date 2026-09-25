@@ -90,6 +90,8 @@ export interface FeedbackItem {
 	filtered?: string;
 	// The finding it makes the same point as, which leads their group.
 	joins?: { reviewer: string; id: string };
+	// The group's lead it was separated from, to merge back into.
+	separatedFrom?: { reviewer: string; id: string };
 	// The slice Docent's reviewer found it in.
 	slice?: string;
 }

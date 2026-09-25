@@ -79,8 +79,19 @@ export interface Mark {
 	decided?: boolean;
 	// A finding with an answer to a question the reviewer hasn't read yet.
 	unread?: boolean;
-	// Other reviewers' findings making the same point, grouped under this one.
-	alsoBy?: { reviewer: string; id: string; who: string; body: string; rationale?: string }[];
+	// Other findings making the same point, grouped under this one.
+	alsoBy?: { reviewer: string; id: string; who: string; body: string; rationale?: string; path?: string; line?: number }[];
+	// The lead of a group it was separated from.
+	separatedFrom?: { who: string };
+}
+
+// How many reviewers raised a group's point: "Raised by 3 reviewers", or a
+// reviewer repeating itself, "Raised twice by amber-ferret".
+export function raisedBy(who: string, alsoBy: { who: string }[]): string {
+	const reviewers = new Set([who, ...alsoBy.map((a) => a.who)]).size;
+	if (reviewers > 1) return `Raised by ${reviewers} reviewers`;
+	const times = alsoBy.length + 1;
+	return `Raised ${times === 2 ? 'twice' : `${times} times`} by ${who}`;
 }
 
 // Whether a panel finding is shown: once the editor has been through it,
@@ -105,7 +116,7 @@ export function groupsOf(record: PrRecord) {
 	}
 	const joined = (reviewer: string, item: { joins?: { reviewer: string; id: string } }) =>
 		!!item.joins && exists(item.joins.reviewer, item.joins.id);
-	return { membersOf: (reviewer: string, id: string) => members.get(`${reviewer}/${id}`) ?? [], joined };
+	return { membersOf: (reviewer: string, id: string) => members.get(`${reviewer}/${id}`) ?? [], joined, exists };
 }
 
 // A reviewer's name, as the panel shows it.
@@ -114,7 +125,7 @@ export function reviewerName(record: PrRecord, id: string): string {
 }
 
 export function marksFrom(record: PrRecord): Mark[] {
-	const { membersOf, joined } = groupsOf(record);
+	const { membersOf, joined, exists } = groupsOf(record);
 	const findings = Object.entries(record.feedback)
 		.filter(([key]) => key.startsWith('agent-'))
 		.flatMap(([key, draft]) =>
@@ -139,8 +150,13 @@ export function marksFrom(record: PrRecord): Mark[] {
 							id: m.id,
 							who: reviewerName(record, reviewer),
 							body: m.body,
-							rationale: m.rationale
-						}))
+							rationale: m.rationale,
+							path: m.path,
+							line: m.start?.line
+						})),
+						...(item.separatedFrom && exists(item.separatedFrom.reviewer, item.separatedFrom.id)
+							? { separatedFrom: { who: reviewerName(record, item.separatedFrom.reviewer) } }
+							: {})
 					})
 				)
 		);

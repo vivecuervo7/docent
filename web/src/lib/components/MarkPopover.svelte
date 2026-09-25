@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Mark } from '$lib/api';
+	import { raisedBy, type Mark } from '$lib/api';
 	import { modelLabel } from '$lib/panel.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import NoteText from './NoteText.svelte';
@@ -13,6 +13,20 @@
 	const session = useSession();
 	let showWhy = $state(false);
 	let showAlso = $state(false);
+	// Findings separated from this group while it's open, to undo.
+	let separated = $state<{ reviewer: string; id: string; where: string }[]>([]);
+
+	function separate(a: NonNullable<Mark['alsoBy']>[number]) {
+		session.splitFinding(a.reviewer, a.id);
+		const where = a.path ? `${a.path}${a.line ? ` line ${a.line}` : ''}` : 'the PR as a whole';
+		separated = [...separated, { reviewer: a.reviewer, id: a.id, where }];
+		showAlso = true;
+	}
+
+	function undo(s: (typeof separated)[number]) {
+		session.mergeBack(s.reviewer, s.id);
+		separated = separated.filter((x) => x.id !== s.id);
+	}
 	// What raised it: shown in place of the file, which the bubble sits on.
 	const ranWith = $derived(session.record.agentReviewers.find((r) => r.id === mark.reviewer)?.ranWith);
 	const model = $derived.by(() => {
@@ -69,21 +83,36 @@
 			</button>
 			{#if showWhy}<p class="rationale"><InlineText text={mark.rationale} /></p>{/if}
 		{/if}
-		{#if mark.alsoBy?.length}
+		{#if mark.separatedFrom && mark.reviewer}
+			<p class="separated">
+				Separated from {mark.separatedFrom.who}’s finding
+				<button class="link small" onclick={() => mark.reviewer && session.mergeBack(mark.reviewer, mark.id)}>Merge back</button>
+			</p>
+		{/if}
+		{#if mark.alsoBy?.length || separated.length}
+			{@const also = mark.alsoBy ?? []}
 			<div class="also">
-				<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-					Also raised by {mark.alsoBy.map((a) => a.who).join(', ')}
-				</button>
-				{#if showAlso}
+				{#if also.length}
+					<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+						{raisedBy(mark.who, also)}
+					</button>
+				{/if}
+				{#if showAlso || !also.length}
 					<ul>
-						{#each mark.alsoBy as a (a.id)}
+						{#each also as a, i (a.id)}
 							<li>
-								<div class="also-head">
-									<span class="role">{a.who}</span>
-									<button class="link small" onclick={() => session.splitFinding(a.reviewer, a.id)}>Not the same</button>
+								{#if a.who !== also[i - 1]?.who}<span class="role">{a.who}</span>{/if}
+								<div class="also-body">
+									<p class="rationale"><InlineText text={a.body} /></p>
+									<button class="link small separate" onclick={() => separate(a)}>Separate</button>
 								</div>
-								<p class="rationale"><InlineText text={a.body} /></p>
+							</li>
+						{/each}
+						{#each separated as s (s.id)}
+							<li class="separated">
+								Now shown on its own at {s.where}
+								<button class="link small" onclick={() => undo(s)}>Undo</button>
 							</li>
 						{/each}
 					</ul>
@@ -206,11 +235,28 @@
 		flex-direction: column;
 		gap: 3px;
 	}
-	.also-head {
+	.also-body {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
-		gap: 8px;
+		gap: 12px;
+	}
+	.also-body .rationale {
+		margin: 0;
+	}
+	/* Separating is a correction, offered on the finding being pointed at. */
+	.separate {
+		flex-shrink: 0;
+		opacity: 0;
+	}
+	.also li:hover .separate,
+	.separate:focus-visible {
+		opacity: 1;
+	}
+	.separated {
+		margin: 0;
+		font-size: 12.5px;
+		color: var(--faint);
 	}
 	.link.small {
 		font-size: 12px;

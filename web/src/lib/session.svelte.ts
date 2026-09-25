@@ -367,9 +367,19 @@ export class PrSession {
 		}).catch(() => {});
 	}
 
-	// A finding that turned out to be a point of its own leaves its group.
+	// A finding that turned out to be a point of its own leaves its group,
+	// remembering which, to go back.
 	splitFinding(reviewer: string, id: string) {
-		this.#changeFinding(reviewer, id, ({ joins: _, ...rest }) => rest).catch(() => {});
+		this.#changeFinding(reviewer, id, ({ joins, ...rest }) => (joins ? { ...rest, separatedFrom: joins } : rest)).catch(() => {});
+	}
+
+	// A separated finding back in its group, under whatever now leads it.
+	mergeBack(reviewer: string, id: string) {
+		const from = this.record.feedback[reviewer]?.items.find((i) => i.id === id)?.separatedFrom;
+		const lead = from && this.record.feedback[from.reviewer]?.items.find((i) => i.id === from.id);
+		if (!from || !lead) return;
+		const joins = lead.joins ?? from;
+		this.#changeFinding(reviewer, id, ({ separatedFrom: _, ...rest }) => ({ ...rest, joins })).catch(() => {});
 	}
 
 	// A finding the editor filtered out, shown after all.

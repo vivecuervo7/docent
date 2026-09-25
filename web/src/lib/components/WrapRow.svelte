@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { raisedBy } from '$lib/api';
 	import FilePath from './FilePath.svelte';
 	import type { LineRef } from '$lib/types';
 	import type { NoteMessage } from '$lib/types';
@@ -68,12 +69,15 @@
 		{#if alsoBy.length}
 			<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
 				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-				Also raised by {alsoBy.map((a) => a.who).join(', ')}
+				{raisedBy(who ?? 'This reviewer', alsoBy)}
 			</button>
 			{#if showAlso}
 				<ol class="talk">
 					{#each alsoBy as a, i (i)}
-						<li><span class="role">{a.who}</span><div class="rationale-text"><NoteText text={a.body} /></div></li>
+						<li>
+							{#if a.who !== alsoBy[i - 1]?.who}<span class="role">{a.who}</span>{/if}
+							<div class="rationale-text"><NoteText text={a.body} /></div>
+						</li>
 					{/each}
 				</ol>
 			{/if}
