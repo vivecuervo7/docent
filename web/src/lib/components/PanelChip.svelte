@@ -68,7 +68,11 @@
 			if (live?.source === 'external') return { text: `Waiting for your agent${elapsed}`, working: true };
 			if (live?.source === 'session') return { text: `Reviewing${elapsed}`, working: true };
 			const p = live?.progress;
-			const where = p?.total ? `Slice ${Math.min(p.done + 1, p.total)} of ${p.total}` : 'Starting';
+			const where = !p?.total
+				? 'Starting'
+				: p.current === 'the whole PR'
+					? 'Reading the whole PR'
+					: `Slice ${Math.max(1, Math.min(p.done, p.total - 1))} of ${p.total - 1}`;
 			return { text: `${where}${elapsed}`, working: true };
 		}
 		const took = run.startedAt && run.endedAt ? ` in ${duration(run.endedAt - run.startedAt)}` : '';

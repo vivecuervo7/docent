@@ -216,9 +216,11 @@
 					{#if running && review.source === 'builtin'}
 						<span class="status working">
 							<Spinner size={13} />
-							{review.progress?.total
-								? `Reviewing ${review.progress.current ?? '…'} (${Math.min(review.progress.done + 1, review.progress.total)} of ${review.progress.total})`
-								: 'Starting…'}
+							{!review.progress?.total
+								? 'Starting…'
+								: review.progress.current === 'the whole PR'
+									? 'Reading the whole PR first'
+									: `Reviewing ${review.progress.current ?? '…'} (${Math.max(1, Math.min(review.progress.done, review.progress.total - 1))} of ${review.progress.total - 1})`}
 							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
 						</span>
 					{:else if running && review.source === 'session'}
