@@ -71,22 +71,45 @@
 	}
 	let showComplete = $state(false);
 
-	const active = $derived((saved ?? []).filter((pr) => !pr.record.completedAt));
+	// PRs the reviewer wrote get a section of their own.
+	const isMine = (pr: SavedPr) => !!login && pr.record.author === login;
+	let viewOpen = $state(false);
+	$effect(() => {
+		if (!viewOpen) return;
+		const close = (e: Event) => {
+			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.view')) viewOpen = false;
+		};
+		window.addEventListener('pointerdown', close);
+		window.addEventListener('keydown', close);
+		return () => {
+			window.removeEventListener('pointerdown', close);
+			window.removeEventListener('keydown', close);
+		};
+	});
+
+	const notComplete = $derived((saved ?? []).filter((pr) => !pr.record.completedAt));
+	const active = $derived(notComplete.filter((pr) => !isMine(pr)));
+	const mine = $derived(notComplete.filter(isMine));
 	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt));
-	// Your reviews in groups: one group by recency, else one per repo or author.
-	const groups = $derived.by(() => {
-		if (sort === 'recent') return [{ label: '', items: active }];
+	// A list in groups: one group by recency, else one per repo or author.
+	function grouped(list: SavedPr[]) {
+		if (sort === 'recent') return [{ label: '', items: list }];
 		const labelOf = (pr: SavedPr) => (sort === 'repo' ? `${pr.owner}/${pr.repo}` : (pr.record.author ?? 'Author not known yet'));
 		const byLabel = new Map<string, SavedPr[]>();
-		for (const pr of active) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
+		for (const pr of list) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
 		return [...byLabel.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, items]) => ({ label, items }));
-	});
+	}
 	// Without a signed-in GitHub CLI nothing opens, so say where to start.
 	let ghMissing = $state(false);
+	// The reviewer's GitHub login, to tell their own PRs apart.
+	let login = $state<string | null>(null);
 	$effect(() => {
 		fetch('/api/setup')
 			.then((res) => api.readOk<{ gh: { login?: string } }>(res))
-			.then((check) => (ghMissing = !check.gh.login))
+			.then((check) => {
+				ghMissing = !check.gh.login;
+				login = check.gh.login ?? null;
+			})
 			.catch(() => {});
 	});
 
@@ -311,22 +334,45 @@
 			</section>
 		{/if}
 
-		{#if active.length}
+		{#snippet groups(list: SavedPr[])}
+			{#each grouped(list) as group (group.label)}
+				{#if group.label}<h3 class="group">{group.label} <span class="count">{group.items.length}</span></h3>{/if}
+				<ul>
+					{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
+				</ul>
+			{/each}
+		{/snippet}
+
+		{#if active.length || mine.length}
 			<section aria-labelledby="saved-heading">
 				<div class="section-head">
 					<h2 id="saved-heading" class="caps">Your reviews</h2>
-					<div class="sort" role="group" aria-label="Order by">
-						{#each [['recent', 'Recent'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
-							<button class:on={sort === value} aria-pressed={sort === value} onclick={() => setSort(value as Sort)}>{label}</button>
-						{/each}
+					<div class="view">
+						<button class="view-trigger" aria-haspopup="menu" aria-expanded={viewOpen} onclick={() => (viewOpen = !viewOpen)}>
+							View
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+						</button>
+						{#if viewOpen}
+							<div class="view-menu" role="menu" aria-label="View">
+								<span class="menu-group">Order by</span>
+								{#each [['recent', 'Most recent'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
+									<button role="menuitemradio" aria-checked={sort === value} onclick={() => setSort(value as Sort)}>
+										<span class="tick">{#if sort === value}✓{/if}</span>
+										<span>{label}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				</div>
-				{#each groups as group (group.label)}
-					{#if group.label}<h3 class="group">{group.label}</h3>{/if}
-					<ul>
-						{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
-					</ul>
-				{/each}
+				{#if active.length}{@render groups(active)}{:else}<p class="faint hidden-note">Nothing open for anyone else’s PRs.</p>{/if}
+			</section>
+		{/if}
+
+		{#if mine.length}
+			<section aria-labelledby="mine-heading">
+				<h2 id="mine-heading" class="caps">My pull requests</h2>
+				{@render groups(mine)}
 			</section>
 		{/if}
 
@@ -353,33 +399,97 @@
 		justify-content: space-between;
 		gap: 12px;
 	}
-	.sort {
-		display: flex;
-		gap: 4px;
-	}
-	.sort button {
-		padding: 3px 8px;
-		border: 0;
-		border-radius: 7px;
-		background: none;
-		color: var(--faint);
-		font: inherit;
-		font-size: 12.5px;
-		cursor: pointer;
-	}
-	.sort button:hover {
-		color: var(--text);
-	}
-	.sort button.on {
-		background: var(--surface-2);
-		color: var(--text);
-	}
+	/* A heading per repo or author, standing clear of the rows under it. */
 	.group {
-		margin: 18px 0 4px;
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		margin: 30px 0 2px;
+		padding-bottom: 8px;
+		border-bottom: 1px solid var(--line-2);
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--text);
+	}
+	.group + ul > li:first-child {
+		border-top: 0;
+	}
+	.group .count {
 		font-family: var(--mono);
 		font-size: 12px;
 		font-weight: 400;
+		color: var(--faint);
+	}
+	.view {
+		position: relative;
+	}
+	.view-trigger {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 8px;
+		border: 0;
+		border-radius: 7px;
+		background: none;
 		color: var(--muted);
+		font: inherit;
+		font-size: 13px;
+		cursor: pointer;
+	}
+	.view-trigger:hover,
+	.view-trigger[aria-expanded='true'] {
+		color: var(--text);
+		background: var(--surface-2);
+	}
+	.view-menu {
+		position: absolute;
+		z-index: 20;
+		top: calc(100% + 6px);
+		right: 0;
+		min-width: 220px;
+		padding: 6px;
+		border-radius: 12px;
+		background: var(--surface-2);
+		box-shadow:
+			0 0 0 1px var(--line-2),
+			0 24px 60px -20px rgba(0, 0, 0, 0.8);
+		display: flex;
+		flex-direction: column;
+	}
+	.menu-group {
+		padding: 8px 10px 4px;
+		font-size: 11px;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		font-weight: 600;
+		color: var(--faint);
+	}
+	.view-menu button {
+		display: grid;
+		grid-template-columns: 16px minmax(0, 1fr);
+		align-items: center;
+		gap: 8px;
+		height: 32px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 8px;
+		background: none;
+		color: var(--text);
+		font: inherit;
+		font-size: 14px;
+		text-align: left;
+		cursor: pointer;
+	}
+	.view-menu button:hover {
+		background: var(--line-2);
+	}
+	.tick {
+		color: var(--done);
+		font-size: 13px;
+	}
+	.hidden-note {
+		margin: 12px 0 0;
+		font-size: 14px;
 	}
 	.fold-head {
 		display: flex;
