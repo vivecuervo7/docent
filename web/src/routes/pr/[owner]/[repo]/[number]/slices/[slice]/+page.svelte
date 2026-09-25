@@ -297,7 +297,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 4px;
+		margin: 44px 0 6px;
 	}
 	.hint {
 		margin: 0;
