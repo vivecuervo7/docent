@@ -90,10 +90,49 @@
 	// PRs the reviewer wrote get a section of their own.
 	const isMine = (pr: SavedPr) => !!involvedOf(pr)?.mine || (!!login && authorOf(pr) === login);
 
-	const notComplete = $derived(rows.filter((pr) => !pr.record.completedAt));
+	const notComplete = $derived(rows.filter((pr) => !pr.record.completedAt && !isHidden(pr)));
 	const active = $derived(notComplete.filter((pr) => !isMine(pr)));
 	const mine = $derived(notComplete.filter(isMine));
-	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt));
+	// Old PRs that can't be closed can be hidden: they leave the lists above
+	// for a section of their own. Kept in Docent's settings.
+	let hiddenKeys = $state<string[]>([]);
+	$effect(() => {
+		fetch('/api/hidden-prs')
+			.then((res) => api.readOk<{ hidden: string[] }>(res))
+			.then((r) => (hiddenKeys = r.hidden))
+			.catch(() => {});
+	});
+	const isHidden = (pr: PrRef) => hiddenKeys.includes(keyOf(pr));
+	async function setHidden(pr: PrRef, hidden: boolean) {
+		hiddenKeys = hidden ? [...hiddenKeys, keyOf(pr)] : hiddenKeys.filter((k) => k !== keyOf(pr));
+		const res = await fetch('/api/hidden-prs', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ owner: pr.owner, repo: pr.repo, number: pr.number, hidden })
+		}).catch(() => null);
+		if (res?.ok) hiddenKeys = (await res.json()).hidden;
+	}
+	let showHidden = $state(false);
+	const hiddenRows = $derived(rows.filter(isHidden));
+	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt && !isHidden(pr)));
+
+	// Repo and author groups folded away, kept in this browser.
+	let collapsed = $state<string[]>(readCollapsed());
+	function readCollapsed(): string[] {
+		try {
+			return JSON.parse(localStorage.getItem('docent.collapsedGroups') ?? '[]');
+		} catch {
+			return [];
+		}
+	}
+	function toggleGroup(key: string) {
+		collapsed = collapsed.includes(key) ? collapsed.filter((k) => k !== key) : [...collapsed, key];
+		try {
+			localStorage.setItem('docent.collapsedGroups', JSON.stringify(collapsed));
+		} catch {
+			// Remembering it is a nicety.
+		}
+	}
 	// A list in groups: one group by recency, else one per repo or author.
 	// Oldest first throughout: the longest-waiting PRs are cleared first.
 	function grouped<T extends PrRef>(list: T[], authorOf: (item: T) => string | undefined, raised: (item: T) => number) {
@@ -326,11 +365,20 @@
 						</span>
 					</span>
 				</a>
-				{#if !pr.unsaved}<button class="icon delete" aria-label="Delete this review" onclick={() => remove(pr)}>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-						><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg
-					>
-				</button>{/if}
+				<span class="row-actions">
+					<button class="icon" aria-label={isHidden(pr) ? 'Show in the lists again' : 'Hide'} title={isHidden(pr) ? 'Show in the lists again' : 'Hide'} onclick={() => setHidden(pr, !isHidden(pr))}>
+						{#if isHidden(pr)}
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+						{:else}
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17.4 17.4 0 0 1-2.9 3.9M6.6 6.6A17.6 17.6 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
+						{/if}
+					</button>
+					{#if !pr.unsaved}<button class="icon" aria-label="Delete this review" title="Delete this review" onclick={() => remove(pr)}>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+							><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg
+						>
+					</button>{/if}
+				</span>
 			</li>
 		{/snippet}
 
@@ -341,7 +389,7 @@
 
 
 		<!-- A repo links to its pull requests on GitHub; an author shows their avatar. -->
-		{#snippet groupHeading(label: string, count: number)}
+		{#snippet groupHeading(label: string, count: number, key: string)}
 			<h3 class="group">
 				{#if sort === 'repo'}
 					<a class="group-link" href="https://github.com/{label}/pulls" target="_blank" rel="noreferrer" title="{label}’s pull requests on GitHub">
@@ -360,6 +408,9 @@
 					{label}
 				{/if}
 				<span class="count">{count}</span>
+				<button class="fold" aria-expanded={!collapsed.includes(key)} aria-label="{collapsed.includes(key) ? 'Show' : 'Fold'} {label}" onclick={() => toggleGroup(key)}>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed.includes(key) ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
+				</button>
 			</h3>
 		{/snippet}
 
@@ -376,10 +427,13 @@
 
 		{#snippet groups(list: Row[])}
 			{#each grouped(list, authorOf, raisedAt) as group (group.label)}
-				{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
-				<ul>
-					{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
-				</ul>
+				{@const key = `${sort}:${group.label}`}
+				{#if group.label}{@render groupHeading(group.label, group.items.length, key)}{/if}
+				{#if !group.label || !collapsed.includes(key)}
+					<ul>
+						{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
+					</ul>
+				{/if}
 			{/each}
 		{/snippet}
 
@@ -403,11 +457,25 @@
 			<section>
 				<button class="fold-head" aria-expanded={showComplete} onclick={() => (showComplete = !showComplete)}>
 					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showComplete ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-					Complete <span class="count">{complete.length}</span>
+					Complete <span class="count">({complete.length})</span>
 				</button>
 				{#if showComplete}
 					<ul class="done-list">
 						{#each complete as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
+					</ul>
+				{/if}
+			</section>
+		{/if}
+
+		{#if hiddenRows.length}
+			<section>
+				<button class="fold-head" aria-expanded={showHidden} onclick={() => (showHidden = !showHidden)}>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showHidden ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+					Hidden <span class="count">({hiddenRows.length})</span>
+				</button>
+				{#if showHidden}
+					<ul class="done-list">
+						{#each hiddenRows as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
 					</ul>
 				{/if}
 			</section>
@@ -738,14 +806,31 @@
 		height: 4px;
 		background: var(--done);
 	}
-	/* Floats just outside the row, so the states line up at its edge. */
-	.delete {
+	/* Float just outside the row, so the states line up at its edge. */
+	.row-actions {
 		position: absolute;
 		left: calc(100% + 6px);
+		display: flex;
+		gap: 2px;
 		opacity: 0;
 	}
-	li:hover .delete,
-	.delete:focus-visible {
+	li:hover .row-actions,
+	.row-actions:focus-within {
 		opacity: 1;
+	}
+	.fold {
+		display: grid;
+		place-items: center;
+		width: 20px;
+		height: 20px;
+		margin-left: -2px;
+		border: 0;
+		border-radius: 5px;
+		background: none;
+		color: var(--faint);
+		cursor: pointer;
+	}
+	.fold:hover {
+		color: var(--text);
 	}
 </style>
