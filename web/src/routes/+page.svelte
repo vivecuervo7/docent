@@ -40,6 +40,7 @@
 		return () => clearInterval(every);
 	});
 	const waiting = $derived(requests.filter((r) => !saved?.some((s) => keyOf(s) === keyOf(r))));
+	const waitingSorted = $derived([...waiting].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)));
 
 	function reviewState(r: ReviewRequest): string {
 		const draft = r.isDraft ? 'Draft · ' : '';
@@ -92,10 +93,10 @@
 	const mine = $derived(notComplete.filter(isMine));
 	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt));
 	// A list in groups: one group by recency, else one per repo or author.
-	function grouped(list: SavedPr[]) {
+	function grouped<T extends PrRef>(list: T[], authorOf: (item: T) => string | undefined) {
 		if (sort === 'recent') return [{ label: '', items: list }];
-		const labelOf = (pr: SavedPr) => (sort === 'repo' ? `${pr.owner}/${pr.repo}` : (pr.record.author ?? 'Author not known yet'));
-		const byLabel = new Map<string, SavedPr[]>();
+		const labelOf = (item: T) => (sort === 'repo' ? `${item.owner}/${item.repo}` : (authorOf(item) ?? 'Author not known yet'));
+		const byLabel = new Map<string, T[]>();
 		for (const pr of list) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
 		return [...byLabel.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, items]) => ({ label, items }));
 	}
@@ -315,28 +316,77 @@
 
 		{#if waiting.length}
 			<section aria-labelledby="requests-heading">
-				<h2 id="requests-heading" class="caps">Waiting for your review</h2>
-				<ul>
-					{#each waiting as r (keyOf(r))}
-						<li>
-							<a href="/pr/{r.owner}/{r.repo}/{r.number}">
-								<span class="text">
-									<span class="title">{r.title}</span>
-									<span class="faint meta">
-										{r.owner}/{r.repo} #{r.number}{r.author ? ` · by ${r.author}` : ''} · updated {timeAgo(Date.parse(r.updatedAt), now)}
-									</span>
-								</span>
-								<span class="state faint">{reviewState(r)}</span>
-							</a>
-						</li>
-					{/each}
-				</ul>
+				<div class="section-head">
+					<h2 id="requests-heading" class="caps">Waiting for your review</h2>
+					{@render viewMenu()}
+				</div>
+				{#each grouped(waitingSorted, (r) => r.author) as group (group.label)}
+					{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
+					<ul>
+						{#each group.items as r (keyOf(r))}
+				<li>
+					<a href="/pr/{r.owner}/{r.repo}/{r.number}">
+						<span class="text">
+							<span class="title">{r.title}</span>
+							<span class="faint meta">
+								{r.owner}/{r.repo} #{r.number}{r.author ? ` · by ${r.author}` : ''} · updated {timeAgo(Date.parse(r.updatedAt), now)}
+							</span>
+						</span>
+						<span class="state faint">{reviewState(r)}</span>
+					</a>
+				</li>
+						{/each}
+					</ul>
+				{/each}
 			</section>
 		{/if}
 
+		<!-- A repo links to its pull requests on GitHub; an author shows their avatar. -->
+		{#snippet groupHeading(label: string, count: number)}
+			<h3 class="group">
+				{#if sort === 'repo'}
+					<a class="group-link" href="https://github.com/{label}/pulls" target="_blank" rel="noreferrer" title="{label}’s pull requests on GitHub">
+						<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
+							><path
+								fill="currentColor"
+								d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+							/></svg
+						>
+						{label}
+					</a>
+				{:else if label !== 'Author not known yet'}
+					<img class="avatar" src="https://github.com/{label}.png?size=48" alt="" width="20" height="20" loading="lazy" />
+					{label}
+				{:else}
+					{label}
+				{/if}
+				<span class="count">{count}</span>
+			</h3>
+		{/snippet}
+
+		{#snippet viewMenu()}
+		<div class="view">
+			<button class="view-trigger" aria-haspopup="menu" aria-expanded={viewOpen} onclick={() => (viewOpen = !viewOpen)}>
+				View
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+			</button>
+			{#if viewOpen}
+				<div class="view-menu" role="menu" aria-label="View">
+					<span class="menu-group">Order by</span>
+					{#each [['recent', 'Most recent'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
+						<button role="menuitemradio" aria-checked={sort === value} onclick={() => setSort(value as Sort)}>
+							<span class="tick">{#if sort === value}✓{/if}</span>
+							<span>{label}</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
+		{/snippet}
+
 		{#snippet groups(list: SavedPr[])}
-			{#each grouped(list) as group (group.label)}
-				{#if group.label}<h3 class="group">{group.label} <span class="count">{group.items.length}</span></h3>{/if}
+			{#each grouped(list, (pr) => pr.record.author) as group (group.label)}
+				{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
 				<ul>
 					{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
 				</ul>
@@ -347,23 +397,7 @@
 			<section aria-labelledby="saved-heading">
 				<div class="section-head">
 					<h2 id="saved-heading" class="caps">Your reviews</h2>
-					<div class="view">
-						<button class="view-trigger" aria-haspopup="menu" aria-expanded={viewOpen} onclick={() => (viewOpen = !viewOpen)}>
-							View
-							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-						</button>
-						{#if viewOpen}
-							<div class="view-menu" role="menu" aria-label="View">
-								<span class="menu-group">Order by</span>
-								{#each [['recent', 'Most recent'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
-									<button role="menuitemradio" aria-checked={sort === value} onclick={() => setSort(value as Sort)}>
-										<span class="tick">{#if sort === value}✓{/if}</span>
-										<span>{label}</span>
-									</button>
-								{/each}
-							</div>
-						{/if}
-					</div>
+					{#if !waiting.length}{@render viewMenu()}{/if}
 				</div>
 				{#if active.length}{@render groups(active)}{:else}<p class="faint hidden-note">Nothing open for anyone else’s PRs.</p>{/if}
 			</section>
@@ -399,20 +433,33 @@
 		justify-content: space-between;
 		gap: 12px;
 	}
-	/* A heading per repo or author, standing clear of the rows under it. */
+	/* A heading per repo or author: the repo's GitHub link, or the author's avatar. */
 	.group {
 		display: flex;
-		align-items: baseline;
-		gap: 8px;
-		margin: 30px 0 2px;
-		padding-bottom: 8px;
-		border-bottom: 1px solid var(--line-2);
+		align-items: center;
+		gap: 9px;
+		margin: 26px 0 8px;
 		font-size: 14px;
-		font-weight: 600;
+		font-weight: 500;
 		color: var(--text);
 	}
-	.group + ul > li:first-child {
-		border-top: 0;
+	.group-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 9px;
+		color: inherit;
+		text-decoration: none;
+	}
+	.group-link svg {
+		color: var(--muted);
+	}
+	.group-link:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.avatar {
+		border-radius: 50%;
+		background: var(--surface-2);
 	}
 	.group .count {
 		font-family: var(--mono);
