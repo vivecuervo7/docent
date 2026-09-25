@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Mark } from '$lib/api';
+	import { modelLabel } from '$lib/panel.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
 
@@ -9,9 +10,9 @@
 
 	const session = useSession();
 	let showWhy = $state(false);
-	const lines = $derived(
-		mark.start.line === mark.end.line ? `line ${mark.start.line}` : `lines ${mark.start.line}–${mark.end.line}`
-	);
+	// What raised it: shown in place of the file, which the bubble sits on.
+	const ranWith = $derived(session.record.agentReviewers.find((r) => r.id === mark.reviewer)?.ranWith);
+	const model = $derived(!ranWith ? null : ranWith === 'external' ? 'your own agent' : modelLabel(ranWith));
 	const isKept = $derived(mark.included ?? true);
 	const keep = (value: boolean) => mark.reviewer && session.setFindingIncluded(mark.reviewer, mark.id, value);
 </script>
@@ -19,7 +20,7 @@
 <div class="finding" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose()}>
 	<header>
 		<span class="who">{mark.who}</span>
-		<span class="where">{mark.path.split('/').pop()} · {lines}</span>
+		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" onclick={onclose}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
 		</button>
