@@ -291,7 +291,7 @@
 		height: auto;
 		min-height: 76px;
 		padding: 9px 12px;
-		resize: none;
+		resize: vertical;
 		field-sizing: content;
 		line-height: 1.5;
 	}
