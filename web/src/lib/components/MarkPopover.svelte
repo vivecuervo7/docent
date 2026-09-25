@@ -14,7 +14,12 @@
 	let showWhy = $state(false);
 	// What raised it: shown in place of the file, which the bubble sits on.
 	const ranWith = $derived(session.record.agentReviewers.find((r) => r.id === mark.reviewer)?.ranWith);
-	const model = $derived(!ranWith ? null : ranWith === 'external' ? 'your own agent' : modelLabel(ranWith));
+	const model = $derived.by(() => {
+		if (!ranWith) return null;
+		if (ranWith === 'external') return 'your own agent';
+		if (ranWith.startsWith('persona:')) return session.panel.personas.find((p) => `persona:${p.id}` === ranWith)?.name ?? 'a persona';
+		return modelLabel(ranWith);
+	});
 	const isKept = $derived(mark.included ?? true);
 	// The finding as saved, for its conversation as it grows.
 	const item = $derived(mark.reviewer ? session.record.feedback[mark.reviewer]?.items.find((i) => i.id === mark.id) : undefined);

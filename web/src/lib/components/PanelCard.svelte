@@ -40,7 +40,9 @@
 	// What runs a reviewer, as its menu shows it.
 	function runsWith(r: AgentReviewer): string {
 		const setup = setupOf(r);
-		return setup.mode === 'external' ? 'Your own agent' : `Docent · ${modelLabel(setup.model)}`;
+		if (setup.mode === 'external') return 'Your own agent';
+		if (setup.mode === 'persona') return `Persona · ${panel.personas.find((p) => p.id === setup.persona)?.name ?? 'removed'}`;
+		return `Docent · ${modelLabel(setup.model)}`;
 	}
 
 	function choose(r: AgentReviewer, value: string) {
@@ -144,6 +146,17 @@
 										<span class="hint">{m.source}</span>
 									</button>
 								{/each}
+								{#if panel.personas.length}
+									<span class="group">Your personas</span>
+									{#each panel.personas as p (p.id)}
+										{@const current = setup.mode === 'persona' && setup.persona === p.id}
+										<button role="menuitemradio" aria-checked={current} onclick={() => { panel.plan(r.id, { mode: 'persona', persona: p.id }); menuFor = null; }}>
+											<span class="tick">{#if current}✓{/if}</span>
+											<span>{p.name}</span>
+											<span class="hint">{p.model ?? 'Claude Code'}</span>
+										</button>
+									{/each}
+								{/if}
 								<span class="group">Your own agent</span>
 								<button role="menuitemradio" aria-checked={setup.mode === 'external'} onclick={() => { choose(r, 'external'); menuFor = null; }}>
 									<span class="tick">{#if setup.mode === 'external'}✓{/if}</span>
@@ -161,6 +174,12 @@
 								: 'Starting…'}
 							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
 						</span>
+					{:else if running && review.source === 'persona'}
+						<span class="status working">
+							<Spinner size={13} />
+							Reviewing in a Claude Code session
+							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
+						</span>
 					{:else if running}
 						<span class="status working">
 							<Spinner size={13} />
@@ -170,6 +189,8 @@
 						</span>
 					{:else if review?.status === 'failed'}
 						<span class="status bad">Stopped with an error: {review.error}</span>
+					{:else if !review && r.lastRun?.status === 'failed'}
+						<span class="status bad">Stopped with an error{r.lastRun.error ? `: ${r.lastRun.error}` : ''}</span>
 					{:else if panel.errors[r.id]}
 						<span class="status bad">Couldn’t start: {panel.errors[r.id]}</span>
 					{:else if found || review}

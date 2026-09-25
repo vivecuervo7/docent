@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { readOk } from '$lib/api';
 	import { ask } from '$lib/confirm.svelte';
+	import PersonaSettings from '$lib/components/PersonaSettings.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 
 	// Where Docent's models come from: Claude Code, Codex, and any number of
-	// OpenAI-compatible providers. The model menu on the start page picks from
+	// OpenAI-compatible providers; and review personas. The model menu on the start page picks from
 	// whatever here is available; anything wrong with a provider shows here.
 	interface Provider {
 		id: string;
@@ -238,6 +239,8 @@
 			{/if}
 		{/if}
 	</section>
+
+	<PersonaSettings />
 
 	<p class="faint note">Saved on this machine in <code>backend/data/settings.json</code>. Keys never go back to the browser.</p>
 </main>

@@ -128,7 +128,7 @@ export interface AgentReviewer {
 	// panel card, or given by the default panel.
 	planned?: string;
 	// Its latest review, kept after the backend has let it go.
-	lastRun?: { startedAt: number; endedAt?: number; status: AgentReview['status']; findings: number };
+	lastRun?: { startedAt: number; endedAt?: number; status: AgentReview['status']; findings: number; error?: string };
 }
 
 export interface PrRecord {
@@ -196,7 +196,7 @@ export interface Reuse {
 // An agent review as the backend reports it, while running or just ended.
 export interface AgentReview {
 	id: string;
-	source: 'builtin' | 'external';
+	source: 'builtin' | 'external' | 'persona';
 	model?: string;
 	status: 'running' | 'done' | 'failed' | 'stopped';
 	progress?: { done: number; total: number; current?: string };

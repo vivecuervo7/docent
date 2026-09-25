@@ -250,7 +250,7 @@ export class PrSession {
 						finding: { reviewer: api.reviewerName(this.record, reviewer), body: item.body, rationale: item.rationale }
 					},
 					messages: item.messages.map(({ role, text }) => ({ role, text })),
-					model: ranWith && ranWith !== 'external' ? ranWith : this.record.model
+					model: this.#answeringModel(ranWith)
 				})
 			});
 			const { text } = await api.readOk<{ text: string }>(res);
@@ -259,6 +259,17 @@ export class PrSession {
 		} catch (err) {
 			this.findingStatus[id] = { error: (err as Error).message };
 		}
+	}
+
+	// Who answers questions about a finding: the model that raised it; a
+	// persona's own model, else the review's; the review's for your own agent.
+	#answeringModel(ranWith: string | undefined): string | undefined {
+		if (!ranWith || ranWith === 'external') return this.record.model;
+		if (ranWith.startsWith('persona:')) {
+			const persona = this.panel.personas.find((p) => `persona:${p.id}` === ranWith);
+			return persona?.model ? `claude-code:${persona.model}` : this.record.model;
+		}
+		return ranWith;
 	}
 
 	// Your comments for the review, drafted from your threads.

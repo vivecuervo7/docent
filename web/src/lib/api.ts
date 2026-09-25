@@ -131,7 +131,12 @@ export async function getAgentReview(ref: PrRef, reviewer: string): Promise<Agen
 export async function startAgentReview(
 	ref: PrRef,
 	reviewer: string,
-	body: { mode: 'builtin' | 'external'; model?: string; context: { title?: string; summary: PrSummary | null; slices: Slice[] } }
+	body: {
+		mode: 'builtin' | 'external' | 'persona';
+		model?: string;
+		persona?: string;
+		context: { title?: string; summary: PrSummary | null; slices: Slice[] };
+	}
 ): Promise<AgentReview> {
 	const res = await fetch(reviewUrl(ref, reviewer), {
 		method: 'POST',

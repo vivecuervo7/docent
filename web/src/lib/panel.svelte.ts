@@ -7,15 +7,26 @@ import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type F
 // with the React app), the review each is running, and copying their
 // findings into the record as they arrive.
 
-export type ReviewerSetup = { mode: 'builtin'; model: string } | { mode: 'external' };
+export type ReviewerSetup = { mode: 'builtin'; model: string } | { mode: 'external' } | { mode: 'persona'; persona: string };
+
+// A review persona, as Settings defines it.
+export interface Persona {
+	id: string;
+	name: string;
+	command: string;
+	model?: string;
+	tools?: string;
+}
 
 export function setupFrom(reviewer: AgentReviewer, defaultModel: string): ReviewerSetup {
 	const chosen = reviewer.planned ?? reviewer.ranWith;
 	if (chosen === 'external') return { mode: 'external' };
+	if (chosen?.startsWith('persona:')) return { mode: 'persona', persona: chosen.slice('persona:'.length) };
 	return { mode: 'builtin', model: chosen ?? defaultModel };
 }
 
-const setupValue = (setup: ReviewerSetup) => (setup.mode === 'external' ? 'external' : setup.model);
+const setupValue = (setup: ReviewerSetup) =>
+	setup.mode === 'external' ? 'external' : setup.mode === 'persona' ? `persona:${setup.persona}` : setup.model;
 
 // A model's name without where it runs: Claude Code's or Codex's prefix,
 // or the provider id it's saved with.
@@ -49,6 +60,7 @@ export class Panel {
 	reviews = $state<Partial<Record<AgentId, AgentReview>>>({});
 	errors = $state<Partial<Record<AgentId, string>>>({});
 	defaultPanel = $state<string[] | null>(null);
+	personas = $state<Persona[]>([]);
 
 	readonly reviewers = $derived.by(() => this.#session.record.agentReviewers);
 	readonly running = $derived.by(() => this.reviewers.filter((r) => this.reviews[r.id]?.status === 'running'));
@@ -69,6 +81,10 @@ export class Panel {
 	// Names any reviewers from before names, and picks up reviews still
 	// running from an earlier visit.
 	async load() {
+		fetch('/api/personas')
+			.then((res) => api.readOk<{ personas: Persona[] }>(res))
+			.then((r) => (this.personas = r.personas))
+			.catch(() => {});
 		this.defaultPanel = await api.getDefaultPanel().catch(() => null);
 		if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
 		await Promise.all(
@@ -241,7 +257,13 @@ export class Panel {
 			});
 		}
 		// The run itself, kept for after the backend lets it go.
-		const lastRun = { startedAt: review.startedAt, endedAt: review.endedAt, status: review.status, findings: review.findings.length };
+		const lastRun = {
+			startedAt: review.startedAt,
+			endedAt: review.endedAt,
+			status: review.status,
+			findings: review.findings.length,
+			...(review.error ? { error: review.error } : {})
+		};
 		const saved = this.reviewers.find((a) => a.id === id)?.lastRun;
 		if (JSON.stringify(saved) !== JSON.stringify(lastRun)) {
 			this.#session
