@@ -7,7 +7,7 @@ import { Panel } from './panel.svelte';
 import { ReviewPost } from './post.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
-import { isUnread, type Generation, type LineRef, type Note, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
+import { isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -188,6 +188,74 @@ export class PrSession {
 			this.noteStatus[id] = {};
 		} catch (err) {
 			this.noteStatus[id] = { error: (err as Error).message };
+		}
+	}
+
+	// Questions about a finding, answered by the model that raised it (or the
+	// picked model, for the reviewer's own agent). The conversation is saved
+	// on the finding, and goes with it into the prepared review.
+	findingStatus = $state<Record<string, { pending?: boolean; error?: string }>>({});
+
+	askAboutFinding(reviewer: string, id: string, text: string) {
+		this.#changeFinding(reviewer, id, (item) => ({ ...item, messages: [...(item.messages ?? []), { role: 'user', text, at: Date.now() }] }))
+			.then(() => this.#answerFinding(reviewer, id))
+			.catch((err) => (this.findingStatus[id] = { error: (err as Error).message }));
+	}
+
+	retryFinding(reviewer: string, id: string) {
+		this.#answerFinding(reviewer, id);
+	}
+
+	#changeFinding(reviewer: string, id: string, change: (item: FeedbackItem) => FeedbackItem) {
+		return this.update((r) => {
+			const draft = r.feedback[reviewer];
+			if (draft) r.feedback[reviewer] = { ...draft, items: draft.items.map((i) => (i.id === id ? change(i) : i)) };
+		});
+	}
+
+	async #answerFinding(reviewer: string, id: string) {
+		const item = this.record.feedback[reviewer]?.items.find((i) => i.id === id);
+		if (!item?.path || !item.start || !item.messages?.length) return;
+		const { path, start } = item;
+		const end = item.end ?? start;
+		const file = this.files.find((f) => f.filename === path);
+		const hunk = nearestHunk(this.hunks.get(path) ?? [], start);
+		const slice = hunk && this.slices.find((s) => s.hunks.includes(`${path}#${hunk.index}`));
+		const within = (r: { kind: string; new?: number; old?: number }) => {
+			const n = start.side === 'new' ? (r.kind !== 'del' ? r.new : undefined) : r.kind !== 'add' ? r.old : undefined;
+			return n !== undefined && n >= start.line && n <= end.line;
+		};
+		const code = (hunk?.rows ?? [])
+			.filter(within)
+			.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`)
+			.join('\n');
+		const ranWith = this.record.agentReviewers.find((a) => a.id === reviewer)?.ranWith;
+		this.findingStatus[id] = { pending: true };
+		try {
+			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/notes/reply`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					context: {
+						path,
+						lines: start.line === end.line ? `line ${start.line}` : `lines ${start.line}-${end.line}`,
+						code: code || '(unchanged lines outside the diff)',
+						fileDiff: file?.patch ?? code,
+						prTitle: this.title,
+						prWhat: this.record.summary?.what,
+						sliceTitle: slice?.title,
+						sliceSummary: slice?.summary,
+						finding: { reviewer: api.reviewerName(this.record, reviewer), body: item.body, rationale: item.rationale }
+					},
+					messages: item.messages.map(({ role, text }) => ({ role, text })),
+					...(ranWith && ranWith !== 'external' ? { model: ranWith } : {})
+				})
+			});
+			const { text } = await api.readOk<{ text: string }>(res);
+			await this.#changeFinding(reviewer, id, (i) => ({ ...i, messages: [...(i.messages ?? []), { role: 'assistant', text, at: Date.now() }] }));
+			this.findingStatus[id] = {};
+		} catch (err) {
+			this.findingStatus[id] = { error: (err as Error).message };
 		}
 	}
 

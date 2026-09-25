@@ -85,7 +85,10 @@ export class ReviewPost {
 							? `${item.path}${item.start && item.end ? ` ${describeLines(item.start, item.end)}` : ''}`
 							: 'the PR as a whole',
 						body: item.body,
-						inline: this.isInline(item)
+						inline: this.isInline(item),
+						...(item.messages?.length
+							? { discussion: item.messages.map((m) => `${m.role === 'user' ? 'Reviewer' : 'Answer'}: ${m.text}`).join('\n\n') }
+							: {})
 					}))
 				})
 			});

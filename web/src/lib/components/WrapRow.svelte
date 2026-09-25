@@ -1,6 +1,7 @@
 <script lang="ts">
 	import FilePath from './FilePath.svelte';
 	import type { LineRef } from '$lib/types';
+	import type { NoteMessage } from '$lib/types';
 	import NoteText from './NoteText.svelte';
 
 	// One thing that could go into the review: an agent's finding or one of
@@ -13,6 +14,7 @@
 		end,
 		body,
 		rationale,
+		messages = [],
 		// null while it's still waiting on a decision.
 		kept,
 		onkeep,
@@ -27,6 +29,8 @@
 		end?: LineRef;
 		body: string;
 		rationale?: string;
+		// Questions asked about it in the diff, and the answers.
+		messages?: NoteMessage[];
 		kept: boolean | null;
 		onkeep: () => void;
 		onskip: () => void;
@@ -34,6 +38,7 @@
 	} = $props();
 
 	let showWhy = $state(false);
+	let showTalk = $state(false);
 	const lines = $derived.by(() => {
 		if (!start) return undefined;
 		const endLine = end?.line ?? start.line;
@@ -55,6 +60,22 @@
 				{kind === 'finding' ? 'Why it was raised' : 'Why it was drafted'}
 			</button>
 			{#if showWhy}<div class="rationale"><NoteText text={rationale} /></div>{/if}
+		{/if}
+		{#if messages.length}
+			<button class="why" aria-expanded={showTalk} onclick={() => (showTalk = !showTalk)}>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showTalk ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				{messages.length} {messages.length === 1 ? 'message' : 'messages'} about it
+			</button>
+			{#if showTalk}
+				<ol class="talk">
+					{#each messages as m, i (i)}
+						<li class={m.role}>
+							<span class="role">{m.role === 'user' ? 'You' : who}</span>
+							<div class="rationale-text"><NoteText text={m.text} /></div>
+						</li>
+					{/each}
+				</ol>
+			{/if}
 		{/if}
 	</div>
 	<div class="decide" role="group" aria-label="Keep or skip">
@@ -128,6 +149,39 @@
 		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
 		color: var(--muted);
 		font-size: 13.5px;
+	}
+	.talk {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		border-radius: 10px;
+		overflow: hidden;
+		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
+	}
+	.talk li {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 10px 14px;
+		border-top: 1px solid var(--popover-line);
+	}
+	.talk li:first-child {
+		border-top: 0;
+	}
+	.talk li.assistant {
+		background: color-mix(in srgb, var(--popover) 60%, var(--bg));
+	}
+	.talk .role {
+		font-size: 12px;
+		color: var(--faint);
+	}
+	.rationale-text {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		color: var(--muted);
+		font-size: 13.5px;
+		line-height: 1.6;
 	}
 	.why {
 		display: flex;

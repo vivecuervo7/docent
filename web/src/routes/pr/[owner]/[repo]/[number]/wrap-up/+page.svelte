@@ -53,6 +53,7 @@
 		end={item.end}
 		body={item.body}
 		rationale={item.rationale}
+		messages={item.messages}
 		kept={item.decided ? item.included : null}
 		onkeep={() => session.setFindingIncluded(reviewer, item.id, true)}
 		onskip={() => session.setFindingIncluded(reviewer, item.id, false)}

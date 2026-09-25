@@ -77,6 +77,8 @@ export interface FeedbackItem {
 	// Set once the reviewer keeps or skips an agent's finding; until then it's
 	// kept by default but still waiting on them.
 	decided?: boolean;
+	// The reviewer's questions about a finding, and the answers.
+	messages?: NoteMessage[];
 }
 
 export interface FeedbackDraft {
