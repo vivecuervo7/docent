@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
-	import Spinner from './Spinner.svelte';
+	import PanelChip from './PanelChip.svelte';
 	import StateMark from './StateMark.svelte';
 
 	// The review's stages.
@@ -54,13 +54,7 @@
 		</a>
 	</nav>
 	<div class="right">
-		{#if session.panel.running.length}
-			<a class="pill" href={base} title="See the panel on the Overview">
-				<Spinner size={15} />
-				<span>Panel · {session.panel.running.length} reviewing</span>
-				{#if session.panel.findingCount}<span class="faint">{session.panel.findingCount} {session.panel.findingCount === 1 ? 'finding' : 'findings'}</span>{/if}
-			</a>
-		{/if}
+		<PanelChip />
 	</div>
 </header>
 
@@ -124,18 +118,6 @@
 	.right {
 		display: flex;
 		justify-content: flex-end;
-	}
-	.pill {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		height: 34px;
-		padding: 0 14px;
-		border-radius: 999px;
-		background: #1d1a14;
-		color: #f2d9b0;
-		font-size: 13.5px;
-		text-decoration: none;
 	}
 	.joint {
 		width: 28px;
