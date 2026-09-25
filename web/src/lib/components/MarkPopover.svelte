@@ -12,6 +12,7 @@
 
 	const session = useSession();
 	let showWhy = $state(false);
+	let showAlso = $state(false);
 	// What raised it: shown in place of the file, which the bubble sits on.
 	const ranWith = $derived(session.record.agentReviewers.find((r) => r.id === mark.reviewer)?.ranWith);
 	const model = $derived.by(() => {
@@ -67,6 +68,27 @@
 				Why it was raised
 			</button>
 			{#if showWhy}<p class="rationale"><InlineText text={mark.rationale} /></p>{/if}
+		{/if}
+		{#if mark.alsoBy?.length}
+			<div class="also">
+				<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+					Also raised by {mark.alsoBy.map((a) => a.who).join(', ')}
+				</button>
+				{#if showAlso}
+					<ul>
+						{#each mark.alsoBy as a (a.id)}
+							<li>
+								<div class="also-head">
+									<span class="role">{a.who}</span>
+									<button class="link small" onclick={() => session.splitFinding(a.reviewer, a.id)}>Not the same</button>
+								</div>
+								<p class="rationale"><InlineText text={a.body} /></p>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
 		{/if}
 		{#if messages.length || status.pending || status.error}
 			<ol class="turns">
@@ -170,6 +192,33 @@
 		font: inherit;
 		font-size: 13px;
 		cursor: pointer;
+	}
+	.also ul {
+		list-style: none;
+		margin: 6px 0 0;
+		padding: 0 0 0 20px;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.also li {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+	.also-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+	.link.small {
+		font-size: 12px;
+		color: var(--faint);
+		text-decoration: none;
+	}
+	.link.small:hover {
+		color: var(--text);
 	}
 	.turns {
 		list-style: none;

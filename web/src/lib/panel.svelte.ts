@@ -1,7 +1,7 @@
 import * as api from './api';
 import { reviewerName } from './names';
 import type { PrSession } from './session.svelte';
-import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type FeedbackDraft } from './types';
+import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type FeedbackDraft, type FeedbackItem } from './types';
 
 // The PR's review panel: its agent reviewers (saved in the record, shared
 // with the React app), the review each is running, and copying their
@@ -293,26 +293,32 @@ export class Panel {
 		const seen = this.#seen[id];
 		if (seen?.id !== review.id || seen.count !== review.findings.length) {
 			this.#seen[id] = { id: review.id, count: review.findings.length };
-			this.#session.update((r) => {
-				const included = new Map((r.feedback[id]?.items ?? []).map((i) => [i.id, i.included]));
-				const draft: FeedbackDraft = {
-					items: review.findings.map((f) => ({
-						id: f.id,
-						body: f.body,
-						rationale: f.rationale,
-						included: included.get(f.id) ?? true,
-						path: f.path,
-						...(f.startLine
-							? {
-									start: { side: 'new' as const, line: f.startLine },
-									end: { side: 'new' as const, line: f.endLine ?? f.startLine }
-								}
-							: {})
-					})),
-					draftedAt: Date.now()
-				};
-				r.feedback[id] = draft;
-			});
+			this.#session
+				.update((r) => {
+					// A finding already here keeps what's been done with it - decided,
+					// asked about, read, grouped - as its review goes on.
+					const before = new Map((r.feedback[id]?.items ?? []).map((i) => [i.id, i]));
+					const draft: FeedbackDraft = {
+						items: review.findings.map((f) => ({
+							included: true,
+							...before.get(f.id),
+							id: f.id,
+							body: f.body,
+							rationale: f.rationale,
+							path: f.path,
+							...(f.startLine
+								? {
+										start: { side: 'new' as const, line: f.startLine },
+										end: { side: 'new' as const, line: f.endLine ?? f.startLine }
+									}
+								: {})
+						})),
+						draftedAt: Date.now()
+					};
+					r.feedback[id] = draft;
+				})
+				.then(() => this.#group())
+				.catch(() => {});
 		}
 		// The run itself, kept for after the backend lets it go.
 		const lastRun = {
@@ -335,6 +341,63 @@ export class Panel {
 			api.dismissAgentReview(this.#session.ref, id);
 			if (!this.running.length) this.#stopPolling();
 		}
+	}
+
+	// Grouping findings that make the same point, one reviewer's new ones at a
+	// time, so the first to arrive leads and later ones join it. Queued, so
+	// two reviewers finishing together can't both lead.
+	#grouping: Promise<void> = Promise.resolve();
+
+	#group() {
+		this.#grouping = this.#grouping.then(() => this.#groupNext()).catch(() => {});
+		return this.#grouping;
+	}
+
+	async #groupNext(): Promise<void> {
+		const session = this.#session;
+		const all = Object.entries(session.record.feedback)
+			.filter(([key]) => key.startsWith('agent-'))
+			.flatMap(([reviewer, draft]) => (draft?.items ?? []).map((item) => ({ reviewer, item })));
+		const waiting = all.filter(({ item }) => !item.matched);
+		if (!waiting.length) return;
+		const reviewer = waiting[0].reviewer;
+		const fresh = waiting.filter((w) => w.reviewer === reviewer);
+		const leads = all.filter(({ reviewer: other, item }) => other !== reviewer && item.matched && !item.joins);
+		// Likely matches only: the same file within a few lines, or both about
+		// the whole PR.
+		const near = (a: FeedbackItem, b: FeedbackItem) =>
+			(a.path ?? '') === (b.path ?? '') && (!a.start || !b.start || Math.abs(a.start.line - b.start.line) <= 15);
+		const asked = fresh.filter((f) => leads.some((l) => near(f.item, l.item)));
+		const existing = leads.filter((l) => asked.some((f) => near(f.item, l.item)));
+		let matches: Record<string, string> = {};
+		if (asked.length) {
+			const where = (i: FeedbackItem) => (i.path ? `${i.path}${i.start ? ` line ${i.start.line}` : ''}` : 'the PR as a whole');
+			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/match`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					fresh: asked.map(({ item }) => ({ id: item.id, location: where(item), body: item.body })),
+					existing: existing.map(({ item }) => ({ id: item.id, location: where(item), body: item.body }))
+				})
+			});
+			matches = (await api.readOk<{ matches: Record<string, string> }>(res)).matches;
+		}
+		const leadReviewer = new Map(existing.map(({ reviewer: r, item }) => [item.id, r]));
+		await session.update((r) => {
+			const draft = r.feedback[reviewer];
+			if (!draft) return;
+			const ids = new Set(fresh.map(({ item }) => item.id));
+			r.feedback[reviewer] = {
+				...draft,
+				items: draft.items.map((i) => {
+					if (!ids.has(i.id)) return i;
+					const same = matches[i.id];
+					return same && leadReviewer.has(same) ? { ...i, matched: true, joins: { reviewer: leadReviewer.get(same)!, id: same } } : { ...i, matched: true };
+				})
+			};
+		});
+		// Other reviewers' new findings, in turn.
+		return this.#groupNext();
 	}
 
 	#startPolling() {

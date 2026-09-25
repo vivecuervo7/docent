@@ -350,11 +350,26 @@ export class PrSession {
 	}
 
 	// Keeps or skips an agent's finding for the review.
+	// A decision on a finding holds for its whole group: the lead and every
+	// finding that joined it.
 	setFindingIncluded(reviewer: string, id: string, included: boolean) {
 		this.update((r) => {
-			const draft = r.feedback[reviewer];
-			if (draft) r.feedback[reviewer] = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included, decided: true } : i)) };
+			const item = r.feedback[reviewer]?.items.find((i) => i.id === id);
+			const lead = item?.joins ?? { reviewer, id };
+			const inGroup = (key: string, i: FeedbackItem) =>
+				(key === lead.reviewer && i.id === lead.id) || (i.joins?.reviewer === lead.reviewer && i.joins.id === lead.id);
+			for (const [key, draft] of Object.entries(r.feedback)) {
+				if (!key.startsWith('agent-') || !draft) continue;
+				if (draft.items.some((i) => inGroup(key, i))) {
+					r.feedback[key] = { ...draft, items: draft.items.map((i) => (inGroup(key, i) ? { ...i, included, decided: true } : i)) };
+				}
+			}
 		}).catch(() => {});
+	}
+
+	// A finding that turned out to be a point of its own leaves its group.
+	splitFinding(reviewer: string, id: string) {
+		this.#changeFinding(reviewer, id, ({ joins: _, ...rest }) => ({ ...rest, matched: true })).catch(() => {});
 	}
 
 	// Every agent finding on a file, with the slices its lines are in: the

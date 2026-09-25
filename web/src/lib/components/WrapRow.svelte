@@ -15,6 +15,7 @@
 		body,
 		rationale,
 		messages = [],
+		alsoBy = [],
 		// null while it's still waiting on a decision.
 		kept,
 		onkeep,
@@ -31,6 +32,8 @@
 		rationale?: string;
 		// Questions asked about it in the diff, and the answers.
 		messages?: NoteMessage[];
+		// Other reviewers' findings making the same point.
+		alsoBy?: { who: string; body: string }[];
 		kept: boolean | null;
 		onkeep: () => void;
 		onskip: () => void;
@@ -39,6 +42,7 @@
 
 	let showWhy = $state(false);
 	let showTalk = $state(false);
+	let showAlso = $state(false);
 	const lines = $derived.by(() => {
 		if (!start) return undefined;
 		const endLine = end?.line ?? start.line;
@@ -60,6 +64,19 @@
 				{kind === 'finding' ? 'Why it was raised' : 'Why it was drafted'}
 			</button>
 			{#if showWhy}<div class="rationale"><NoteText text={rationale} /></div>{/if}
+		{/if}
+		{#if alsoBy.length}
+			<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				Also raised by {alsoBy.map((a) => a.who).join(', ')}
+			</button>
+			{#if showAlso}
+				<ol class="talk">
+					{#each alsoBy as a, i (i)}
+						<li><span class="role">{a.who}</span><div class="rationale-text"><NoteText text={a.body} /></div></li>
+					{/each}
+				</ol>
+			{/if}
 		{/if}
 		{#if messages.length}
 			<button class="why" aria-expanded={showTalk} onclick={() => (showTalk = !showTalk)}>

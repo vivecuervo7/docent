@@ -81,6 +81,10 @@ export interface FeedbackItem {
 	messages?: NoteMessage[];
 	// When the reviewer last had the finding open; an answer after this is unread.
 	readAt?: number;
+	// Checked against the panel's other findings for the same point.
+	matched?: boolean;
+	// The finding it makes the same point as, which leads their group.
+	joins?: { reviewer: string; id: string };
 }
 
 export interface FeedbackDraft {

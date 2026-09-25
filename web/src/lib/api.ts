@@ -79,6 +79,27 @@ export interface Mark {
 	decided?: boolean;
 	// A finding with an answer to a question the reviewer hasn't read yet.
 	unread?: boolean;
+	// Other reviewers' findings making the same point, grouped under this one.
+	alsoBy?: { reviewer: string; id: string; who: string; body: string; rationale?: string }[];
+}
+
+// Findings that joined another as the same point, by the lead they joined;
+// a finding whose lead has gone stands on its own again.
+export function groupsOf(record: PrRecord) {
+	const items = Object.entries(record.feedback)
+		.filter(([key]) => key.startsWith('agent-'))
+		.flatMap(([reviewer, draft]) => (draft?.items ?? []).map((item) => ({ reviewer, item })));
+	const exists = (reviewer: string, id: string) => items.some((x) => x.reviewer === reviewer && x.item.id === id);
+	const members = new Map<string, typeof items>();
+	for (const x of items) {
+		const j = x.item.joins;
+		if (!j || !exists(j.reviewer, j.id)) continue;
+		const key = `${j.reviewer}/${j.id}`;
+		members.set(key, [...(members.get(key) ?? []), x]);
+	}
+	const joined = (reviewer: string, item: { joins?: { reviewer: string; id: string } }) =>
+		!!item.joins && exists(item.joins.reviewer, item.joins.id);
+	return { membersOf: (reviewer: string, id: string) => members.get(`${reviewer}/${id}`) ?? [], joined };
 }
 
 // A reviewer's name, as the panel shows it.
@@ -87,11 +108,12 @@ export function reviewerName(record: PrRecord, id: string): string {
 }
 
 export function marksFrom(record: PrRecord): Mark[] {
+	const { membersOf, joined } = groupsOf(record);
 	const findings = Object.entries(record.feedback)
 		.filter(([key]) => key.startsWith('agent-'))
 		.flatMap(([key, draft]) =>
 			(draft?.items ?? [])
-				.filter((item) => item.path && item.start)
+				.filter((item) => item.path && item.start && !joined(key, item))
 				.map(
 					(item): Mark => ({
 						id: item.id,
@@ -105,7 +127,14 @@ export function marksFrom(record: PrRecord): Mark[] {
 						included: item.included,
 						decided: item.decided,
 						unread: isUnread(item),
-						reviewer: key
+						reviewer: key,
+						alsoBy: membersOf(key, item.id).map(({ reviewer, item: m }) => ({
+							reviewer,
+							id: m.id,
+							who: reviewerName(record, reviewer),
+							body: m.body,
+							rationale: m.rationale
+						}))
 					})
 				)
 		);

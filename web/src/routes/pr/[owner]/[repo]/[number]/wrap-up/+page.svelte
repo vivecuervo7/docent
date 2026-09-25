@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { reviewerName } from '$lib/api';
+	import { groupsOf, reviewerName } from '$lib/api';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import WrapRow from '$lib/components/WrapRow.svelte';
 	import { useSession } from '$lib/session.svelte';
@@ -16,7 +16,10 @@
 		Object.entries(session.record.feedback)
 			.filter(([key]) => key.startsWith('agent-'))
 			.flatMap(([reviewer, draft]) => (draft?.items ?? []).map((item) => ({ reviewer, item })))
+			// A group is listed once, under its lead.
+			.filter(({ reviewer, item }) => !groups.joined(reviewer, item))
 	);
+	const groups = $derived(groupsOf(session.record));
 	const undecided = $derived(findings.filter((f) => !f.item.decided));
 	const kept = $derived(findings.filter((f) => f.item.decided && f.item.included));
 	const skipped = $derived(findings.filter((f) => f.item.decided && !f.item.included));
@@ -54,6 +57,7 @@
 		body={item.body}
 		rationale={item.rationale}
 		messages={item.messages}
+		alsoBy={groups.membersOf(reviewer, item.id).map((m) => ({ who: reviewerName(session.record, m.reviewer), body: m.item.body }))}
 		kept={item.decided ? item.included : null}
 		onkeep={() => session.setFindingIncluded(reviewer, item.id, true)}
 		onskip={() => session.setFindingIncluded(reviewer, item.id, false)}

@@ -1,4 +1,5 @@
 import * as api from './api';
+import { groupsOf } from './api';
 import type { Hunk } from './diff/parse';
 import type { PrSession } from './session.svelte';
 import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewPayload } from './types';
@@ -31,8 +32,10 @@ export class ReviewPost {
 	// A finding still waiting on a decision is kept by default.
 	readonly candidates = $derived.by(() => {
 		const { feedback } = this.#session.record;
+		const { joined } = groupsOf(this.#session.record);
+		// A group goes in once, as its lead.
 		return Object.entries(feedback).flatMap(([source, draft]) =>
-			(draft?.items ?? []).filter((item) => item.included).map((item) => ({ item, source }))
+			(draft?.items ?? []).filter((item) => item.included && !joined(source, item)).map((item) => ({ item, source }))
 		);
 	});
 
@@ -87,9 +90,7 @@ export class ReviewPost {
 							: 'the PR as a whole',
 						body: item.body,
 						inline: this.isInline(item),
-						...(item.messages?.length
-							? { discussion: item.messages.map((m) => `${m.role === 'user' ? 'Reviewer' : 'Answer'}: ${m.text}`).join('\n\n') }
-							: {})
+						...this.#discussionOf(source, item)
 					}))
 				})
 			});
@@ -117,6 +118,17 @@ export class ReviewPost {
 		} catch (err) {
 			this.prepareStatus = { error: (err as Error).message };
 		}
+	}
+
+	// What was said about a finding: the reviewer's questions and the
+	// answers, and the other reviewers who raised the same point.
+	#discussionOf(source: string, item: FeedbackItem): { discussion?: string } {
+		const talk = (item.messages ?? []).map((m) => `${m.role === 'user' ? 'Reviewer' : 'Answer'}: ${m.text}`);
+		const others = groupsOf(this.#session.record)
+			.membersOf(source, item.id)
+			.map((m) => `Another reviewer raised the same point: ${m.item.body}`);
+		const parts = [...others, ...talk];
+		return parts.length ? { discussion: parts.join('\n\n') } : {};
 	}
 
 	change(update: (draft: ReviewDraft) => ReviewDraft) {
