@@ -137,6 +137,7 @@
 	{/if}
 
 	<div class="next">
+		{#if session.post.stale}<span class="faint stale-note">The prepared review is out of date.</span>{/if}
 		<button class="btn primary big" onclick={toPost}>{session.post.draft ? 'On to Post →' : 'Prepare the review →'}</button>
 	</div>
 </main>
@@ -219,7 +220,12 @@
 	}
 	.next {
 		display: flex;
+		align-items: center;
 		justify-content: flex-end;
+		gap: 14px;
+	}
+	.stale-note {
+		font-size: 13.5px;
 	}
 	.big {
 		height: 42px;

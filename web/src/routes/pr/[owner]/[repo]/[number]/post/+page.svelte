@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Dialog from '$lib/components/Dialog.svelte';
 	import EditableText from '$lib/components/EditableText.svelte';
 	import FilePath from '$lib/components/FilePath.svelte';
 	import FindingLines from '$lib/components/FindingLines.svelte';
@@ -35,6 +36,19 @@
 
 	let editing = $state<Record<string, boolean>>({});
 	let confirming = $state<ReviewPayload | null>(null);
+
+	// What's changed in Wrap up since the review was prepared, in words.
+	const staleChange = $derived.by(() => {
+		if (!draft) return '';
+		const now = post.candidates.map((c) => c.item.id);
+		const added = now.filter((id) => !draft.basedOn.includes(id)).length;
+		const dropped = draft.basedOn.filter((id) => !now.includes(id)).length;
+		const parts = [
+			added && `${added} more ${added === 1 ? 'comment or finding has' : 'comments or findings have'} been kept`,
+			dropped && `${dropped} ${dropped === 1 ? 'comment or finding is' : 'comments or findings are'} no longer kept`
+		].filter(Boolean);
+		return parts.join(' and ') || 'what’s kept in Wrap up has changed';
+	});
 	let posting = $state(false);
 	let postError = $state<string | null>(null);
 
@@ -98,7 +112,7 @@
 			<h1>Post</h1>
 			<p class="lede">A last look at the review as it will appear on the PR. Reword anything before it goes out.</p>
 		</div>
-		{#if draft && !confirming}
+		{#if draft && !(post.stale && !readOnly)}
 			{#if post.prepareStatus.pending}
 				<span class="faint pending"><Spinner size={13} /> Preparing…</span>
 			{:else if readOnly}
@@ -139,7 +153,18 @@
 				<a href={draft.posted.url} target="_blank" rel="noreferrer">View on GitHub</a>
 			</div>
 		{:else if post.stale}
-			<p class="faint">What’s kept in Wrap up has changed since this was prepared. Prepare again to include it.</p>
+			<div class="stale" role="status">
+				<div class="grow">
+					<strong>This review is out of date.</strong>
+					Since it was prepared, {staleChange}. Preparing it again takes that into account, and replaces this draft, including
+					any edits you’ve made to it.
+				</div>
+				{#if post.prepareStatus.pending}
+					<span class="faint pending"><Spinner size={13} /> Preparing…</span>
+				{:else}
+					<button class="btn primary" onclick={() => post.prepare()}>Prepare again</button>
+				{/if}
+			</div>
 		{/if}
 
 		<div class="review">
@@ -235,21 +260,6 @@
 
 		{#if !readOnly}
 			<section class="send">
-				{#if confirming}
-					<h2>Post this review?</h2>
-					<p class="faint">
-						To {session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if post.people}{' '}as {post.people.viewer}{/if}:
-						{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, hasSummary)}.
-						It’s visible to everyone on the PR.
-					</p>
-					{#if postError}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
-					<div class="actions">
-						<button class="btn" disabled={posting} onclick={() => (confirming = null)}>Back</button>
-						<button class="btn primary big" disabled={posting} onclick={send}>
-							{#if posting}<Spinner size={13} />{/if} Post to GitHub
-						</button>
-					</div>
-				{:else}
 					<div class="events" role="group" aria-label="Outcome">
 						{#each EVENTS as option (option.event)}
 							{@const unavailable = isOwnPr && option.event !== 'COMMENT'}
@@ -262,16 +272,36 @@
 							>
 						{/each}
 					</div>
-					{#if postError}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
+					{#if postError && !confirming}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
 					<div class="actions">
 						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
 						<button class="btn primary big" onclick={review}>Post review</button>
 					</div>
-				{/if}
 			</section>
 		{/if}
 	{/if}
 </main>
+
+{#if confirming && draft}
+	<Dialog label="Post this review?" width={520} onclose={() => !posting && (confirming = null)}>
+		<h2>Post this review?</h2>
+		<p class="confirm-text">
+			To {session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if post.people}{' '}as {post.people.viewer}{/if}:
+			{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, hasSummary)}.
+			It’s visible to everyone on the PR.
+		</p>
+		{#if post.stale}
+			<p class="confirm-stale">This review is out of date: since it was prepared, {staleChange}. It will post as it is now.</p>
+		{/if}
+		{#if postError}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
+		<div class="actions">
+			<button class="btn" disabled={posting} onclick={() => (confirming = null)}>Back</button>
+			<button class="btn primary big" disabled={posting} onclick={send}>
+				{#if posting}<Spinner size={13} />{/if} Post to GitHub
+			</button>
+		</div>
+	</Dialog>
+{/if}
 
 <style>
 	main {
@@ -317,6 +347,36 @@
 	.grow {
 		flex-grow: 1;
 		min-width: 0;
+	}
+	.stale {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding: 14px 16px;
+		border-radius: 12px;
+		background: var(--popover);
+		box-shadow: 0 0 0 1px var(--popover-line);
+		color: var(--muted);
+		font-size: 14.5px;
+		line-height: 1.55;
+	}
+	.stale .btn {
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+	.stale strong {
+		color: var(--agent-text);
+		font-weight: 500;
+	}
+	.confirm-text,
+	.confirm-stale {
+		margin: 0;
+		color: var(--muted);
+		font-size: 14.5px;
+		line-height: 1.6;
+	}
+	.confirm-stale {
+		color: var(--agent-text);
 	}
 	.posted {
 		display: flex;
