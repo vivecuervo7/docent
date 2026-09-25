@@ -140,7 +140,7 @@ app.post("/api/pr/:owner/:repo/:number/generation", (req, res) => {
   if (fileNotes && typeof fileNotes === "object" && !Array.isArray(fileNotes)) {
     reuse.fileNotes = fileNotes as Reuse["fileNotes"];
   }
-  res.json({ generation: startGeneration(owner, repo, number, reuse) });
+  res.json({ generation: startGeneration(owner, repo, number, reuse, reviewModel(req)) });
 });
 
 app.get("/api/pr/:owner/:repo/:number/generation", (req, res) => {
@@ -167,6 +167,13 @@ app.delete("/api/pr/:owner/:repo/:number/generation", (req, res) => {
   dismissGeneration(owner, repo, number);
   res.status(204).end();
 });
+
+// The review's own model, when the request names one; otherwise the model
+// picked on the start page is used.
+function reviewModel(req: express.Request): string | undefined {
+  const model = req.body?.model;
+  return typeof model === "string" && model.trim() && model.length <= 200 ? model.trim() : undefined;
+}
 
 // Answers a question (or writes up a remark) about lines the reviewer
 // selected. Held open until the model replies; see notes.ts for the lane.
@@ -212,7 +219,7 @@ app.post("/api/pr/:owner/:repo/:number/feedback/yours", async (req, res) => {
   });
   try {
     const prTitle = typeof req.body?.prTitle === "string" ? req.body.prTitle : undefined;
-    res.json({ comments: await draftYourFeedback(threads, prTitle, controller.signal) });
+    res.json({ comments: await draftYourFeedback(threads, prTitle, controller.signal, reviewModel(req)) });
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }
@@ -330,7 +337,7 @@ app.post("/api/pr/:owner/:repo/:number/review/prepare", async (req, res) => {
     if (!res.writableEnded) controller.abort();
   });
   try {
-    res.json(await prepareReview(owner, repo, number, candidates, controller.signal));
+    res.json(await prepareReview(owner, repo, number, candidates, controller.signal, reviewModel(req)));
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }

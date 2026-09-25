@@ -90,7 +90,7 @@ function hunkIndicesByFile(slice: Slice): Map<string, number[]> {
   return byFile;
 }
 
-async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal): Promise<FileNote[]> {
+async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal, model?: string): Promise<FileNote[]> {
   const byFile = hunkIndicesByFile(slice);
   const diff = [...byFile]
     .map(([path, indices]) => {
@@ -110,6 +110,7 @@ async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal
       ],
       REPORT_FILE_NOTES_TOOL,
       signal,
+      model,
     );
   });
 
@@ -162,9 +163,10 @@ export async function generateFileNotes(
   files: PrFile[],
   slices: Slice[],
   signal?: AbortSignal,
+  model?: string,
 ): Promise<Record<string, FileNote[]>> {
   const entries = await Promise.all(
-    slices.map(async (slice) => [slice.id, await notesForSlice(files, slice, signal)] as const),
+    slices.map(async (slice) => [slice.id, await notesForSlice(files, slice, signal, model)] as const),
   );
   return Object.fromEntries(entries.filter(([, notes]) => notes.length > 0));
 }

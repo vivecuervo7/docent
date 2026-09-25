@@ -108,7 +108,7 @@ For each slice, give a short title, a 1-2 sentence summary of what changed and w
 for review, and the exact hunk references (format "path#index") it covers. Call report_slices \
 with the result.`;
 
-export async function generateSlices(files: PrFile[], signal?: AbortSignal): Promise<Slice[]> {
+export async function generateSlices(files: PrFile[], signal?: AbortSignal, model?: string): Promise<Slice[]> {
   const refs = buildHunkRefs(files);
   if (refs.size === 0) return [];
 
@@ -119,6 +119,7 @@ export async function generateSlices(files: PrFile[], signal?: AbortSignal): Pro
     ],
     REPORT_SLICES_TOOL,
     signal,
+    model,
   );
 
   const raw = result.arguments as { slices?: unknown };

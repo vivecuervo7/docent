@@ -60,6 +60,7 @@ export async function generateSummary(
   slices: Slice[],
   conversation: ConversationSummary | null,
   signal?: AbortSignal,
+  model?: string,
 ): Promise<PrSummary> {
   const slicesText = slices.map((slice) => `- ${slice.title}: ${slice.summary}`).join("\n");
   const userContent = [
@@ -75,6 +76,7 @@ export async function generateSummary(
     ],
     SUMMARY_TOOL,
     signal,
+    model,
   );
 
   const raw = result.arguments as { what?: unknown; why?: unknown; how?: unknown };
@@ -214,6 +216,7 @@ function parseReplies(raw: unknown): ThreadReply[] {
 export async function generateConversationSummary(
   conversation: PrConversation,
   signal?: AbortSignal,
+  model?: string,
 ): Promise<ConversationSummary> {
   const empty: ConversationSummary = { prAuthor: conversation.prAuthor, reviewers: [] };
   const { reviews, comments, threads } = conversation;
@@ -226,6 +229,7 @@ export async function generateConversationSummary(
     ],
     CONVERSATION_TOOL,
     signal,
+    model,
   );
 
   const raw = result.arguments as { reviewers?: unknown; authorNotes?: unknown };

@@ -21,6 +21,8 @@ export interface StepState {
 export interface Generation {
   id: string;
   status: "queued" | "running" | "done" | "failed" | "stopped";
+  // The model it runs with, when the review has its own.
+  model?: string;
   steps: Record<StepName, StepState>;
   results: {
     slices?: Slice[];
@@ -44,6 +46,8 @@ interface Job {
   repo: string;
   number: string;
   reuse: Reuse;
+  // The review's own model; the picked one when it has none.
+  model?: string;
   controller: AbortController;
 }
 
@@ -82,7 +86,7 @@ export function getGeneration(owner: string, repo: string, number: string): Gene
 // Attaches to a generation that's already queued or running for this PR;
 // otherwise replaces any finished one with a fresh run. Steps with a result
 // in `reuse` are treated as already done.
-export function startGeneration(owner: string, repo: string, number: string, reuse: Reuse): Generation {
+export function startGeneration(owner: string, repo: string, number: string, reuse: Reuse, model?: string): Generation {
   const key = keyFor(owner, repo, number);
   const existing = jobs.get(key);
   if (existing && isActive(existing.generation)) return existing.generation;
@@ -90,6 +94,7 @@ export function startGeneration(owner: string, repo: string, number: string, reu
   const generation: Generation = {
     id: `${key}:${Date.now()}`,
     status: "queued",
+    model,
     steps: {
       slices: { status: reuse.slices ? "done" : "pending" },
       conversation: { status: reuse.conversation ? "done" : "pending" },
@@ -98,7 +103,7 @@ export function startGeneration(owner: string, repo: string, number: string, reu
     },
     results: {},
   };
-  jobs.set(key, { generation, owner, repo, number, reuse, controller: new AbortController() });
+  jobs.set(key, { generation, owner, repo, number, reuse, model, controller: new AbortController() });
   queue.push(key);
   pump();
   return generation;
@@ -139,7 +144,7 @@ function pump() {
 }
 
 async function run(job: Job) {
-  const { generation, owner, repo, number, reuse, controller } = job;
+  const { generation, owner, repo, number, reuse, model, controller } = job;
   const { signal } = controller;
   generation.status = "running";
 
@@ -154,14 +159,14 @@ async function run(job: Job) {
     const [slices, conversation] = await Promise.all([
       reuse.slices ??
         step("slices", async () => {
-          const slices = await generateSlices(await fetchPrFiles(owner, repo, number), signal);
+          const slices = await generateSlices(await fetchPrFiles(owner, repo, number), signal, model);
           generation.results.slices = slices;
           return slices;
         }),
       reuse.conversation ??
         step("conversation", async () => {
           const raw = await fetchPrConversation(owner, repo, number);
-          const conversation = await generateConversationSummary(raw, signal);
+          const conversation = await generateConversationSummary(raw, signal, model);
           generation.results.conversation = conversation;
           return conversation;
         }),
@@ -171,12 +176,12 @@ async function run(job: Job) {
     await Promise.all([
       step("summary", async () => {
         const meta = await fetchPrMeta(owner, repo, number);
-        generation.results.summary = await generateSummary(meta, slices, conversation, signal);
+        generation.results.summary = await generateSummary(meta, slices, conversation, signal, model);
       }),
       reuse.slices && reuse.fileNotes
         ? undefined
         : step("notes", async () => {
-            generation.results.fileNotes = await generateFileNotes(await fetchPrFiles(owner, repo, number), slices, signal);
+            generation.results.fileNotes = await generateFileNotes(await fetchPrFiles(owner, repo, number), slices, signal, model);
           }),
     ]);
     generation.status = "done";

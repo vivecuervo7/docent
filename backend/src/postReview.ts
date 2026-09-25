@@ -115,6 +115,7 @@ export function prepareReview(
   number: string,
   candidates: Candidate[],
   signal: AbortSignal,
+  model?: string,
 ): Promise<PreparedReview> {
   return inLane(async () => {
     signal.throwIfAborted();
@@ -135,6 +136,7 @@ export function prepareReview(
       ],
       REPORT_REVIEW_TOOL,
       signal,
+      model,
     );
     return settle(candidates, call.arguments as Record<string, unknown>);
   });

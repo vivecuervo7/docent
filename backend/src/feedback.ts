@@ -76,6 +76,7 @@ export function draftYourFeedback(
   threads: ThreadForFeedback[],
   prTitle: string | undefined,
   signal: AbortSignal,
+  model?: string,
 ): Promise<DraftedComment[]> {
   return inLane(async () => {
     signal.throwIfAborted();
@@ -87,6 +88,7 @@ export function draftYourFeedback(
       ],
       REPORT_FEEDBACK_TOOL,
       signal,
+      model,
     );
     const raw = (call.arguments as { comments?: unknown }).comments;
     if (!Array.isArray(raw)) return [];
