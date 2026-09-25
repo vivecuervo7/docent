@@ -27,8 +27,8 @@ in `backend/data/docent.db`.
     not include; a call to one of those says so.
   - Any number of OpenAI-compatible providers: a local server such as oMLX
     or LM Studio, or a hosted proxy such as LiteLLM. Add them on the
-    **Settings** page, with a key if they need one and how many requests
-    each takes at once.
+    **Settings** page, with a key if they need one and how many concurrent
+    requests each takes.
 
 Settings are saved on your machine in `backend/data/settings.json` (keys
 included; the file is written owner-only and keys never go back to the

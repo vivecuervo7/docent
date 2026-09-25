@@ -63,6 +63,9 @@ interface Settings {
   externalReviewers?: ExternalReviewer[];
   // PRs kept off the start page's lists, as "owner/repo/number".
   hiddenPrs?: string[];
+  // Calls run at once through each tool; see laneOf.
+  claudeCodeConcurrency?: number;
+  codexConcurrency?: number;
   // Plain strings are from before panels had personas.
   panel?: (string | PanelEntry)[];
   providers?: Provider[];
@@ -241,6 +244,28 @@ function selected(): ResolvedModel | null {
   return resolveModel(modelName());
 }
 
+// Claude Code and Codex calls run on the reviewer's own plan and are
+// separate processes here, so how many at once is theirs to choose.
+const RUNNER_DEFAULT = 10;
+
+export function runnerConcurrency(runner: "claude-code" | "codex"): number {
+  const s = readSettings();
+  return (runner === "codex" ? s.codexConcurrency : s.claudeCodeConcurrency) ?? RUNNER_DEFAULT;
+}
+
+export function setRunnerConcurrency(runner: "claude-code" | "codex", n: number): void {
+  writeSettings(runner === "codex" ? { codexConcurrency: n } : { claudeCodeConcurrency: n });
+}
+
+// The queue a model's calls wait in, and how many run at once: one queue per
+// tool or provider, so a Codex reviewer never waits behind Claude Code calls.
+export function laneOf(model?: string): { key: string; cap: number } {
+  const resolved = resolveModel(model ?? modelName());
+  if (!resolved) return { key: "none", cap: 1 };
+  if (resolved.kind === "provider") return { key: resolved.provider.id, cap: resolved.provider.concurrency };
+  return { key: resolved.kind, cap: runnerConcurrency(resolved.kind) };
+}
+
 // PRs being prepared at once; the rest wait in a queue.
 export function maxConcurrentGenerations(): number {
   const model = selected();
@@ -248,10 +273,3 @@ export function maxConcurrentGenerations(): number {
   return model.kind === "provider" ? model.provider.concurrency : 3;
 }
 
-// Other model calls at once: question replies, drafting, the agent review
-// and preparing the review.
-export function maxConcurrentRequests(): number {
-  const model = selected();
-  if (!model) return 1;
-  return model.kind === "provider" ? model.provider.concurrency : 4;
-}

@@ -112,7 +112,7 @@ async function notesForSlice(files: PrFile[], slice: Slice, signal?: AbortSignal
       signal,
       model,
     );
-  });
+  }, model);
 
   const raw = (call.arguments as { notes?: unknown }).notes;
   return (Array.isArray(raw) ? raw : []).flatMap((entry): FileNote[] => {

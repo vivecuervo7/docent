@@ -218,7 +218,9 @@
 							<Spinner size={13} />
 							{!review.progress?.total
 								? 'Starting…'
-								: review.progress.current === 'the whole PR'
+								: review.progress.waiting
+									? 'Waiting for its turn'
+									: review.progress.current === 'the whole PR'
 									? 'Reading the whole PR first'
 									: `Reviewing ${review.progress.current ?? '…'} (${Math.max(1, Math.min(review.progress.done, review.progress.total - 1))} of ${review.progress.total - 1})`}
 							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>

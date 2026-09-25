@@ -31,7 +31,8 @@ export interface AgentReview {
   model?: string;
   status: "running" | "done" | "failed" | "stopped";
   // The built-in reviewer goes a slice at a time.
-  progress?: { done: number; total: number; current?: string };
+  // `waiting` while its next call is queued behind others.
+  progress?: { done: number; total: number; current?: string; waiting?: boolean };
   findings: Finding[];
   error?: string;
   startedAt: number;
@@ -479,9 +480,10 @@ async function runBuiltin(
     };
 
     // First the whole PR, for the brief every part's review starts from.
-    review.progress = { done: 0, total: parts.length + 1, current: "the whole PR" };
+    review.progress = { done: 0, total: parts.length + 1, current: "the whole PR", waiting: true };
     const briefCall = await inLane(() => {
       signal.throwIfAborted();
+      review.progress = { ...review.progress!, waiting: false };
       return chatWithTool(
         [
           { role: "system", content: BRIEF_PROMPT + focusNote },
@@ -494,7 +496,7 @@ async function runBuiltin(
         signal,
         model,
       );
-    });
+    }, model);
     if (review.status !== "running") return;
     const briefArgs = briefCall.arguments as { brief?: unknown; checks?: unknown; findings?: unknown };
     const brief = typeof briefArgs.brief === "string" ? briefArgs.brief : "";
@@ -524,9 +526,10 @@ ${fits ? `The whole diff, for context:\n\n${wholeDiff}` : `The files it changes:
 Raise only what still holds given the whole PR: leave out anything the brief shows is handled \
 elsewhere in it, or deliberate. Problems that span parts have been raised already.`;
     const reviewPart = async (part: (typeof parts)[number]) => {
+      review.progress = { ...review.progress!, waiting: true };
       const call = await inLane(async () => {
         signal.throwIfAborted();
-        review.progress = { ...review.progress!, current: part.title };
+        review.progress = { ...review.progress!, current: part.title, waiting: false };
         const toCheck = checks.filter((c) => c.part.trim().toLowerCase() === part.title.trim().toLowerCase()).map((c) => `- ${c.check}`);
         return chatWithTool(
           [
@@ -540,7 +543,7 @@ elsewhere in it, or deliberate. Problems that span parts have been raised alread
           signal,
           model,
         );
-      });
+      }, model);
       if (review.status !== "running") return;
       await keep((call.arguments as { findings?: unknown }).findings);
       review.progress = { ...review.progress!, done: review.progress!.done + 1 };

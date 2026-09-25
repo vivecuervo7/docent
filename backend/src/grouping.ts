@@ -1,7 +1,7 @@
 import { claudeCodeAvailable } from "./claudeCode.js";
 import { modelName } from "./config.js";
 import { chatWithTool } from "./modelProvider.js";
-import { inLane } from "./notes.js";
+import { inNamedLane } from "./notes.js";
 
 // Grouping findings that make the same point: with several reviewers on a
 // panel, the same issue is often raised more than once. Each new finding is
@@ -48,7 +48,8 @@ async function matchingModel(): Promise<string> {
 }
 
 export function matchFindings(fresh: Comparable[], existing: Comparable[], signal: AbortSignal): Promise<Map<string, string>> {
-  return inLane(async () => {
+  // A small queue of its own, so grouping keeps up while reviews run.
+  return inNamedLane("grouping", 2, async () => {
     signal.throwIfAborted();
     const list = (items: Comparable[]) => items.map((f) => `[${f.id}] ${f.location}\\n${f.body}`).join("\\n\\n");
     const call = await chatWithTool(

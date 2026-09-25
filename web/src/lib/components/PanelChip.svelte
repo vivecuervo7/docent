@@ -70,7 +70,9 @@
 			const p = live?.progress;
 			const where = !p?.total
 				? 'Starting'
-				: p.current === 'the whole PR'
+				: p.waiting
+					? 'Waiting for its turn'
+					: p.current === 'the whole PR'
 					? 'Reading the whole PR'
 					: `Slice ${Math.max(1, Math.min(p.done, p.total - 1))} of ${p.total - 1}`;
 			return { text: `${where}${elapsed}`, working: true };

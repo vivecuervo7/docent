@@ -139,7 +139,7 @@ export function prepareReview(
       model,
     );
     return settle(candidates, call.arguments as Record<string, unknown>);
-  });
+  }, model);
 }
 
 // Holds the model to its instructions: unknown ids are ignored, a candidate

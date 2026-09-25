@@ -31,6 +31,8 @@ import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import {
   addProvider,
   externalReviewers,
+  runnerConcurrency,
+  setRunnerConcurrency,
   hiddenPrs,
   setHidden,
   personas,
@@ -460,6 +462,17 @@ app.put("/api/models/selected", (req, res) => {
   res.json({ selected: modelName() });
 });
 
+// How many calls Claude Code or Codex runs at once.
+app.put("/api/runners/:runner", (req, res) => {
+  const { runner } = req.params;
+  const n = req.body?.concurrency;
+  if ((runner !== "claude-code" && runner !== "codex") || !Number.isInteger(n) || n < 1 || n > 32) {
+    return res.status(400).json({ error: "Choose from 1 to 32." });
+  }
+  setRunnerConcurrency(runner, n);
+  res.json({ concurrency: runnerConcurrency(runner) });
+});
+
 // The Settings page: Claude Code, Codex, and the OpenAI-compatible providers with
 // whether each answers. A provider's key is never sent back, only whether
 // it has one.
@@ -469,8 +482,8 @@ app.get("/api/providers", async (_req, res) => {
   const list = providers();
   const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(), Promise.all(list.map(listProviderModels))]);
   res.json({
-    claudeCode: { installed: claude, models: claude ? CLAUDE_CODE_MODELS : [] },
-    codex,
+    claudeCode: { installed: claude, models: claude ? CLAUDE_CODE_MODELS : [], concurrency: runnerConcurrency("claude-code") },
+    codex: { ...codex, concurrency: runnerConcurrency("codex") },
     providers: list.map((p, i) => ({ ...publicProvider(p), ...statuses[i] })),
   });
 });

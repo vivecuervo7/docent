@@ -213,7 +213,8 @@ export interface AgentReview {
 	source: 'builtin' | 'external' | 'session';
 	model?: string;
 	status: 'running' | 'done' | 'failed' | 'stopped';
-	progress?: { done: number; total: number; current?: string };
+	// `waiting` while its next call is queued behind others.
+	progress?: { done: number; total: number; current?: string; waiting?: boolean };
 	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string }[];
 	error?: string;
 	startedAt: number;

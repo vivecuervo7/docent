@@ -3,6 +3,7 @@
 	import { ask } from '$lib/confirm.svelte';
 	import ExternalReviewerSettings from '$lib/components/ExternalReviewerSettings.svelte';
 	import PersonaSettings from '$lib/components/PersonaSettings.svelte';
+	import RunnerConcurrency from '$lib/components/RunnerConcurrency.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 
@@ -27,8 +28,8 @@
 	}
 
 	let setup = $state<{
-		claudeCode: { installed: boolean; models: string[] };
-		codex: { installed: boolean; models: string[] };
+		claudeCode: { installed: boolean; models: string[]; concurrency?: number };
+		codex: { installed: boolean; models: string[]; concurrency?: number };
 		providers: Provider[];
 	} | null>(null);
 	let loading = $state(false);
@@ -129,8 +130,8 @@
 			{/if}
 		</div>
 		<label class="narrow">
-			<span>Requests at once</span>
-			<input type="number" min="1" max="16" bind:value={draft.concurrency} />
+			<span>Concurrent requests</span>
+			<input type="text" inputmode="numeric" pattern="[0-9]*" bind:value={draft.concurrency} />
 			<small class="faint">1 for a local server, which answers one at a time. A hosted one can take more.</small>
 		</label>
 		{#if formError}<p class="bad">{formError}</p>{/if}
@@ -162,6 +163,7 @@
 				<div class="text">
 					{#if setup.claudeCode.installed}
 						<p>Installed. Its models ({setup.claudeCode.models.join(', ')}) run on your own login, through <code>claude -p</code> with no tools.</p>
+						<RunnerConcurrency runner="claude-code" value={setup.claudeCode.concurrency ?? 10} />
 					{:else}
 						<p>
 							Not installed. Install <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> and sign
@@ -186,6 +188,7 @@
 							Signed in. Its models ({setup.codex.models.join(', ')}) run on your own login, through <code>codex exec</code> with its
 							tools switched off. Some may be outside your plan; a call to one says so.
 						</p>
+						<RunnerConcurrency runner="codex" value={setup.codex.concurrency ?? 10} />
 					{:else}
 						<p>
 							Not installed or not signed in. Install <a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a>
@@ -220,7 +223,7 @@
 										<p class="ok">{p.models.length} {p.models.length === 1 ? 'model' : 'models'} available</p>
 									{/if}
 									<p class="faint meta">
-										{p.concurrency} {p.concurrency === 1 ? 'request' : 'requests'} at once · {p.hasKey ? 'key saved' : 'no key'}
+										{p.concurrency} concurrent {p.concurrency === 1 ? 'request' : 'requests'} · {p.hasKey ? 'key saved' : 'no key'}
 									</p>
 								</div>
 								<div class="controls">

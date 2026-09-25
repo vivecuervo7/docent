@@ -1,4 +1,4 @@
-import { maxConcurrentRequests } from "./config.js";
+import { laneOf } from "./config.js";
 import { chat, type ChatMessage } from "./modelProvider.js";
 
 // Replies to notes left on selected lines. These run in their own lane,
@@ -58,31 +58,39 @@ function contextMessage(context: NoteContext): string {
   return parts.join("\n\n");
 }
 
-let active = 0;
-const waiting: (() => void)[] = [];
+// A queue per tool or provider (see laneOf), each running as many calls at
+// once as it allows, the rest waiting their turn.
+const lanes = new Map<string, { active: number; waiting: (() => void)[] }>();
 
-function admit() {
-  while (active < maxConcurrentRequests() && waiting.length > 0) {
-    active++;
-    waiting.shift()!();
+function admit(key: string, cap: number) {
+  const lane = lanes.get(key)!;
+  while (lane.active < cap && lane.waiting.length > 0) {
+    lane.active++;
+    lane.waiting.shift()!();
   }
 }
 
-// Shared by the other interactive model calls, such as drafting feedback:
-// as many run at once as the model allows, and the rest wait their turn.
-export function inLane<T>(work: () => Promise<T>): Promise<T> {
+export function inNamedLane<T>(key: string, cap: number, work: () => Promise<T>): Promise<T> {
+  if (!lanes.has(key)) lanes.set(key, { active: 0, waiting: [] });
+  const lane = lanes.get(key)!;
   return new Promise<void>((start) => {
-    waiting.push(start);
-    admit();
+    lane.waiting.push(start);
+    admit(key, cap);
   })
     .then(work)
     .finally(() => {
-      active--;
-      admit();
+      lane.active--;
+      admit(key, cap);
     });
 }
 
-// `model` answers with a model of its own: the one that raised a finding.
+// Shared by the interactive model calls - replies, drafting, reviews,
+// preparing the review - in the queue for the model they call.
+export function inLane<T>(work: () => Promise<T>, model?: string): Promise<T> {
+  const { key, cap } = laneOf(model);
+  return inNamedLane(key, cap, work);
+}
+
 export function replyToNote(
   context: NoteContext,
   messages: NoteMessage[],
@@ -99,5 +107,5 @@ export function replyToNote(
       ...rest.map((m): ChatMessage => ({ role: m.role, content: m.text })),
     ];
     return model ? chat(conversation, signal, model) : chat(conversation, signal);
-  });
+  }, model);
 }
