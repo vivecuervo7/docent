@@ -89,7 +89,7 @@
 		</label>
 		<label>
 			<span>Prompt</span>
-			<textarea bind:value={draft.command} rows="3" placeholder="Review {'{pr_url}'} for correctness and security issues" required></textarea>
+			<textarea bind:value={draft.command} rows="1" placeholder="Review {'{pr_url}'} for correctness and security issues" required></textarea>
 			<small class="faint">
 				A prompt or a skill, as you’d type it in Claude Code. <code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>,
 				<code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in. It runs unattended, so include anything it needs to
@@ -289,8 +289,9 @@
 	}
 	.form textarea {
 		height: auto;
-		min-height: 76px;
-		padding: 9px 12px;
+		min-height: 36px;
+		box-sizing: border-box;
+		padding: 7px 12px;
 		resize: vertical;
 		field-sizing: content;
 		line-height: 1.5;
