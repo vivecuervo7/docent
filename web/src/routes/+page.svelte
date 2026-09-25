@@ -23,6 +23,7 @@
 		title: string;
 		author?: string;
 		updatedAt: string;
+		createdAt: string;
 		isDraft: boolean;
 		decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
 		reviews: { state: string; author?: string }[];
@@ -52,12 +53,12 @@
 	}
 
 	// How Your reviews are ordered, kept in this browser.
-	type Sort = 'recent' | 'repo' | 'author';
+	type Sort = 'recent' | 'raised' | 'repo' | 'author';
 	let sort = $state<Sort>(readSort());
 	function readSort(): Sort {
 		try {
 			const value = localStorage.getItem('docent.sort');
-			return value === 'repo' || value === 'author' ? value : 'recent';
+			return value === 'raised' || value === 'repo' || value === 'author' ? value : 'recent';
 		} catch {
 			return 'recent';
 		}
@@ -93,8 +94,9 @@
 	const mine = $derived(notComplete.filter(isMine));
 	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt));
 	// A list in groups: one group by recency, else one per repo or author.
-	function grouped<T extends PrRef>(list: T[], authorOf: (item: T) => string | undefined) {
+	function grouped<T extends PrRef>(list: T[], authorOf: (item: T) => string | undefined, raised: (item: T) => number) {
 		if (sort === 'recent') return [{ label: '', items: list }];
+		if (sort === 'raised') return [{ label: '', items: [...list].sort((a, b) => raised(b) - raised(a)) }];
 		const labelOf = (item: T) => (sort === 'repo' ? `${item.owner}/${item.repo}` : (authorOf(item) ?? 'Author not known yet'));
 		const byLabel = new Map<string, T[]>();
 		for (const pr of list) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
@@ -131,10 +133,11 @@
 			const mark = `${generation.id}:${generation.status}`;
 			if (isGenerating(generation) || collected.has(mark)) continue;
 			collected.add(mark);
-			const { slices, conversation, summary, fileNotes } = generation.results;
+			const { slices, conversation, summary, fileNotes, head } = generation.results;
 			if (slices || conversation || summary || fileNotes) {
 				await updateRecord(ref, (r) => {
 					if (slices) r.slices = slices;
+					if (slices && head) r.preparedHead = head;
 					if (conversation) r.conversation = conversation;
 					if (summary) r.summary = summary;
 					if (fileNotes) r.fileNotes = fileNotes;
@@ -148,7 +151,7 @@
 			if (!list.some((s) => keyOf(s) === keyOf(ref))) list.push({ ...ref, record: normalize({}) });
 		}
 		saved = list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0));
-		fillAuthors(list);
+		loadStatuses(list);
 		generations = listed.filter(({ generation }) => generation.status !== 'done');
 	}
 
@@ -156,23 +159,56 @@
 		refresh();
 	});
 
-	// Reviews saved before authors were kept get theirs, once each.
-	const askedAuthor = new Set<string>();
-	function fillAuthors(list: SavedPr[]) {
-		for (const pr of list) {
-			if (pr.record.author || !pr.record.title || askedAuthor.has(keyOf(pr))) continue;
-			askedAuthor.add(keyOf(pr));
-			api
-				.fetchPr(pr)
-				.then(({ meta }) => {
-					const author = meta?.author;
-					if (!author) return;
-					return updateRecord(pr, (r) => (r.author = author)).then(() => {
-						saved = (saved ?? []).map((s) => (keyOf(s) === keyOf(pr) ? { ...s, record: { ...s.record, author } } : s));
-					});
-				})
-				.catch(() => {});
-		}
+	// Where each saved PR stands on GitHub now: its author, when it was
+	// raised, and its head commit, to tell which have had new commits since
+	// they were prepared. Checked on load and every few minutes.
+	interface PrStatus extends PrRef {
+		head: string;
+		createdAt: string;
+		author?: string;
+		state: 'OPEN' | 'CLOSED' | 'MERGED';
+	}
+	let statuses = $state<Record<string, PrStatus>>({});
+	let statusesAt = 0;
+	function loadStatuses(list: SavedPr[], force = false) {
+		if (!list.length || (!force && Date.now() - statusesAt < 5 * 60_000)) return;
+		statusesAt = Date.now();
+		fetch('/api/pr-statuses', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ prs: list.map(({ owner, repo, number }) => ({ owner, repo, number })) })
+		})
+			.then((res) => api.readOk<{ statuses: PrStatus[] }>(res))
+			.then((r) => (statuses = Object.fromEntries(r.statuses.map((st) => [keyOf(st), st]))))
+			.catch(() => {});
+	}
+	$effect(() => {
+		const every = setInterval(() => saved && loadStatuses(saved, true), 5 * 60_000);
+		return () => clearInterval(every);
+	});
+	const authorOf = (pr: SavedPr) => pr.record.author ?? statuses[keyOf(pr)]?.author;
+	const raisedAt = (pr: SavedPr) => Date.parse(statuses[keyOf(pr)]?.createdAt ?? '') || 0;
+	// New commits since the slices were made.
+	const updatedSince = (pr: SavedPr) => {
+		const now = statuses[keyOf(pr)]?.head;
+		return !!pr.record.preparedHead && !!now && now !== pr.record.preparedHead;
+	};
+
+	// Where a review stands, as one of a few states.
+	function stateOf(pr: SavedPr): { label: string; tone: 'working' | 'ready' | 'going' | 'done' | 'bad' | 'quiet' } {
+		const generation = generationFor(pr);
+		if (generation?.status === 'queued') return { label: 'Queued', tone: 'quiet' };
+		if (isGenerating(generation) && generation?.steps.summary.status !== 'done') return { label: 'Preparing', tone: 'working' };
+		if (generation?.status === 'failed') return { label: 'Preparing failed', tone: 'bad' };
+		if (generation?.status === 'stopped' && !pr.record.summary) return { label: 'Stopped', tone: 'quiet' };
+		if (pr.record.completedAt) return { label: 'Complete', tone: 'done' };
+		if (pr.record.review?.posted) return { label: 'Posted', tone: 'done' };
+		if (panelFor(pr)?.running) return { label: 'Reviewing', tone: 'working' };
+		const { done, total } = progress(pr);
+		if (total && done === total) return { label: 'Read', tone: 'going' };
+		if (done > 0) return { label: 'In progress', tone: 'going' };
+		if (pr.record.summary || total) return { label: 'Ready', tone: 'ready' };
+		return { label: 'Not prepared', tone: 'quiet' };
 	}
 
 	const anyRunning = $derived(
@@ -264,14 +300,13 @@
 		</form>
 
 		{#snippet reviewRow(pr: SavedPr)}
-			{@const generation = generationFor(pr)}
-			{@const { done, total } = progress(pr)}
+			{@const standing = stateOf(pr)}
 			<li>
 				<a href="/pr/{pr.owner}/{pr.repo}/{pr.number}">
 					<span class="text">
 						<span class="title">{pr.record.title ?? `#${pr.number}`}</span>
 						<span class="faint meta">
-							{pr.owner}/{pr.repo} #{pr.number}{pr.record.author ? ` · by ${pr.record.author}` : ''}{pr.record.lastOpenedAt
+							{pr.owner}/{pr.repo} #{pr.number}{authorOf(pr) ? ` · by ${authorOf(pr)}` : ''}{pr.record.lastOpenedAt
 									? ` · opened ${timeAgo(pr.record.lastOpenedAt, now)}`
 									: ''}
 							{#if panelFor(pr)}
@@ -285,26 +320,13 @@
 							{/if}
 						</span>
 					</span>
-					{#if generation?.status === 'queued'}
-						<span class="state faint">Queued</span>
-					{:else if isGenerating(generation) && generation?.steps.summary.status !== 'done'}
-						<span class="state working"><Spinner size={14} />Preparing</span>
-					{:else if isGenerating(generation)}
-						<!-- Readable now; only the file notes are still coming. -->
-						<span class="state faint" title="Ready to read; notes on the tests and larger changes are still coming">
-							<Spinner size={12} />
-							{done} of {total} slices
+					<span class="state">
+						{#if updatedSince(pr)}<span class="updated" title="The PR has new commits since Docent prepared it">Updated since</span>{/if}
+						<span class="status-label {standing.tone}">
+							{#if standing.tone === 'working'}<Spinner size={11} />{:else}<span class="dot" aria-hidden="true"></span>{/if}
+							{standing.label}
 						</span>
-					{:else if generation?.status === 'failed'}
-						<span class="state bad">Preparing failed</span>
-					{:else if generation?.status === 'stopped'}
-						<span class="state faint">Stopped</span>
-					{:else if total > 0}
-						<span class="state faint">
-							<span class="bar" aria-hidden="true"><span style:width="{(done / total) * 100}%"></span></span>
-							{done} of {total} slices
-						</span>
-					{/if}
+					</span>
 				</a>
 				<button class="icon delete" aria-label="Delete this review" onclick={() => remove(pr)}>
 					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -322,7 +344,7 @@
 		{#if waiting.length}
 			<section aria-labelledby="requests-heading">
 				<h2 id="requests-heading" class="caps">Waiting for your review</h2>
-				{#each grouped(waitingSorted, (r) => r.author) as group (group.label)}
+				{#each grouped(waitingSorted, (r) => r.author, (r) => Date.parse(r.createdAt) || 0) as group (group.label)}
 					{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
 					<ul>
 						{#each group.items as r (keyOf(r))}
@@ -375,7 +397,7 @@
 			{#if viewOpen}
 				<div class="view-menu" role="menu" aria-label="View">
 					<span class="menu-group">Order by</span>
-					{#each [['recent', 'Most recent'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
+					{#each [['recent', 'Last opened'], ['raised', 'Raised'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
 						<button role="menuitemradio" aria-checked={sort === value} onclick={() => setSort(value as Sort)}>
 							<span class="tick">{#if sort === value}✓{/if}</span>
 							<span>{label}</span>
@@ -387,7 +409,7 @@
 		{/snippet}
 
 		{#snippet groups(list: SavedPr[])}
-			{#each grouped(list, (pr) => pr.record.author) as group (group.label)}
+			{#each grouped(list, authorOf, raisedAt) as group (group.label)}
 				{#if group.label}{@render groupHeading(group.label, group.items.length)}{/if}
 				<ul>
 					{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
@@ -428,6 +450,46 @@
 </div>
 
 <style>
+	.status-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		font-size: 13px;
+		white-space: nowrap;
+		color: var(--muted);
+	}
+	.status-label .dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: currentColor;
+	}
+	.status-label.working {
+		color: var(--agent-text);
+	}
+	.status-label.ready {
+		color: var(--you-text);
+	}
+	.status-label.going {
+		color: var(--text);
+	}
+	.status-label.done {
+		color: var(--done);
+	}
+	.status-label.bad {
+		color: var(--danger);
+	}
+	.status-label.quiet {
+		color: var(--faint);
+	}
+	.updated {
+		padding: 2px 8px;
+		border-radius: 999px;
+		background: var(--agent-chip);
+		color: var(--agent-text);
+		font-size: 12px;
+		white-space: nowrap;
+	}
 	.list-tools {
 		display: flex;
 		justify-content: flex-end;

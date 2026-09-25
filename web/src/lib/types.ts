@@ -156,6 +156,9 @@ export interface PrRecord {
 	model?: string;
 	// The PR's author, saved when it's opened, for the start page.
 	author?: string;
+	// The PR's head commit when its slices were made, to tell when it's had
+	// new commits since.
+	preparedHead?: string;
 	// Set once the reviewer marks the review complete, after posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
@@ -178,6 +181,8 @@ export interface Generation {
 		conversation?: ConversationSummary;
 		summary?: PrSummary;
 		fileNotes?: Record<string, FileNote[]>;
+		// The head commit the slices were made from.
+		head?: string;
 	};
 	error?: string;
 }

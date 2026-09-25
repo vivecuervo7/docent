@@ -453,7 +453,12 @@ export class PrSession {
 			done.add(step);
 			this.update(change).catch(() => {});
 		};
-		if (slices) save('slices', (r) => (r.slices = slices));
+		const head = next.results.head;
+		if (slices)
+			save('slices', (r) => {
+				r.slices = slices;
+				if (head) r.preparedHead = head;
+			});
 		if (conversation) save('conversation', (r) => (r.conversation = conversation));
 		if (summary && !done.has('summary')) {
 			save('summary', (r) => (r.summary = summary));
