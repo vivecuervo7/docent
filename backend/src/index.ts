@@ -1,5 +1,5 @@
 import express from "express";
-import {
+import { fetchReviewRequests,
   fetchAttachment,
   fetchPrConversation,
   fetchFileContentAtRef,
@@ -224,6 +224,15 @@ function reviewerParam(req: express.Request): string | null {
   const reviewer = req.query.reviewer ?? DEFAULT_REVIEWER;
   return typeof reviewer === "string" && REVIEWER_RE.test(reviewer) ? reviewer : null;
 }
+
+// PRs the reviewer has been asked to review, for the start page.
+app.get("/api/review-requests", async (_req, res) => {
+  try {
+    res.json({ requests: await fetchReviewRequests() });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
+  }
+});
 
 // Every agent review running or waiting to be collected, across PRs.
 app.get("/api/agent-reviews", (_req, res) => {

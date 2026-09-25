@@ -52,6 +52,7 @@ export interface PrMeta {
   title: string;
   body: string | null;
   htmlUrl: string;
+  author?: string;
 }
 
 export async function fetchPrMeta(owner: string, repo: string, number: string): Promise<PrMeta> {
@@ -59,7 +60,7 @@ export async function fetchPrMeta(owner: string, repo: string, number: string): 
     "api",
     `repos/${owner}/${repo}/pulls/${number}`,
     "--jq",
-    "{title: .title, body: .body, htmlUrl: .html_url}",
+    "{title: .title, body: .body, htmlUrl: .html_url, author: .user.login}",
   ]);
 
   return JSON.parse(stdout) as PrMeta;
@@ -237,4 +238,63 @@ export async function fetchFileContentAtRef(
   } catch {
     return null;
   }
+}
+
+export interface ReviewRequest {
+  owner: string;
+  repo: string;
+  number: string;
+  title: string;
+  url: string;
+  author?: string;
+  updatedAt: string;
+  isDraft: boolean;
+  // GitHub's verdict so far, and each reviewer's latest review.
+  decision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+  reviews: { state: string; author?: string }[];
+}
+
+// Open PRs where the reviewer is asked for a review by name (not through a
+// team), with where each one's review stands.
+export async function fetchReviewRequests(): Promise<ReviewRequest[]> {
+  const query = `query {
+    search(query: "is:pr is:open user-review-requested:@me archived:false", type: ISSUE, first: 50) {
+      nodes { ... on PullRequest {
+        number title url updatedAt isDraft
+        repository { nameWithOwner }
+        author { login }
+        reviewDecision
+        latestReviews(first: 20) { nodes { state author { login } } }
+      } }
+    }
+  }`;
+  const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=${query}`]);
+  const nodes = (JSON.parse(stdout).data?.search?.nodes ?? []) as {
+    number: number;
+    title: string;
+    url: string;
+    updatedAt: string;
+    isDraft: boolean;
+    repository: { nameWithOwner: string };
+    author: { login: string } | null;
+    reviewDecision: ReviewRequest["decision"];
+    latestReviews: { nodes: { state: string; author: { login: string } | null }[] };
+  }[];
+  return nodes
+    .filter((n) => n.repository)
+    .map((n) => {
+      const [owner, repo] = n.repository.nameWithOwner.split("/");
+      return {
+        owner,
+        repo,
+        number: String(n.number),
+        title: n.title,
+        url: n.url,
+        author: n.author?.login,
+        updatedAt: n.updatedAt,
+        isDraft: n.isDraft,
+        decision: n.reviewDecision,
+        reviews: n.latestReviews.nodes.map((r) => ({ state: r.state, author: r.author?.login })),
+      };
+    });
 }
