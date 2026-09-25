@@ -58,7 +58,7 @@ projects:
 claude mcp add --scope user --transport http docent http://localhost:3001/mcp
 ```
 
-Then set a reviewer on the panel to "Claude Code or any MCP agent" and start
+Then set a reviewer on the panel to "Connect via MCP" and start
 it. After your usual review, tell your agent the sentence the panel shows
 (it names the PR and the reviewer), and the findings are pinned on the code
 as you read. You can also run `/mcp__docent__review owner/repo#123` to have
