@@ -13,6 +13,8 @@
 	let formError = $state<string | null>(null);
 	let saved = $state<SavedPr[] | null>(null);
 	let generations = $state<(PrRef & { generation: Generation })[]>([]);
+	// Agent reviews running, or finished and not yet collected by the PR.
+	let agentReviews = $state<(PrRef & { reviewer: string; status: string; findings: number })[]>([]);
 	let now = $state(Date.now());
 	// Without a signed-in GitHub CLI nothing opens, so say where to start.
 	let ghMissing = $state(false);
@@ -31,6 +33,10 @@
 	// while nobody was looking gets its results saved here; a finished one is
 	// then dropped from the backend.
 	async function refresh() {
+		fetch('/api/agent-reviews')
+			.then((res) => api.readOk<{ reviews: typeof agentReviews }>(res))
+			.then(({ reviews }) => (agentReviews = reviews))
+			.catch(() => {});
 		const listed = await api.listGenerations().catch(() => []);
 		for (const { generation, ...ref } of listed) {
 			const mark = `${generation.id}:${generation.status}`;
@@ -60,7 +66,21 @@
 		refresh();
 	});
 
-	const anyRunning = $derived(generations.some(({ generation }) => isGenerating(generation)));
+	const anyRunning = $derived(
+		generations.some(({ generation }) => isGenerating(generation)) || agentReviews.some((r) => r.status === 'running')
+	);
+
+	// Where a PR's panel is: reviewing, or done with its findings in.
+	function panelFor(pr: SavedPr): { running: number; findings: number } | null {
+		const live = agentReviews.filter((r) => keyOf(r) === keyOf(pr));
+		const running = live.filter((r) => r.status === 'running').length;
+		const ran = live.length > 0 || pr.record.agentReviewers.some((a) => a.lastRun);
+		if (!ran) return null;
+		const collected = Object.entries(pr.record.feedback)
+			.filter(([key]) => key.startsWith('agent-') && !live.some((r) => r.reviewer === key))
+			.reduce((n, [, d]) => n + (d?.items.length ?? 0), 0);
+		return { running, findings: collected + live.reduce((n, r) => n + r.findings, 0) };
+	}
 	$effect(() => {
 		if (!anyRunning) return;
 		const poll = setInterval(refresh, 2000);
@@ -147,6 +167,15 @@
 									<span class="title">{pr.record.title ?? `#${pr.number}`}</span>
 									<span class="faint meta">
 										{pr.owner}/{pr.repo} #{pr.number}{pr.record.lastOpenedAt ? ` · opened ${timeAgo(pr.record.lastOpenedAt, now)}` : ''}
+										{#if panelFor(pr)}
+											{@const p = panelFor(pr)!}
+											<span class="panel" class:working={p.running}>
+												·
+												{#if p.running}<Spinner size={11} /> Panel reviewing{:else}Panel done{/if}{p.findings
+													? ` · ${p.findings} ${p.findings === 1 ? 'finding' : 'findings'}`
+													: ''}
+											</span>
+										{/if}
 									</span>
 								</span>
 								{#if generation?.status === 'queued'}
@@ -184,6 +213,14 @@
 </div>
 
 <style>
+	.panel {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+	.panel.working {
+		color: var(--agent-text);
+	}
 	.page {
 		position: relative;
 		min-height: 100vh;
