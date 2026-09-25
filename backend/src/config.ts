@@ -27,8 +27,20 @@ export interface Provider {
   concurrency: number;
 }
 
+// A review persona: a command run in an unattended Claude Code session.
+export interface Persona {
+  id: string;
+  name: string;
+  // What the reviewer would type, with {pr_url}, {owner}, {repo}, {number}.
+  command: string;
+  model?: string;
+  // Tools it may use beyond those every persona has, space-separated.
+  tools?: string;
+}
+
 interface Settings {
   model?: string;
+  personas?: Persona[];
   // Each reviewer in the default panel: a model, or "external" for the
   // reviewer's own agent.
   panel?: string[];
@@ -106,6 +118,33 @@ export function removeProvider(id: string): boolean {
   const list = providers();
   if (!list.some((p) => p.id === id)) return false;
   writeSettings({ providers: list.filter((p) => p.id !== id) });
+  return true;
+}
+
+export function personas(): Persona[] {
+  return readSettings().personas ?? [];
+}
+
+export function addPersona(fields: Omit<Persona, "id">): Persona {
+  const persona = { ...fields, id: `r${randomUUID().slice(0, 6)}` };
+  writeSettings({ personas: [...personas(), persona] });
+  return persona;
+}
+
+export function updatePersona(id: string, change: Partial<Omit<Persona, "id">>): Persona | null {
+  const current = personas().find((p) => p.id === id);
+  if (!current) return null;
+  const merged: Record<string, unknown> = { ...current, ...change };
+  for (const key of Object.keys(merged)) if (merged[key] === undefined || merged[key] === null) delete merged[key];
+  const next = merged as unknown as Persona;
+  writeSettings({ personas: personas().map((p) => (p.id === id ? next : p)) });
+  return next;
+}
+
+export function removePersona(id: string): boolean {
+  const list = personas();
+  if (!list.some((p) => p.id === id)) return false;
+  writeSettings({ personas: list.filter((p) => p.id !== id) });
   return true;
 }
 

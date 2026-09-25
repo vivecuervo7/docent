@@ -5,6 +5,8 @@ import { inLane } from "./notes.js";
 import { describeRanges, linesInDiff, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";
 import type { PrSummary, Slice } from "./types.js";
+import { runPersona } from "./personas.js";
+import type { Persona } from "./config.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
 // the reviewer's own agent, which submits them over MCP (see mcp.ts). Both
@@ -23,7 +25,7 @@ export interface Finding {
 
 export interface AgentReview {
   id: string;
-  source: "builtin" | "external";
+  source: "builtin" | "external" | "persona";
   // The model Docent's reviewer used.
   model?: string;
   status: "running" | "done" | "failed" | "stopped";
@@ -125,6 +127,45 @@ function begin(
   };
   reviews.set(key, entry);
   return entry;
+}
+
+// Runs one of the reviewer's personas: a Claude Code session of their own
+// tooling. Its findings are held to the diff like any others, except that
+// one whose lines aren't in it is kept as a comment on its file.
+export function startPersonaReview(
+  owner: string,
+  repo: string,
+  number: string,
+  context: ReviewContext,
+  persona: Persona,
+  mcpUrl: string,
+  reviewer = DEFAULT_REVIEWER,
+) {
+  const entry = begin(owner, repo, number, reviewer, "persona", context, `persona:${persona.id}`);
+  void (async () => {
+    const { review, controller } = entry;
+    try {
+      const [findings, files] = await Promise.all([
+        runPersona(persona, { owner, repo, number }, mcpUrl, controller.signal),
+        fetchPrFiles(owner, repo, number),
+      ]);
+      for (const finding of findings) {
+        try {
+          review.findings.push(checkFinding(finding, files));
+        } catch {
+          const onFile = finding.path && files.some((f) => f.filename === finding.path);
+          review.findings.push(checkFinding({ ...finding, path: onFile ? finding.path : undefined, startLine: undefined, endLine: undefined }, files));
+        }
+      }
+      end(review, "done");
+    } catch (err) {
+      if (review.status === "running") {
+        review.error = (err as Error).message;
+        end(review, "failed");
+      }
+    }
+  })();
+  return entry.review;
 }
 
 // Waits for the reviewer's own agent to submit findings over MCP.

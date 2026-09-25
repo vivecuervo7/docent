@@ -16,7 +16,7 @@ import {
   type Reuse,
 } from "./generation.js";
 import { localhostHostValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
-import { listAgentReviews,
+import { startPersonaReview, listAgentReviews,
   DEFAULT_REVIEWER,
   REVIEWER_RE,
   dismissAgentReview,
@@ -29,7 +29,11 @@ import { listAgentReviews,
 } from "./agentReview.js";
 import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import {
+  addPersona,
   addProvider,
+  personas,
+  removePersona,
+  updatePersona,
   defaultPanel,
   modelName,
   providers,
@@ -41,6 +45,7 @@ import {
 } from "./config.js";
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
+import { ALWAYS_ALLOWED } from "./personas.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
 import { codexStatus, listModelOptions, listProviderModels } from "./modelProvider.js";
@@ -253,10 +258,12 @@ app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   const mode = req.body?.mode;
   const reviewer = reviewerParam(req);
   const model = req.body?.model;
+  const persona = mode === "persona" ? personas().find((p) => p.id === req.body?.persona) : undefined;
   if (
     !validParams(owner, repo, number) ||
     !reviewer ||
-    (mode !== "builtin" && mode !== "external") ||
+    (mode !== "builtin" && mode !== "external" && mode !== "persona") ||
+    (mode === "persona" && !persona) ||
     (model !== undefined && (typeof model !== "string" || !model || model.length > 200))
   ) {
     return res.status(400).json({ error: "invalid PR, reviewer, mode or model" });
@@ -269,7 +276,9 @@ app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   const review =
     mode === "builtin"
       ? startBuiltinReview(owner, repo, number, context, reviewer, model)
-      : openExternalReview(owner, repo, number, context, reviewer);
+      : persona
+        ? startPersonaReview(owner, repo, number, context, persona, `http://localhost:${PORT}/mcp`, reviewer)
+        : openExternalReview(owner, repo, number, context, reviewer);
   res.json({ review });
 });
 
@@ -469,6 +478,50 @@ app.delete("/api/providers/:id", (req, res) => {
 // What's set up on this machine, for the Getting started page.
 app.get("/api/setup", async (_req, res) => {
   res.json(await checkSetup());
+});
+
+// Review personas, for the Settings page and the panel.
+app.get("/api/personas", (_req, res) => {
+  res.json({ personas: personas(), alwaysAllowed: ALWAYS_ALLOWED });
+});
+
+function personaFields(body: unknown, partial: boolean): { fields: Record<string, unknown> } | { error: string } {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  if (b.name !== undefined || !partial) {
+    if (typeof b.name !== "string" || !b.name.trim() || b.name.length > 60) return { error: "Give it a name, up to 60 characters." };
+    fields.name = b.name.trim();
+  }
+  if (b.command !== undefined || !partial) {
+    if (typeof b.command !== "string" || !b.command.trim() || b.command.length > 2000) return { error: "Give it a command to run." };
+    fields.command = b.command.trim();
+  }
+  for (const key of ["model", "tools"] as const) {
+    if (b[key] === undefined) continue;
+    if (b[key] !== null && (typeof b[key] !== "string" || (b[key] as string).length > 500)) return { error: `That ${key} isn't valid.` };
+    fields[key] = typeof b[key] === "string" && (b[key] as string).trim() ? (b[key] as string).trim() : null;
+  }
+  return { fields };
+}
+
+app.post("/api/personas", (req, res) => {
+  const checked = personaFields(req.body, false);
+  if ("error" in checked) return res.status(400).json(checked);
+  const { model, tools, ...rest } = checked.fields;
+  res.json({ persona: addPersona({ ...(rest as { name: string; command: string }), ...(model ? { model: model as string } : {}), ...(tools ? { tools: tools as string } : {}) }) });
+});
+
+app.put("/api/personas/:id", (req, res) => {
+  const checked = personaFields(req.body, true);
+  if ("error" in checked) return res.status(400).json(checked);
+  const persona = updatePersona(req.params.id, checked.fields);
+  if (!persona) return res.status(404).json({ error: "No such persona." });
+  res.json({ persona });
+});
+
+app.delete("/api/personas/:id", (req, res) => {
+  if (!removePersona(req.params.id)) return res.status(404).json({ error: "No such persona." });
+  res.status(204).end();
 });
 
 // The review panel a new PR starts with, the same for every repo.
