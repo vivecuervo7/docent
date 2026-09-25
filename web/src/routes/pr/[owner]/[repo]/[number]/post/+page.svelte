@@ -149,8 +149,15 @@
 	{:else}
 		{#if draft.posted}
 			<div class="posted" role="status">
-				<span class="grow">Posted {new Date(draft.posted.at).toLocaleString()}.</span>
+				<span class="grow">
+					Posted {new Date(draft.posted.at).toLocaleString()}.{#if session.record.completedAt}{' '}Marked complete.{/if}
+				</span>
 				<a href={draft.posted.url} target="_blank" rel="noreferrer">View on GitHub</a>
+				{#if session.record.completedAt}
+					<button class="btn" onclick={() => post.setComplete(false)}>Reopen</button>
+				{:else}
+					<button class="btn primary" onclick={() => post.setComplete(true)}>Mark complete</button>
+				{/if}
 			</div>
 		{:else if post.stale}
 			<div class="stale" role="status">
