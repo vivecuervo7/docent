@@ -240,7 +240,9 @@ export async function fetchFileContentAtRef(
   }
 }
 
-export interface ReviewRequest {
+// An open PR the reviewer is part of: asked to review it, has reviewed it,
+// or wrote it.
+export interface InvolvedPr {
   owner: string;
   repo: string;
   number: string;
@@ -253,24 +255,26 @@ export interface ReviewRequest {
   // GitHub's verdict so far, and each reviewer's latest review.
   decision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
   reviews: { state: string; author?: string }[];
+  mine: boolean;
 }
 
-// Open PRs where the reviewer is asked for a review by name (not through a
-// team), with where each one's review stands.
-export async function fetchReviewRequests(): Promise<ReviewRequest[]> {
-  const query = `query {
-    search(query: "is:pr is:open user-review-requested:@me archived:false", type: ISSUE, first: 50) {
-      nodes { ... on PullRequest {
-        number title url updatedAt createdAt isDraft
+const PR_FIELDS = `number title url updatedAt createdAt isDraft
         repository { nameWithOwner }
         author { login }
         reviewDecision
-        latestReviews(first: 20) { nodes { state author { login } } }
-      } }
-    }
+        latestReviews(first: 20) { nodes { state author { login } } }`;
+
+// Open PRs the reviewer is asked to review by name (not through a team),
+// has reviewed, or wrote - one query, three searches.
+export async function fetchInvolvedPrs(): Promise<InvolvedPr[]> {
+  const search = (q: string) => `search(query: "${q} archived:false", type: ISSUE, first: 50) { nodes { ... on PullRequest { ${PR_FIELDS} } } }`;
+  const query = `query {
+    requested: ${search("is:pr is:open user-review-requested:@me")}
+    reviewed: ${search("is:pr is:open reviewed-by:@me")}
+    mine: ${search("is:pr is:open author:@me")}
   }`;
   const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=${query}`]);
-  const nodes = (JSON.parse(stdout).data?.search?.nodes ?? []) as {
+  type Node = {
     number: number;
     title: string;
     url: string;
@@ -279,14 +283,22 @@ export async function fetchReviewRequests(): Promise<ReviewRequest[]> {
     isDraft: boolean;
     repository: { nameWithOwner: string };
     author: { login: string } | null;
-    reviewDecision: ReviewRequest["decision"];
+    reviewDecision: InvolvedPr["decision"];
     latestReviews: { nodes: { state: string; author: { login: string } | null }[] };
-  }[];
-  return nodes
-    .filter((n) => n.repository)
-    .map((n) => {
+  };
+  const data = JSON.parse(stdout).data ?? {};
+  const byKey = new Map<string, InvolvedPr>();
+  for (const [group, mine] of [["requested", false], ["reviewed", false], ["mine", true]] as const) {
+    for (const n of (data[group]?.nodes ?? []) as Node[]) {
+      if (!n?.repository) continue;
       const [owner, repo] = n.repository.nameWithOwner.split("/");
-      return {
+      const key = `${owner}/${repo}/${n.number}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.mine ||= mine;
+        continue;
+      }
+      byKey.set(key, {
         owner,
         repo,
         number: String(n.number),
@@ -298,8 +310,11 @@ export async function fetchReviewRequests(): Promise<ReviewRequest[]> {
         isDraft: n.isDraft,
         decision: n.reviewDecision,
         reviews: n.latestReviews.nodes.map((r) => ({ state: r.state, author: r.author?.login })),
-      };
-    });
+        mine,
+      });
+    }
+  }
+  return [...byKey.values()];
 }
 
 export interface PrStatus {

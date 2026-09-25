@@ -1,5 +1,5 @@
 import express from "express";
-import { fetchPrStatuses, fetchReviewRequests,
+import { fetchInvolvedPrs, fetchPrStatuses,
   fetchAttachment,
   fetchPrConversation,
   fetchFileContentAtRef,
@@ -254,10 +254,10 @@ app.post("/api/pr-statuses", async (req, res) => {
   }
 });
 
-// PRs the reviewer has been asked to review, for the start page.
-app.get("/api/review-requests", async (_req, res) => {
+// Open PRs the reviewer is part of, for the start page.
+app.get("/api/involved-prs", async (_req, res) => {
   try {
-    res.json({ requests: await fetchReviewRequests() });
+    res.json({ prs: await fetchInvolvedPrs() });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
   }
