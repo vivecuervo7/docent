@@ -61,6 +61,8 @@ interface Settings {
   model?: string;
   personas?: Persona[];
   externalReviewers?: ExternalReviewer[];
+  // PRs kept off the start page's lists, as "owner/repo/number".
+  hiddenPrs?: string[];
   // Plain strings are from before panels had personas.
   panel?: (string | PanelEntry)[];
   providers?: Provider[];
@@ -210,6 +212,16 @@ export function modelName(): string {
 
 export function setModelName(model: string): void {
   writeSettings({ model });
+}
+
+export function hiddenPrs(): string[] {
+  return readSettings().hiddenPrs ?? [];
+}
+
+export function setHidden(key: string, hidden: boolean): string[] {
+  const list = hiddenPrs().filter((k) => k !== key);
+  writeSettings({ hiddenPrs: hidden ? [...list, key] : list });
+  return hiddenPrs();
 }
 
 export function defaultPanel(): PanelEntry[] | null {

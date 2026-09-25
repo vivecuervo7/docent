@@ -31,6 +31,8 @@ import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
 import {
   addProvider,
   externalReviewers,
+  hiddenPrs,
+  setHidden,
   personas,
   defaultPanel,
   modelName,
@@ -581,6 +583,19 @@ function crud(path: string, store: typeof personas | typeof externalReviewers, c
 }
 crud("/api/personas", personas, personaFields);
 crud("/api/external-reviewers", externalReviewers, externalFields, () => ({ alwaysAllowed: ALWAYS_ALLOWED }));
+
+// PRs hidden from the start page's lists: old ones that can't be closed.
+app.get("/api/hidden-prs", (_req, res) => {
+  res.json({ hidden: hiddenPrs() });
+});
+
+app.put("/api/hidden-prs", (req, res) => {
+  const { owner, repo, number, hidden } = req.body ?? {};
+  if (!validParams(String(owner), String(repo), String(number)) || typeof hidden !== "boolean") {
+    return res.status(400).json({ error: "invalid PR" });
+  }
+  res.json({ hidden: setHidden(`${owner}/${repo}/${number}`, hidden) });
+});
 
 // The review panel a new PR starts with, the same for every repo.
 app.get("/api/panel/default", (_req, res) => {
