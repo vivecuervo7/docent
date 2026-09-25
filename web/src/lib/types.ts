@@ -148,6 +148,9 @@ export interface PrRecord {
 	agentNamesUsed?: string[];
 	review?: ReviewDraft;
 	title?: string;
+	// The model this review uses, taken from the start page's when it's first
+	// prepared, and changeable from inside the review.
+	model?: string;
 	// The PR's author, saved when it's opened, for the start page.
 	author?: string;
 	// Set once the reviewer marks the review complete, after posting.
@@ -164,6 +167,8 @@ export type StepName = 'slices' | 'conversation' | 'summary' | 'notes';
 export interface Generation {
 	id: string;
 	status: 'queued' | 'running' | 'done' | 'failed' | 'stopped';
+	// The model it ran with, when the review has its own.
+	model?: string;
 	steps: Record<StepName, { status: 'pending' | 'active' | 'done'; startedAt?: number }>;
 	results: {
 		slices?: Slice[];

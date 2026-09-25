@@ -23,11 +23,11 @@ export async function getGeneration(ref: PrRef): Promise<Generation | null> {
 	return (await readOk<{ generation: Generation | null }>(await fetch(generationUrl(ref)))).generation;
 }
 
-export async function startGeneration(ref: PrRef, reuse: Reuse): Promise<Generation> {
+export async function startGeneration(ref: PrRef, reuse: Reuse, model?: string): Promise<Generation> {
 	const res = await fetch(generationUrl(ref), {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ reuse })
+		body: JSON.stringify({ reuse, model })
 	});
 	return (await readOk<{ generation: Generation }>(res)).generation;
 }

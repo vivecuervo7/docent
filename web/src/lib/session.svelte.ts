@@ -178,7 +178,8 @@ export class PrSession {
 						sliceTitle: slice?.title,
 						sliceSummary: slice?.summary
 					},
-					messages: note.messages.map(({ role, text }) => ({ role, text }))
+					messages: note.messages.map(({ role, text }) => ({ role, text })),
+					model: this.record.model
 				})
 			});
 			const { text } = await api.readOk<{ text: string }>(res);
@@ -249,7 +250,7 @@ export class PrSession {
 						finding: { reviewer: api.reviewerName(this.record, reviewer), body: item.body, rationale: item.rationale }
 					},
 					messages: item.messages.map(({ role, text }) => ({ role, text })),
-					...(ranWith && ranWith !== 'external' ? { model: ranWith } : {})
+					model: ranWith && ranWith !== 'external' ? ranWith : this.record.model
 				})
 			});
 			const { text } = await api.readOk<{ text: string }>(res);
@@ -288,6 +289,7 @@ export class PrSession {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
+					model: this.record.model,
 					prTitle: this.title,
 					threads: threads.map((n) => ({
 						path: n.path,
@@ -385,10 +387,13 @@ export class PrSession {
 
 	// Starts preparing, or attaches to a run already going. Parts already
 	// saved are kept; the summary is always rewritten from the rest.
+	// With `fresh`, starts again from nothing: for a review begun with the
+	// wrong model, say.
 	async prepare({ fresh = false } = {}) {
 		const { slices, conversation, fileNotes } = this.record;
 		try {
-			this.#collect(await api.startGeneration(this.ref, fresh ? {} : { slices, conversation, fileNotes }));
+			const model = await this.#reviewModel();
+			this.#collect(await api.startGeneration(this.ref, fresh ? {} : { slices, conversation, fileNotes }, model));
 		} catch (err) {
 			this.generation = {
 				...(this.generation ?? emptyGeneration()),
@@ -396,6 +401,21 @@ export class PrSession {
 				error: (err as Error).message
 			};
 		}
+	}
+
+	// The model this review uses. A review without one takes the start page's
+	// the first time it's prepared, and keeps it.
+	readonly model = $derived(this.record.model);
+
+	async #reviewModel(): Promise<string | undefined> {
+		if (this.record.model) return this.record.model;
+		const selected = await api.listModels().then((m) => m.selected).catch(() => undefined);
+		if (selected) await this.update((r) => (r.model ??= selected)).catch(() => {});
+		return this.record.model ?? selected;
+	}
+
+	setModel(model: string) {
+		this.update((r) => (r.model = model)).catch(() => {});
 	}
 
 	async stopPreparing() {

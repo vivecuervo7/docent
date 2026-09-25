@@ -78,6 +78,7 @@ export class ReviewPost {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
+					model: this.#session.record.model,
 					candidates: candidates.map(({ item, source }) => ({
 						id: item.id,
 						source: source === 'yours' ? 'yours' : 'agent',

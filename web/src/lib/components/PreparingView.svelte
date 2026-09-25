@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { modelLabel } from '$lib/panel.svelte';
+	import ReviewModel from './ReviewModel.svelte';
 	import { elapsed } from '$lib/format';
 	import { isGenerating, useSession } from '$lib/session.svelte';
 	import type { StepName } from '$lib/types';
@@ -17,6 +19,9 @@
 	const generation = $derived(session.generation);
 	const failed = $derived(generation?.status === 'failed');
 	const stopped = $derived(generation?.status === 'stopped');
+	// Picking another model after stopping means starting again: resuming
+	// would finish the review with two.
+	const modelChanged = $derived(!!generation?.model && !!session.model && generation.model !== session.model);
 	const running = $derived(isGenerating(generation));
 
 	let now = $state(Date.now());
@@ -39,7 +44,7 @@
 						: 'Preparing your review'}
 		</span>
 		<h1>{session.title}</h1>
-		<span class="faint mono">{session.ref.owner}/{session.ref.repo} #{session.ref.number}</span>
+		<span class="faint mono">{session.ref.owner}/{session.ref.repo} #{session.ref.number} · <ReviewModel /></span>
 
 		<ol>
 			<li>
@@ -71,8 +76,11 @@
 			</div>
 		{:else if stopped}
 			<div class="actions">
-				<button class="btn primary" onclick={() => session.prepare()}>Resume</button>
-				<span class="faint">Steps that already finished are kept.</span>
+				{#if modelChanged}
+					<button class="btn primary" onclick={() => session.prepare({ fresh: true })}>Start again with {modelLabel(session.model ?? '')}</button>
+				{:else}
+					<button class="btn primary" onclick={() => session.prepare()}>Resume</button>
+				{/if}
 			</div>
 		{:else}
 			<div class="actions">
@@ -151,6 +159,9 @@
 		gap: 14px;
 		margin-top: 16px;
 		font-size: 13.5px;
+	}
+	.actions .btn {
+		white-space: nowrap;
 	}
 	.problem {
 		margin-top: 16px;

@@ -2,6 +2,7 @@
 	import InlineText from '$lib/components/InlineText.svelte';
 	import PanelCard from '$lib/components/PanelCard.svelte';
 	import PreparingView from '$lib/components/PreparingView.svelte';
+	import ReviewModel from '$lib/components/ReviewModel.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 	import { isGenerating, isSliceReviewed, useSession } from '$lib/session.svelte';
 
@@ -26,7 +27,7 @@
 				<h1>{session.title}</h1>
 				<p class="byline faint">
 					{session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if session.meta?.author}{' '}by {session.meta.author}{/if}
-					·
+					· <ReviewModel /> ·
 					<a href={githubUrl} target="_blank" rel="noreferrer">View on GitHub ↗</a>
 				</p>
 			</div>
