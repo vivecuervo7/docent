@@ -16,7 +16,13 @@
 	// reshuffle as each fetch lands; fresh results then update it in place.
 	const CACHE_KEY = 'docent.landing';
 	const cached = readCache();
-	function readCache(): { saved?: SavedPr[]; involved?: InvolvedPr[]; statuses?: Record<string, PrStatus>; hidden?: string[] } {
+	function readCache(): {
+		saved?: SavedPr[];
+		involved?: InvolvedPr[];
+		statuses?: Record<string, PrStatus>;
+		hidden?: string[];
+		login?: string | null;
+	} {
 		try {
 			return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}');
 		} catch {
@@ -53,7 +59,7 @@
 		try {
 			localStorage.setItem(
 				CACHE_KEY,
-				JSON.stringify({ saved: saved?.map(trimmed), involved, statuses, hidden: hiddenKeys })
+				JSON.stringify({ saved: saved?.map(trimmed), involved, statuses, hidden: hiddenKeys, login })
 			);
 		} catch {
 			// Keeping it is a nicety; the page still works without.
@@ -192,7 +198,7 @@
 	// Without a signed-in GitHub CLI nothing opens, so say where to start.
 	let ghMissing = $state(false);
 	// The reviewer's GitHub login, to tell their own PRs apart.
-	let login = $state<string | null>(null);
+	let login = $state<string | null>(cached.login ?? null);
 	$effect(() => {
 		fetch('/api/setup')
 			.then((res) => api.readOk<{ gh: { login?: string } }>(res))
