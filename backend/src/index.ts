@@ -43,6 +43,7 @@ import {
 } from "./config.js";
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
+import { matchFindings } from "./grouping.js";
 import { ALWAYS_ALLOWED } from "./sessions.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
@@ -260,6 +261,28 @@ app.get("/api/involved-prs", async (_req, res) => {
     res.json({ prs: await fetchInvolvedPrs() });
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+// Which new findings make the same point as ones already on the PR.
+app.post("/api/pr/:owner/:repo/:number/findings/match", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const valid = (list: unknown) =>
+    Array.isArray(list) &&
+    list.length <= 200 &&
+    list.every((f) => f && typeof f.id === "string" && typeof f.body === "string" && typeof f.location === "string");
+  if (!validParams(owner, repo, number) || !valid(req.body?.fresh) || !valid(req.body?.existing)) {
+    return res.status(400).json({ error: "invalid findings" });
+  }
+  if (!req.body.fresh.length || !req.body.existing.length) return res.json({ matches: {} });
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
+  try {
+    res.json({ matches: Object.fromEntries(await matchFindings(req.body.fresh, req.body.existing, controller.signal)) });
+  } catch (err) {
+    if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }
 });
 
