@@ -398,8 +398,9 @@
 		return () => onopenchange?.(false);
 	});
 
+	// Reviewed folds a file away; un-marking it opens it again to look.
 	function toggleReviewed() {
-		if (!reviewed) collapsed = true;
+		collapsed = !reviewed;
 		onToggleReviewed?.();
 	}
 </script>

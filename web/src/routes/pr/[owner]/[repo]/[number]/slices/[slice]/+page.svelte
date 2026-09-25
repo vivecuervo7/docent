@@ -50,18 +50,40 @@
 		window.scrollTo(0, 0);
 	}
 
-	// A second opinion: marking a slice reviewed shows the panel's findings on
-	// it that are still waiting on a keep or skip, before moving on.
-	let opinion = $state<{ ids: string[]; next: string | null } | null>(null);
+	// A second opinion: a slice becoming reviewed shows the panel's findings
+	// on it that are still waiting on a keep or skip. After Mark slice
+	// reviewed its Done moves on; after ticking the last file it stays.
+	let opinion = $state<{ ids: string[]; next: string | null; stay?: boolean } | null>(null);
+	// Set while Mark slice reviewed handles the moment itself.
+	let marking = false;
+
+	function showOpinion(ids: string[], next: string | null, stay = false) {
+		// Seen here, so they aren't news when the slice is next opened.
+		for (const id of ids) session.lateLeft.add(id);
+		opinion = { ids, next, stay };
+	}
 
 	async function markReviewed() {
 		if (!slice) return;
 		const target = next?.id ?? null;
 		const pending = session.undecidedIn(slice.id).map((m) => m.id);
+		marking = true;
 		await session.setReviewed(slice.hunks, true);
-		if (pending.length) opinion = { ids: pending, next: target };
+		marking = false;
+		if (pending.length) showOpinion(pending, target);
 		else go(target);
 	}
+
+	// The slice becoming reviewed any other way: its last file ticked.
+	let wasDone: { slice: string; done: boolean } | null = null;
+	$effect(() => {
+		const now = { slice: sliceId ?? '', done };
+		const before = wasDone;
+		wasDone = now;
+		if (marking || !before || before.slice !== now.slice || before.done || !now.done) return;
+		const pending = session.undecidedIn(now.slice).map((m) => m.id);
+		if (pending.length) showOpinion(pending, null, true);
+	});
 
 	// Findings that landed on this slice after it was reviewed.
 	const lateHere = $derived(
@@ -74,9 +96,9 @@
 
 	// The second opinion's Done completes the move it interrupted.
 	function finishOpinion() {
-		const target = opinion?.next ?? null;
+		const current = opinion;
 		opinion = null;
-		go(target);
+		if (current && !current.stay) go(current.next);
 	}
 
 	// Opens a finding where it sits in the diff, through any fold hiding it.
