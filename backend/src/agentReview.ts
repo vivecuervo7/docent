@@ -24,8 +24,20 @@ export interface Finding {
   body: string;
   // For the reviewer deciding whether to keep it; never posted.
   rationale?: string;
+  severity?: Severity;
   // The slice the built-in reviewer found it in; none from the whole-PR pass.
   slice?: string;
+}
+
+// How much a finding matters, lowest last. "When unsure, the lower one."
+export const SEVERITIES = ["blocker", "major", "minor", "nit"] as const;
+export type Severity = (typeof SEVERITIES)[number];
+
+// A finding's severity as given, or as its body starts ("Nit: ...").
+export function severityOf(raw: unknown, body: string): Severity | undefined {
+  if (typeof raw === "string" && (SEVERITIES as readonly string[]).includes(raw.toLowerCase())) return raw.toLowerCase() as Severity;
+  const lead = body.trim().match(/^\**(blocker|major|minor|nit)\**\s*[:-]/i)?.[1];
+  return lead ? (lead.toLowerCase() as Severity) : undefined;
 }
 
 export interface AgentReview {
@@ -229,6 +241,7 @@ export interface SubmittedFinding {
   endLine?: number;
   body: string;
   rationale?: string;
+  severity?: string;
 }
 
 // Checks a finding against the PR's files. Lines have to be in the diff,
@@ -255,7 +268,8 @@ function checkFinding(finding: SubmittedFinding, files: PrFile[]): Finding {
     startLine = undefined;
     endLine = undefined;
   }
-  return { id: randomUUID(), path, startLine, endLine, body, rationale: finding.rationale?.trim() || undefined };
+  const severity = severityOf(finding.severity, body);
+  return { id: randomUUID(), path, startLine, endLine, body, rationale: finding.rationale?.trim() || undefined, ...(severity ? { severity } : {}) };
 }
 
 // The review findings are going into: the reviewer's running one, or a new
@@ -323,10 +337,11 @@ const REPORT_FINDINGS_TOOL = {
             path: { type: "string" },
             start_line: { type: "integer" },
             end_line: { type: "integer" },
+            severity: { type: "string", enum: [...SEVERITIES] },
             body: { type: "string" },
             rationale: { type: "string" },
           },
-          required: ["path", "start_line", "body", "rationale"],
+          required: ["path", "start_line", "severity", "body", "rationale"],
         },
       },
     },
@@ -334,23 +349,40 @@ const REPORT_FINDINGS_TOOL = {
   },
 };
 
-const SYSTEM_PROMPT = `You are reviewing a pull request - all of it, or one part - as a careful senior engineer. \
-Report real problems in the changed code: bugs, missed cases, risky behaviour, unclear or \
-misleading code, and meaningful simplifications. Report only things the author should change or \
-answer - never an observation that the code is correct, and never a hedge like "ensure that" or \
-"make sure". Leave out style preferences and anything you aren't reasonably sure of; reporting \
-nothing is fine, and often right.
-Name the concrete failure each finding is about: what would break, for whom, and when. A \
-"worth considering" about design, a request for a comment, or a preference isn't a finding. Leave \
-out a problem the codebase already has in the same form elsewhere, unless the change makes it \
-worse. Where you're given facts about the code around the change, trust them over guesses about \
-code the diff doesn't show.
+const SYSTEM_PROMPT = `You are reviewing a pull request - all of it, or one part - as a careful senior engineer, \
+reporting the problems its author would want to know about and fix. Reporting nothing is fine, and \
+often right.
+
+Raise a finding only when all of these hold:
+1. The change introduced it. A problem the code already had, in the same form, isn't this PR's to fix.
+2. It has a concrete cost: you can say what breaks or goes wrong, for whom, and when - or it makes \
+the code materially harder to change safely, with the situation where that bites.
+3. You can point at the code it affects. That something elsewhere might be disturbed isn't enough; \
+name the code that is.
+4. It rests on what the code shows, not on guesses about code you haven't seen or the author's \
+intent. Where you're given facts about the code around the change, trust them over guesses.
+5. Fixing it asks for no more rigour than the rest of the codebase shows.
+6. It isn't plainly deliberate.
+7. The author would likely fix it once told.
+Leave out style preferences, "worth considering" design remarks, and what a linter, type checker or \
+the build would catch. Don't ask for comments that restate what the code does; a comment the change \
+has made wrong is worth raising. Never report that code is correct, and never hedge with "ensure \
+that" or "make sure".
+
+Give each finding a severity, choosing the lower one when unsure:
+- blocker: ships broken behaviour - a crash, data loss, a security hole, broken build or tests, or a \
+stated requirement missed.
+- major: a likely bug, an unhandled real failure, or a regression - only when you can name the failure.
+- minor: a narrow correctness or clarity problem with a small blast radius.
+- nit: naming, small tidy-ups, wording - nobody would hold the PR for it.
+
 Each finding names the file and the new-file line numbers shown at the start of each diff line \
 (start_line, and end_line if it spans several) - the few lines the point is actually about, not \
-the whole block around them - and a body written to the author: a sentence or \
-two, specific, with a suggestion where there is one. Start a minor point with "Nit: ", as \
-reviewers do. The finding is shown on its lines, so don't mention line numbers in the body. Put \
-code in backticks.
+the whole block around them - and a body written to the author: why it's a problem and the \
+conditions under which it happens, then a concrete fix. One short paragraph, matter-of-fact, no \
+flattery or filler. The finding is shown on its lines, so don't mention line numbers in the body, \
+and its severity is shown beside it, so don't start the body with it. Put code in backticks, and \
+keep any snippet to three lines. One finding per distinct problem.
 Also give a rationale, for the reviewer deciding whether to post it (the author never sees it): \
 why it matters, what in the code shows it, and how sure you are - say so plainly if you're \
 unsure, here rather than in the body. Two or three sentences.`;
@@ -473,7 +505,7 @@ async function runBuiltin(
     const focusNote = focus ? `\n\nThis review has a particular focus, and raises only what falls within it:\n${focus}` : "";
     const keep = async (raw: unknown, slice?: string) => {
       for (const item of Array.isArray(raw) ? raw : []) {
-        const { path, start_line, end_line, body, rationale } = (item ?? {}) as Record<string, unknown>;
+        const { path, start_line, end_line, body, rationale, severity } = (item ?? {}) as Record<string, unknown>;
         if (typeof body !== "string") continue;
         const finding: SubmittedFinding = {
           path: typeof path === "string" ? path : undefined,
@@ -481,6 +513,7 @@ async function runBuiltin(
           endLine: typeof end_line === "number" ? end_line : undefined,
           body,
           rationale: typeof rationale === "string" ? rationale : undefined,
+          severity: typeof severity === "string" ? severity : undefined,
         };
         try {
           await submitFinding(owner, repo, number, finding, files, reviewer, slice);

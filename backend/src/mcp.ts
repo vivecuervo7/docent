@@ -46,7 +46,11 @@ function reviewerFrom(value: string | undefined): string | undefined {
 const findingShape = {
   body: z
     .string()
-    .describe('The comment, addressed to the PR\'s author. A sentence or two; code in backticks. Start a minor point with "Nit: ".'),
+    .describe("The comment, addressed to the PR's author. A sentence or two; code in backticks."),
+  severity: z
+    .enum(["blocker", "major", "minor", "nit"])
+    .optional()
+    .describe("How much it matters: blocker (ships broken behaviour), major (a likely bug or regression), minor, or nit. The lower one when unsure."),
   rationale: z
     .string()
     .optional()
@@ -244,7 +248,14 @@ function buildServer(): McpServer {
           owner,
           repo,
           number,
-          findings.map(({ body, rationale, path, start_line, end_line }) => ({ body, rationale, path, startLine: start_line, endLine: end_line })),
+          findings.map(({ body, rationale, severity, path, start_line, end_line }) => ({
+            body,
+            rationale,
+            severity,
+            path,
+            startLine: start_line,
+            endLine: end_line,
+          })),
           resolveReviewer(owner, repo, number, reviewer),
         );
         const count = review.findings.length;
@@ -266,14 +277,14 @@ function buildServer(): McpServer {
         reviewer: reviewerArg,
       },
     },
-    async ({ pr, body, rationale, path, start_line, end_line, reviewer }) => {
+    async ({ pr, body, rationale, severity, path, start_line, end_line, reviewer }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
         await submitFinding(
           owner,
           repo,
           number,
-          { body, rationale, path, startLine: start_line, endLine: end_line },
+          { body, rationale, severity, path, startLine: start_line, endLine: end_line },
           undefined,
           resolveReviewer(owner, repo, number, reviewer),
         );

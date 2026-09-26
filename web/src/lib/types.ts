@@ -99,6 +99,10 @@ export interface FeedbackItem {
 	// What a kept finding assumes, when nothing in the PR or the code
 	// settles it.
 	speculative?: string;
+	// How much it matters, as its reviewer judged it or the editor lowered it.
+	severity?: Severity;
+	// What a finding that joined a group disagrees with its lead about.
+	disputed?: string;
 }
 
 export interface FeedbackDraft {
@@ -224,6 +228,9 @@ export interface Reuse {
 }
 
 // An agent review as the backend reports it, while running or just ended.
+export type Severity = 'blocker' | 'major' | 'minor' | 'nit';
+export const SEVERITY_ORDER: Severity[] = ['blocker', 'major', 'minor', 'nit'];
+
 export interface AgentReview {
 	id: string;
 	source: 'builtin' | 'external' | 'session';
@@ -231,7 +238,7 @@ export interface AgentReview {
 	status: 'running' | 'done' | 'failed' | 'stopped';
 	// `waiting` while its next call is queued behind others.
 	progress?: { done: number; total: number; current?: string; waiting?: boolean; finished?: string[] };
-	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string; slice?: string }[];
+	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string; slice?: string; severity?: Severity }[];
 	error?: string;
 	startedAt: number;
 	endedAt?: number;

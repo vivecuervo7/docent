@@ -3,6 +3,7 @@
 	import type { Mark } from '$lib/api';
 	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
+	import SeverityTag from './SeverityTag.svelte';
 
 	// A finding to keep or skip, in a list rather than in the diff.
 	let { mark, onshow }: { mark: Mark; onshow?: () => void } = $props();
@@ -20,6 +21,7 @@
 <article class="card">
 	<header>
 		<span class="who">{mark.who}</span>
+		<SeverityTag severity={mark.severity} />
 		{#if mark.speculative}<span class="speculative">Speculative</span>{/if}
 		<span class="where"><FilePath path={mark.path} {lines} /></span>
 	</header>

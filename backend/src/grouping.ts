@@ -35,6 +35,7 @@ export interface Editable {
   location: string;
   body: string;
   rationale?: string;
+  severity?: string;
 }
 
 export interface Edit {
@@ -44,6 +45,10 @@ export interface Edit {
   checked?: string;
   // For one kept that rests on something nothing settles, what it assumes.
   speculative?: string;
+  // For one kept whose reviewer overstated it, the severity it deserves.
+  severity?: string;
+  // For a repeat whose reviewer disagrees with the finding it repeats, on what.
+  disputed?: string;
 }
 
 const EDIT_TOOL = {
@@ -66,6 +71,17 @@ const EDIT_TOOL = {
               type: "string",
               description:
                 "Why it's filtered out, in a sentence for someone reading it later: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Refer to another finding or a thread by what it says, never by its id. Leave out to keep it.",
+            },
+            severity: {
+              type: "string",
+              enum: ["blocker", "major", "minor", "nit"],
+              description:
+                "For a finding you keep whose reviewer overstated it, the severity it deserves. Leave out to keep the reviewer's.",
+            },
+            disputed: {
+              type: "string",
+              description:
+                "For a finding that repeats another (same_as) but disagrees with it on what's wrong or how to fix it, what they disagree on, in a sentence. Leave out when they agree.",
             },
             speculative: {
               type: "string",
@@ -107,6 +123,11 @@ documents.
 the PR doesn't make it worse - it isn't this PR's to fix. Say where it already exists.
 Keep anything that names a real failure, even if it's minor or you aren't sure it happens - a \
 question worth asking the author is worth keeping.
+- Check each kept finding's severity. Reviewers tend to overstate: a major has to name a real \
+failure or regression, and one that only describes taste or a hypothetical is minor or a nit. \
+Lower an overstated one; when unsure, the lower one.
+- When a finding repeats another but the two disagree on what's wrong or how to fix it, still say \
+it repeats it, and say what they disagree on.
 - If a finding rests on an assumption the PR relies on that neither the PR nor the code settles - \
 that a delete path soft-deletes, that a caller handles a missing row, that an index exists - keep \
 it and mark it speculative, saying what it assumes. Filter it only when the code settles it.
@@ -151,7 +172,10 @@ export async function editFindings(
     : "";
   const list = (items: Editable[], withWhy: boolean) =>
     items
-      .map((f) => `[${f.id}] ${f.who}, on ${f.location}\n${f.body}${withWhy && f.rationale ? `\nReviewer's rationale: ${f.rationale}` : ""}`)
+      .map(
+        (f) =>
+          `[${f.id}] ${f.who}${f.severity ? `, ${f.severity}` : ""}, on ${f.location}\n${f.body}${withWhy && f.rationale ? `\nReviewer's rationale: ${f.rationale}` : ""}`,
+      )
       .join("\n\n");
   const about = [
     record.title && `PR: ${record.title}`,
@@ -193,21 +217,27 @@ export async function editFindings(
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, filter, checked, speculative } = (e ?? {}) as {
+      const { id, same_as, filter, checked, speculative, severity, disputed } = (e ?? {}) as {
         id?: unknown;
         same_as?: unknown;
         filter?: unknown;
         checked?: unknown;
         speculative?: unknown;
+        severity?: unknown;
+        disputed?: unknown;
       };
       if (typeof id !== "string" || !asked.has(id)) continue;
       const edit: Edit = {};
-      if (typeof same_as === "string" && same_as !== id && known.has(same_as)) edit.sameAs = same_as;
+      if (typeof same_as === "string" && same_as !== id && known.has(same_as)) {
+        edit.sameAs = same_as;
+        if (typeof disputed === "string" && disputed.trim()) edit.disputed = disputed.trim();
+      }
       // A reviewer who sifted their own findings keeps them all, whatever the model says.
       if (args.filter && typeof filter === "string" && filter.trim()) edit.filtered = filter.trim();
       else {
         if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
         if (args.filter && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();
+        if (typeof severity === "string" && ["blocker", "major", "minor", "nit"].includes(severity)) edit.severity = severity;
       }
       out.set(id, edit);
     }

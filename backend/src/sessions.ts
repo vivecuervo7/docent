@@ -42,6 +42,7 @@ const FINDINGS_SCHEMA = {
           end_line: { type: "integer" },
           body: { type: "string", description: "The comment for the PR's author." },
           rationale: { type: "string", description: "Why it was raised, for the reviewer deciding whether to post it." },
+          severity: { type: "string", enum: ["blocker", "major", "minor", "nit"], description: "How much it matters; the lower one when unsure." },
         },
         required: ["body"],
       },
@@ -56,6 +57,7 @@ export interface SessionFinding {
   endLine?: number;
   body: string;
   rationale?: string;
+  severity?: string;
 }
 
 export function fillCommand(command: string, pr: { owner: string; repo: string; number: string }): string {
@@ -129,7 +131,7 @@ export function runClaudeSession(
       }
       resolve(
         raw.flatMap((f): SessionFinding[] => {
-          const { path, start_line, end_line, body, rationale } = (f ?? {}) as Record<string, unknown>;
+          const { path, start_line, end_line, body, rationale, severity } = (f ?? {}) as Record<string, unknown>;
           if (typeof body !== "string" || !body.trim()) return [];
           return [
             {
@@ -138,6 +140,7 @@ export function runClaudeSession(
               startLine: typeof start_line === "number" ? start_line : undefined,
               endLine: typeof end_line === "number" ? end_line : undefined,
               rationale: typeof rationale === "string" ? rationale : undefined,
+              severity: typeof severity === "string" ? severity : undefined,
             },
           ];
         }),
@@ -149,7 +152,7 @@ export function runClaudeSession(
 
 function toFindings(raw: unknown[]): SessionFinding[] {
   return raw.flatMap((f): SessionFinding[] => {
-    const { path, start_line, end_line, body, rationale } = (f ?? {}) as Record<string, unknown>;
+    const { path, start_line, end_line, body, rationale, severity } = (f ?? {}) as Record<string, unknown>;
     if (typeof body !== "string" || !body.trim()) return [];
     return [
       {
@@ -158,6 +161,7 @@ function toFindings(raw: unknown[]): SessionFinding[] {
         startLine: typeof start_line === "number" ? start_line : undefined,
         endLine: typeof end_line === "number" ? end_line : undefined,
         rationale: typeof rationale === "string" ? rationale : undefined,
+        severity: typeof severity === "string" ? severity : undefined,
       },
     ];
   });

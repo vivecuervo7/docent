@@ -282,7 +282,13 @@ app.post("/api/pr/:owner/:repo/:number/findings/edit", async (req, res) => {
     list.length <= 300 &&
     list.every(
       (f) =>
-        f && text(f.id, 100) && text(f.who, 200) && text(f.location, 1000) && text(f.body, 20_000) && (f.rationale === undefined || text(f.rationale, 20_000)),
+        f &&
+        text(f.id, 100) &&
+        text(f.who, 200) &&
+        text(f.location, 1000) &&
+        text(f.body, 20_000) &&
+        (f.rationale === undefined || text(f.rationale, 20_000)) &&
+        (f.severity === undefined || text(f.severity, 20)),
     );
   const { slice, fresh, shown, filter } = req.body ?? {};
   if (!validParams(owner, repo, number) || !valid(fresh) || !valid(shown) || (slice !== undefined && !text(slice, 100))) {

@@ -86,6 +86,9 @@ export interface Mark {
 	separatedFrom?: { who: string };
 	// What it assumes, when nothing settles it.
 	speculative?: string;
+	severity?: import('./types').Severity;
+	// What the reviewers it's grouped with disagree with it about.
+	disputed?: string[];
 }
 
 // How many reviewers raised a group's point: "Raised by 3 reviewers", or a
@@ -145,6 +148,7 @@ export function marksFrom(record: PrRecord): Mark[] {
 						body: item.body,
 						rationale: item.rationale,
 						...(item.speculative ? { speculative: item.speculative } : {}),
+						...(item.severity ? { severity: item.severity } : {}),
 						included: item.included,
 						decided: item.decided,
 						unread: isUnread(item),
@@ -160,7 +164,11 @@ export function marksFrom(record: PrRecord): Mark[] {
 						})),
 						...(item.separatedFrom && exists(item.separatedFrom.reviewer, item.separatedFrom.id)
 							? { separatedFrom: { who: reviewerName(record, item.separatedFrom.reviewer) } }
-							: {})
+							: {}),
+						...(() => {
+							const disputed = membersOf(key, item.id).flatMap(({ item: m }) => (m.disputed ? [m.disputed] : []));
+							return disputed.length ? { disputed } : {};
+						})()
 					})
 				)
 		);

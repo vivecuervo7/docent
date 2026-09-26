@@ -317,6 +317,8 @@ export class Panel {
 					const draft: FeedbackDraft = {
 						items: review.findings.map((f) => ({
 							included: true,
+							// The editor's correction, kept over the reviewer's.
+							...(f.severity ? { severity: f.severity } : {}),
 							...before.get(f.id),
 							id: f.id,
 							body: f.body,
@@ -457,9 +459,13 @@ export class Panel {
 			who: api.reviewerName(session.record, reviewer),
 			location: where(item),
 			body: item.body,
-			...(item.rationale ? { rationale: item.rationale } : {})
+			...(item.rationale ? { rationale: item.rationale } : {}),
+			...(item.severity ? { severity: item.severity } : {})
 		});
-		let edits: Record<string, { sameAs?: string; filtered?: string; checked?: string; speculative?: string }>;
+		let edits: Record<
+			string,
+			{ sameAs?: string; filtered?: string; checked?: string; speculative?: string; severity?: FeedbackItem['severity']; disputed?: string }
+		>;
 		try {
 			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/edit`, {
 				method: 'POST',
@@ -505,7 +511,9 @@ export class Panel {
 			for (const id of members) {
 				const checked = {
 					...(edits[id]?.checked ? { checked: edits[id].checked } : {}),
-					...(edits[id]?.speculative ? { speculative: edits[id].speculative } : {})
+					...(edits[id]?.speculative ? { speculative: edits[id].speculative } : {}),
+					...(edits[id]?.severity ? { severity: edits[id].severity } : {}),
+					...(edits[id]?.disputed ? { disputed: edits[id].disputed } : {})
 				};
 				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
 				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root }, ...checked });
@@ -529,7 +537,7 @@ export class Panel {
 					...draft,
 					items: draft.items.map((i) => {
 						if (!ids.has(i.id)) return i;
-						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
+						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
 						return { ...rest, ...change(i.id) };
 					})
 				};

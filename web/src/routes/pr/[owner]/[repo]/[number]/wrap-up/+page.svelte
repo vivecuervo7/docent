@@ -4,7 +4,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import WrapRow from '$lib/components/WrapRow.svelte';
 	import { useSession } from '$lib/session.svelte';
-	import type { FeedbackItem } from '$lib/types';
+	import { SEVERITY_ORDER, type FeedbackItem } from '$lib/types';
 
 	// Wrap up: settling what goes into the review. The panel's findings still
 	// waiting on a decision come first, then your own comments, drafted from
@@ -20,7 +20,9 @@
 			.filter(({ reviewer, item }) => !groups.joined(reviewer, item))
 	);
 	const groups = $derived(groupsOf(session.record));
-	const undecided = $derived(findings.filter((f) => !f.item.decided));
+	// The most serious first; findings without a severity after the rest.
+	const rank = (i: FeedbackItem) => (i.severity ? SEVERITY_ORDER.indexOf(i.severity) : SEVERITY_ORDER.length);
+	const undecided = $derived(findings.filter((f) => !f.item.decided).sort((a, b) => rank(a.item) - rank(b.item)));
 	const kept = $derived(findings.filter((f) => f.item.decided && f.item.included));
 	const skipped = $derived(findings.filter((f) => f.item.decided && !f.item.included));
 	const yours = $derived(session.record.feedback.yours?.items ?? []);
@@ -52,6 +54,7 @@
 		kind="finding"
 		who={reviewerName(session.record, reviewer)}
 		speculative={item.speculative}
+		severity={item.severity}
 		path={item.path}
 		start={item.start}
 		end={item.end}

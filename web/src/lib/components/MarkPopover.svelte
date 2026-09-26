@@ -4,6 +4,7 @@
 	import { namedByKind } from '$lib/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import NoteText from './NoteText.svelte';
+	import SeverityTag from './SeverityTag.svelte';
 	import Spinner from './Spinner.svelte';
 	import InlineText from './InlineText.svelte';
 
@@ -89,6 +90,7 @@
 <div class="finding" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose()}>
 	<header>
 		<span class="who">{mark.who}</span>
+		<SeverityTag severity={item?.severity} />
 		{#if item?.speculative}<span class="speculative">Speculative</span>{/if}
 		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" onclick={onclose}>
@@ -118,7 +120,7 @@
 				{#if also.length}
 					<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-						{raisedBy(mark.who, also)}
+						{raisedBy(mark.who, also)}{#if mark.disputed?.length}<span class="disputed" title={mark.disputed.join('\n')}>&nbsp;· they disagree</span>{/if}
 					</button>
 				{/if}
 				{#if showAlso || !also.length}
@@ -285,6 +287,9 @@
 	.chip:hover {
 		color: var(--text);
 		box-shadow: 0 0 0 1px var(--line-2);
+	}
+	.disputed {
+		color: var(--agent);
 	}
 	.speculative {
 		padding: 1px 7px;

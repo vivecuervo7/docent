@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { raisedBy } from '$lib/api';
 	import FilePath from './FilePath.svelte';
+	import SeverityTag from './SeverityTag.svelte';
+	import type { Severity } from '$lib/types';
 	import type { LineRef } from '$lib/types';
 	import type { NoteMessage } from '$lib/types';
 	import NoteText from './NoteText.svelte';
@@ -18,6 +20,7 @@
 		messages = [],
 		alsoBy = [],
 		speculative,
+		severity,
 		// null while it's still waiting on a decision.
 		kept,
 		onkeep,
@@ -38,6 +41,7 @@
 		alsoBy?: { who: string; body: string }[];
 		// What it assumes, when nothing settles it.
 		speculative?: string;
+		severity?: Severity;
 		kept: boolean | null;
 		onkeep: () => void;
 		onskip: () => void;
@@ -58,6 +62,7 @@
 	<div class="text">
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
+			<SeverityTag {severity} />
 			{#if speculative}<span class="speculative" title="Assumes: {speculative}">Speculative</span>{/if}
 			<span class="where">{#if path}<FilePath {path} {lines} />{:else}the PR as a whole{/if}</span>
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}
