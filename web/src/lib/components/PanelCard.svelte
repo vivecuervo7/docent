@@ -198,7 +198,7 @@
 									<div class="menu" role="menu" aria-label="Persona">
 										<button role="menuitemradio" aria-checked={!setup.persona} onclick={() => { choosePersona(r, undefined); personaMenuFor = null; }}>
 											<span class="tick">{#if !setup.persona}✓{/if}</span>
-											<span>General</span>
+											<span>general</span>
 											<span class="hint">Correctness, clarity, tests and risk</span>
 										</button>
 										{#each panel.personas as p (p.id)}

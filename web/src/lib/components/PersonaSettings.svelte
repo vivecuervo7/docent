@@ -53,7 +53,7 @@
 	}
 
 	async function remove(p: Persona) {
-		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Reviewers with it go back to the General persona.', action: 'Remove' }))) return;
+		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Reviewers with it go back to the general persona.', action: 'Remove' }))) return;
 		await fetch(`/api/personas/${p.id}`, { method: 'DELETE' });
 		await load();
 	}
@@ -98,7 +98,7 @@
 		<li>
 			<div class="row">
 				<div class="text">
-					<span class="name">General</span>
+					<span class="name">general</span>
 					<p class="instructions">Correctness, clarity, tests and risk.</p>
 				</div>
 			</div>
