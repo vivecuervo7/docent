@@ -16,6 +16,8 @@ export const ALWAYS_ALLOWED = [
   "mcp__docent__get_review_context",
   "mcp__docent__get_diff",
   "mcp__docent__read_file",
+  "mcp__docent__list_files",
+  "mcp__docent__search_code",
   "mcp__docent__get_existing_comments",
   "Read",
   "Glob",
@@ -68,9 +70,10 @@ export function fillCommand(command: string, pr: { owner: string; repo: string; 
 function handback(owner: string, repo: string, number: string): string {
   return `This runs unattended inside Docent, a pull request review tool. There's no shell or local \
 checkout: read the pull request through Docent's tools (get_review_context, get_diff, read_file, \
-get_existing_comments), passing it as ${owner}/${repo}#${number}. When the review is complete, \
+list_files, search_code, get_existing_comments), passing it as ${owner}/${repo}#${number}. When the review is complete, \
 report every finding in the structured output: its file path and new-file lines, the comment for \
-the author, and why it was raised.`;
+the author, and why it was raised. Nobody is here to answer questions or approve actions: don't \
+ask, and don't post anything to GitHub.`;
 }
 
 export function runClaudeSession(
