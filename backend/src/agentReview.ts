@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { fetchPrFiles, type PrFile } from "./github.js";
+import { fetchPrConversation, fetchPrFiles, type PrFile } from "./github.js";
 import { chatWithTool } from "./modelProvider.js";
+import { conversationText } from "./postReview.js";
 import { inLane } from "./notes.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";
@@ -425,7 +426,15 @@ async function runBuiltin(
     : SYSTEM_PROMPT;
   const { signal } = controller;
   try {
-    const files = await fetchPrFiles(owner, repo, number);
+    const [files, conversation] = await Promise.all([
+      fetchPrFiles(owner, repo, number),
+      fetchPrConversation(owner, repo, number).then(conversationText, () => ""),
+    ]);
+    // What's been said on the PR already, so a point raised and settled
+    // there isn't raised again.
+    const said = conversation
+      ? `\n\nAlready said on the PR - leave out any point raised there and answered, fixed or explained:\n${conversation}`
+      : "";
     const parts: { id?: string; title: string; diff: string }[] =
       context.slices && context.slices.length > 0
         ? context.slices.map((slice) => ({
@@ -486,7 +495,7 @@ async function runBuiltin(
           { role: "system", content: BRIEF_PROMPT + focusNote },
           {
             role: "user",
-            content: `${about}\n\nIts parts:\n${partList}\n\n${fits ? `The whole diff:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}`,
+            content: `${about}\n\nIts parts:\n${partList}\n\n${fits ? `The whole diff:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}${said}`,
           },
         ],
         REPORT_BRIEF_TOOL,
@@ -518,10 +527,11 @@ ${brief || "(none)"}
 Its parts:
 ${partList}
 
-${fits ? `The whole diff, for context:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}
+${fits ? `The whole diff, for context:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}${said}
 
 Raise only what still holds given the whole PR: leave out anything the brief shows is handled \
-elsewhere in it, or deliberate. Problems that span parts have been raised already.`;
+elsewhere in it, or deliberate, and anything already settled on the PR. Problems that span parts \
+have been raised already.`;
     const reviewPart = async (part: (typeof parts)[number]) => {
       review.progress = { ...review.progress!, waiting: true };
       const call = await inLane(async () => {
