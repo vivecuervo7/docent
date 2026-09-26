@@ -63,7 +63,7 @@ const EDIT_TOOL = {
             filter: {
               type: "string",
               description:
-                "Why it's filtered out, in a sentence: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Leave out to keep it.",
+                "Why it's filtered out, in a sentence for someone reading it later: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Refer to another finding or a thread by what it says, never by its id. Leave out to keep it.",
             },
             checked: {
               type: "string",
@@ -96,6 +96,8 @@ code without raising a problem; or it's about generated code.
 "worth considering" about design, a request for a comment or a doc, a preference. Filter it out, \
 too, if it objects to a pattern the surrounding code already follows, or a convention the code \
 documents.
+- Filter it out if the same problem already exists in the same form elsewhere in the codebase and \
+the PR doesn't make it worse - it isn't this PR's to fix. Say where it already exists.
 Keep anything that names a real failure, even if it's minor or you aren't sure it happens - a \
 question worth asking the author is worth keeping.
 - Filter it out if the PR's conversation has already raised its point and settled it - answered, \
