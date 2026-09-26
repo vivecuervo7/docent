@@ -1,5 +1,6 @@
 import * as api from './api';
 import { reviewerName } from './names';
+import { known, reviewerLabel, sessionId } from './reviewers.svelte';
 import type { PrSession } from './session.svelte';
 import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type FeedbackDraft, type FeedbackItem } from './types';
 
@@ -38,10 +39,7 @@ export interface PanelEntry {
 	persona?: string;
 }
 
-// Sessions were saved as "persona:<id>" before personas meant Docent's own
-// reviewer; the ids carried over.
-export const sessionId = (value: string | undefined) =>
-	value?.startsWith('session:') ? value.slice('session:'.length) : value?.startsWith('persona:') ? value.slice('persona:'.length) : null;
+export { sessionId };
 
 function setupOfValue(runs: string | undefined, persona: string | undefined, defaultModel: string): ReviewerSetup {
 	if (runs === 'external') return { mode: 'external' };
@@ -75,13 +73,14 @@ export function modelLabel(model: string): string {
 	return name.slice(name.lastIndexOf('/') + 1);
 }
 
-export const nameOf = (reviewer: AgentReviewer) => reviewer.name ?? reviewer.id;
+// A reviewer's name as shown, among the panel's reviewers.
+export const nameOf = (reviewer: AgentReviewer, reviewers: AgentReviewer[]) => reviewerLabel(reviewers, reviewer.id);
 
 // What to tell the reviewer's own agent after its review, to send the
 // findings here. It names the reviewer, so two agents can't be mixed up.
 export function agentInstruction(session: PrSession, reviewer: AgentReviewer): string {
 	const { owner, repo, number } = session.ref;
-	return `Send these review findings to Docent for ${owner}/${repo}#${number} as ${nameOf(reviewer)}.`;
+	return `Send these review findings to Docent for ${owner}/${repo}#${number} as ${reviewer.name ?? reviewer.id}.`;
 }
 
 function nameAll(record: { agentReviewers: AgentReviewer[]; agentNamesUsed?: string[] }) {
@@ -100,8 +99,19 @@ export class Panel {
 	reviews = $state<Partial<Record<AgentId, AgentReview>>>({});
 	errors = $state<Partial<Record<AgentId, string>>>({});
 	defaultPanel = $state<PanelEntry[] | null>(null);
-	personas = $state<Persona[]>([]);
-	externals = $state<ExternalReviewer[]>([]);
+	// Kept where reviewers' names can find them.
+	get personas(): Persona[] {
+		return known.personas as Persona[];
+	}
+	set personas(value: Persona[]) {
+		known.personas = value;
+	}
+	get externals(): ExternalReviewer[] {
+		return known.externals as ExternalReviewer[];
+	}
+	set externals(value: ExternalReviewer[]) {
+		known.externals = value;
+	}
 
 	readonly reviewers = $derived.by(() => this.#session.record.agentReviewers);
 	readonly running = $derived.by(() => this.reviewers.filter((r) => this.reviews[r.id]?.status === 'running'));

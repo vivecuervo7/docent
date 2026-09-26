@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { raisedBy, type Mark } from '$lib/api';
 	import { modelLabel } from '$lib/panel.svelte';
+	import { namedByKind } from '$lib/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import NoteText from './NoteText.svelte';
 	import Spinner from './Spinner.svelte';
@@ -32,10 +33,11 @@
 	const model = $derived.by(() => {
 		if (!ranWith) return null;
 		if (ranWith === 'external') return 'your own agent';
+		const reviewer = session.record.agentReviewers.find((r) => r.id === mark.reviewer);
+		const named = !!reviewer && namedByKind(reviewer);
 		const external = session.panel.externalName(ranWith);
-		if (external) return external;
-		const persona = session.record.agentReviewers.find((r) => r.id === mark.reviewer)?.persona;
-		return persona ? `${modelLabel(ranWith)} · ${session.panel.personaName(persona)}` : modelLabel(ranWith);
+		if (external) return named ? 'External reviewer' : external;
+		return reviewer?.persona && !named ? `${modelLabel(ranWith)} · ${session.panel.personaName(reviewer.persona)}` : modelLabel(ranWith);
 	});
 	const isKept = $derived(mark.included ?? true);
 	// The finding as saved, for its conversation as it grows.

@@ -84,7 +84,7 @@
 
 	async function remove(r: AgentReviewer) {
 		const n = panel.findings(r.id);
-		if (n > 0 && !(await ask({ title: `Remove ${nameOf(r)}?`, body: `Its ${n} ${n === 1 ? 'finding' : 'findings'} will be discarded.`, action: 'Remove' }))) return;
+		if (n > 0 && !(await ask({ title: `Remove ${nameOf(r, panel.reviewers)}?`, body: `Its ${n} ${n === 1 ? 'finding' : 'findings'} will be discarded.`, action: 'Remove' }))) return;
 		await panel.remove(r.id);
 	}
 
@@ -134,14 +134,14 @@
 			<li>
 				<div class="text">
 					<div class="picker">
-						<span class="name">{nameOf(r)}</span>
+						<span class="name">{nameOf(r, panel.reviewers)}</span>
 						{#if running}
 							<span class="runs faint">{runsWith(r)}</span>
 						{:else}
 							<button
 								class="trigger"
 								aria-haspopup="menu"
-								aria-label="What runs {nameOf(r)}: {runsWith(r)}"
+								aria-label="What runs {nameOf(r, panel.reviewers)}: {runsWith(r)}"
 								aria-expanded={menuFor === r.id}
 								onclick={() => (menuFor = menuFor === r.id ? null : r.id)}
 							>
@@ -186,7 +186,7 @@
 									<button
 										class="trigger"
 										aria-haspopup="menu"
-										aria-label="Persona for {nameOf(r)}: {panel.personaName(setup.persona)}"
+										aria-label="Persona for {nameOf(r, panel.reviewers)}: {panel.personaName(setup.persona)}"
 										aria-expanded={personaMenuFor === r.id}
 										onclick={() => (personaMenuFor = personaMenuFor === r.id ? null : r.id)}
 									>
@@ -274,14 +274,14 @@
 							class="switch"
 							role="switch"
 							aria-checked={isTicked(r)}
-							aria-label="Start {nameOf(r)}"
+							aria-label="Start {nameOf(r, panel.reviewers)}"
 							onclick={() => (ticked[r.id] = !isTicked(r))}
 						>
 							<span></span>
 						</button>
 					{/if}
 					{#if r.id !== FIRST_AGENT}
-						<button class="icon remove" aria-label="Remove {nameOf(r)}" onclick={() => remove(r)}>
+						<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
 						</button>
 					{:else}

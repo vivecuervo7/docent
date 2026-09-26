@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { modelLabel, nameOf } from '$lib/panel.svelte';
+	import { namedByKind } from '$lib/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import type { AgentReviewer } from '$lib/types';
 	import Spinner from './Spinner.svelte';
@@ -50,9 +51,9 @@
 		const value = r.ranWith ?? r.planned;
 		if (!value) return '';
 		const external = panel.externalName(value);
-		if (external) return external;
+		if (external) return namedByKind(r) ? 'External reviewer' : external;
 		if (value === 'external') return 'your own agent';
-		return r.persona ? `${modelLabel(value)} · ${panel.personaName(r.persona)}` : modelLabel(value);
+		return r.persona && !namedByKind(r) ? `${modelLabel(value)} · ${panel.personaName(r.persona)}` : modelLabel(value);
 	}
 
 	// Where a reviewer is, in a line.
@@ -105,7 +106,7 @@
 						{@const s = whereIs(r)}
 						<li>
 							<div class="who">
-								<span class="name">{nameOf(r)}</span>
+								<span class="name">{nameOf(r, panel.reviewers)}</span>
 								{#if runsWith(r)}<span class="faint model">{runsWith(r)}</span>{/if}
 							</div>
 							<span class="state" class:working={s.working}>

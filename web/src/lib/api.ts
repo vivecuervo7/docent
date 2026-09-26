@@ -1,5 +1,6 @@
 import type { AgentReview, FeedbackItem, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
 import { isUnread } from './types';
+import { reviewerLabel } from './reviewers.svelte';
 
 // Calls to Docent's backend, which this app shares with the React app.
 
@@ -121,7 +122,7 @@ export function groupsOf(record: PrRecord) {
 
 // A reviewer's name, as the panel shows it.
 export function reviewerName(record: PrRecord, id: string): string {
-	return record.agentReviewers.find((r) => r.id === id)?.name ?? id;
+	return reviewerLabel(record.agentReviewers, id);
 }
 
 export function marksFrom(record: PrRecord): Mark[] {
