@@ -96,6 +96,9 @@ export interface FeedbackItem {
 	slice?: string;
 	// What the editor found checking a kept finding against the code.
 	checked?: string;
+	// What a kept finding assumes, when nothing in the PR or the code
+	// settles it.
+	speculative?: string;
 }
 
 export interface FeedbackDraft {

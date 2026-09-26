@@ -51,6 +51,7 @@
 	<WrapRow
 		kind="finding"
 		who={reviewerName(session.record, reviewer)}
+		speculative={item.speculative}
 		path={item.path}
 		start={item.start}
 		end={item.end}

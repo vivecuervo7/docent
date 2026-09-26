@@ -42,6 +42,8 @@ export interface Edit {
   filtered?: string;
   // For one kept, what checking it against the code showed.
   checked?: string;
+  // For one kept that rests on something nothing settles, what it assumes.
+  speculative?: string;
 }
 
 const EDIT_TOOL = {
@@ -64,6 +66,11 @@ const EDIT_TOOL = {
               type: "string",
               description:
                 "Why it's filtered out, in a sentence for someone reading it later: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Refer to another finding or a thread by what it says, never by its id. Leave out to keep it.",
+            },
+            speculative: {
+              type: "string",
+              description:
+                "For a finding you keep that rests on an assumption neither the PR nor the code can settle, what it assumes, in a sentence. Leave out otherwise.",
             },
             checked: {
               type: "string",
@@ -100,6 +107,9 @@ documents.
 the PR doesn't make it worse - it isn't this PR's to fix. Say where it already exists.
 Keep anything that names a real failure, even if it's minor or you aren't sure it happens - a \
 question worth asking the author is worth keeping.
+- If a finding rests on an assumption the PR relies on that neither the PR nor the code settles - \
+that a delete path soft-deletes, that a caller handles a missing row, that an index exists - keep \
+it and mark it speculative, saying what it assumes. Filter it only when the code settles it.
 - Filter it out if the PR's conversation has already raised its point and settled it - answered, \
 fixed, or explained. Say which thread, briefly.`;
 
@@ -183,13 +193,22 @@ export async function editFindings(
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, filter, checked } = (e ?? {}) as { id?: unknown; same_as?: unknown; filter?: unknown; checked?: unknown };
+      const { id, same_as, filter, checked, speculative } = (e ?? {}) as {
+        id?: unknown;
+        same_as?: unknown;
+        filter?: unknown;
+        checked?: unknown;
+        speculative?: unknown;
+      };
       if (typeof id !== "string" || !asked.has(id)) continue;
       const edit: Edit = {};
       if (typeof same_as === "string" && same_as !== id && known.has(same_as)) edit.sameAs = same_as;
       // A reviewer who sifted their own findings keeps them all, whatever the model says.
       if (args.filter && typeof filter === "string" && filter.trim()) edit.filtered = filter.trim();
-      else if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
+      else {
+        if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
+        if (args.filter && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();
+      }
       out.set(id, edit);
     }
     return out;

@@ -29,6 +29,8 @@ export interface Candidate {
   inline: boolean;
   // The reviewer's questions about it and the answers, when they asked.
   discussion?: string;
+  // What it assumes, when it rests on something nobody has confirmed.
+  speculative?: string;
 }
 
 export interface PreparedComment {
@@ -102,6 +104,8 @@ Keep every other candidate exactly as written - unless the reviewer discussed it
 shows what the reviewer asked about the candidate and what they learned: word the comment in light \
 of what it settled, and if it showed the point is wrong or already resolved, drop it with that as \
 the reason.
+A candidate marked speculative rests on an assumption nobody has confirmed: word its comment as a \
+question to the author about that assumption, not as a claim that something is wrong.
 Candidates marked "no lines" can't be posted as comments on lines. Write each of them into the \
 review's body instead, and list its id in "in_body".
 The body is the review's own text, as the reviewer: one to three sentences about the PR overall \
@@ -123,7 +127,7 @@ export function prepareReview(
     const listed = candidates
       .map(
         (c) =>
-          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
+          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
       )
       .join("\n\n");
     const call = await chatWithTool(

@@ -84,6 +84,8 @@ export interface Mark {
 	alsoBy?: { reviewer: string; id: string; who: string; body: string; rationale?: string; path?: string; line?: number }[];
 	// The lead of a group it was separated from.
 	separatedFrom?: { who: string };
+	// What it assumes, when nothing settles it.
+	speculative?: string;
 }
 
 // How many reviewers raised a group's point: "Raised by 3 reviewers", or a
@@ -142,6 +144,7 @@ export function marksFrom(record: PrRecord): Mark[] {
 						who: reviewerName(record, key),
 						body: item.body,
 						rationale: item.rationale,
+						...(item.speculative ? { speculative: item.speculative } : {}),
 						included: item.included,
 						decided: item.decided,
 						unread: isUnread(item),

@@ -459,7 +459,7 @@ export class Panel {
 			body: item.body,
 			...(item.rationale ? { rationale: item.rationale } : {})
 		});
-		let edits: Record<string, { sameAs?: string; filtered?: string; checked?: string }>;
+		let edits: Record<string, { sameAs?: string; filtered?: string; checked?: string; speculative?: string }>;
 		try {
 			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/edit`, {
 				method: 'POST',
@@ -503,7 +503,10 @@ export class Panel {
 		for (const [root, members] of clusters) {
 			const rootFiltered = !shownIds.has(root) && edits[root]?.filtered;
 			for (const id of members) {
-				const checked = edits[id]?.checked ? { checked: edits[id].checked } : {};
+				const checked = {
+					...(edits[id]?.checked ? { checked: edits[id].checked } : {}),
+					...(edits[id]?.speculative ? { speculative: edits[id].speculative } : {})
+				};
 				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
 				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root }, ...checked });
 				else outcome.set(id, checked);
@@ -526,7 +529,7 @@ export class Panel {
 					...draft,
 					items: draft.items.map((i) => {
 						if (!ids.has(i.id)) return i;
-						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
+						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
 						return { ...rest, ...change(i.id) };
 					})
 				};

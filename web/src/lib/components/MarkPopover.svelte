@@ -89,6 +89,7 @@
 <div class="finding" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose()}>
 	<header>
 		<span class="who">{mark.who}</span>
+		{#if item?.speculative}<span class="speculative">Speculative</span>{/if}
 		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" onclick={onclose}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -96,6 +97,7 @@
 	</header>
 	<div class="content" bind:this={list}>
 		<p class="body"><InlineText text={mark.body} /></p>
+		{#if item?.speculative}<p class="checked">Assumes: <InlineText text={item.speculative} /></p>{/if}
 		{#if item?.checked}<p class="checked">Checked: <InlineText text={item.checked} /></p>{/if}
 		{#if mark.rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
@@ -283,6 +285,13 @@
 	.chip:hover {
 		color: var(--text);
 		box-shadow: 0 0 0 1px var(--line-2);
+	}
+	.speculative {
+		padding: 1px 7px;
+		border-radius: 999px;
+		box-shadow: 0 0 0 1px var(--popover-line);
+		color: var(--faint);
+		font-size: 11.5px;
 	}
 	.checked {
 		margin: -4px 0 0;

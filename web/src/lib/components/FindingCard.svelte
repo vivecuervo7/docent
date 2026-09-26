@@ -20,9 +20,11 @@
 <article class="card">
 	<header>
 		<span class="who">{mark.who}</span>
+		{#if mark.speculative}<span class="speculative">Speculative</span>{/if}
 		<span class="where"><FilePath path={mark.path} {lines} /></span>
 	</header>
 	<p class="body"><InlineText text={mark.body} /></p>
+	{#if mark.speculative}<p class="assumes">Assumes: <InlineText text={mark.speculative} /></p>{/if}
 	{#if mark.rationale}
 		<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
@@ -59,6 +61,20 @@
 		font-weight: 500;
 		color: var(--agent-text);
 		white-space: nowrap;
+	}
+	.speculative {
+		padding: 1px 7px;
+		border-radius: 999px;
+		box-shadow: 0 0 0 1px var(--line-2);
+		color: var(--faint);
+		font-size: 11.5px;
+		white-space: nowrap;
+	}
+	.assumes {
+		margin: -4px 0 0;
+		font-size: 12.5px;
+		line-height: 1.5;
+		color: var(--faint);
 	}
 	.where {
 		min-width: 0;

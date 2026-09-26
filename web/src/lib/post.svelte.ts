@@ -92,6 +92,7 @@ export class ReviewPost {
 							: 'the PR as a whole',
 						body: item.body,
 						inline: this.isInline(item),
+						...(item.speculative ? { speculative: item.speculative } : {}),
 						...this.#discussionOf(source, item)
 					}))
 				})
