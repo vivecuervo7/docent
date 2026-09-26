@@ -50,6 +50,7 @@ import {
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
 import { editFindings, editorModel } from "./grouping.js";
+import { getLookup } from "./codeContext.js";
 import { ALWAYS_ALLOWED } from "./sessions.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
@@ -298,6 +299,13 @@ app.post("/api/pr/:owner/:repo/:number/findings/edit", async (req, res) => {
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }
+});
+
+// The latest lookup of the code around the PR, for the panel to show.
+app.get("/api/pr/:owner/:repo/:number/code-context", (req, res) => {
+  const { owner, repo, number } = req.params;
+  if (!validParams(owner, repo, number)) return res.status(400).json({ error: "invalid owner, repo, or PR number" });
+  res.json({ lookup: getLookup(owner, repo, number) });
 });
 
 // Every agent review running or waiting to be collected, across PRs.

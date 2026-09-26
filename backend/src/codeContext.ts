@@ -48,7 +48,22 @@ to see what's there, search_code to find where something is defined or used, get
 PR's changes. Report up to 25 facts that a reviewer would otherwise guess at, each with the file \
 and line that shows it. Report what's true, not whether the PR is right - this isn't a review.`;
 
+// A lookup, as the panel shows it: the looks taken so far, then the facts.
+export interface Lookup {
+  status: "running" | "done" | "failed";
+  steps: string[];
+  facts: { fact: string; where: string }[];
+  startedAt: number;
+  endedAt?: number;
+}
+
 const passes = new Map<string, Promise<string>>();
+// The latest lookup for each PR, by owner/repo#number.
+const latest = new Map<string, Lookup>();
+
+export function getLookup(owner: string, repo: string, number: string): Lookup | null {
+  return latest.get(`${owner}/${repo}#${number}`) ?? null;
+}
 
 // The facts, as a block for the reviewers' prompt; empty when the editor's
 // model can't look, or the lookup failed.
@@ -59,7 +74,20 @@ export async function codeContext(owner: string, repo: string, number: string, m
     const key = `${owner}/${repo}#${number}@${await prHead(owner, repo, number)}`;
     let pass = passes.get(key);
     if (!pass) {
-      pass = lookUp(owner, repo, number, model, mcpUrl);
+      const lookup: Lookup = { status: "running", steps: [], facts: [], startedAt: Date.now() };
+      latest.set(`${owner}/${repo}#${number}`, lookup);
+      pass = lookUp(owner, repo, number, model, mcpUrl, lookup).then(
+        (facts) => {
+          lookup.status = "done";
+          lookup.endedAt = Date.now();
+          return facts;
+        },
+        (err) => {
+          lookup.status = "failed";
+          lookup.endedAt = Date.now();
+          throw err;
+        },
+      );
       passes.set(key, pass);
       // A failed lookup is tried again by the next review.
       pass.catch(() => passes.delete(key));
@@ -71,7 +99,7 @@ export async function codeContext(owner: string, repo: string, number: string, m
   }
 }
 
-async function lookUp(owner: string, repo: string, number: string, model: string, mcpUrl: string): Promise<string> {
+async function lookUp(owner: string, repo: string, number: string, model: string, mcpUrl: string, lookup: Lookup): Promise<string> {
   const files = await fetchPrFiles(owner, repo, number);
   const diff = files.map((f) => numberedFileDiff(f)).join("\n\n");
   const shown = diff.length <= 120_000 ? `The diff:\n\n${diff}` : `The files it changes (read their diffs with get_diff):\n${files.map((f) => f.filename).join("\n")}`;
@@ -85,14 +113,14 @@ async function lookUp(owner: string, repo: string, number: string, model: string
         REPORT_CONTEXT_TOOL,
         undefined,
         model,
-        { mcpUrl, tools: CONTEXT_TOOLS },
+        { mcpUrl, tools: CONTEXT_TOOLS, onStep: (step) => lookup.steps.push(step) },
       ),
     model,
   );
   const raw = (call.arguments as { facts?: unknown }).facts;
-  const facts = (Array.isArray(raw) ? raw : []).flatMap((f) => {
+  lookup.facts = (Array.isArray(raw) ? raw : []).flatMap((f) => {
     const { fact, where } = (f ?? {}) as { fact?: unknown; where?: unknown };
-    return typeof fact === "string" && fact.trim() ? [`- ${fact.trim()}${typeof where === "string" && where.trim() ? ` (${where.trim()})` : ""}`] : [];
+    return typeof fact === "string" && fact.trim() ? [{ fact: fact.trim(), where: typeof where === "string" ? where.trim() : "" }] : [];
   });
-  return facts.join("\n");
+  return lookup.facts.map(({ fact, where }) => `- ${fact}${where ? ` (${where})` : ""}`).join("\n");
 }

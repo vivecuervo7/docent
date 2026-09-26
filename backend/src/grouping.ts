@@ -40,6 +40,8 @@ export interface Editable {
 export interface Edit {
   sameAs?: string;
   filtered?: string;
+  // For one kept, what checking it against the code showed.
+  checked?: string;
 }
 
 const EDIT_TOOL = {
@@ -62,6 +64,11 @@ const EDIT_TOOL = {
               type: "string",
               description:
                 "Why it's filtered out, in a sentence: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Leave out to keep it.",
+            },
+            checked: {
+              type: "string",
+              description:
+                "For a finding you keep, what checking it against the code showed, in a sentence with the file and line - or that the code couldn't settle it, and why.",
             },
           },
           required: ["id"],
@@ -103,8 +110,9 @@ check its claim against the code: the file it's about, and whatever it depends o
 the type or column it says is nullable, the caller it says is missing, the check it says doesn't \
 exist, the test it says isn't there, how the neighbouring code does the same thing. If the code \
 shows the claim is wrong, filter it out as \
-disproved, citing the file and line that shows it. If you can't settle it, keep it. Check the \
-claims made, briefly; this isn't a fresh review of the PR.`;
+disproved, citing the file and line that shows it. If you can't settle it, keep it. For each \
+finding you keep, say what checking it showed. Check the claims made, briefly; this isn't a fresh \
+review of the PR.`;
 
 export async function editFindings(
   owner: string,
@@ -173,12 +181,13 @@ export async function editFindings(
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, filter } = (e ?? {}) as { id?: unknown; same_as?: unknown; filter?: unknown };
+      const { id, same_as, filter, checked } = (e ?? {}) as { id?: unknown; same_as?: unknown; filter?: unknown; checked?: unknown };
       if (typeof id !== "string" || !asked.has(id)) continue;
       const edit: Edit = {};
       if (typeof same_as === "string" && same_as !== id && known.has(same_as)) edit.sameAs = same_as;
       // A reviewer who sifted their own findings keeps them all, whatever the model says.
       if (args.filter && typeof filter === "string" && filter.trim()) edit.filtered = filter.trim();
+      else if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
       out.set(id, edit);
     }
     return out;

@@ -31,6 +31,9 @@ export interface ToolCall {
 export interface CodeAccess {
   mcpUrl: string;
   tools: string[];
+  // Each look it takes, as it takes it ("Read src/app.ts"), where the tool
+  // reports them (Claude Code).
+  onStep?: (step: string) => void;
 }
 
 export function canReadCode(model: string): boolean {

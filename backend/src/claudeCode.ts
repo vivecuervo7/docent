@@ -57,10 +57,12 @@ function run(
       ? turns[0].content
       : `${turns.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n")}\n\nReply to the user's last message as the assistant.`;
 
+  // Streamed when someone wants to see each look it takes.
+  const streaming = !!access?.onStep;
   const args = [
     "-p",
     "--output-format",
-    "json",
+    ...(streaming ? ["stream-json", "--verbose"] : ["json"]),
     "--model",
     model,
     "--tools",
@@ -86,12 +88,21 @@ function run(
     const child = spawn("claude", args, { cwd: workDir, signal });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => (stdout += chunk));
+    let pending = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      if (!streaming) return;
+      pending += chunk;
+      const lines = pending.split("\n");
+      pending = lines.pop() ?? "";
+      for (const line of lines) reportSteps(line, access!.onStep!);
+    });
     child.stderr.on("data", (chunk) => (stderr += chunk));
     child.on("error", reject);
     child.on("close", (code) => {
       try {
-        const result = JSON.parse(stdout) as HeadlessResult;
+        // Streamed, the answer is the last line: the result.
+        const result = JSON.parse(streaming ? (stdout.trim().split("\n").at(-1) ?? "") : stdout) as HeadlessResult;
         addUsage(result.usage);
         resolve(result);
       } catch {
@@ -100,6 +111,34 @@ function run(
     });
     child.stdin.end(prompt);
   });
+}
+
+// The looks a streamed line records, in words.
+function reportSteps(line: string, onStep: (step: string) => void) {
+  let event: { type?: string; message?: { content?: { type?: string; name?: string; input?: Record<string, unknown> }[] } };
+  try {
+    event = JSON.parse(line);
+  } catch {
+    return;
+  }
+  if (event.type !== "assistant") return;
+  for (const part of event.message?.content ?? []) {
+    if (part.type !== "tool_use" || !part.name?.startsWith("mcp__docent__")) continue;
+    const input = part.input ?? {};
+    const text = (key: string) => (typeof input[key] === "string" && (input[key] as string).trim()) || "";
+    const tool = part.name.slice("mcp__docent__".length);
+    const step =
+      tool === "read_file"
+        ? `Read ${text("path")}${typeof input.start_line === "number" ? ` from line ${input.start_line}` : ""}`
+        : tool === "list_files"
+          ? `Listed ${text("directory") || "the repo"}`
+          : tool === "search_code"
+            ? `Searched ${text("directory") || "the repo"} for ${text("pattern")}`
+            : tool === "get_diff"
+              ? `Read the diff${text("path") ? ` of ${text("path")}` : ""}`
+              : tool;
+    onStep(step);
+  }
 }
 
 export async function claudeCodeChatWithTool(

@@ -98,6 +98,8 @@ export class Panel {
 	#session: PrSession;
 	reviews = $state<Partial<Record<AgentId, AgentReview>>>({});
 	errors = $state<Partial<Record<AgentId, string>>>({});
+	// The lookup of the code around the PR its reviewers start from.
+	lookup = $state<{ status: 'running' | 'done' | 'failed'; steps: string[]; facts: { fact: string; where: string }[] } | null>(null);
 	defaultPanel = $state<PanelEntry[] | null>(null);
 	// Kept where reviewers' names can find them.
 	get personas(): Persona[] {
@@ -151,6 +153,7 @@ export class Panel {
 		// Catching up on findings the editor hasn't been through: from an
 		// earlier visit, or a try that failed.
 		this.#edit();
+		this.#checkLookup();
 	}
 
 	close() {
@@ -456,7 +459,7 @@ export class Panel {
 			body: item.body,
 			...(item.rationale ? { rationale: item.rationale } : {})
 		});
-		let edits: Record<string, { sameAs?: string; filtered?: string }>;
+		let edits: Record<string, { sameAs?: string; filtered?: string; checked?: string }>;
 		try {
 			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/edit`, {
 				method: 'POST',
@@ -500,8 +503,10 @@ export class Panel {
 		for (const [root, members] of clusters) {
 			const rootFiltered = !shownIds.has(root) && edits[root]?.filtered;
 			for (const id of members) {
+				const checked = edits[id]?.checked ? { checked: edits[id].checked } : {};
 				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
-				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root } });
+				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root }, ...checked });
+				else outcome.set(id, checked);
 			}
 		}
 		await this.#settle(batch, (id) => ({ edited: true, ...outcome.get(id) }));
@@ -521,7 +526,7 @@ export class Panel {
 					...draft,
 					items: draft.items.map((i) => {
 						if (!ids.has(i.id)) return i;
-						const { joins: _j, filtered: _f, editFailed: _e, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
+						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
 						return { ...rest, ...change(i.id) };
 					})
 				};
@@ -529,9 +534,18 @@ export class Panel {
 		});
 	}
 
+	#checkLookup() {
+		const { owner, repo, number } = this.#session.ref;
+		fetch(`/api/pr/${owner}/${repo}/${number}/code-context`)
+			.then((res) => api.readOk<{ lookup: Panel['lookup'] }>(res))
+			.then((r) => (this.lookup = r.lookup))
+			.catch(() => {});
+	}
+
 	#startPolling() {
 		if (this.#poll) return;
 		this.#poll = setInterval(() => {
+			this.#checkLookup();
 			for (const { id } of this.running) {
 				api
 					.getAgentReview(this.#session.ref, id)

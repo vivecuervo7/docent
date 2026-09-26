@@ -94,6 +94,8 @@ export interface FeedbackItem {
 	separatedFrom?: { reviewer: string; id: string };
 	// The slice Docent's reviewer found it in.
 	slice?: string;
+	// What the editor found checking a kept finding against the code.
+	checked?: string;
 }
 
 export interface FeedbackDraft {

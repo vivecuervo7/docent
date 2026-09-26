@@ -3,6 +3,7 @@
 	import { namedByKind } from '$lib/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import type { AgentReviewer } from '$lib/types';
+	import InlineText from './InlineText.svelte';
 	import Spinner from './Spinner.svelte';
 	import StateMark from './StateMark.svelte';
 
@@ -13,6 +14,7 @@
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 
 	let open = $state(false);
+	let showFacts = $state(false);
 	let now = $state(Date.now());
 
 	const ran = $derived(panel.reviewers.filter((r) => panel.reviews[r.id] || r.lastRun));
@@ -102,6 +104,29 @@
 		{#if open}
 			<div class="popover" role="dialog" aria-label="Your review panel">
 				<ul>
+					{#if panel.lookup}
+						{@const l = panel.lookup}
+						<li>
+							<div class="who"><span class="name">the code around it</span></div>
+							{#if l.status === 'running'}
+								<span class="state working"><Spinner size={12} /> Looking it up</span>
+								{#each l.steps.slice(-3) as step, i (i)}<span class="step faint">{step}</span>{/each}
+							{:else if l.status === 'done'}
+								<button class="state facts-toggle" aria-expanded={showFacts} onclick={() => (showFacts = !showFacts)}>
+									Looked up {l.facts.length} {l.facts.length === 1 ? 'fact' : 'facts'}{l.steps.length ? ` in ${l.steps.length} looks` : ''}
+								</button>
+								{#if showFacts}
+									<ul class="facts">
+										{#each l.facts as f, i (i)}
+											<li><InlineText text={f.fact} />{#if f.where}<span class="faint where">{f.where}</span>{/if}</li>
+										{/each}
+									</ul>
+								{/if}
+							{:else}
+								<span class="state">Couldn’t look it up; reviewers went ahead without it</span>
+							{/if}
+						</li>
+					{/if}
 					{#each panel.reviewers as r (r.id)}
 						{@const s = whereIs(r)}
 						<li>
@@ -191,6 +216,39 @@
 	}
 	.state.working {
 		color: var(--text);
+	}
+	.step {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 12px;
+		font-family: var(--mono);
+	}
+	.facts-toggle {
+		padding: 0;
+		border: 0;
+		background: none;
+		font: inherit;
+		font-size: 13px;
+		text-align: left;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		cursor: pointer;
+	}
+	.facts {
+		max-height: 280px;
+		overflow-y: auto;
+		margin-top: 6px;
+	}
+	.facts li {
+		padding: 6px 0;
+		border-bottom: 0;
+		font-size: 12.5px;
+		line-height: 1.5;
+		color: var(--muted);
+	}
+	.where {
+		font-size: 11.5px;
 	}
 	.more {
 		display: block;
