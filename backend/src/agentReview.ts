@@ -334,12 +334,17 @@ const REPORT_FINDINGS_TOOL = {
   },
 };
 
-const SYSTEM_PROMPT = `You are reviewing one part of a pull request, as a careful senior engineer. \
+const SYSTEM_PROMPT = `You are reviewing a pull request - all of it, or one part - as a careful senior engineer. \
 Report real problems in the changed code: bugs, missed cases, risky behaviour, unclear or \
 misleading code, and meaningful simplifications. Report only things the author should change or \
 answer - never an observation that the code is correct, and never a hedge like "ensure that" or \
 "make sure". Leave out style preferences and anything you aren't reasonably sure of; reporting \
 nothing is fine, and often right.
+Name the concrete failure each finding is about: what would break, for whom, and when. A \
+"worth considering" about design, a request for a comment, or a preference isn't a finding. Leave \
+out a problem the codebase already has in the same form elsewhere, unless the change makes it \
+worse. Where you're given facts about the code around the change, trust them over guesses about \
+code the diff doesn't show.
 Each finding names the file and the new-file line numbers shown at the start of each diff line \
 (start_line, and end_line if it spans several) - the few lines the point is actually about, not \
 the whole block around them - and a body written to the author: a sentence or \
@@ -489,6 +494,40 @@ async function runBuiltin(
         }
       }
     };
+
+    // A reviewer with a persona looks through one narrow lens, which the
+    // whole PR at once serves as well as its parts do: one call rather than
+    // one per part, when the diff fits.
+    if (focus && fits) {
+      review.progress = { done: 0, total: 2, current: "the code around it", finished: [] };
+      const facts = await lookingUp;
+      if (review.status !== "running") return;
+      const aroundIt = facts
+        ? `\n\nWhat the code around the PR shows, looked up for this review - trust it over guesses about code the diff doesn't show:\n${facts}`
+        : "";
+      review.progress = { ...review.progress, waiting: true };
+      const call = await inLane(async () => {
+        signal.throwIfAborted();
+        review.progress = { ...review.progress!, done: 1, current: "the PR as a whole", waiting: false };
+        return chatWithTool(
+          [
+            { role: "system", content: `${system}${said}${aroundIt}` },
+            {
+              role: "user",
+              content: `${about}\n\nReview the whole pull request. Its parts, for orientation:\n${partList}\n\nThe whole diff:\n\n${wholeDiff}`,
+            },
+          ],
+          REPORT_FINDINGS_TOOL,
+          signal,
+          model,
+        );
+      }, model);
+      if (review.status !== "running") return;
+      await keep((call.arguments as { findings?: unknown }).findings);
+      review.progress = { ...review.progress!, done: 2 };
+      end(review, "done");
+      return;
+    }
 
     // First the whole PR, for the brief every part's review starts from.
     review.progress = { done: 0, total: parts.length + 1, current: "the whole PR", waiting: true, finished: [] };
