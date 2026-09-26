@@ -1,9 +1,10 @@
 import type { AgentReviewer } from './types';
 
-// What reviewers are called: after their persona or external reviewer, so
-// the name says what they look for ("security", or "security-1" and
-// "security-2" when there are two); otherwise the random name each was
-// given ("bronze-viper"), which also stays what an agent names it by.
+// What reviewers are called: after their persona - "general" when it has
+// none - or external reviewer, so the name says what they look for
+// ("security", or "security-1" and "security-2" when there are two). Only
+// your own agent over MCP goes by the random name each was given
+// ("bronze-viper"), which also stays what an agent names a reviewer by.
 
 // Personas and external reviewers, as the panel loads them.
 export const known = $state<{ personas: { id: string; name: string }[]; externals: { id: string; name: string }[] }>({
@@ -32,9 +33,9 @@ function kindOf(r: AgentReviewer): string | null {
 		const external = known.externals.find((e) => e.id === session);
 		return external ? slug(external.name) || null : null;
 	}
-	if (runs === 'external' || !r.persona) return null;
-	const persona = known.personas.find((p) => p.id === r.persona);
-	return persona ? slug(persona.name) || null : null;
+	if (runs === 'external') return null;
+	const persona = r.persona ? known.personas.find((p) => p.id === r.persona) : undefined;
+	return (persona && slug(persona.name)) || 'general';
 }
 
 export function reviewerLabel(reviewers: AgentReviewer[], id: string): string {

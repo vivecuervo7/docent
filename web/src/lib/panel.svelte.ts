@@ -257,7 +257,7 @@ export class Panel {
 	}
 
 	personaName(id: string | undefined): string {
-		return (id && this.personas.find((p) => p.id === id)?.name) || 'Default';
+		return (id && this.personas.find((p) => p.id === id)?.name) || 'General';
 	}
 
 	externalName(value: string | undefined): string | null {
