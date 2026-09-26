@@ -42,7 +42,7 @@
 		const setup = setupOf(r);
 		if (setup.mode === 'external') return 'Your own agent';
 		if (setup.mode === 'session') return `External · ${panel.externalName(`session:${setup.session}`)}`;
-		return `Docent · ${modelLabel(setup.model)}`;
+		return modelLabel(setup.model);
 	}
 
 	// Choosing a model keeps the reviewer's persona.
@@ -93,7 +93,7 @@
 	$effect(() => {
 		if (!menuFor && !personaMenuFor) return;
 		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.picker, .persona-picker')) {
+			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.model-picker, .persona-picker')) {
 				menuFor = null;
 				personaMenuFor = null;
 			}
@@ -135,6 +135,8 @@
 				<div class="text">
 					<div class="picker">
 						<span class="name">{nameOf(r, panel.reviewers)}</span>
+						<div class="choices">
+						<div class="model-picker">
 						{#if running}
 							<span class="runs faint">{runsWith(r)}</span>
 						{:else}
@@ -178,10 +180,12 @@
 								</button>
 							</div>
 						{/if}
+						</div>
 						{#if setup.mode === 'builtin' && (panel.personas.length || setup.persona)}
+							<span class="dot faint" aria-hidden="true">·</span>
 							<div class="persona-picker">
 								{#if running}
-									<span class="runs faint">Persona · {panel.personaName(setup.persona)}</span>
+									<span class="runs faint">{panel.personaName(setup.persona)}</span>
 								{:else}
 									<button
 										class="trigger"
@@ -190,7 +194,7 @@
 										aria-expanded={personaMenuFor === r.id}
 										onclick={() => (personaMenuFor = personaMenuFor === r.id ? null : r.id)}
 									>
-										Persona · {panel.personaName(setup.persona)}
+										{panel.personaName(setup.persona)}
 										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
 									</button>
 								{/if}
@@ -211,6 +215,7 @@
 								{/if}
 							</div>
 						{/if}
+						</div>
 					</div>
 
 					{#if running && review.source === 'builtin'}
@@ -389,9 +394,19 @@
 		align-items: flex-start;
 		gap: 2px;
 	}
+	.choices {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 2px 8px;
+	}
+	.model-picker,
 	.persona-picker {
 		position: relative;
-		align-self: flex-start;
+	}
+	.dot {
+		margin-left: -2px;
+		font-size: 13px;
 	}
 	.runs {
 		font-size: 13px;
