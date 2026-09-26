@@ -757,7 +757,6 @@
 		padding-bottom: 6px;
 		border-radius: 12px;
 		background: var(--code-bg);
-		box-shadow: 0 0 12px #111;
 	}
 	.hunk-header,
 	.hunk-footer {

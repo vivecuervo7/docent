@@ -65,7 +65,6 @@
 		border-radius: 10px;
 		overflow: hidden;
 		background: var(--code-bg);
-		box-shadow: 0 0 12px #111;
 		font-family: var(--mono);
 		font-size: 12px;
 		line-height: 21px;
