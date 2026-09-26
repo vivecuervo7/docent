@@ -125,7 +125,7 @@
 		<section>
 			<button class="fold-head" aria-expanded={session.wrapUpOpen.kept} onclick={() => (session.wrapUpOpen.kept = !session.wrapUpOpen.kept)}>
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={session.wrapUpOpen.kept ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-				Kept from the panel <span class="count">{kept.length}</span>
+				Kept <span class="count">{kept.length}</span>
 			</button>
 			{#if session.wrapUpOpen.kept}<ul>{#each kept as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
 		</section>
