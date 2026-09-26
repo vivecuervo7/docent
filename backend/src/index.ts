@@ -331,7 +331,7 @@ app.post("/api/pr/:owner/:repo/:number/agent-review", (req, res) => {
   };
   const review =
     mode === "builtin"
-      ? startBuiltinReview(owner, repo, number, context, reviewer, model, persona?.instructions)
+      ? startBuiltinReview(owner, repo, number, context, reviewer, model, persona?.instructions, `http://localhost:${PORT}/mcp`)
       : session
         ? startSessionReview(owner, repo, number, context, session, `http://localhost:${PORT}/mcp`, reviewer)
         : openExternalReview(owner, repo, number, context, reviewer);

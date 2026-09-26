@@ -1,0 +1,98 @@
+import { fetchPrFiles } from "./github.js";
+import { editorModel } from "./grouping.js";
+import { canReadCode, chatWithTool } from "./modelProvider.js";
+import { inLane } from "./notes.js";
+import { numberedFileDiff } from "./prDiff.js";
+import { prHead } from "./repoCache.js";
+
+// What the code around a PR shows, looked up once and shared by every one of
+// Docent's reviewers. They review from the diff alone, and guess at what it
+// leans on - whether a column can be null, what a base class already does,
+// what's already tested - so one model with Docent's read tools looks those
+// things up first, and every part review starts from its facts. Runs on the
+// editor's model, and only where that can use the tools.
+
+const CONTEXT_TOOLS = ["get_diff", "read_file", "list_files", "search_code"];
+
+const REPORT_CONTEXT_TOOL = {
+  name: "report_context",
+  description: "Report what the code around the pull request shows.",
+  parameters: {
+    type: "object",
+    properties: {
+      facts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            fact: { type: "string", description: "What's true, in a sentence." },
+            where: { type: "string", description: "The file and line that shows it." },
+          },
+          required: ["fact", "where"],
+        },
+      },
+    },
+    required: ["facts"],
+  },
+};
+
+const PROMPT = (pr: string) => `Reviewers are about to review a pull request from its diff alone. \
+Before they do, look up what the changed code depends on beyond the diff, so they work from facts \
+rather than guesses: whether the columns and fields it reads can be null; what the base classes, \
+wrappers and helpers it calls already do (defaults, ordering, validation, error handling); how \
+the neighbouring code does the same kind of thing, and conventions it documents; what tests \
+already cover; who calls what it changes, and what those callers expect.
+
+Use Docent's tools, passing ${pr} as the PR: read_file for any file at the PR's head, list_files \
+to see what's there, search_code to find where something is defined or used, get_diff for the \
+PR's changes. Report up to 25 facts that a reviewer would otherwise guess at, each with the file \
+and line that shows it. Report what's true, not whether the PR is right - this isn't a review.`;
+
+const passes = new Map<string, Promise<string>>();
+
+// The facts, as a block for the reviewers' prompt; empty when the editor's
+// model can't look, or the lookup failed.
+export async function codeContext(owner: string, repo: string, number: string, mcpUrl: string): Promise<string> {
+  try {
+    const model = await editorModel();
+    if (!canReadCode(model)) return "";
+    const key = `${owner}/${repo}#${number}@${await prHead(owner, repo, number)}`;
+    let pass = passes.get(key);
+    if (!pass) {
+      pass = lookUp(owner, repo, number, model, mcpUrl);
+      passes.set(key, pass);
+      // A failed lookup is tried again by the next review.
+      pass.catch(() => passes.delete(key));
+    }
+    return await pass;
+  } catch {
+    // Reviews go ahead without it.
+    return "";
+  }
+}
+
+async function lookUp(owner: string, repo: string, number: string, model: string, mcpUrl: string): Promise<string> {
+  const files = await fetchPrFiles(owner, repo, number);
+  const diff = files.map((f) => numberedFileDiff(f)).join("\n\n");
+  const shown = diff.length <= 120_000 ? `The diff:\n\n${diff}` : `The files it changes (read their diffs with get_diff):\n${files.map((f) => f.filename).join("\n")}`;
+  const call = await inLane(
+    () =>
+      chatWithTool(
+        [
+          { role: "system", content: PROMPT(`${owner}/${repo}#${number}`) },
+          { role: "user", content: shown },
+        ],
+        REPORT_CONTEXT_TOOL,
+        undefined,
+        model,
+        { mcpUrl, tools: CONTEXT_TOOLS },
+      ),
+    model,
+  );
+  const raw = (call.arguments as { facts?: unknown }).facts;
+  const facts = (Array.isArray(raw) ? raw : []).flatMap((f) => {
+    const { fact, where } = (f ?? {}) as { fact?: unknown; where?: unknown };
+    return typeof fact === "string" && fact.trim() ? [`- ${fact.trim()}${typeof where === "string" && where.trim() ? ` (${where.trim()})` : ""}`] : [];
+  });
+  return facts.join("\n");
+}

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { codeContext } from "./codeContext.js";
 import { fetchPrConversation, fetchPrFiles, type PrFile } from "./github.js";
 import { chatWithTool } from "./modelProvider.js";
 import { conversationText } from "./postReview.js";
@@ -401,12 +402,13 @@ export function startBuiltinReview(
   number: string,
   context: ReviewContext,
   reviewer = DEFAULT_REVIEWER,
-  model?: string,
-  focus?: string,
+  model: string | undefined,
+  focus: string | undefined,
+  mcpUrl: string,
 ) {
   const entry = begin(owner, repo, number, reviewer, "builtin", context, model);
   entry.review.usage = emptyUsage();
-  void usageScope.run(entry.review.usage, () => runBuiltin(owner, repo, number, context, entry, reviewer, model, focus));
+  void usageScope.run(entry.review.usage, () => runBuiltin(owner, repo, number, context, entry, reviewer, model, focus, mcpUrl));
   return entry.review;
 }
 
@@ -417,8 +419,9 @@ async function runBuiltin(
   context: ReviewContext,
   entry: Entry,
   reviewer: string,
-  model?: string,
-  focus?: string,
+  model: string | undefined,
+  focus: string | undefined,
+  mcpUrl: string,
 ) {
   const { review, controller } = entry;
   const system = focus
@@ -430,6 +433,8 @@ async function runBuiltin(
       fetchPrFiles(owner, repo, number),
       fetchPrConversation(owner, repo, number).then(conversationText, () => ""),
     ]);
+    // The code around the PR, looked up alongside the whole-PR pass.
+    const lookingUp = codeContext(owner, repo, number, mcpUrl);
     // What's been said on the PR already, so a point raised and settled
     // there isn't raised again.
     const said = conversation
@@ -511,7 +516,12 @@ async function runBuiltin(
       return typeof part === "string" && typeof check === "string" ? [{ part, check }] : [];
     });
     await keep(briefArgs.findings);
-    review.progress = { ...review.progress, done: 1 };
+    review.progress = { ...review.progress, done: 1, current: "the code around it" };
+    const facts = await lookingUp;
+    if (review.status !== "running") return;
+    const around = facts
+      ? `\n\nWhat the code around the PR shows, looked up for this review - trust it over guesses about code the diff doesn't show:\n${facts}`
+      : "";
 
     // Every part's review starts with the same block - instructions, the
     // brief, the parts and the diff - in the system prompt, where Claude Code
@@ -527,7 +537,7 @@ ${brief || "(none)"}
 Its parts:
 ${partList}
 
-${fits ? `The whole diff, for context:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}${said}
+${fits ? `The whole diff, for context:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}${said}${around}
 
 Raise only what still holds given the whole PR: leave out anything the brief shows is handled \
 elsewhere in it, or deliberate, and anything already settled on the PR. Problems that span parts \

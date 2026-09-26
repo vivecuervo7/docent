@@ -74,6 +74,8 @@
 					? 'Waiting for its turn'
 					: p.current === 'the whole PR'
 					? 'Reading the whole PR'
+					: p.current === 'the code around it'
+					? 'Looking up the code around it'
 					: `Slice ${Math.max(1, Math.min(p.done, p.total - 1))} of ${p.total - 1}`;
 			return { text: `${where}${elapsed}`, working: true };
 		}

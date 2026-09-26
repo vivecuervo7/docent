@@ -222,6 +222,8 @@
 									? 'Waiting for its turn'
 									: review.progress.current === 'the whole PR'
 									? 'Reading the whole PR first'
+									: review.progress.current === 'the code around it'
+									? 'Looking up the code around it'
 									: `Reviewing ${review.progress.current ?? '…'} (${Math.max(1, Math.min(review.progress.done, review.progress.total - 1))} of ${review.progress.total - 1})`}
 							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
 						</span>
