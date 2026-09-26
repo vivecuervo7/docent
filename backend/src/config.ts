@@ -173,6 +173,15 @@ function listIn<T extends { id: string }>(key: "personas" | "externalReviewers",
       writeSettings({ [key]: list().filter((e) => e.id !== id) });
       return true;
     },
+    // The same entries in a new order; null unless `ids` names each once.
+    reorder(ids: string[]): T[] | null {
+      const current = list();
+      if (ids.length !== current.length || new Set(ids).size !== ids.length) return null;
+      const next = ids.map((id) => current.find((e) => e.id === id));
+      if (next.some((e) => !e)) return null;
+      writeSettings({ [key]: next as T[] });
+      return next as T[];
+    },
   };
 }
 

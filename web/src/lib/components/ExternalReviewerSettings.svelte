@@ -2,6 +2,7 @@
 	import { readOk } from '$lib/api';
 	import { ask } from '$lib/confirm.svelte';
 	import MenuSelect from './MenuSelect.svelte';
+	import { Reorder } from '$lib/reorder.svelte';
 	import Spinner from './Spinner.svelte';
 
 	// External reviewers: your own tooling as a reviewer on the panel. Each
@@ -40,6 +41,26 @@
 		personas = res.items;
 		always = res.alwaysAllowed;
 	}
+	// Dragged into a new order, saved as it lands.
+	const order = new Reorder(
+		() => (personas ?? []).map((p) => p.id),
+		async (ids) => {
+			const byId = new Map((personas ?? []).map((p) => [p.id, p]));
+			personas = ids.map((id) => byId.get(id)!);
+			try {
+				await readOk(
+					await fetch('/api/external-reviewers', {
+						method: 'PUT',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ order: ids })
+					})
+				);
+			} catch {
+				await load();
+			}
+		}
+	);
+
 	$effect(() => {
 		load().catch(() => (personas = []));
 		fetch('/api/providers')
@@ -165,10 +186,25 @@
 	{#if personas}
 		<ul>
 			{#each personas as p (p.id)}
-				<li>
+				<li
+					class:movable={editing !== p.id}
+					class:dragging={order.dragging === p.id}
+					class:over={order.over === p.id && order.dragging !== p.id}
+					draggable={order.armed === p.id}
+					ondragstart={(e) => order.start(e, p.id)}
+					ondragover={(e) => order.hover(e, p.id)}
+					ondrop={(e) => order.drop(e, p.id)}
+					ondragend={() => order.end()}
+				>
 					{#if editing === p.id}
 						{@render form(p)}
 					{:else}
+						<button
+							class="grip"
+							aria-label="Move {p.name} (Alt+↑ or ↓)"
+							onpointerdown={() => order.arm(p.id)}
+							onkeydown={(e) => order.key(e, p.id)}
+						><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><circle cx="3.5" cy="3" r="1.4" /><circle cx="8.5" cy="3" r="1.4" /><circle cx="3.5" cy="8" r="1.4" /><circle cx="8.5" cy="8" r="1.4" /><circle cx="3.5" cy="13" r="1.4" /><circle cx="8.5" cy="13" r="1.4" /></svg></button>
 						<div class="row">
 							<div class="text">
 								<span class="name">{p.name}</span>
@@ -223,6 +259,36 @@
 	li {
 		padding: 16px 0;
 		border-top: 1px solid var(--line);
+	}
+	li.movable {
+		position: relative;
+	}
+	li.dragging {
+		opacity: 0.4;
+	}
+	li.over {
+		box-shadow: inset 0 2px 0 var(--agent);
+	}
+	.grip {
+		position: absolute;
+		top: 18px;
+		left: -26px;
+		display: flex;
+		padding: 2px 4px;
+		border: 0;
+		border-radius: 4px;
+		background: none;
+		color: var(--faint);
+		fill: currentColor;
+		cursor: grab;
+		opacity: 0;
+	}
+	li.movable:hover .grip,
+	.grip:focus-visible {
+		opacity: 1;
+	}
+	.grip:hover {
+		color: var(--text);
 	}
 	.row {
 		display: flex;

@@ -614,6 +614,12 @@ function crud(path: string, store: typeof personas | typeof externalReviewers, c
     const fields = Object.fromEntries(Object.entries(checked.fields).filter(([, v]) => v !== null));
     res.json({ item: (store.add as (f: Record<string, unknown>) => object)(fields) });
   });
+  app.put(path, (req, res) => {
+    const order = req.body?.order;
+    const items = Array.isArray(order) && order.every((id) => typeof id === "string") ? store.reorder(order) : null;
+    if (!items) return res.status(400).json({ error: "The order has to list each one once." });
+    res.json({ items });
+  });
   app.put(`${path}/:id`, (req, res) => {
     const checked = check(req.body, true);
     if ("error" in checked) return res.status(400).json(checked);
