@@ -1,4 +1,5 @@
-import { modelName } from "./config.js";
+import { claudeCodeAvailable } from "./claudeCode.js";
+import { modelName, resolveModel, savedEditorModel } from "./config.js";
 import { fetchPrConversation, fetchPrFiles } from "./github.js";
 import { canReadCode, chatWithTool } from "./modelProvider.js";
 import { inNamedLane } from "./notes.js";
@@ -15,6 +16,15 @@ import type { PrSummary, Slice } from "./types.js";
 // made, and which to filter out: trivial, unfounded, settled on the PR, or -
 // on Claude Code or Codex, which can look through the repo - disproved by
 // the code.
+
+// The editor's model: the one picked in Settings, else Opus where Claude
+// Code is present - it's a handful of calls per PR, and the judgement the
+// whole review rests on - else Docent's model.
+export async function editorModel(): Promise<string> {
+  const saved = savedEditorModel();
+  if (saved && resolveModel(saved)) return saved;
+  return (await claudeCodeAvailable()) ? "claude-code:opus" : modelName();
+}
 
 // Docent's read tools the editor looks through the code with.
 const EDITOR_TOOLS = ["get_diff", "read_file", "list_files", "search_code"];
@@ -74,8 +84,13 @@ of problem in unrelated code is a point of its own.
 - Filter it out if it's trivial or unfounded: nothing in the diff shows the problem it claims; \
 it asks for boilerplate with no reason in this code (a try/catch, a timeout, logging, validation \
 the types already guarantee); it speculates about code the PR doesn't show; it describes the \
-code without raising a problem; or it's about generated code. Keep anything plausible, even if \
-minor or uncertain - a question worth asking the author is worth keeping. When in doubt, keep it.
+code without raising a problem; or it's about generated code.
+- Filter it out if it names no concrete failure - what would break, for whom, and when: a \
+"worth considering" about design, a request for a comment or a doc, a preference. Filter it out, \
+too, if it objects to a pattern the surrounding code already follows, or a convention the code \
+documents.
+Keep anything that names a real failure, even if it's minor or you aren't sure it happens - a \
+question worth asking the author is worth keeping.
 - Filter it out if the PR's conversation has already raised its point and settled it - answered, \
 fixed, or explained. Say which thread, briefly.`;
 
@@ -86,7 +101,8 @@ You can look through the whole repository at the PR's head, not just the diff, w
 where something is defined or used, get_diff for other parts of the PR. Before keeping a finding, \
 check its claim against the code: the file it's about, and whatever it depends on beyond the diff - \
 the type or column it says is nullable, the caller it says is missing, the check it says doesn't \
-exist, the test it says isn't there. If the code shows the claim is wrong, filter it out as \
+exist, the test it says isn't there, how the neighbouring code does the same thing. If the code \
+shows the claim is wrong, filter it out as \
 disproved, citing the file and line that shows it. If you can't settle it, keep it. Check the \
 claims made, briefly; this isn't a fresh review of the PR.`;
 
@@ -94,10 +110,10 @@ export async function editFindings(
   owner: string,
   repo: string,
   number: string,
-  args: { slice?: string; fresh: Editable[]; shown: Editable[]; filter: boolean; model?: string; mcpUrl: string },
+  args: { slice?: string; fresh: Editable[]; shown: Editable[]; filter: boolean; mcpUrl: string },
   signal: AbortSignal,
 ): Promise<Map<string, Edit>> {
-  const model = args.model || modelName();
+  const model = await editorModel();
   // Looking through the code is for checking claims, so only when filtering.
   const looks = args.filter && canReadCode(model);
   const conversation = conversationText(await fetchPrConversation(owner, repo, number));

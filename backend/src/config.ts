@@ -59,6 +59,8 @@ export interface PanelEntry {
 
 interface Settings {
   model?: string;
+  // The panel's editor's model; see editorModel in grouping.ts.
+  editorModel?: string;
   personas?: Persona[];
   externalReviewers?: ExternalReviewer[];
   // PRs kept off the start page's lists, as "owner/repo/number".
@@ -215,6 +217,14 @@ export function modelName(): string {
 
 export function setModelName(model: string): void {
   writeSettings({ model });
+}
+
+export function savedEditorModel(): string | undefined {
+  return readSettings().editorModel;
+}
+
+export function setEditorModel(editorModel: string): void {
+  writeSettings({ editorModel });
 }
 
 export function hiddenPrs(): string[] {

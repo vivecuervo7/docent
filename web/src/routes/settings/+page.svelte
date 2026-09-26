@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { readOk } from '$lib/api';
 	import { ask } from '$lib/confirm.svelte';
+	import EditorModel from '$lib/components/EditorModel.svelte';
 	import ExternalReviewerSettings from '$lib/components/ExternalReviewerSettings.svelte';
 	import PersonaSettings from '$lib/components/PersonaSettings.svelte';
 	import RunnerConcurrency from '$lib/components/RunnerConcurrency.svelte';
@@ -198,6 +199,12 @@
 				</div>
 			</div>
 		{/if}
+	</section>
+
+	<section>
+		<h2>Editor</h2>
+		<p class="faint intro">Groups the panel's findings and checks them against the code before they're shown.</p>
+		<EditorModel />
 	</section>
 
 	<section>

@@ -41,13 +41,15 @@ import {
   providers,
   removeProvider,
   setDefaultPanel,
+  resolveModel,
+  setEditorModel,
   setModelName,
   updateProvider,
   type Provider,
 } from "./config.js";
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
-import { editFindings } from "./grouping.js";
+import { editFindings, editorModel } from "./grouping.js";
 import { ALWAYS_ALLOWED } from "./sessions.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
@@ -291,7 +293,7 @@ app.post("/api/pr/:owner/:repo/:number/findings/edit", async (req, res) => {
     if (!res.writableEnded) controller.abort();
   });
   try {
-    const edits = await editFindings(owner, repo, number, { slice, fresh, shown, filter: filter === true, model: reviewModel(req), mcpUrl: `http://localhost:${PORT}/mcp` }, controller.signal);
+    const edits = await editFindings(owner, repo, number, { slice, fresh, shown, filter: filter === true, mcpUrl: `http://localhost:${PORT}/mcp` }, controller.signal);
     res.json({ edits: Object.fromEntries(edits) });
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
@@ -468,6 +470,20 @@ app.put("/api/models/selected", (req, res) => {
   }
   setModelName(model.trim());
   res.json({ selected: modelName() });
+});
+
+// The model the panel's editor uses, and the models it could.
+app.get("/api/editor-model", async (_req, res) => {
+  res.json({ options: await listModelOptions(), selected: await editorModel() });
+});
+
+app.put("/api/editor-model", (req, res) => {
+  const model = req.body?.model;
+  if (typeof model !== "string" || !model.trim() || !resolveModel(model.trim())) {
+    return res.status(400).json({ error: "invalid model" });
+  }
+  setEditorModel(model.trim());
+  res.json({ selected: model.trim() });
 });
 
 // How many calls Claude Code or Codex runs at once.

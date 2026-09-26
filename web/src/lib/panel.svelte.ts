@@ -455,8 +455,7 @@ export class Panel {
 					...(first.docents && first.slices[0] ? { slice: first.slices[0] } : {}),
 					fresh: batch.map(describe),
 					shown: shown.map(describe),
-					filter: first.docents,
-					model: session.record.model
+					filter: first.docents
 				})
 			});
 			edits = (await api.readOk<{ edits: typeof edits }>(res)).edits;
