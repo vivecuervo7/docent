@@ -69,9 +69,8 @@
 		</div>
 		<div class="body"><NoteText text={body} /></div>
 		{#if rationale}
-			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-				{kind === 'finding' ? 'Why it was raised' : 'Why it was drafted'}
+			<button class="why ask" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
+				{kind === 'finding' ? 'Why was this raised?' : 'Why was this drafted?'}
 			</button>
 			{#if showWhy}<div class="rationale"><NoteText text={rationale} /></div>{/if}
 		{/if}
@@ -115,6 +114,11 @@
 </li>
 
 <style>
+	/* A question that opens its answer, read as a link. */
+	.why.ask:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
 	.row {
 		display: flex;
 		align-items: flex-start;
