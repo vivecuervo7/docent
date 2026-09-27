@@ -105,6 +105,9 @@ export interface FeedbackItem {
 	disputed?: string;
 	// For an external reviewer's finding, the PR thread already raising it.
 	onPr?: string;
+	// Why the reviewer's own process set it aside before handing it back;
+	// the editor judged it in full.
+	setAside?: string;
 	// How likely it is, and what happens when it does, as the editor judged.
 	impact?: string;
 	impactLevel?: 'low' | 'moderate' | 'high';
@@ -254,7 +257,7 @@ export interface AgentReview {
 	status: 'running' | 'done' | 'failed' | 'stopped';
 	// `waiting` while its next call is queued behind others.
 	progress?: { done: number; total: number; current?: string; waiting?: boolean; finished?: string[] };
-	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string; slice?: string; severity?: Severity }[];
+	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string; slice?: string; severity?: Severity; setAside?: string }[];
 	error?: string;
 	startedAt: number;
 	endedAt?: number;

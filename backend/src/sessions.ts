@@ -43,6 +43,11 @@ const FINDINGS_SCHEMA = {
           body: { type: "string", description: "The comment for the PR's author." },
           rationale: { type: "string", description: "Why it was raised, for the reviewer deciding whether to post it." },
           severity: { type: "string", enum: ["blocker", "major", "minor", "nit"], description: "How much it matters; the lower one when unsure." },
+          set_aside: {
+            type: "string",
+            description:
+              "If the review's own process set this finding aside - pushed back on it, or filtered it out of what it would post - why. Leave out for a finding it stands by.",
+          },
         },
         required: ["body"],
       },
@@ -58,6 +63,7 @@ export interface SessionFinding {
   body: string;
   rationale?: string;
   severity?: string;
+  setAside?: string;
 }
 
 export function fillCommand(command: string, pr: { owner: string; repo: string; number: string }): string {
@@ -74,8 +80,11 @@ function handback(owner: string, repo: string, number: string): string {
 checkout: read the pull request through Docent's tools (get_review_context, get_diff, read_file, \
 list_files, search_code, get_existing_comments), passing it as ${owner}/${repo}#${number}. When the review is complete, \
 report every finding in the structured output: its file path and new-file lines, the comment for \
-the author, and why it was raised. Nobody is here to answer questions or approve actions: don't \
-ask, and don't post anything to GitHub.`;
+the author, and why it was raised. If the review set findings aside - pushed back on them, or \
+filtered them out of what it would post, such as to a local-only list - hand those back too, each \
+with why it was set aside; Docent's editor makes the final call on them. Leave out positive \
+observations. Nobody is here to answer questions or approve actions: don't ask, and don't post \
+anything to GitHub.`;
 }
 
 export function runClaudeSession(
@@ -131,7 +140,7 @@ export function runClaudeSession(
       }
       resolve(
         raw.flatMap((f): SessionFinding[] => {
-          const { path, start_line, end_line, body, rationale, severity } = (f ?? {}) as Record<string, unknown>;
+          const { path, start_line, end_line, body, rationale, severity, set_aside } = (f ?? {}) as Record<string, unknown>;
           if (typeof body !== "string" || !body.trim()) return [];
           return [
             {
@@ -141,6 +150,7 @@ export function runClaudeSession(
               endLine: typeof end_line === "number" ? end_line : undefined,
               rationale: typeof rationale === "string" ? rationale : undefined,
               severity: typeof severity === "string" ? severity : undefined,
+              setAside: typeof set_aside === "string" && set_aside.trim() ? set_aside.trim() : undefined,
             },
           ];
         }),
@@ -152,7 +162,7 @@ export function runClaudeSession(
 
 function toFindings(raw: unknown[]): SessionFinding[] {
   return raw.flatMap((f): SessionFinding[] => {
-    const { path, start_line, end_line, body, rationale, severity } = (f ?? {}) as Record<string, unknown>;
+    const { path, start_line, end_line, body, rationale, severity, set_aside } = (f ?? {}) as Record<string, unknown>;
     if (typeof body !== "string" || !body.trim()) return [];
     return [
       {
@@ -162,6 +172,7 @@ function toFindings(raw: unknown[]): SessionFinding[] {
         endLine: typeof end_line === "number" ? end_line : undefined,
         rationale: typeof rationale === "string" ? rationale : undefined,
         severity: typeof severity === "string" ? severity : undefined,
+        setAside: typeof set_aside === "string" && set_aside.trim() ? set_aside.trim() : undefined,
       },
     ];
   });

@@ -22,6 +22,7 @@
 		alsoBy = [],
 		speculative,
 		onPr,
+		setAside,
 		skipSuggested,
 		notes,
 		suggested = false,
@@ -48,6 +49,8 @@
 		speculative?: string;
 		// The PR thread already raising it.
 		onPr?: string;
+		// Why its reviewer set it aside before handing it back.
+		setAside?: string;
 		// Why the editor suggests skipping it, while undecided.
 		skipSuggested?: string;
 		// What the editor found, folded behind its verdicts.
@@ -78,6 +81,7 @@
 			<SeverityTag {severity} />
 			{#if speculative}<span class="speculative" title="Assumes: {speculative}">Speculative</span>{/if}
 			{#if onPr}<span class="speculative" title="Already on the PR: {onPr}">Already on the PR</span>{/if}
+			{#if setAside}<span class="speculative" title="Set aside by {who}: {setAside}">Set aside by {who}</span>{/if}
 			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
 			<span class="where">{#if path}<FilePath {path} {lines} />{:else}the PR as a whole{/if}</span>
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}

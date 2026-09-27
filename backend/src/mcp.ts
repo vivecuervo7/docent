@@ -47,6 +47,10 @@ const findingShape = {
   body: z
     .string()
     .describe("The comment, addressed to the PR's author. A sentence or two; code in backticks."),
+  set_aside: z
+    .string()
+    .optional()
+    .describe("If your own review set this finding aside - pushed back on it, or filtered it out - why. Docent's editor makes the final call on it."),
   severity: z
     .enum(["blocker", "major", "minor", "nit"])
     .optional()
@@ -248,10 +252,11 @@ function buildServer(): McpServer {
           owner,
           repo,
           number,
-          findings.map(({ body, rationale, severity, path, start_line, end_line }) => ({
+          findings.map(({ body, rationale, severity, set_aside, path, start_line, end_line }) => ({
             body,
             rationale,
             severity,
+            setAside: set_aside,
             path,
             startLine: start_line,
             endLine: end_line,
@@ -277,14 +282,14 @@ function buildServer(): McpServer {
         reviewer: reviewerArg,
       },
     },
-    async ({ pr, body, rationale, severity, path, start_line, end_line, reviewer }) => {
+    async ({ pr, body, rationale, severity, set_aside, path, start_line, end_line, reviewer }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
         await submitFinding(
           owner,
           repo,
           number,
-          { body, rationale, severity, path, startLine: start_line, endLine: end_line },
+          { body, rationale, severity, setAside: set_aside, path, startLine: start_line, endLine: end_line },
           undefined,
           resolveReviewer(owner, repo, number, reviewer),
         );

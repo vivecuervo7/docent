@@ -36,6 +36,8 @@ export interface Editable {
   body: string;
   rationale?: string;
   severity?: string;
+  // Why its reviewer's own process set it aside, when it handed it back anyway.
+  setAside?: string;
 }
 
 export interface Edit {
@@ -219,7 +221,7 @@ export async function editFindings(
     items
       .map(
         (f) =>
-          `[${f.id}] ${f.who}${f.severity ? `, ${f.severity}` : ""}, on ${f.location}\n${f.body}${withWhy && f.rationale ? `\nReviewer's rationale: ${f.rationale}` : ""}`,
+          `[${f.id}] ${f.who}${f.severity ? `, ${f.severity}` : ""}, on ${f.location}${f.setAside ? ` - SET ASIDE by its reviewer: ${f.setAside}` : ""}\n${f.body}${withWhy && f.rationale ? `\nReviewer's rationale: ${f.rationale}` : ""}`,
       )
       .join("\n\n");
   const about = [
@@ -232,7 +234,7 @@ export async function editFindings(
   const task = args.filter
     ? "For each new finding, say which finding it repeats, if any, and whether to filter it out."
     : looks
-      ? `These new findings come from a reviewer who has already sifted their own, so don't filter them for being minor, speculative or naming no concrete failure. Check each claim against the code all the same: filter only one the code disproves, starting its reason with "Disproved:" and citing the file and line. Say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).`
+      ? `These new findings come from a reviewer who has already sifted their own, so don't filter them for being minor, speculative or naming no concrete failure. Check each claim against the code all the same: filter only one the code disproves, starting its reason with "Disproved:" and citing the file and line. The exception is a finding marked SET ASIDE: its reviewer's own process dropped it, so judge it as you would any finding - filter it if it's trivial, unfounded, disproved or settled, keep it if it holds up. Say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).`
       : "These new findings come from a reviewer who has already sifted their own, so keep them all; only say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).";
 
   return inNamedLane("grouping", 2, async () => {
@@ -261,6 +263,8 @@ export async function editFindings(
     );
     const known = new Set([...args.shown, ...args.fresh].map((f) => f.id));
     const asked = new Set(args.fresh.map((f) => f.id));
+    // Findings a reviewer set aside are the editor's to judge in full.
+    const setAside = new Set(args.fresh.filter((f) => f.setAside).map((f) => f.id));
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
@@ -287,7 +291,8 @@ export async function editFindings(
       // A reviewer who sifted their own findings loses only what the code
       // disproves, whatever else the model says.
       const reason = typeof filter === "string" ? filter.trim() : "";
-      if (reason && (args.filter || (looks && /^disproved\b/i.test(reason)))) edit.filtered = reason;
+      const judged = args.filter || setAside.has(id);
+      if (reason && (judged || (looks && /^disproved\b/i.test(reason)))) edit.filtered = reason;
       else {
         if (!args.filter && typeof on_pr === "string" && on_pr.trim()) edit.onPr = on_pr.trim();
         if (typeof impact === "string" && impact.trim()) edit.impact = impact.trim();
@@ -295,7 +300,7 @@ export async function editFindings(
         if (looks && (checked_verdict === "confirmed" || checked_verdict === "partly" || checked_verdict === "unsettled")) edit.checkedVerdict = checked_verdict;
         if (typeof skip === "string" && skip.trim()) edit.skip = skip.trim();
         if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
-        if (args.filter && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();
+        if (judged && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();
         if (typeof severity === "string" && ["blocker", "major", "minor", "nit"].includes(severity)) edit.severity = severity;
       }
       out.set(id, edit);

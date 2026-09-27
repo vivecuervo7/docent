@@ -395,6 +395,7 @@ export class Panel {
 							included: true,
 							// The editor's correction, kept over the reviewer's.
 							...(f.severity ? { severity: f.severity } : {}),
+							...(f.setAside ? { setAside: f.setAside } : {}),
 							...before.get(f.id),
 							id: f.id,
 							body: f.body,
@@ -536,7 +537,8 @@ export class Panel {
 			location: where(item),
 			body: item.body,
 			...(item.rationale ? { rationale: item.rationale } : {}),
-			...(item.severity ? { severity: item.severity } : {})
+			...(item.severity ? { severity: item.severity } : {}),
+			...(item.setAside ? { setAside: item.setAside } : {})
 		});
 		let edits: Record<
 			string,

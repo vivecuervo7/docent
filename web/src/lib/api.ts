@@ -88,6 +88,7 @@ export interface Mark {
 	speculative?: string;
 	// The PR thread already raising it.
 	onPr?: string;
+	setAside?: string;
 	impact?: string;
 	impactLevel?: string;
 	checked?: string;
@@ -156,6 +157,7 @@ export function marksFrom(record: PrRecord): Mark[] {
 						rationale: item.rationale,
 						...(item.speculative ? { speculative: item.speculative } : {}),
 						...(item.onPr ? { onPr: item.onPr } : {}),
+						...(item.setAside ? { setAside: item.setAside } : {}),
 						...(item.impact ? { impact: item.impact, impactLevel: item.impactLevel } : {}),
 						...(item.checked ? { checked: item.checked, checkedVerdict: item.checkedVerdict } : {}),
 						...(item.skipSuggested ? { skipSuggested: item.skipSuggested } : {}),

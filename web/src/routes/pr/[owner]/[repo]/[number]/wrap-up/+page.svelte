@@ -59,6 +59,7 @@
 		who={reviewerName(session.record, reviewer)}
 		speculative={item.speculative}
 		onPr={item.onPr}
+		setAside={item.setAside}
 		skipSuggested={item.skipSuggested}
 		notes={{ impact: item.impact, impactLevel: item.impactLevel, checked: item.checked, checkedVerdict: item.checkedVerdict }}
 		suggested={!item.decided}

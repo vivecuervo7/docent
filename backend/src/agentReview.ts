@@ -25,6 +25,9 @@ export interface Finding {
   // For the reviewer deciding whether to keep it; never posted.
   rationale?: string;
   severity?: Severity;
+  // Why the reviewer's own process set it aside (pushed back on, filtered),
+  // when it handed it back anyway for Docent's editor to judge.
+  setAside?: string;
   // The slice the built-in reviewer found it in; none from the whole-PR pass.
   slice?: string;
 }
@@ -242,6 +245,7 @@ export interface SubmittedFinding {
   body: string;
   rationale?: string;
   severity?: string;
+  setAside?: string;
 }
 
 // Checks a finding against the PR's files. Lines have to be in the diff,
@@ -269,7 +273,7 @@ function checkFinding(finding: SubmittedFinding, files: PrFile[]): Finding {
     endLine = undefined;
   }
   const severity = severityOf(finding.severity, body);
-  return { id: randomUUID(), path, startLine, endLine, body, rationale: finding.rationale?.trim() || undefined, ...(severity ? { severity } : {}) };
+  return { id: randomUUID(), path, startLine, endLine, body, rationale: finding.rationale?.trim() || undefined, ...(severity ? { severity } : {}), ...(finding.setAside?.trim() ? { setAside: finding.setAside.trim() } : {}) };
 }
 
 // The review findings are going into: the reviewer's running one, or a new
