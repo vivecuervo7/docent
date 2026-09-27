@@ -8,7 +8,7 @@
 	import { parsePrUrl, timeAgo } from '$lib/format';
 	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/record';
 	import { isGenerating, isSliceReviewed } from '$lib/session.svelte';
-	import type { Generation, PrRecord, PrRef, SavedPr } from '$lib/types';
+	import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '$lib/types';
 
 	let url = $state('');
 	let formError = $state<string | null>(null);
@@ -29,6 +29,12 @@
 			return {};
 		}
 	}
+	// A conversation's latest answer, all that telling whether it's unread needs.
+	function lastAnswer(messages: NoteMessage[] | undefined): NoteMessage[] | undefined {
+		const answer = messages?.findLast((m) => m.role === 'assistant');
+		return answer ? [{ ...answer, text: '' }] : undefined;
+	}
+
 	// Only what the rows need is kept, not each review's slices and notes.
 	function trimmed(pr: SavedPr): SavedPr {
 		const r = pr.record;
@@ -49,8 +55,13 @@
 				review: r.review?.posted ? ({ posted: r.review.posted } as PrRecord['review']) : undefined,
 				agentReviewers: r.agentReviewers.map((a) => ({ id: a.id, lastRun: a.lastRun })),
 				feedback: Object.fromEntries(
-					Object.entries(r.feedback).map(([k, d]) => [k, d ? { ...d, items: d.items.map((i) => ({ id: i.id, body: '', included: i.included })) } : d])
-				)
+					Object.entries(r.feedback).map(([k, d]) => [
+						k,
+						d ? { ...d, items: d.items.map((i) => ({ id: i.id, body: '', included: i.included, readAt: i.readAt, messages: lastAnswer(i.messages) })) } : d
+					])
+				),
+				// Enough of each thread to tell whether its latest reply is unread.
+				notes: r.notes.map((n) => ({ ...n, messages: lastAnswer(n.messages) ?? [] }))
 			}
 		};
 	}
@@ -258,6 +269,7 @@
 	interface PrStatus extends PrRef {
 		head: string;
 		createdAt: string;
+		updatedAt?: string;
 		author?: string;
 		state: 'OPEN' | 'CLOSED' | 'MERGED';
 	}
@@ -288,7 +300,25 @@
 	};
 
 	// Where a review stands, as one of a few states.
-	function stateOf(pr: Row): { label: string; tone: 'new' | 'working' | 'ready' | 'going' | 'done' | 'bad' | 'quiet' } {
+	// What's happened since you last opened a PR: activity on GitHub, a
+	// reviewer finishing, an answer you haven't read. None for one never opened.
+	function changesSince(pr: Row): string[] {
+		const opened = pr.record.lastOpenedAt;
+		if (pr.unsaved || !opened) return [];
+		const updated = Date.parse(statuses[keyOf(pr)]?.updatedAt ?? involvedOf(pr)?.updatedAt ?? '') || 0;
+		const finished = pr.record.agentReviewers.filter((a) => (a.lastRun?.endedAt ?? 0) > opened).length;
+		const answers = [
+			...Object.values(pr.record.feedback).flatMap((d) => d?.items ?? []),
+			...pr.record.notes
+		].filter(isUnread).length;
+		return [
+			updated > opened ? 'new activity on GitHub' : '',
+			finished ? `${finished} ${finished === 1 ? 'reviewer' : 'reviewers'} finished` : '',
+			answers ? `${answers} unread ${answers === 1 ? 'answer' : 'answers'}` : ''
+		].filter(Boolean);
+	}
+
+	function stateOf(pr: Row): { label: string; tone: 'new' | 'working' | 'ready' | 'going' | 'read' | 'done' | 'bad' | 'quiet' } {
 		if (pr.unsaved) return { label: 'New', tone: 'new' };
 		const generation = generationFor(pr);
 		if (generation?.status === 'queued') return { label: 'Queued', tone: 'quiet' };
@@ -299,7 +329,7 @@
 		if (pr.record.review?.posted) return { label: 'Posted', tone: 'done' };
 		if (panelFor(pr)?.running) return { label: 'Reviewing', tone: 'working' };
 		const { done, total } = progress(pr);
-		if (total && done === total) return { label: 'Read', tone: 'going' };
+		if (total && done === total) return { label: 'Read', tone: 'read' };
 		if (done > 0) return { label: 'In progress', tone: 'going' };
 		if (pr.record.summary || total) return { label: 'Ready', tone: 'ready' };
 		return { label: 'Not prepared', tone: 'quiet' };
@@ -395,6 +425,7 @@
 
 		{#snippet reviewRow(pr: Row)}
 			{@const standing = stateOf(pr)}
+			{@const changes = changesSince(pr)}
 			<li>
 				<a href="/pr/{pr.owner}/{pr.repo}/{pr.number}">
 					<span class="text">
@@ -411,8 +442,11 @@
 					</span>
 					<span class="state">
 						{#if updatedSince(pr)}<span class="updated" title="The PR has new commits since Docent prepared it">Updated since</span>{/if}
+						{#if changes.length}
+							<span class="changed" title="Since you last opened it: {changes.join(', ')}" aria-label="Since you last opened it: {changes.join(', ')}"></span>
+						{/if}
 						<span class="status-label {standing.tone}">
-							{#if standing.tone === 'working'}<Spinner size={11} />{:else}<span class="dot" aria-hidden="true"></span>{/if}
+							{#if standing.tone === 'working'}<Spinner size={11} />{/if}
 							{standing.label}
 						</span>
 					</span>
@@ -573,7 +607,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		padding: 3px 10px 3px 8px;
+		padding: 3px 10px;
 		border-radius: 999px;
 		background: color-mix(in srgb, var(--tone) 16%, transparent);
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
@@ -582,11 +616,12 @@
 		font-weight: 500;
 		white-space: nowrap;
 	}
-	.status-label .dot {
-		width: 6px;
-		height: 6px;
+	/* Something new since you last opened it. */
+	.changed {
+		width: 8px;
+		height: 8px;
 		border-radius: 50%;
-		background: currentColor;
+		background: var(--agent);
 	}
 	.status-label.new {
 		--tone: #c8a8ff;
@@ -599,6 +634,9 @@
 	}
 	.status-label.going {
 		--tone: #e8e2d6;
+	}
+	.status-label.read {
+		--tone: var(--muted);
 	}
 	.status-label.done {
 		--tone: #7fd89b;

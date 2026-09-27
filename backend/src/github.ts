@@ -323,6 +323,8 @@ export interface PrStatus {
   number: string;
   head: string;
   createdAt: string;
+  // Any activity on it: commits, comments, reviews.
+  updatedAt: string;
   author?: string;
   state: "OPEN" | "CLOSED" | "MERGED";
 }
@@ -334,7 +336,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
   const fields = prs
     .map(
       (pr, i) =>
-        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt state author { login } } }`,
+        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } } }`,
     )
     .join("\n");
   const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
@@ -345,12 +347,14 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
   });
   const data = (JSON.parse(stdout).data ?? {}) as Record<
     string,
-    { pullRequest: { headRefOid: string; createdAt: string; state: PrStatus["state"]; author: { login: string } | null } | null } | null
+    {
+      pullRequest: { headRefOid: string; createdAt: string; updatedAt: string; state: PrStatus["state"]; author: { login: string } | null } | null;
+    } | null
   >;
   return prs.flatMap((pr, i) => {
     const found = data[`p${i}`]?.pullRequest;
     return found
-      ? [{ ...pr, head: found.headRefOid, createdAt: found.createdAt, author: found.author?.login, state: found.state }]
+      ? [{ ...pr, head: found.headRefOid, createdAt: found.createdAt, updatedAt: found.updatedAt, author: found.author?.login, state: found.state }]
       : [];
   });
 }
