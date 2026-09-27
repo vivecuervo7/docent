@@ -412,6 +412,9 @@ export class PrSession {
 	// A thread or finding to bring into view and open: its file opens, and so
 	// does any fold hiding it. Cleared by the file that shows it.
 	revealing = $state<string | null>(null);
+	// The thread or finding whose bubble is open: one across the page, so
+	// opening another, in any file, closes it.
+	openMark = $state<string | null>(null);
 
 	// Late findings the reviewer chose to leave for Wrap up, for this visit.
 	readonly lateLeft = new SvelteSet<string>();

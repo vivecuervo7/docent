@@ -240,7 +240,6 @@
 		placed.reduce((by, p) => by.set(p.at, [...(by.get(p.at) ?? []), p]), new Map<string, typeof placed>())
 	);
 
-	let open = $state<string | null>(null);
 	let hovered = $state<string | null>(null);
 
 	// How a row is tinted by the marks covering it: the one being looked at
@@ -248,7 +247,7 @@
 	function tint(pos: number): string {
 		const covering = placed.filter((p) => pos >= p.from && pos <= p.to);
 		if (!covering.length) return '';
-		const active = covering.find((p) => p.mark.id === open || p.mark.id === hovered);
+		const active = covering.find((p) => p.mark.id === session.openMark || p.mark.id === hovered);
 		const kind = (active ?? covering[0]).mark.kind;
 		return `tint-${kind}${active ? ' tint-active' : ''}`;
 	}
@@ -281,7 +280,7 @@
 		);
 		selection = null;
 		draft = '';
-		open = id;
+		session.openMark = id;
 	}
 
 	// What the open bubble and the composer point at: the pin, and the code
@@ -290,7 +289,7 @@
 	let openAnchor = $state<HTMLElement | null>(null);
 	let composerAnchor = $state<ReferenceElement | null>(null);
 	$effect(() => {
-		const id = open;
+		const id = session.openMark;
 		if (!id || !sectionEl) {
 			openAnchor = null;
 			return;
@@ -335,7 +334,7 @@
 				for (const p of list) if (p.type === 'fold' && p.rows.some((r) => matchesRow(r, mark.start))) openFolds.add(p.id);
 			for (const item of items)
 				if (item.type === 'fold' && item.hunks.some((h) => h.rows.some((r) => matchesRow(r, mark.start)))) expanded.add(item.id);
-			open = id;
+			session.openMark = id;
 			requestAnimationFrame(() =>
 				requestAnimationFrame(() => sectionEl?.querySelector(`[data-pin="${id}"]`)?.scrollIntoView({ block: 'center' }))
 			);
@@ -344,11 +343,11 @@
 
 	// A click anywhere but the open thread, finding or composer closes it.
 	$effect(() => {
-		if (!open && !(selection && !dragging)) return;
+		if (!session.openMark && !(selection && !dragging)) return;
 		const close = (e: PointerEvent) => {
 			const el = e.target as Element;
 			if (el.closest('.popover, .composer, .pin, .n, [role="dialog"], .scrim')) return;
-			open = null;
+			session.openMark = null;
 			selection = null;
 		};
 		window.addEventListener('pointerdown', close);
@@ -364,7 +363,7 @@
 	function startSelect(e: PointerEvent, pos: number) {
 		if (e.button !== 0) return;
 		e.preventDefault();
-		open = null;
+		session.openMark = null;
 		dragging = true;
 		selection = { anchor: pos, head: pos };
 		window.addEventListener('pointerup', () => (dragging = false), { once: true });
@@ -428,10 +427,10 @@
 			{#each pins ?? [] as p (p.mark.id)}
 				<button
 					class="pin {p.mark.kind}"
-					class:active={open === p.mark.id}
+					class:active={session.openMark === p.mark.id}
 					data-pin={p.mark.id}
 					aria-label="{p.mark.kind === 'finding' ? 'Finding' : 'Thread'} from {p.mark.who}"
-					onclick={() => (open = open === p.mark.id ? null : p.mark.id)}
+					onclick={() => (session.openMark = session.openMark === p.mark.id ? null : p.mark.id)}
 					onpointerenter={() => (hovered = p.mark.id)}
 					onpointerleave={() => (hovered = null)}
 				>
@@ -446,12 +445,12 @@
 			{/each}
 		</span>
 		{#each pins ?? [] as p (p.mark.id)}
-			{#if open === p.mark.id}
+			{#if session.openMark === p.mark.id}
 				<Floating anchor={openAnchor} label={p.mark.note ? 'Thread' : 'Finding'} tone={p.mark.note ? 'plain' : 'agent'}>
 					{#if p.mark.note}
-						<ThreadPanel note={p.mark.note} onclose={() => (open = null)} />
+						<ThreadPanel note={p.mark.note} onclose={() => (session.openMark = null)} />
 					{:else}
-						<MarkPopover mark={p.mark} onclose={() => (open = null)} />
+						<MarkPopover mark={p.mark} onclose={() => (session.openMark = null)} />
 					{/if}
 				</Floating>
 			{/if}
