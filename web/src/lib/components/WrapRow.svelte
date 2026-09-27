@@ -124,7 +124,7 @@
 			{/if}
 		{/if}
 	</div>
-	<div class="decide" class:suggested role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
+	<div class="decide" role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
 		<button class:on={kept === true} aria-pressed={kept === true} onclick={onkeep}>Keep</button>
 		<button class:on={kept === false} aria-pressed={kept === false} onclick={onskip}>Skip</button>
 	</div>
@@ -272,11 +272,5 @@
 	.decide button.on {
 		background: #ece8df;
 		color: #141413;
-	}
-	/* The panel's choice, which stands unless you change it. */
-	.decide.suggested button.on {
-		background: transparent;
-		box-shadow: inset 0 0 0 1px #ece8df;
-		color: #ece8df;
 	}
 </style>
