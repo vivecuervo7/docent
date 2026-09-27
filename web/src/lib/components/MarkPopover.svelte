@@ -87,9 +87,6 @@
 	<header>
 		<span class="who">{mark.who}</span>
 		<SeverityTag severity={item?.severity} />
-		{#if item?.speculative}<span class="speculative">Speculative</span>{/if}
-		{#if item?.onPr}<span class="speculative" title="Already on the PR: {item.onPr}">Already on the PR</span>{/if}
-		{#if item?.setAside}<span class="speculative" title="Set aside by {mark.who}: {item.setAside}">Set aside by {mark.who}</span>{/if}
 		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" onclick={onclose}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -103,7 +100,8 @@
 			checked={item?.checked}
 			checkedVerdict={item?.checkedVerdict}
 			speculative={item?.speculative}
-			size={15}
+			onPr={item?.onPr}
+			setAside={item?.setAside}
 		/>
 		{#if mark.rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
@@ -295,13 +293,6 @@
 	}
 	.disputed {
 		color: var(--agent);
-	}
-	.speculative {
-		padding: 1px 7px;
-		border-radius: 999px;
-		box-shadow: 0 0 0 1px var(--popover-line);
-		color: var(--faint);
-		font-size: 11.5px;
 	}
 	.suggested {
 		flex-basis: 100%;

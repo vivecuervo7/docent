@@ -79,15 +79,12 @@
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
 			<SeverityTag {severity} />
-			{#if speculative}<span class="speculative" title="Assumes: {speculative}">Speculative</span>{/if}
-			{#if onPr}<span class="speculative" title="Already on the PR: {onPr}">Already on the PR</span>{/if}
-			{#if setAside}<span class="speculative" title="Set aside by {who}: {setAside}">Set aside by {who}</span>{/if}
 			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
 			<span class="where">{#if path}<FilePath {path} {lines} />{:else}the PR as a whole{/if}</span>
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
-		<EditorNotes {...notes} speculative={notes ? speculative : undefined} />
+		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" />
 		{#if rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
 				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
