@@ -21,7 +21,9 @@
 	);
 	const groups = $derived(groupsOf(session.record));
 	// The most serious first; findings without a severity after the rest.
-	const rank = (i: FeedbackItem) => (i.severity ? SEVERITY_ORDER.indexOf(i.severity) : SEVERITY_ORDER.length);
+	// Ones the editor suggests skipping come last.
+	const rank = (i: FeedbackItem) =>
+		(i.skipSuggested ? SEVERITY_ORDER.length + 1 : 0) + (i.severity ? SEVERITY_ORDER.indexOf(i.severity) : SEVERITY_ORDER.length);
 	const undecided = $derived(findings.filter((f) => !f.item.decided).sort((a, b) => rank(a.item) - rank(b.item)));
 	const kept = $derived(findings.filter((f) => f.item.decided && f.item.included));
 	const skipped = $derived(findings.filter((f) => f.item.decided && !f.item.included));
@@ -55,6 +57,7 @@
 		who={reviewerName(session.record, reviewer)}
 		speculative={item.speculative}
 		onPr={item.onPr}
+		skipSuggested={item.skipSuggested}
 		severity={item.severity}
 		path={item.path}
 		start={item.start}

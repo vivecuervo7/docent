@@ -105,6 +105,11 @@ export interface FeedbackItem {
 	disputed?: string;
 	// For an external reviewer's finding, the PR thread already raising it.
 	onPr?: string;
+	// How likely it is, and what happens when it does, as the editor judged.
+	impact?: string;
+	// Why the editor suggests skipping it: it holds, but likely isn't worth
+	// posting. It starts out skipped until the reviewer decides.
+	skipSuggested?: string;
 }
 
 export interface FeedbackDraft {

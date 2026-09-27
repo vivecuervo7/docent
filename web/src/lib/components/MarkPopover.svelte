@@ -69,11 +69,6 @@
 	// Quick questions, each offered until it's been asked.
 	const QUICK = [
 		{
-			label: 'How bad is this?',
-			prompt:
-				"How bad is this? In two or three sentences: how likely it is to happen, what breaks when it does, and who would notice. If it wouldn't cause a real problem, say so plainly."
-		},
-		{
 			label: 'Suggest a fix',
 			prompt: "Suggest a fix: the change you'd make, with a short code snippet where it helps. Keep to what this finding needs."
 		}
@@ -100,6 +95,7 @@
 	</header>
 	<div class="content" bind:this={list}>
 		<p class="body"><InlineText text={mark.body} /></p>
+		{#if item?.impact}<p class="checked">Impact: <InlineText text={item.impact} /></p>{/if}
 		{#if item?.speculative}<p class="checked">Assumes: <InlineText text={item.speculative} /></p>{/if}
 		{#if item?.checked}<p class="checked">Checked: <InlineText text={item.checked} /></p>{/if}
 		{#if mark.rationale}
@@ -188,6 +184,7 @@
 		></textarea>
 	</div>
 	<footer>
+		{#if item?.skipSuggested && !item.decided}<span class="suggested">Skip suggested: {item.skipSuggested}</span>{/if}
 		<button class="btn" class:primary={isKept} aria-pressed={isKept} onclick={() => keep(true)}>Keep</button>
 		<button class="btn" class:primary={!isKept} aria-pressed={!isKept} onclick={() => keep(false)}>Skip</button>
 	</footer>
@@ -298,6 +295,11 @@
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--faint);
 		font-size: 11.5px;
+	}
+	.suggested {
+		flex-basis: 100%;
+		font-size: 12.5px;
+		color: var(--faint);
 	}
 	.checked {
 		margin: -4px 0 0;
@@ -412,6 +414,7 @@
 	}
 	footer {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 8px;
 		padding: 0 16px 14px;
 	}

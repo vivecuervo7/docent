@@ -548,6 +548,8 @@ export class Panel {
 				severity?: FeedbackItem['severity'];
 				disputed?: string;
 				onPr?: string;
+				impact?: string;
+				skip?: string;
 			}
 		>;
 		try {
@@ -598,7 +600,9 @@ export class Panel {
 					...(edits[id]?.speculative ? { speculative: edits[id].speculative } : {}),
 					...(edits[id]?.severity ? { severity: edits[id].severity } : {}),
 					...(edits[id]?.disputed ? { disputed: edits[id].disputed } : {}),
-					...(edits[id]?.onPr ? { onPr: edits[id].onPr } : {})
+					...(edits[id]?.onPr ? { onPr: edits[id].onPr } : {}),
+					...(edits[id]?.impact ? { impact: edits[id].impact } : {}),
+					...(edits[id]?.skip ? { skipSuggested: edits[id].skip } : {})
 				};
 				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
 				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root }, ...checked });
@@ -622,8 +626,16 @@ export class Panel {
 					...draft,
 					items: draft.items.map((i) => {
 						if (!ids.has(i.id)) return i;
-						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
-						return { ...rest, ...change(i.id) };
+						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, skipSuggested, matched: _m, ...rest } =
+							i as FeedbackItem & { matched?: boolean };
+						const next = { ...rest, ...change(i.id) };
+						// A suggested skip applies until the reviewer decides, and lifts
+						// when a later edit no longer suggests it.
+						if (!i.decided) {
+							if (next.skipSuggested) next.included = false;
+							else if (skipSuggested) next.included = true;
+						}
+						return next;
 					})
 				};
 			}

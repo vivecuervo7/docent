@@ -52,6 +52,11 @@ export interface Edit {
   // For an external reviewer's finding the PR's conversation already raised,
   // which thread.
   onPr?: string;
+  // For one kept: how likely it is, and what happens when it does.
+  impact?: string;
+  // For one kept that holds but likely isn't worth posting, why - it starts
+  // out skipped, for the reviewer to keep if they disagree.
+  skip?: string;
 }
 
 const EDIT_TOOL = {
@@ -85,6 +90,16 @@ const EDIT_TOOL = {
               type: "string",
               description:
                 "For a finding that repeats another (same_as) but disagrees with it on what's wrong or how to fix it, what they disagree on, in a sentence. Leave out when they agree.",
+            },
+            impact: {
+              type: "string",
+              description:
+                "For a finding you keep: how likely it is to happen and what happens when it does, in a sentence - what the reviewer would get asking 'how bad is this?'.",
+            },
+            skip: {
+              type: "string",
+              description:
+                "For a finding you keep that holds but likely isn't worth posting - a nit, an unlikely speculative case, a point a PR thread already makes - why, in a few words. Leave out for one worth posting.",
             },
             on_pr: {
               type: "string",
@@ -134,6 +149,11 @@ question worth asking the author is worth keeping.
 - Check each kept finding's severity. Reviewers tend to overstate: a major has to name a real \
 failure or regression, and one that only describes taste or a hypothetical is minor or a nit. \
 Lower an overstated one; when unsure, the lower one.
+- For each finding you keep, say how likely it is and what happens when it does (impact), and let \
+that decide its severity: a "major" whose impact is rare and only a flaky test is a nit.
+- Suggest skipping a finding you keep that holds but likely isn't worth posting: a nit, a \
+speculative case that's unlikely, a point a PR thread already makes. It stays visible, starting \
+out skipped, for the reviewer to keep if they disagree.
 - When a finding repeats another but the two disagree on what's wrong or how to fix it, still say \
 it repeats it, and say what they disagree on.
 - If a finding rests on an assumption the PR relies on that neither the PR nor the code settles - \
@@ -229,7 +249,7 @@ export async function editFindings(
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, filter, checked, speculative, severity, disputed, on_pr } = (e ?? {}) as {
+      const { id, same_as, filter, checked, speculative, severity, disputed, on_pr, impact, skip } = (e ?? {}) as {
         id?: unknown;
         same_as?: unknown;
         filter?: unknown;
@@ -238,6 +258,8 @@ export async function editFindings(
         severity?: unknown;
         disputed?: unknown;
         on_pr?: unknown;
+        impact?: unknown;
+        skip?: unknown;
       };
       if (typeof id !== "string" || !asked.has(id)) continue;
       const edit: Edit = {};
@@ -251,6 +273,8 @@ export async function editFindings(
       if (reason && (args.filter || (looks && /^disproved\b/i.test(reason)))) edit.filtered = reason;
       else {
         if (!args.filter && typeof on_pr === "string" && on_pr.trim()) edit.onPr = on_pr.trim();
+        if (typeof impact === "string" && impact.trim()) edit.impact = impact.trim();
+        if (typeof skip === "string" && skip.trim()) edit.skip = skip.trim();
         if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
         if (args.filter && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();
         if (typeof severity === "string" && ["blocker", "major", "minor", "nit"].includes(severity)) edit.severity = severity;

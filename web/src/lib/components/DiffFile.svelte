@@ -427,6 +427,7 @@
 			{#each pins ?? [] as p (p.mark.id)}
 				<button
 					class="pin {p.mark.kind}"
+					class:skipped={p.mark.kind === 'finding' && p.mark.included === false}
 					class:active={session.openMark === p.mark.id}
 					data-pin={p.mark.id}
 					aria-label="{p.mark.kind === 'finding' ? 'Finding' : 'Thread'} from {p.mark.who}"
@@ -909,6 +910,13 @@
 	}
 	.pin.finding {
 		fill: var(--agent);
+	}
+	/* Skipped, or suggested for skipping: the same diamond, outlined. */
+	.pin.finding.skipped {
+		fill: none;
+		stroke: var(--agent);
+		stroke-width: 1.2;
+		opacity: 0.75;
 	}
 	.pin.note {
 		fill: var(--you);
