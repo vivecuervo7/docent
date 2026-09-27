@@ -51,6 +51,7 @@ import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
 import { checkSetup } from "./setup.js";
 import { editFindings, editorModel } from "./grouping.js";
 import { getLookup } from "./codeContext.js";
+import { pickPersonas } from "./pickPersonas.js";
 import { ALWAYS_ALLOWED } from "./sessions.js";
 import { handleMcpRequest } from "./mcp.js";
 import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
@@ -304,6 +305,20 @@ app.post("/api/pr/:owner/:repo/:number/findings/edit", async (req, res) => {
     res.json({ edits: Object.fromEntries(edits) });
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
+  }
+});
+
+// "Auto" on the panel: the personas this PR warrants, less those already on it.
+app.post("/api/pr/:owner/:repo/:number/panel/pick", async (req, res) => {
+  const { owner, repo, number } = req.params;
+  const exclude = req.body?.exclude;
+  if (!validParams(owner, repo, number) || !Array.isArray(exclude) || !exclude.every((id) => typeof id === "string")) {
+    return res.status(400).json({ error: "invalid request" });
+  }
+  try {
+    res.json({ picks: await pickPersonas(owner, repo, number, reviewModel(req), exclude) });
+  } catch (err) {
+    res.status(502).json({ error: (err as Error).message });
   }
 });
 

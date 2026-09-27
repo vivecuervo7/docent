@@ -42,6 +42,7 @@
 		const setup = setupOf(r);
 		if (setup.mode === 'external') return 'Your own agent';
 		if (setup.mode === 'session') return `External · ${panel.externalName(`session:${setup.session}`)}`;
+		if (setup.mode === 'auto') return `Picks personas · ${modelLabel(setup.model)}`;
 		return modelLabel(setup.model);
 	}
 
@@ -65,9 +66,12 @@
 		if (next) goto(`${base}/slices/${next.id}`);
 	}
 
+	// An "auto" started now replaces its picks, so they aren't started too.
+	const replacing = $derived(new Set(toStart.filter((r) => setupOf(r).mode === 'auto').map((r) => r.id)));
+
 	async function startAndRead() {
 		starting = true;
-		const started = [...toStart];
+		const started = toStart.filter((r) => !(r.pickedBy && replacing.has(r.pickedBy)));
 		await Promise.all(started.map((r) => panel.start(r.id, setupOf(r))));
 		for (const r of started) ticked[r.id] = false;
 		starting = false;
@@ -131,7 +135,7 @@
 			{@const setup = setupOf(r)}
 			{@const running = review?.status === 'running'}
 			{@const found = panel.findings(r.id)}
-			<li>
+			<li class:picked={!!r.pickedBy}>
 				<div class="text">
 					<div class="picker">
 						<span class="name">{nameOf(r, panel.reviewers)}</span>
@@ -173,6 +177,15 @@
 										</button>
 									{/each}
 								{/if}
+								<span class="group">Pick personas for me</span>
+								{#each models as m (m.id)}
+									{@const current = setup.mode === 'auto' && setup.model === m.id}
+									<button role="menuitemradio" aria-checked={current} onclick={() => { panel.plan(r.id, { mode: 'auto', model: m.id }); menuFor = null; }}>
+										<span class="tick">{#if current}✓{/if}</span>
+										<span>{m.label}</span>
+										<span class="hint">{m.source}</span>
+									</button>
+								{/each}
 								<span class="group">Your own agent</span>
 								<button role="menuitemradio" aria-checked={setup.mode === 'external'} onclick={() => { choose(r, 'external'); menuFor = null; }}>
 									<span class="tick">{#if setup.mode === 'external'}✓{/if}</span>
@@ -218,7 +231,22 @@
 						</div>
 					</div>
 
-					{#if running && review.source === 'builtin'}
+					{#if r.pickedBy && r.pickReason}
+						<span class="status faint reason">Picked: {r.pickReason}</span>
+					{/if}
+					{#if setup.mode === 'auto' || r.picks}
+						{#if panel.picking[r.id]}
+							<span class="status working"><Spinner size={13} /> Picking the personas this PR warrants</span>
+						{:else if panel.errors[r.id]}
+							<span class="status bad">Couldn’t pick: {panel.errors[r.id]}</span>
+						{:else if r.picks}
+							<span class="status faint">
+								{r.picks.personas.length
+									? `Picked ${r.picks.personas.map((p) => panel.personaName(p)).join(', ')}`
+									: 'Picked none: nothing here warrants a specialist'}{isTicked(r) ? ' · picks again, replacing them' : ''}
+							</span>
+						{/if}
+					{:else if running && review.source === 'builtin'}
 						<span class="status working">
 							<Spinner size={13} />
 							{!review.progress?.total
@@ -374,6 +402,14 @@
 		gap: 14px;
 		padding: 14px 0;
 		border-top: 1px solid #2a261f;
+	}
+	/* What "auto" added sits under it. */
+	li.picked {
+		padding-left: 18px;
+		border-top-style: dashed;
+	}
+	.reason {
+		font-style: italic;
 	}
 	.text {
 		flex-grow: 1;

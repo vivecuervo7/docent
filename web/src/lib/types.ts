@@ -156,6 +156,12 @@ export interface AgentReviewer {
 	planned?: string;
 	// For Docent's reviewer, the persona it takes; none is the default.
 	persona?: string;
+	// A reviewer "auto" added, with why the PR warranted its persona; "auto"
+	// replaces its picks each time it runs.
+	pickedBy?: AgentId;
+	pickReason?: string;
+	// For "auto" ("auto:<model>"), the personas it last picked.
+	picks?: { at: number; personas: string[]; error?: string };
 	// Its latest review, kept after the backend has let it go.
 	lastRun?: { startedAt: number; endedAt?: number; status: AgentReview['status']; findings: number; error?: string };
 }

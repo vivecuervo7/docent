@@ -14,7 +14,10 @@ import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type F
 export type ReviewerSetup =
 	| { mode: 'builtin'; model: string; persona?: string }
 	| { mode: 'external' }
-	| { mode: 'session'; session: string };
+	| { mode: 'session'; session: string }
+	// Picks the personas the PR warrants, beyond those already on the panel,
+	// and runs them on the model.
+	| { mode: 'auto'; model: string };
 
 // Docent's reviewer with a point of view.
 export interface Persona {
@@ -43,6 +46,7 @@ export { sessionId };
 
 function setupOfValue(runs: string | undefined, persona: string | undefined, defaultModel: string): ReviewerSetup {
 	if (runs === 'external') return { mode: 'external' };
+	if (runs?.startsWith('auto:')) return { mode: 'auto', model: runs.slice('auto:'.length) };
 	const session = sessionId(runs);
 	if (session) return { mode: 'session', session };
 	return { mode: 'builtin', model: runs ?? defaultModel, ...(persona ? { persona } : {}) };
@@ -53,7 +57,13 @@ export function setupFrom(reviewer: AgentReviewer, defaultModel: string): Review
 }
 
 const setupValue = (setup: ReviewerSetup) =>
-	setup.mode === 'external' ? 'external' : setup.mode === 'session' ? `session:${setup.session}` : setup.model;
+	setup.mode === 'external'
+		? 'external'
+		: setup.mode === 'session'
+			? `session:${setup.session}`
+			: setup.mode === 'auto'
+				? `auto:${setup.model}`
+				: setup.model;
 
 const entryOf = (setup: ReviewerSetup): PanelEntry => ({
 	runs: setupValue(setup),
@@ -98,6 +108,8 @@ export class Panel {
 	#session: PrSession;
 	reviews = $state<Partial<Record<AgentId, AgentReview>>>({});
 	errors = $state<Partial<Record<AgentId, string>>>({});
+	// "auto" reviewers choosing their personas.
+	picking = $state<Partial<Record<AgentId, boolean>>>({});
 	// The lookup of the code around the PR its reviewers start from.
 	lookup = $state<{ status: 'running' | 'done' | 'failed'; steps: string[]; facts: { fact: string; where: string }[] } | null>(null);
 	defaultPanel = $state<PanelEntry[] | null>(null);
@@ -214,6 +226,7 @@ export class Panel {
 	}
 
 	async start(id: AgentId, setup: ReviewerSetup) {
+		if (setup.mode === 'auto') return this.#startAuto(id, setup.model);
 		const session = this.#session;
 		this.errors[id] = undefined;
 		try {
@@ -248,13 +261,76 @@ export class Panel {
 	}
 
 	// This PR's panel, as what every new PR starts with.
+	// "auto" picks personas the PR warrants, leaving out any already on the
+	// panel by choice, and runs them in place of its last picks.
+	async #startAuto(id: AgentId, model: string) {
+		const session = this.#session;
+		this.errors[id] = undefined;
+		this.picking[id] = true;
+		try {
+			const chosen = this.reviewers.flatMap((a) => {
+				const runs = a.planned ?? a.ranWith;
+				const docents = runs !== 'external' && !sessionId(runs) && !runs?.startsWith('auto:');
+				return !a.pickedBy && docents && a.persona ? [a.persona] : [];
+			});
+			const { owner, repo, number } = session.ref;
+			const res = await fetch(`/api/pr/${owner}/${repo}/${number}/panel/pick`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ exclude: chosen, model })
+			});
+			const { picks } = await api.readOk<{ picks: { persona: string; reason: string }[] }>(res);
+			const previous = this.reviewers.filter((a) => a.pickedBy === id).map((a) => a.id);
+			for (const old of previous) {
+				this.#removed.add(old);
+				delete this.reviews[old];
+				api.dismissAgentReview(session.ref, old, true);
+			}
+			const added: AgentId[] = [];
+			await session.update((r) => {
+				for (const old of previous) delete r.feedback[old];
+				const highest = Math.max(0, r.agentHighest ?? 0, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length))));
+				const fresh = picks.map((p, i): AgentReviewer => {
+					const pid: AgentId = `agent-${highest + i + 1}`;
+					added.push(pid);
+					return { id: pid, planned: model, persona: p.persona, pickedBy: id, pickReason: p.reason };
+				});
+				r.agentHighest = highest + picks.length;
+				// Its picks sit just after it.
+				const kept = r.agentReviewers.filter((a) => a.pickedBy !== id);
+				const at = kept.findIndex((a) => a.id === id);
+				kept.splice(at + 1, 0, ...fresh);
+				r.agentReviewers = kept.map((a) =>
+					a.id === id ? { ...a, ranWith: `auto:${model}`, planned: undefined, picks: { at: Date.now(), personas: picks.map((p) => p.persona) } } : a
+				);
+				r.panelSettled = true;
+				nameAll(r);
+			});
+			await Promise.all(
+				added.map((pid) => {
+					const persona = this.reviewers.find((a) => a.id === pid)?.persona;
+					return this.start(pid, { mode: 'builtin', model, ...(persona ? { persona } : {}) });
+				})
+			);
+		} catch (err) {
+			this.errors[id] = (err as Error).message;
+		} finally {
+			this.picking[id] = false;
+		}
+	}
+
+	// The panel as chosen, without what "auto" added.
+	#chosen() {
+		return this.reviewers.filter((r) => !r.pickedBy);
+	}
+
 	async saveAsDefault(defaultModel: string) {
-		const panel = this.reviewers.map((r) => entryOf(setupFrom(r, defaultModel)));
+		const panel = this.#chosen().map((r) => entryOf(setupFrom(r, defaultModel)));
 		this.defaultPanel = await api.setDefaultPanel(panel);
 	}
 
 	isDefault(defaultModel: string): boolean {
-		const panel = this.reviewers.map((r) => entryOf(setupFrom(r, defaultModel)));
+		const panel = this.#chosen().map((r) => entryOf(setupFrom(r, defaultModel)));
 		const saved = this.defaultPanel?.map((e) => entryOf(setupOfValue(e.runs, e.persona, defaultModel)));
 		return !!saved && JSON.stringify(panel) === JSON.stringify(saved);
 	}
@@ -288,14 +364,18 @@ export class Panel {
 		return added;
 	}
 
+	// Removing "auto" removes what it picked too.
 	async remove(id: AgentId) {
 		if (id === FIRST_AGENT) return;
-		this.#removed.add(id);
-		delete this.reviews[id];
-		api.dismissAgentReview(this.#session.ref, id, true);
+		const gone = [id, ...this.reviewers.filter((a) => a.pickedBy === id).map((a) => a.id)];
+		for (const g of gone) {
+			this.#removed.add(g);
+			delete this.reviews[g];
+			api.dismissAgentReview(this.#session.ref, g, true);
+		}
 		await this.#session.update((r) => {
-			r.agentReviewers = r.agentReviewers.filter((a) => a.id !== id);
-			delete r.feedback[id];
+			r.agentReviewers = r.agentReviewers.filter((a) => !gone.includes(a.id));
+			for (const g of gone) delete r.feedback[g];
 			r.panelSettled = true;
 		});
 	}

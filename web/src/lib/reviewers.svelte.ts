@@ -28,6 +28,7 @@ const slug = (name: string) =>
 // its persona on Docent's reviewer.
 function kindOf(r: AgentReviewer): string | null {
 	const runs = r.planned ?? r.ranWith;
+	if (runs?.startsWith('auto:')) return 'auto';
 	const session = sessionId(runs);
 	if (session) {
 		const external = known.externals.find((e) => e.id === session);
