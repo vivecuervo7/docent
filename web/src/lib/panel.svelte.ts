@@ -14,10 +14,12 @@ import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type F
 export type ReviewerSetup =
 	| { mode: 'builtin'; model: string; persona?: string }
 	| { mode: 'external' }
-	| { mode: 'session'; session: string }
-	// Picks the personas the PR warrants, beyond those already on the panel,
-	// and runs them on the model.
-	| { mode: 'auto'; model: string };
+	| { mode: 'session'; session: string };
+
+// The persona that picks personas: the ones the PR warrants, beyond those
+// already on the panel, run on the reviewer's model.
+export const AUTO_PERSONA = 'auto';
+export const isAuto = (r: { persona?: string }) => r.persona === AUTO_PERSONA;
 
 // Docent's reviewer with a point of view.
 export interface Persona {
@@ -46,7 +48,6 @@ export { sessionId };
 
 function setupOfValue(runs: string | undefined, persona: string | undefined, defaultModel: string): ReviewerSetup {
 	if (runs === 'external') return { mode: 'external' };
-	if (runs?.startsWith('auto:')) return { mode: 'auto', model: runs.slice('auto:'.length) };
 	const session = sessionId(runs);
 	if (session) return { mode: 'session', session };
 	return { mode: 'builtin', model: runs ?? defaultModel, ...(persona ? { persona } : {}) };
@@ -57,13 +58,7 @@ export function setupFrom(reviewer: AgentReviewer, defaultModel: string): Review
 }
 
 const setupValue = (setup: ReviewerSetup) =>
-	setup.mode === 'external'
-		? 'external'
-		: setup.mode === 'session'
-			? `session:${setup.session}`
-			: setup.mode === 'auto'
-				? `auto:${setup.model}`
-				: setup.model;
+	setup.mode === 'external' ? 'external' : setup.mode === 'session' ? `session:${setup.session}` : setup.model;
 
 const entryOf = (setup: ReviewerSetup): PanelEntry => ({
 	runs: setupValue(setup),
@@ -226,7 +221,7 @@ export class Panel {
 	}
 
 	async start(id: AgentId, setup: ReviewerSetup) {
-		if (setup.mode === 'auto') return this.#startAuto(id, setup.model);
+		if (setup.mode === 'builtin' && setup.persona === AUTO_PERSONA) return this.#startAuto(id, setup.model);
 		const session = this.#session;
 		this.errors[id] = undefined;
 		try {
@@ -270,8 +265,8 @@ export class Panel {
 		try {
 			const chosen = this.reviewers.flatMap((a) => {
 				const runs = a.planned ?? a.ranWith;
-				const docents = runs !== 'external' && !sessionId(runs) && !runs?.startsWith('auto:');
-				return !a.pickedBy && docents && a.persona ? [a.persona] : [];
+				const docents = runs !== 'external' && !sessionId(runs);
+				return !a.pickedBy && docents && a.persona && !isAuto(a) ? [a.persona] : [];
 			});
 			const { owner, repo, number } = session.ref;
 			const res = await fetch(`/api/pr/${owner}/${repo}/${number}/panel/pick`, {
@@ -301,7 +296,7 @@ export class Panel {
 				const at = kept.findIndex((a) => a.id === id);
 				kept.splice(at + 1, 0, ...fresh);
 				r.agentReviewers = kept.map((a) =>
-					a.id === id ? { ...a, ranWith: `auto:${model}`, planned: undefined, picks: { at: Date.now(), personas: picks.map((p) => p.persona) } } : a
+					a.id === id ? { ...a, ranWith: model, planned: undefined, picks: { at: Date.now(), personas: picks.map((p) => p.persona) } } : a
 				);
 				r.panelSettled = true;
 				nameAll(r);
@@ -336,6 +331,7 @@ export class Panel {
 	}
 
 	personaName(id: string | undefined): string {
+		if (id === AUTO_PERSONA) return 'Auto';
 		return (id && this.personas.find((p) => p.id === id)?.name) || 'general';
 	}
 

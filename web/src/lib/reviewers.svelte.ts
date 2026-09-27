@@ -28,13 +28,13 @@ const slug = (name: string) =>
 // its persona on Docent's reviewer.
 function kindOf(r: AgentReviewer): string | null {
 	const runs = r.planned ?? r.ranWith;
-	if (runs?.startsWith('auto:')) return 'auto';
 	const session = sessionId(runs);
 	if (session) {
 		const external = known.externals.find((e) => e.id === session);
 		return external ? slug(external.name) || null : null;
 	}
 	if (runs === 'external') return null;
+	if (r.persona === 'auto') return 'auto';
 	const persona = r.persona ? known.personas.find((p) => p.id === r.persona) : undefined;
 	return (persona && slug(persona.name)) || 'general';
 }

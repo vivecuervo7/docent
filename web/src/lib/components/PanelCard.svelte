@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { ask } from '$lib/confirm.svelte';
 	import { listModels } from '$lib/api';
-	import { agentInstruction, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
+	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';
 	import Spinner from './Spinner.svelte';
@@ -42,7 +42,6 @@
 		const setup = setupOf(r);
 		if (setup.mode === 'external') return 'Your own agent';
 		if (setup.mode === 'session') return `External · ${panel.externalName(`session:${setup.session}`)}`;
-		if (setup.mode === 'auto') return `Picks personas · ${modelLabel(setup.model)}`;
 		return modelLabel(setup.model);
 	}
 
@@ -67,7 +66,7 @@
 	}
 
 	// An "auto" started now replaces its picks, so they aren't started too.
-	const replacing = $derived(new Set(toStart.filter((r) => setupOf(r).mode === 'auto').map((r) => r.id)));
+	const replacing = $derived(new Set(toStart.filter(isAuto).map((r) => r.id)));
 
 	async function startAndRead() {
 		starting = true;
@@ -177,15 +176,6 @@
 										</button>
 									{/each}
 								{/if}
-								<span class="group">Pick personas for me</span>
-								{#each models as m (m.id)}
-									{@const current = setup.mode === 'auto' && setup.model === m.id}
-									<button role="menuitemradio" aria-checked={current} onclick={() => { panel.plan(r.id, { mode: 'auto', model: m.id }); menuFor = null; }}>
-										<span class="tick">{#if current}✓{/if}</span>
-										<span>{m.label}</span>
-										<span class="hint">{m.source}</span>
-									</button>
-								{/each}
 								<span class="group">Your own agent</span>
 								<button role="menuitemradio" aria-checked={setup.mode === 'external'} onclick={() => { choose(r, 'external'); menuFor = null; }}>
 									<span class="tick">{#if setup.mode === 'external'}✓{/if}</span>
@@ -213,6 +203,11 @@
 								{/if}
 								{#if personaMenuFor === r.id}
 									<div class="menu" role="menu" aria-label="Persona">
+										<button role="menuitemradio" aria-checked={setup.persona === AUTO_PERSONA} onclick={() => { choosePersona(r, AUTO_PERSONA); personaMenuFor = null; }}>
+											<span class="tick">{#if setup.persona === AUTO_PERSONA}✓{/if}</span>
+											<span>Auto</span>
+											<span class="hint">Picks the personas this PR warrants</span>
+										</button>
 										<button role="menuitemradio" aria-checked={!setup.persona} onclick={() => { choosePersona(r, undefined); personaMenuFor = null; }}>
 											<span class="tick">{#if !setup.persona}✓{/if}</span>
 											<span>general</span>
@@ -234,7 +229,7 @@
 					{#if r.pickedBy && r.pickReason}
 						<span class="status faint reason">Picked: {r.pickReason}</span>
 					{/if}
-					{#if setup.mode === 'auto' || r.picks}
+					{#if isAuto(r)}
 						{#if panel.picking[r.id]}
 							<span class="status working"><Spinner size={13} /> Picking the personas this PR warrants</span>
 						{:else if panel.errors[r.id]}
