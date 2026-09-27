@@ -507,7 +507,7 @@
 		{#if hidden.length}
 			<span class="fold-pins">
 				{#each hidden as m (m.id)}
-					<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
+					<span class="fold-pin {m.kind}" class:skipped={m.kind === 'finding' && m.included === false} title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
 						{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
 					</span>
 				{/each}
@@ -559,6 +559,7 @@
 				{#each findingMarks as m (m.id)}
 					<button
 						class="pin finding"
+						class:skipped={m.included === false}
 						aria-label="Open the finding from {m.who}"
 						title="A finding from {m.who}"
 						onclick={() => (session.revealing = m.id)}
@@ -604,7 +605,7 @@
 						{#if !item.expanded && hiddenMarks(item.hunks.flatMap((h) => h.rows)).length}
 							<span class="fold-pins">
 								{#each hiddenMarks(item.hunks.flatMap((h) => h.rows)) as m (m.id)}
-									<span class="fold-pin {m.kind}" title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
+									<span class="fold-pin {m.kind}" class:skipped={m.kind === 'finding' && m.included === false} title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
 										{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
 									</span>
 								{/each}
@@ -751,6 +752,12 @@
 	}
 	.fold-pin.note {
 		fill: var(--you);
+	}
+	.fold-pin.finding.skipped {
+		fill: none;
+		stroke: var(--agent);
+		stroke-width: 1.2;
+		opacity: 0.75;
 	}
 	.diff {
 		margin-bottom: 18px;
