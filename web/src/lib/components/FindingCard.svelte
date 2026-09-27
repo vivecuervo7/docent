@@ -28,8 +28,9 @@
 	<p class="body"><InlineText text={mark.body} /></p>
 	{#if mark.speculative}<p class="assumes">Assumes: <InlineText text={mark.speculative} /></p>{/if}
 	{#if mark.rationale}
-		<button class="why ask" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
-			Why was this raised?
+		<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+			Why it was raised
 		</button>
 		{#if showWhy}<p class="rationale"><InlineText text={mark.rationale} /></p>{/if}
 	{/if}
@@ -42,11 +43,6 @@
 </article>
 
 <style>
-	/* A question that opens its answer, read as a link. */
-	.why.ask:hover {
-		text-decoration: underline;
-		text-underline-offset: 3px;
-	}
 	.card {
 		display: flex;
 		flex-direction: column;
