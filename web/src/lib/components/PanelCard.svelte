@@ -232,13 +232,6 @@
 						</div>
 					</div>
 
-					{#if r.pickedBy && r.pickReason}
-						<button class="why" aria-expanded={!!showWhy[r.id]} onclick={() => (showWhy[r.id] = !showWhy[r.id])}>
-							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy[r.id] ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-							Why it was picked
-						</button>
-						{#if showWhy[r.id]}<span class="status faint reason">{r.pickReason}</span>{/if}
-					{/if}
 					{#if isAuto(r)}
 						{#if panel.picking[r.id]}
 							<span class="status working"><Spinner size={13} /> Picking the personas this PR warrants</span>
@@ -293,6 +286,13 @@
 						<span class="status faint">
 							{found} {found === 1 ? 'finding' : 'findings'}{review?.status === 'stopped' ? ' · stopped' : ''}{isTicked(r) ? ' · runs again, replacing them' : ''}
 						</span>
+					{/if}
+					{#if r.pickedBy && r.pickReason}
+						<button class="why" aria-expanded={!!showWhy[r.id]} onclick={() => (showWhy[r.id] = !showWhy[r.id])}>
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy[r.id] ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+							Why it was picked
+						</button>
+						{#if showWhy[r.id]}<span class="status faint reason">{r.pickReason}</span>{/if}
 					{/if}
 
 					{#if setup.mode === 'external' && (running || isTicked(r))}
