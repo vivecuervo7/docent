@@ -20,6 +20,7 @@
 		messages = [],
 		alsoBy = [],
 		speculative,
+		onPr,
 		severity,
 		// null while it's still waiting on a decision.
 		kept,
@@ -41,6 +42,8 @@
 		alsoBy?: { who: string; body: string }[];
 		// What it assumes, when nothing settles it.
 		speculative?: string;
+		// The PR thread already raising it.
+		onPr?: string;
 		severity?: Severity;
 		kept: boolean | null;
 		onkeep: () => void;
@@ -64,6 +67,7 @@
 			{#if who}<span class="who">{who}</span>{/if}
 			<SeverityTag {severity} />
 			{#if speculative}<span class="speculative" title="Assumes: {speculative}">Speculative</span>{/if}
+			{#if onPr}<span class="speculative" title="Already on the PR: {onPr}">Already on the PR</span>{/if}
 			<span class="where">{#if path}<FilePath {path} {lines} />{:else}the PR as a whole{/if}</span>
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}
 		</div>

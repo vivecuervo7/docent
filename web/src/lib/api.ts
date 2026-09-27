@@ -86,6 +86,8 @@ export interface Mark {
 	separatedFrom?: { who: string };
 	// What it assumes, when nothing settles it.
 	speculative?: string;
+	// The PR thread already raising it.
+	onPr?: string;
 	severity?: import('./types').Severity;
 	// What the reviewers it's grouped with disagree with it about.
 	disputed?: string[];
@@ -148,6 +150,7 @@ export function marksFrom(record: PrRecord): Mark[] {
 						body: item.body,
 						rationale: item.rationale,
 						...(item.speculative ? { speculative: item.speculative } : {}),
+						...(item.onPr ? { onPr: item.onPr } : {}),
 						...(item.severity ? { severity: item.severity } : {}),
 						included: item.included,
 						decided: item.decided,

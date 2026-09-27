@@ -31,6 +31,8 @@ export interface Candidate {
   discussion?: string;
   // What it assumes, when it rests on something nobody has confirmed.
   speculative?: string;
+  // The PR thread that already raises its point.
+  onPr?: string;
 }
 
 export interface PreparedComment {
@@ -104,6 +106,8 @@ Keep every other candidate exactly as written - unless the reviewer discussed it
 shows what the reviewer asked about the candidate and what they learned: word the comment in light \
 of what it settled, and if it showed the point is wrong or already resolved, drop it with that as \
 the reason.
+A candidate marked already on the PR repeats a thread there: fold what it adds into a reply on \
+that thread's lines, or drop it with the thread as the reason if it adds nothing.
 A candidate marked speculative rests on an assumption nobody has confirmed: word its comment as a \
 question to the author about that assumption, not as a claim that something is wrong.
 Candidates marked "no lines" can't be posted as comments on lines. Write each of them into the \
@@ -127,7 +131,7 @@ export function prepareReview(
     const listed = candidates
       .map(
         (c) =>
-          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
+          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.onPr ? `\n\nAlready on the PR: ${c.onPr}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
       )
       .join("\n\n");
     const call = await chatWithTool(

@@ -23,6 +23,7 @@
 		<span class="who">{mark.who}</span>
 		<SeverityTag severity={mark.severity} />
 		{#if mark.speculative}<span class="speculative">Speculative</span>{/if}
+		{#if mark.onPr}<span class="speculative" title="Already on the PR: {mark.onPr}">Already on the PR</span>{/if}
 		<span class="where"><FilePath path={mark.path} {lines} /></span>
 	</header>
 	<p class="body"><InlineText text={mark.body} /></p>

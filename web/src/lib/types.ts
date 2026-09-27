@@ -103,6 +103,8 @@ export interface FeedbackItem {
 	severity?: Severity;
 	// What a finding that joined a group disagrees with its lead about.
 	disputed?: string;
+	// For an external reviewer's finding, the PR thread already raising it.
+	onPr?: string;
 }
 
 export interface FeedbackDraft {

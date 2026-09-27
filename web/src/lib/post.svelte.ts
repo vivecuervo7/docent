@@ -93,6 +93,7 @@ export class ReviewPost {
 						body: item.body,
 						inline: this.isInline(item),
 						...(item.speculative ? { speculative: item.speculative } : {}),
+						...(item.onPr ? { onPr: item.onPr } : {}),
 						...this.#discussionOf(source, item)
 					}))
 				})

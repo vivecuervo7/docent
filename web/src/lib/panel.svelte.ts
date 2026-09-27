@@ -540,7 +540,15 @@ export class Panel {
 		});
 		let edits: Record<
 			string,
-			{ sameAs?: string; filtered?: string; checked?: string; speculative?: string; severity?: FeedbackItem['severity']; disputed?: string }
+			{
+				sameAs?: string;
+				filtered?: string;
+				checked?: string;
+				speculative?: string;
+				severity?: FeedbackItem['severity'];
+				disputed?: string;
+				onPr?: string;
+			}
 		>;
 		try {
 			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/edit`, {
@@ -589,7 +597,8 @@ export class Panel {
 					...(edits[id]?.checked ? { checked: edits[id].checked } : {}),
 					...(edits[id]?.speculative ? { speculative: edits[id].speculative } : {}),
 					...(edits[id]?.severity ? { severity: edits[id].severity } : {}),
-					...(edits[id]?.disputed ? { disputed: edits[id].disputed } : {})
+					...(edits[id]?.disputed ? { disputed: edits[id].disputed } : {}),
+					...(edits[id]?.onPr ? { onPr: edits[id].onPr } : {})
 				};
 				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
 				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root }, ...checked });
@@ -613,7 +622,7 @@ export class Panel {
 					...draft,
 					items: draft.items.map((i) => {
 						if (!ids.has(i.id)) return i;
-						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
+						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, matched: _m, ...rest } = i as FeedbackItem & { matched?: boolean };
 						return { ...rest, ...change(i.id) };
 					})
 				};

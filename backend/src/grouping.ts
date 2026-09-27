@@ -49,6 +49,9 @@ export interface Edit {
   severity?: string;
   // For a repeat whose reviewer disagrees with the finding it repeats, on what.
   disputed?: string;
+  // For an external reviewer's finding the PR's conversation already raised,
+  // which thread.
+  onPr?: string;
 }
 
 const EDIT_TOOL = {
@@ -82,6 +85,11 @@ const EDIT_TOOL = {
               type: "string",
               description:
                 "For a finding that repeats another (same_as) but disagrees with it on what's wrong or how to fix it, what they disagree on, in a sentence. Leave out when they agree.",
+            },
+            on_pr: {
+              type: "string",
+              description:
+                "For a finding kept from a reviewer who sifted their own, when the PR's conversation already raises its point: which thread, briefly. Leave out otherwise.",
             },
             speculative: {
               type: "string",
@@ -155,8 +163,10 @@ export async function editFindings(
   signal: AbortSignal,
 ): Promise<Map<string, Edit>> {
   const model = await editorModel();
-  // Looking through the code is for checking claims, so only when filtering.
-  const looks = args.filter && canReadCode(model);
+  // Looking through the code is for checking claims - everyone's, even a
+  // reviewer who sifted their own findings: a claim the code disproves isn't
+  // a judgement call.
+  const looks = canReadCode(model);
   const conversation = conversationText(await fetchPrConversation(owner, repo, number));
   const record = getRecord(keyFor(owner, repo, number)).record as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
   const slice = args.slice ? record.slices?.find((s) => s.id === args.slice) : undefined;
@@ -186,7 +196,9 @@ export async function editFindings(
     .join("\n\n");
   const task = args.filter
     ? "For each new finding, say which finding it repeats, if any, and whether to filter it out."
-    : "These new findings come from a reviewer who has already sifted their own, so keep them all; only say which finding each repeats, if any.";
+    : looks
+      ? `These new findings come from a reviewer who has already sifted their own, so don't filter them for being minor, speculative or naming no concrete failure. Check each claim against the code all the same: filter only one the code disproves, starting its reason with "Disproved:" and citing the file and line. Say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).`
+      : "These new findings come from a reviewer who has already sifted their own, so keep them all; only say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).";
 
   return inNamedLane("grouping", 2, async () => {
     signal.throwIfAborted();
@@ -217,7 +229,7 @@ export async function editFindings(
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, filter, checked, speculative, severity, disputed } = (e ?? {}) as {
+      const { id, same_as, filter, checked, speculative, severity, disputed, on_pr } = (e ?? {}) as {
         id?: unknown;
         same_as?: unknown;
         filter?: unknown;
@@ -225,6 +237,7 @@ export async function editFindings(
         speculative?: unknown;
         severity?: unknown;
         disputed?: unknown;
+        on_pr?: unknown;
       };
       if (typeof id !== "string" || !asked.has(id)) continue;
       const edit: Edit = {};
@@ -232,9 +245,12 @@ export async function editFindings(
         edit.sameAs = same_as;
         if (typeof disputed === "string" && disputed.trim()) edit.disputed = disputed.trim();
       }
-      // A reviewer who sifted their own findings keeps them all, whatever the model says.
-      if (args.filter && typeof filter === "string" && filter.trim()) edit.filtered = filter.trim();
+      // A reviewer who sifted their own findings loses only what the code
+      // disproves, whatever else the model says.
+      const reason = typeof filter === "string" ? filter.trim() : "";
+      if (reason && (args.filter || (looks && /^disproved\b/i.test(reason)))) edit.filtered = reason;
       else {
+        if (!args.filter && typeof on_pr === "string" && on_pr.trim()) edit.onPr = on_pr.trim();
         if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
         if (args.filter && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();
         if (typeof severity === "string" && ["blocker", "major", "minor", "nit"].includes(severity)) edit.severity = severity;

@@ -92,6 +92,7 @@
 		<span class="who">{mark.who}</span>
 		<SeverityTag severity={item?.severity} />
 		{#if item?.speculative}<span class="speculative">Speculative</span>{/if}
+		{#if item?.onPr}<span class="speculative" title="Already on the PR: {item.onPr}">Already on the PR</span>{/if}
 		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" onclick={onclose}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>

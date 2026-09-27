@@ -54,6 +54,7 @@
 		kind="finding"
 		who={reviewerName(session.record, reviewer)}
 		speculative={item.speculative}
+		onPr={item.onPr}
 		severity={item.severity}
 		path={item.path}
 		start={item.start}

@@ -35,8 +35,9 @@ const PROMPT = `You're choosing which specialist reviewers a pull request warran
 reviewer always reviews it; pick a specialist only when its area is a substantial part of this \
 change - several files, the change's main purpose, or a risk the change plainly creates - not \
 when one line brushes against it. One log line doesn't warrant an operations reviewer, and one \
-nullable column doesn't warrant a data reviewer. Pick at most three, the most warranted first. \
-Picking none is fine.`;
+nullable column doesn't warrant a data reviewer. When the PR adds or changes tests, or changes \
+behaviour that has tests, a reviewer of test quality is warranted. Pick at most three, the most \
+warranted first. Picking none is fine.`;
 
 export interface Pick {
   persona: string;
