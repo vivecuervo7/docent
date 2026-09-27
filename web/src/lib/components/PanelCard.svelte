@@ -289,8 +289,7 @@
 					{/if}
 					{#if r.pickedBy && r.pickReason}
 						<button class="why" aria-expanded={!!showWhy[r.id]} onclick={() => (showWhy[r.id] = !showWhy[r.id])}>
-							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy[r.id] ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-							Why it was picked
+							Why was this picked?
 						</button>
 						{#if showWhy[r.id]}<span class="status faint reason">{r.pickReason}</span>{/if}
 					{/if}
@@ -430,6 +429,8 @@
 	}
 	.why:hover {
 		color: var(--text);
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 	.reason {
 		font-style: italic;
