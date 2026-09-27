@@ -52,10 +52,16 @@
 		panel.plan(r.id, value === 'external' ? { mode: 'external' } : { mode: 'builtin', model: value, persona });
 	}
 
+	// How many of an "auto"'s picks are still reviewing.
+	const picksRunning = (r: AgentReviewer) => panel.reviewers.filter((a) => a.pickedBy === r.id && isRunning(a)).length;
+
 	function choosePersona(r: AgentReviewer, persona: string | undefined) {
 		const setup = setupOf(r);
 		if (setup.mode === 'builtin') panel.plan(r.id, { ...setup, persona });
 	}
+
+	// Picks whose reason is open.
+	let showWhy = $state<Partial<Record<AgentId, boolean>>>({});
 
 	// The reviewer whose persona menu is open.
 	let personaMenuFor = $state<AgentId | null>(null);
@@ -227,13 +233,19 @@
 					</div>
 
 					{#if r.pickedBy && r.pickReason}
-						<span class="status faint reason">Picked: {r.pickReason}</span>
+						<button class="why" aria-expanded={!!showWhy[r.id]} onclick={() => (showWhy[r.id] = !showWhy[r.id])}>
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy[r.id] ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+							Why it was picked
+						</button>
+						{#if showWhy[r.id]}<span class="status faint reason">{r.pickReason}</span>{/if}
 					{/if}
 					{#if isAuto(r)}
 						{#if panel.picking[r.id]}
 							<span class="status working"><Spinner size={13} /> Picking the personas this PR warrants</span>
 						{:else if panel.errors[r.id]}
 							<span class="status bad">Couldn’t pick: {panel.errors[r.id]}</span>
+						{:else if picksRunning(r)}
+							<span class="status working"><Spinner size={13} /> {picksRunning(r)} {picksRunning(r) === 1 ? 'pick' : 'picks'} reviewing</span>
 						{:else if r.picks}
 							<span class="status faint">
 								{r.picks.personas.length
@@ -402,6 +414,22 @@
 	li.picked {
 		padding-left: 18px;
 		border-top-style: dashed;
+	}
+	.why {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		align-self: flex-start;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--faint);
+		font: inherit;
+		font-size: 12.5px;
+		cursor: pointer;
+	}
+	.why:hover {
+		color: var(--text);
 	}
 	.reason {
 		font-style: italic;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { modelLabel, nameOf } from '$lib/panel.svelte';
+	import { isAuto, modelLabel, nameOf } from '$lib/panel.svelte';
 	import { namedByKind } from '$lib/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import type { AgentReviewer } from '$lib/types';
@@ -58,8 +58,19 @@
 		return r.persona && !namedByKind(r) ? `${modelLabel(value)} · ${panel.personaName(r.persona)}` : modelLabel(value);
 	}
 
+	// "auto" is a step, not a reviewer: it shows while it picks, or when it
+	// picked none; otherwise its picks stand for it.
+	const shown = $derived(
+		panel.reviewers.filter((r) => !isAuto(r) || panel.picking[r.id] || (r.picks && !r.picks.personas.length))
+	);
+
 	// Where a reviewer is, in a line.
 	function whereIs(r: AgentReviewer): { text: string; working: boolean } {
+		if (isAuto(r)) {
+			return panel.picking[r.id]
+				? { text: 'Picking the personas this PR warrants', working: true }
+				: { text: 'Picked none: nothing here warrants a specialist', working: false };
+		}
 		const live = panel.reviews[r.id];
 		const run = live
 			? { status: live.status, startedAt: live.startedAt, endedAt: live.endedAt, findings: live.findings.length }
@@ -129,12 +140,14 @@
 							{/if}
 						</li>
 					{/if}
-					{#each panel.reviewers as r (r.id)}
+					{#each shown as r (r.id)}
 						{@const s = whereIs(r)}
 						<li>
 							<div class="who">
 								<span class="name">{nameOf(r, panel.reviewers)}</span>
-								{#if runsWith(r)}<span class="faint model">{runsWith(r)}</span>{/if}
+								{#if runsWith(r)}
+									<span class="faint model" title={r.pickReason ? `Picked: ${r.pickReason}` : undefined}>{runsWith(r)}{r.pickedBy ? ' · picked' : ''}</span>
+								{/if}
 							</div>
 							<span class="state" class:working={s.working}>
 								{#if s.working}<Spinner size={12} />{/if}
