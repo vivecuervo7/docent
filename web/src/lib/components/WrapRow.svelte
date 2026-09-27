@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { raisedBy } from '$lib/api';
 	import FilePath from './FilePath.svelte';
+	import EditorNotes from './EditorNotes.svelte';
 	import SeverityTag from './SeverityTag.svelte';
 	import type { Severity } from '$lib/types';
 	import type { LineRef } from '$lib/types';
@@ -22,8 +23,10 @@
 		speculative,
 		onPr,
 		skipSuggested,
+		notes,
+		suggested = false,
 		severity,
-		// null while it's still waiting on a decision.
+		// The choice that stands: yours, or the panel's while it's unconfirmed.
 		kept,
 		onkeep,
 		onskip,
@@ -47,6 +50,10 @@
 		onPr?: string;
 		// Why the editor suggests skipping it, while undecided.
 		skipSuggested?: string;
+		// What the editor found, folded behind its verdicts.
+		notes?: { impact?: string; impactLevel?: string; checked?: string; checkedVerdict?: string };
+		// Whether the choice shown is the panel's, not yet confirmed by you.
+		suggested?: boolean;
 		severity?: Severity;
 		kept: boolean | null;
 		onkeep: () => void;
@@ -71,11 +78,12 @@
 			<SeverityTag {severity} />
 			{#if speculative}<span class="speculative" title="Assumes: {speculative}">Speculative</span>{/if}
 			{#if onPr}<span class="speculative" title="Already on the PR: {onPr}">Already on the PR</span>{/if}
-			{#if skipSuggested && kept === null}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
+			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
 			<span class="where">{#if path}<FilePath {path} {lines} />{:else}the PR as a whole{/if}</span>
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
+		<EditorNotes {...notes} speculative={notes ? speculative : undefined} />
 		{#if rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
 				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
@@ -116,7 +124,7 @@
 			{/if}
 		{/if}
 	</div>
-	<div class="decide" role="group" aria-label="Keep or skip">
+	<div class="decide" class:suggested role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
 		<button class:on={kept === true} aria-pressed={kept === true} onclick={onkeep}>Keep</button>
 		<button class:on={kept === false} aria-pressed={kept === false} onclick={onskip}>Skip</button>
 	</div>
@@ -264,5 +272,11 @@
 	.decide button.on {
 		background: #ece8df;
 		color: #141413;
+	}
+	/* The panel's choice, which stands unless you change it. */
+	.decide.suggested button.on {
+		background: transparent;
+		box-shadow: inset 0 0 0 1px #ece8df;
+		color: #ece8df;
 	}
 </style>

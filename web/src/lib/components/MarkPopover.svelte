@@ -3,6 +3,7 @@
 	import { modelLabel } from '$lib/panel.svelte';
 	import { namedByKind } from '$lib/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
+	import EditorNotes from './EditorNotes.svelte';
 	import NoteText from './NoteText.svelte';
 	import SeverityTag from './SeverityTag.svelte';
 	import Spinner from './Spinner.svelte';
@@ -95,9 +96,14 @@
 	</header>
 	<div class="content" bind:this={list}>
 		<p class="body"><InlineText text={mark.body} /></p>
-		{#if item?.impact}<p class="checked">Impact: <InlineText text={item.impact} /></p>{/if}
-		{#if item?.speculative}<p class="checked">Assumes: <InlineText text={item.speculative} /></p>{/if}
-		{#if item?.checked}<p class="checked">Checked: <InlineText text={item.checked} /></p>{/if}
+		<EditorNotes
+			impact={item?.impact}
+			impactLevel={item?.impactLevel}
+			checked={item?.checked}
+			checkedVerdict={item?.checkedVerdict}
+			speculative={item?.speculative}
+			size={15}
+		/>
 		{#if mark.rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
@@ -299,12 +305,6 @@
 	.suggested {
 		flex-basis: 100%;
 		font-size: 12.5px;
-		color: var(--faint);
-	}
-	.checked {
-		margin: -4px 0 0;
-		font-size: 12.5px;
-		line-height: 1.5;
 		color: var(--faint);
 	}
 	.also-body {

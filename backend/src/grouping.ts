@@ -52,8 +52,12 @@ export interface Edit {
   // For an external reviewer's finding the PR's conversation already raised,
   // which thread.
   onPr?: string;
-  // For one kept: how likely it is, and what happens when it does.
+  // For one kept: how likely it is, and what happens when it does, and that
+  // in a word.
   impact?: string;
+  impactLevel?: "low" | "moderate" | "high";
+  // For one kept, what checking it found, in a word.
+  checkedVerdict?: "confirmed" | "partly" | "unsettled";
   // For one kept that holds but likely isn't worth posting, why - it starts
   // out skipped, for the reviewer to keep if they disagree.
   skip?: string;
@@ -95,6 +99,17 @@ const EDIT_TOOL = {
               type: "string",
               description:
                 "For a finding you keep: how likely it is to happen and what happens when it does, in a sentence - what the reviewer would get asking 'how bad is this?'.",
+            },
+            impact_level: {
+              type: "string",
+              enum: ["low", "moderate", "high"],
+              description: "For a finding you keep, its impact in a word.",
+            },
+            checked_verdict: {
+              type: "string",
+              enum: ["confirmed", "partly", "unsettled"],
+              description:
+                "For a finding you keep after checking it: confirmed (the code bears it out), partly (it holds but is overstated or only partly right), or unsettled (the code can't decide it).",
             },
             skip: {
               type: "string",
@@ -249,7 +264,7 @@ export async function editFindings(
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, filter, checked, speculative, severity, disputed, on_pr, impact, skip } = (e ?? {}) as {
+      const { id, same_as, filter, checked, speculative, severity, disputed, on_pr, impact, skip, impact_level, checked_verdict } = (e ?? {}) as {
         id?: unknown;
         same_as?: unknown;
         filter?: unknown;
@@ -260,6 +275,8 @@ export async function editFindings(
         on_pr?: unknown;
         impact?: unknown;
         skip?: unknown;
+        impact_level?: unknown;
+        checked_verdict?: unknown;
       };
       if (typeof id !== "string" || !asked.has(id)) continue;
       const edit: Edit = {};
@@ -274,6 +291,8 @@ export async function editFindings(
       else {
         if (!args.filter && typeof on_pr === "string" && on_pr.trim()) edit.onPr = on_pr.trim();
         if (typeof impact === "string" && impact.trim()) edit.impact = impact.trim();
+        if (impact_level === "low" || impact_level === "moderate" || impact_level === "high") edit.impactLevel = impact_level;
+        if (looks && (checked_verdict === "confirmed" || checked_verdict === "partly" || checked_verdict === "unsettled")) edit.checkedVerdict = checked_verdict;
         if (typeof skip === "string" && skip.trim()) edit.skip = skip.trim();
         if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
         if (args.filter && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();

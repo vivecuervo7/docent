@@ -550,6 +550,8 @@ export class Panel {
 				onPr?: string;
 				impact?: string;
 				skip?: string;
+				impactLevel?: FeedbackItem['impactLevel'];
+				checkedVerdict?: FeedbackItem['checkedVerdict'];
 			}
 		>;
 		try {
@@ -602,6 +604,8 @@ export class Panel {
 					...(edits[id]?.disputed ? { disputed: edits[id].disputed } : {}),
 					...(edits[id]?.onPr ? { onPr: edits[id].onPr } : {}),
 					...(edits[id]?.impact ? { impact: edits[id].impact } : {}),
+					...(edits[id]?.impactLevel ? { impactLevel: edits[id].impactLevel } : {}),
+					...(edits[id]?.checkedVerdict ? { checkedVerdict: edits[id].checkedVerdict } : {}),
 					...(edits[id]?.skip ? { skipSuggested: edits[id].skip } : {})
 				};
 				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
@@ -626,7 +630,7 @@ export class Panel {
 					...draft,
 					items: draft.items.map((i) => {
 						if (!ids.has(i.id)) return i;
-						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, skipSuggested, matched: _m, ...rest } =
+						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, impactLevel: _l, checkedVerdict: _v, skipSuggested, matched: _m, ...rest } =
 							i as FeedbackItem & { matched?: boolean };
 						const next = { ...rest, ...change(i.id) };
 						// A suggested skip applies until the reviewer decides, and lifts

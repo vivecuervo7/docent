@@ -29,7 +29,8 @@ export class ReviewPost {
 	}
 
 	// Everything kept for the review: your comments, and the panel's findings.
-	// A finding still waiting on a decision is kept by default.
+	// A finding not yet confirmed goes in as the panel left it: kept, unless
+	// the editor suggested skipping it.
 	readonly candidates = $derived.by(() => {
 		const { feedback } = this.#session.record;
 		const { joined } = groupsOf(this.#session.record);

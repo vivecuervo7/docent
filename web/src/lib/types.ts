@@ -107,6 +107,9 @@ export interface FeedbackItem {
 	onPr?: string;
 	// How likely it is, and what happens when it does, as the editor judged.
 	impact?: string;
+	impactLevel?: 'low' | 'moderate' | 'high';
+	// What checking it against the code found, in a word.
+	checkedVerdict?: 'confirmed' | 'partly' | 'unsettled';
 	// Why the editor suggests skipping it: it holds, but likely isn't worth
 	// posting. It starts out skipped until the reviewer decides.
 	skipSuggested?: string;

@@ -6,9 +6,11 @@
 	import { useSession } from '$lib/session.svelte';
 	import { SEVERITY_ORDER, type FeedbackItem } from '$lib/types';
 
-	// Wrap up: settling what goes into the review. The panel's findings still
-	// waiting on a decision come first, then your own comments, drafted from
-	// your threads; what's already kept or skipped sits folded away.
+	// Wrap up: confirming what goes into the review. The panel's findings you
+	// haven't decided on come first, showing the choice that stands if you
+	// leave them - kept, or skipped where the editor suggested it - then your
+	// own comments, drafted from your threads; what you've decided sits folded
+	// away.
 	const session = useSession();
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 
@@ -58,6 +60,8 @@
 		speculative={item.speculative}
 		onPr={item.onPr}
 		skipSuggested={item.skipSuggested}
+		notes={{ impact: item.impact, impactLevel: item.impactLevel, checked: item.checked, checkedVerdict: item.checkedVerdict }}
+		suggested={!item.decided}
 		severity={item.severity}
 		path={item.path}
 		start={item.start}
@@ -66,7 +70,7 @@
 		rationale={item.rationale}
 		messages={item.messages}
 		alsoBy={groups.membersOf(reviewer, item.id).map((m) => ({ who: reviewerName(session.record, m.reviewer), body: m.item.body }))}
-		kept={item.decided ? item.included : null}
+		kept={item.included ?? true}
 		onkeep={() => session.setFindingIncluded(reviewer, item.id, true)}
 		onskip={() => session.setFindingIncluded(reviewer, item.id, false)}
 		onshow={item.path && item.start ? () => show(item.id, item.path, item.start) : undefined}
@@ -78,11 +82,11 @@
 	<p class="lede">What goes into your review. Anything kept is merged and tidied when you prepare it.</p>
 
 	<section>
-		<h2>Still to decide <span class="count">{undecided.length}</span></h2>
+		<h2>To confirm <span class="count">{undecided.length}</span></h2>
 		{#if undecided.length}
 			<ul>{#each undecided as f (f.item.id)}{@render finding(f)}{/each}</ul>
 		{:else}
-			<p class="empty">Nothing from the panel is waiting on you.</p>
+			<p class="empty">Nothing from the panel is waiting to be confirmed.</p>
 		{/if}
 	</section>
 

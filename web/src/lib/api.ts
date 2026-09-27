@@ -89,6 +89,9 @@ export interface Mark {
 	// The PR thread already raising it.
 	onPr?: string;
 	impact?: string;
+	impactLevel?: string;
+	checked?: string;
+	checkedVerdict?: string;
 	skipSuggested?: string;
 	severity?: import('./types').Severity;
 	// What the reviewers it's grouped with disagree with it about.
@@ -153,7 +156,8 @@ export function marksFrom(record: PrRecord): Mark[] {
 						rationale: item.rationale,
 						...(item.speculative ? { speculative: item.speculative } : {}),
 						...(item.onPr ? { onPr: item.onPr } : {}),
-						...(item.impact ? { impact: item.impact } : {}),
+						...(item.impact ? { impact: item.impact, impactLevel: item.impactLevel } : {}),
+						...(item.checked ? { checked: item.checked, checkedVerdict: item.checkedVerdict } : {}),
 						...(item.skipSuggested ? { skipSuggested: item.skipSuggested } : {}),
 						...(item.severity ? { severity: item.severity } : {}),
 						included: item.included,

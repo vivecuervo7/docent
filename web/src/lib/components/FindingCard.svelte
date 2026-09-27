@@ -3,6 +3,7 @@
 	import type { Mark } from '$lib/api';
 	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
+	import EditorNotes from './EditorNotes.svelte';
 	import SeverityTag from './SeverityTag.svelte';
 
 	// A finding to keep or skip, in a list rather than in the diff.
@@ -27,7 +28,13 @@
 		<span class="where"><FilePath path={mark.path} {lines} /></span>
 	</header>
 	<p class="body"><InlineText text={mark.body} /></p>
-	{#if mark.speculative}<p class="assumes">Assumes: <InlineText text={mark.speculative} /></p>{/if}
+	<EditorNotes
+		impact={mark.impact}
+		impactLevel={mark.impactLevel}
+		checked={mark.checked}
+		checkedVerdict={mark.checkedVerdict}
+		speculative={mark.speculative}
+	/>
 	{#if mark.rationale}
 		<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
@@ -72,12 +79,6 @@
 		color: var(--faint);
 		font-size: 11.5px;
 		white-space: nowrap;
-	}
-	.assumes {
-		margin: -4px 0 0;
-		font-size: 12.5px;
-		line-height: 1.5;
-		color: var(--faint);
 	}
 	.where {
 		min-width: 0;
