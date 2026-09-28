@@ -1,15 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { dataDir } from "./dataDir.js";
 
-// Docent's settings, all in backend/data/settings.json: the model providers
+// Docent's settings, all in the data folder's settings.json: the model providers
 // (OpenAI-compatible endpoints, keys included, so the file is written
 // owner-only and never sent to the browser as it is), the model picked on
 // the start page, and the review panel a new PR starts with.
 
-const backendDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-const settingsFile = join(backendDir, "data", "settings.json");
+const settingsFile = dataDir("settings.json");
 
 // A model from Claude Code's or Codex's group is saved with its prefix; one
 // from a provider with the provider's id and a colon.
@@ -96,27 +95,6 @@ function hostOf(url: string): string {
   }
 }
 
-// Settings used to come from backend/.env. Its endpoint becomes the first
-// provider, once; after that .env isn't read.
-function importEnvOnce(): void {
-  const settings = readSettings();
-  if (settings.providers) return;
-  const envFile = join(backendDir, ".env");
-  if (existsSync(envFile)) process.loadEnvFile(envFile);
-  const baseUrl = process.env.DOCENT_MODEL_BASE_URL?.trim().replace(/\/+$/, "");
-  if (!baseUrl) return writeSettings({ providers: [] });
-  const provider: Provider = {
-    id: newProviderId(),
-    name: hostOf(baseUrl),
-    baseUrl,
-    apiKey: process.env.DOCENT_MODEL_API_KEY || undefined,
-    concurrency: Number(process.env.DOCENT_MAX_CONCURRENT_REQUESTS) || 1,
-  };
-  const legacy = settings.model ?? process.env.DOCENT_MODEL;
-  const model = legacy && !legacy.startsWith(CLAUDE_CODE_PREFIX) && !legacy.startsWith(CODEX_PREFIX) ? `${provider.id}:${legacy}` : legacy;
-  writeSettings({ providers: [provider], model });
-}
-importEnvOnce();
 
 export function providers(): Provider[] {
   return readSettings().providers ?? [];

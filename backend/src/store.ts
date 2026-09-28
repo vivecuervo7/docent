@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import { dataDir } from "./dataDir.js";
 import { persistent } from "./persistent.js";
 
 // Each PR's review - slices, summary, threads, feedback, the prepared review
@@ -11,7 +11,7 @@ import { persistent } from "./persistent.js";
 // Every write names the version it started from, and is refused if the
 // record has moved on since, so two writers can't silently undo each other.
 
-const dbFile = join(dirname(fileURLToPath(import.meta.url)), "..", "data", "docent.db");
+const dbFile = dataDir("docent.db");
 mkdirSync(dirname(dbFile), { recursive: true });
 
 // Opened once for the process, however often this module is reloaded.

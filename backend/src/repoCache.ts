@@ -1,20 +1,20 @@
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { dataDir } from "./dataDir.js";
 import { promisify } from "node:util";
 import { persistent } from "./persistent.js";
 
 const execFileAsync = promisify(execFile);
 
 // The code a PR sits in, for models checking what the diff alone can't show.
-// Each repo is a bare clone in backend/data/repos holding only the PR heads
+// Each repo is a bare clone in the data folder's repos, holding only the PR heads
 // asked for, each without history and without file contents: a file's
 // contents are fetched the first time it's read or searched, and kept. So a
 // huge repo costs its tree listing plus what's actually been looked at, and
 // nothing is ever checked out - reads come straight from git's objects.
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..", "data", "repos");
+const root = dataDir("repos");
 
 // Caps on what one read can return, or one search can fetch.
 const MAX_LIST = 2000;
