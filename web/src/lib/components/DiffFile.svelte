@@ -702,7 +702,7 @@
 	}
 	.rest {
 		flex-shrink: 0;
-		margin-left: -8px;
+		margin-left: 6px;
 		padding-right: 12px;
 		font-size: 12.5px;
 		white-space: nowrap;
