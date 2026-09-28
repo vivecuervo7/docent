@@ -6,7 +6,7 @@ import { fetchInvolvedPrs, fetchPrStatuses,
   fetchPrBaseSha,
   fetchPrFiles,
   fetchPrMeta,
-} from "./github.js";
+} from "../../web/src/lib/server/github.js";
 import {
   dismissGeneration,
   getGeneration,
@@ -14,7 +14,7 @@ import {
   startGeneration,
   stopGeneration,
   type Reuse,
-} from "./generation.js";
+} from "../../web/src/lib/server/generation.js";
 import { localhostHostValidation } from "@modelcontextprotocol/sdk/server/middleware/hostHeaderValidation.js";
 import { startSessionReview, listAgentReviews,
   DEFAULT_REVIEWER,
@@ -26,8 +26,8 @@ import { startSessionReview, listAgentReviews,
   startBuiltinReview,
   stopAgentReview,
   type ReviewContext,
-} from "./agentReview.js";
-import { draftYourFeedback, type ThreadForFeedback } from "./feedback.js";
+} from "../../web/src/lib/server/agentReview.js";
+import { draftYourFeedback, type ThreadForFeedback } from "../../web/src/lib/server/feedback.js";
 import {
   addProvider,
   externalReviewers,
@@ -46,16 +46,18 @@ import {
   setModelName,
   updateProvider,
   type Provider,
-} from "./config.js";
-import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "./claudeCode.js";
-import { checkSetup } from "./setup.js";
-import { editFindings, editorModel } from "./grouping.js";
-import { getLookup } from "./codeContext.js";
-import { pickPersonas } from "./pickPersonas.js";
-import { ALWAYS_ALLOWED } from "./sessions.js";
-import { handleMcpRequest } from "./mcp.js";
-import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "./store.js";
-import { codexStatus, listModelOptions, listProviderModels } from "./modelProvider.js";
+} from "../../web/src/lib/server/config.js";
+import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from "../../web/src/lib/server/claudeCode.js";
+import { checkSetup } from "../../web/src/lib/server/setup.js";
+import { editFindings, editorModel } from "../../web/src/lib/server/grouping.js";
+import { getLookup } from "../../web/src/lib/server/codeContext.js";
+import { pickPersonas } from "../../web/src/lib/server/pickPersonas.js";
+import { ALWAYS_ALLOWED } from "../../web/src/lib/server/sessions.js";
+import type { Request, Response } from "express";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { buildServer } from "../../web/src/lib/server/mcp.js";
+import { deleteRecord, getRecord, keyFor, listRecords, putRecord, VersionConflict } from "../../web/src/lib/server/store.js";
+import { codexStatus, listModelOptions, listProviderModels } from "../../web/src/lib/server/modelProvider.js";
 import {
   buildReviewPayload,
   fetchViewer,
@@ -66,9 +68,9 @@ import {
   type CommentToPost,
   type ReviewerVerdict,
   type ReviewEvent,
-} from "./postReview.js";
-import { replyToNote, type NoteContext, type NoteMessage } from "./notes.js";
-import type { ConversationSummary, Slice } from "./types.js";
+} from "../../web/src/lib/server/postReview.js";
+import { replyToNote, type NoteContext, type NoteMessage } from "../../web/src/lib/server/notes.js";
+import type { ConversationSummary, Slice } from "../../web/src/lib/server/types.js";
 
 const app = express();
 // Whole review records come through here, so allow more than the default.
@@ -750,6 +752,23 @@ app.delete("/api/prs/:owner/:repo/:number", (req, res) => {
   deleteRecord(keyFor(owner, repo, number));
   res.status(204).end();
 });
+
+async function handleMcpRequest(req: Request, res: Response) {
+  const server = buildServer();
+  try {
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    await server.connect(transport);
+    res.on("close", () => {
+      transport.close();
+      server.close();
+    });
+    await transport.handleRequest(req, res, req.body);
+  } catch {
+    if (!res.headersSent) {
+      res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal server error" }, id: null });
+    }
+  }
+}
 
 const PORT = 3001;
 app.listen(PORT, () => {

@@ -1,6 +1,4 @@
-import type { Request, Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import * as z from "zod/v4";
 import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from "./agentReview.js";
 import {
@@ -74,7 +72,7 @@ function failure(err: unknown) {
   return { content: [{ type: "text" as const, text: (err as Error).message }], isError: true };
 }
 
-function buildServer(): McpServer {
+export function buildServer(): McpServer {
   const server = new McpServer({ name: "docent", version: "0.1.0" });
 
   server.registerTool(
@@ -386,21 +384,4 @@ ${findingFormat(reviewerFrom(reviewer))}`,
   );
 
   return server;
-}
-
-export async function handleMcpRequest(req: Request, res: Response) {
-  const server = buildServer();
-  try {
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    await server.connect(transport);
-    res.on("close", () => {
-      transport.close();
-      server.close();
-    });
-    await transport.handleRequest(req, res, req.body);
-  } catch {
-    if (!res.headersSent) {
-      res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal server error" }, id: null });
-    }
-  }
 }
