@@ -7,7 +7,7 @@ import { Panel, sessionId } from './panel.svelte';
 import { ReviewPost } from './post.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
-import { isNewFinding, isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
+import { isNewFinding, isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -118,22 +118,26 @@ export class PrSession {
 	// replies. Replies in flight, or failed, are kept here, not saved.
 	noteStatus = $state<Record<string, { pending?: boolean; error?: string }>>({});
 
-	createNote(anchor: { path: string; hunk: number; start: LineRef; end: LineRef; code: string }, text: string): string {
+	// With `comment`, the message is one to post as written, and asks for
+	// no reply.
+	createNote(anchor: { path: string; hunk: number; start: LineRef; end: LineRef; code: string }, text: string, { comment = false } = {}): string {
 		const now = Date.now();
-		const note: Note = { id: crypto.randomUUID(), ...anchor, messages: [{ role: 'user', text, at: now }], createdAt: now, readAt: now };
+		const message: NoteMessage = { role: 'user', text, at: now, ...(comment ? { comment } : {}) };
+		const note: Note = { id: crypto.randomUUID(), ...anchor, messages: [message], createdAt: now, readAt: now };
 		this.update((r) => {
 			r.notes = [...r.notes, note];
 		})
-			.then(() => this.#requestReply(note.id))
+			.then(() => (comment ? undefined : this.#requestReply(note.id)))
 			.catch((err) => (this.noteStatus[note.id] = { error: (err as Error).message }));
 		return note.id;
 	}
 
-	sendNote(id: string, text: string) {
+	sendNote(id: string, text: string, { comment = false } = {}) {
+		const message: NoteMessage = { role: 'user', text, at: Date.now(), ...(comment ? { comment } : {}) };
 		this.update((r) => {
-			r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, { role: 'user', text, at: Date.now() }] } : n));
+			r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, message] } : n));
 		})
-			.then(() => this.#requestReply(id))
+			.then(() => (comment ? undefined : this.#requestReply(id)))
 			.catch((err) => (this.noteStatus[id] = { error: (err as Error).message }));
 	}
 
@@ -178,7 +182,7 @@ export class PrSession {
 						sliceTitle: slice?.title,
 						sliceSummary: slice?.summary
 					},
-					messages: note.messages.map(({ role, text }) => ({ role, text })),
+					messages: forModel(note.messages),
 					model: this.record.model
 				})
 			});
@@ -332,33 +336,32 @@ export class PrSession {
 		return JSON.stringify(now) !== JSON.stringify(basedOn);
 	});
 
+	// A thread with comments of the reviewer's own is drafted as those
+	// comments, word for word and on its lines; the model drafts the rest.
 	async draftYourComments() {
 		const threads = this.threads;
 		if (!threads.length) return;
+		const said = threads.filter((n) => n.messages.some((m) => m.comment));
+		const rest = threads.filter((n) => !said.includes(n));
 		this.yourDraft = { pending: true };
 		try {
-			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/feedback/yours`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					model: this.record.model,
-					prTitle: this.title,
-					threads: threads.map((n) => ({
-						path: n.path,
-						lines: n.start.line === n.end.line ? `line ${n.start.line}` : `lines ${n.start.line}-${n.end.line}`,
-						code: n.code,
-						messages: n.messages.map(({ role, text }) => ({ role, text }))
-					}))
-				})
-			});
-			const { comments } = await api.readHeld<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
-			const items = comments.map(({ threads: indices, body, rationale }) => ({
+			const asWritten: FeedbackItem[] = said.map((n) => ({
 				id: crypto.randomUUID(),
-				body,
-				rationale,
+				body: n.messages
+					.filter((m) => m.comment)
+					.map((m) => m.text.trim())
+					.join('\n\n'),
 				included: true,
-				...placeFromThreads(indices.map((i) => threads[i]).filter(Boolean))
+				asWritten: true,
+				path: n.path,
+				start: n.start,
+				end: n.end,
+				noteIds: [n.id]
 			}));
+			const drafted = rest.length ? await this.#draftFromThreads(rest) : [];
+			// In the threads' order, so by file and line.
+			const at = (item: FeedbackItem) => threads.findIndex((n) => n.id === item.noteIds?.[0]);
+			const items = [...asWritten, ...drafted].sort((a, b) => at(a) - at(b));
 			await this.update((r) => {
 				r.feedback.yours = {
 					items,
@@ -370,6 +373,31 @@ export class PrSession {
 		} catch (err) {
 			this.yourDraft = { error: (err as Error).message };
 		}
+	}
+
+	async #draftFromThreads(threads: Note[]): Promise<FeedbackItem[]> {
+		const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/feedback/yours`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				model: this.record.model,
+				prTitle: this.title,
+				threads: threads.map((n) => ({
+					path: n.path,
+					lines: n.start.line === n.end.line ? `line ${n.start.line}` : `lines ${n.start.line}-${n.end.line}`,
+					code: n.code,
+					messages: n.messages.map(({ role, text }) => ({ role, text }))
+				}))
+			})
+		});
+		const { comments } = await api.readHeld<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
+		return comments.map(({ threads: indices, body, rationale }) => ({
+			id: crypto.randomUUID(),
+			body,
+			rationale,
+			included: true,
+			...placeFromThreads(indices.map((i) => threads[i]).filter(Boolean))
+		}));
 	}
 
 	setYourIncluded(id: string, included: boolean) {
@@ -577,6 +605,19 @@ export class PrSession {
 
 // Where a comment drafted from threads sits: on their lines when they're all
 // in one file, else on the PR as a whole.
+// A thread as the model reads it: the reviewer's comments marked as such,
+// so they aren't answered as questions, and one turn per speaker.
+function forModel(messages: NoteMessage[]): { role: NoteMessage['role']; text: string }[] {
+	const turns: { role: NoteMessage['role']; text: string }[] = [];
+	for (const m of messages) {
+		const text = m.comment ? `A comment I'm posting as written, not a question:\n${m.text}` : m.text;
+		const last = turns.at(-1);
+		if (last?.role === m.role) last.text += `\n\n${text}`;
+		else turns.push({ role: m.role, text });
+	}
+	return turns;
+}
+
 function placeFromThreads(sources: Note[]) {
 	const noteIds = sources.map((n) => n.id);
 	if (new Set(sources.map((n) => n.path)).size !== 1) return { noteIds };

@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { ask } from '$lib/confirm.svelte';
 	import { useSession } from '$lib/session.svelte';
+	import { MOD } from '$lib/keys';
 	import type { Note } from '$lib/types';
 	import NoteText from './NoteText.svelte';
 	import Spinner from './Spinner.svelte';
 
-	// A thread on selected lines: what the reviewer asked or remarked, the
-	// model's replies, and room to follow up. Shown inside a Floating bubble.
+	// A thread on selected lines: what the reviewer asked, the model's
+	// replies, the comments they mean to post as written, and room to follow
+	// up. Shown inside a Floating bubble.
 	let { note, onclose }: { note: Note; onclose: () => void } = $props();
 
 	const session = useSession();
@@ -29,10 +31,10 @@
 		list?.scrollTo({ top: list.scrollHeight });
 	});
 
-	function send() {
+	function send({ comment = false } = {}) {
 		const text = draft.trim();
-		if (!text || status.pending) return;
-		session.sendNote(note.id, text);
+		if (!text || (status.pending && !comment)) return;
+		session.sendNote(note.id, text, { comment });
 		draft = '';
 	}
 
@@ -56,8 +58,10 @@
 
 	<ol class="messages" bind:this={list}>
 		{#each note.messages as m, i (i)}
-			<li class={m.role}>
-				<span class="role">{m.role === 'user' ? 'You' : 'Docent'}</span>
+			<li class={m.role} class:comment={m.comment}>
+				<span class="role">
+					{#if m.comment}Your comment <span class="as-written">· posted as written</span>{:else}{m.role === 'user' ? 'You' : 'Docent'}{/if}
+				</span>
 				<div class="text"><NoteText text={m.text} /></div>
 			</li>
 		{/each}
@@ -77,15 +81,22 @@
 		<textarea
 			bind:value={draft}
 			rows="1"
-			placeholder="Reply…"
-			aria-label="Reply"
+			placeholder="Ask, or comment…"
+			aria-label="Ask or comment"
 			onkeydown={(e) => {
 				if (e.key === 'Enter' && !e.shiftKey) {
 					e.preventDefault();
-					send();
+					send({ comment: e.metaKey || e.ctrlKey });
 				}
 			}}
 		></textarea>
+		{#if draft.trim()}
+			<div class="reply-foot">
+				<span class="faint">Enter to ask · {MOD}Enter to comment</span>
+				<button class="btn" onclick={() => send({ comment: true })}>Comment</button>
+				<button class="btn primary" disabled={status.pending} onclick={() => send()}>Ask</button>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -165,7 +176,22 @@
 		cursor: pointer;
 	}
 	.reply {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 		padding: 12px;
+	}
+	.reply-foot {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.reply-foot .faint {
+		flex-grow: 1;
+		font-size: 12px;
+	}
+	.as-written {
+		color: var(--you);
 	}
 	textarea {
 		width: 100%;

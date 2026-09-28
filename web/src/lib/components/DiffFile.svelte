@@ -30,6 +30,7 @@
 	import ThreadPanel from './ThreadPanel.svelte';
 	import NoteText from './NoteText.svelte';
 	import StateMark from './StateMark.svelte';
+	import { MOD } from '$lib/keys';
 
 	let {
 		file,
@@ -311,8 +312,9 @@
 	let draft = $state('');
 
 	// A thread on the selected lines, kept with the hunk the selection starts
-	// in and the lines as they read now.
-	function startThread() {
+	// in and the lines as they read now. It starts with a question for
+	// Docent, or with a comment to post as written.
+	function startThread({ comment = false } = {}) {
 		const text = draft.trim();
 		if (!text || !selection) return;
 		const rows = shown.slice(selFrom, selTo + 1);
@@ -325,7 +327,8 @@
 				end: ref(rows[rows.length - 1]),
 				code: rows.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`).join('\n')
 			},
-			text
+			text,
+			{ comment }
 		);
 		selection = null;
 		draft = '';
@@ -525,18 +528,21 @@
 					bind:value={draft}
 					rows="2"
 					use:focusNow
-					placeholder="Ask a question, or jot a comment for the author…"
+					placeholder="Ask Docent, or write a comment to post as written…"
 					aria-label="Ask or comment"
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault();
-							startThread();
+							startThread({ comment: e.metaKey || e.ctrlKey });
 						} else if (e.key === 'Escape') selection = null;
 					}}
 				></textarea>
 				<div class="composer-foot">
-					<span class="faint">Enter to send · Shift+Enter for a new line</span>
-					<button class="btn primary" disabled={!draft.trim()} onclick={startThread}>Send</button>
+					<span class="faint">Enter to ask · {MOD}Enter to comment</span>
+					<span class="composer-actions">
+						<button class="btn" disabled={!draft.trim()} onclick={() => startThread({ comment: true })}>Comment</button>
+						<button class="btn primary" disabled={!draft.trim()} onclick={() => startThread()}>Ask</button>
+					</span>
 				</div>
 			</div>
 			</Floating>
@@ -1075,8 +1081,12 @@
 		justify-content: space-between;
 		gap: 8px;
 	}
-	.composer-foot span {
+	.composer-foot > span.faint {
 		font-size: 12px;
+	}
+	.composer-actions {
+		display: flex;
+		gap: 6px;
 	}
 	.composer textarea {
 		resize: vertical;

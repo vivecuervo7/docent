@@ -71,6 +71,9 @@ export interface FeedbackItem {
 	start?: LineRef;
 	end?: LineRef;
 	noteIds?: string[];
+	// The reviewer's own comments from a thread, word for word: posted as
+	// written and on the thread's lines.
+	asWritten?: boolean;
 	rationale?: string;
 	// Set once the reviewer keeps or skips an agent's finding; until then it's
 	// kept by default but still waiting on them.
@@ -130,6 +133,8 @@ export interface NoteMessage {
 	at: number;
 	// What was asked, when a quick question's label stands for more.
 	prompt?: string;
+	// A comment the reviewer means to post as written, asking for no reply.
+	comment?: boolean;
 }
 
 export interface Note {
