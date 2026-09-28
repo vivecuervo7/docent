@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FindingCard from '$lib/components/FindingCard.svelte';
 	import InlineText from '$lib/components/InlineText.svelte';
 	import PanelCard from '$lib/components/PanelCard.svelte';
 	import PreparingView from '$lib/components/PreparingView.svelte';
@@ -11,6 +12,8 @@
 	// for Wrap up to dedupe against, not shown here.
 
 	const session = useSession();
+	// The panel's findings about the whole PR, rather than a file.
+	const wholePr = $derived(session.looseFindings.filter((f) => !f.mark.path).map((f) => f.mark));
 	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 	const summary = $derived(session.record.summary);
 	const githubUrl = $derived(
@@ -51,6 +54,14 @@
 					{/each}
 				</ol>
 			</div>
+
+			{#if wholePr.length}
+				<!-- Findings about the PR as a whole have no file to sit on in the diff. -->
+				<div class="block whole-pr">
+					<h2>About the PR as a whole</h2>
+					{#each wholePr as mark (mark.id)}<FindingCard {mark} />{/each}
+				</div>
+			{/if}
 		</section>
 
 		<aside>
@@ -125,6 +136,18 @@
 	}
 	.small {
 		font-size: 13px;
+	}
+	.whole-pr {
+		display: grid;
+		gap: 12px;
+	}
+	.whole-pr h2 {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--faint);
 	}
 	.slices {
 		list-style: none;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { raisedBy, type Mark } from '$lib/api';
+	import { raisedBy, type LooseMark, type Mark } from '$lib/api';
 	import { modelLabel } from '$lib/panel.svelte';
 	import { namedByKind } from '$lib/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
@@ -11,7 +11,7 @@
 
 	// An agent's finding, to keep for the review or skip, and to ask about
 	// first. Shown inside a Floating bubble.
-	let { mark, onclose }: { mark: Mark; onclose: () => void } = $props();
+	let { mark, onclose }: { mark: Mark | LooseMark; onclose: () => void } = $props();
 
 	const session = useSession();
 	let showWhy = $state(false);

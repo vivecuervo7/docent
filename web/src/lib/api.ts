@@ -138,53 +138,64 @@ export function reviewerName(record: PrRecord, id: string): string {
 	return reviewerLabel(record.agentReviewers, id);
 }
 
-export function marksFrom(record: PrRecord): Mark[] {
+// A finding with no lines to sit on: about a whole file, or, with no path,
+// the whole PR.
+export type LooseMark = Omit<Mark, 'path' | 'start' | 'end'> & { path?: string };
+
+// The panel's findings as shown, each as a mark: with its lines, or loose.
+function findingMarks(record: PrRecord): (LooseMark & { start?: LineRef; end?: LineRef })[] {
 	const { membersOf, joined, exists } = groupsOf(record);
-	const findings = Object.entries(record.feedback)
+	return Object.entries(record.feedback)
 		.filter(([key]) => key.startsWith('agent-'))
 		.flatMap(([key, draft]) =>
 			(draft?.items ?? [])
-				.filter((item) => item.path && item.start && isShown(item) && !joined(key, item))
-				.map(
-					(item): Mark => ({
-						id: item.id,
-						kind: 'finding',
-						path: item.path!,
-						start: item.start!,
-						end: item.end ?? item.start!,
-						who: reviewerName(record, key),
-						body: item.body,
-						rationale: item.rationale,
-						...(item.speculative ? { speculative: item.speculative } : {}),
-						...(item.onPr ? { onPr: item.onPr } : {}),
-						...(item.setAside ? { setAside: item.setAside } : {}),
-						...(item.impact ? { impact: item.impact, impactLevel: item.impactLevel } : {}),
-						...(item.checked ? { checked: item.checked, checkedVerdict: item.checkedVerdict } : {}),
-						...(item.skipSuggested ? { skipSuggested: item.skipSuggested } : {}),
-						...(item.severity ? { severity: item.severity } : {}),
-						included: item.included,
-						decided: item.decided,
-						unread: isUnread(item),
-						reviewer: key,
-						alsoBy: membersOf(key, item.id).map(({ reviewer, item: m }) => ({
-							reviewer,
-							id: m.id,
-							who: reviewerName(record, reviewer),
-							body: m.body,
-							rationale: m.rationale,
-							path: m.path,
-							line: m.start?.line
-						})),
-						...(item.separatedFrom && exists(item.separatedFrom.reviewer, item.separatedFrom.id)
-							? { separatedFrom: { who: reviewerName(record, item.separatedFrom.reviewer) } }
-							: {}),
-						...(() => {
-							const disputed = membersOf(key, item.id).flatMap(({ item: m }) => (m.disputed ? [m.disputed] : []));
-							return disputed.length ? { disputed } : {};
-						})()
-					})
-				)
+				.filter((item) => isShown(item) && !joined(key, item))
+				.map((item) => ({
+					id: item.id,
+					kind: 'finding' as const,
+					...(item.path ? { path: item.path } : {}),
+					...(item.path && item.start ? { start: item.start, end: item.end ?? item.start } : {}),
+					who: reviewerName(record, key),
+					body: item.body,
+					rationale: item.rationale,
+					...(item.speculative ? { speculative: item.speculative } : {}),
+					...(item.onPr ? { onPr: item.onPr } : {}),
+					...(item.setAside ? { setAside: item.setAside } : {}),
+					...(item.impact ? { impact: item.impact, impactLevel: item.impactLevel } : {}),
+					...(item.checked ? { checked: item.checked, checkedVerdict: item.checkedVerdict } : {}),
+					...(item.skipSuggested ? { skipSuggested: item.skipSuggested } : {}),
+					...(item.severity ? { severity: item.severity } : {}),
+					included: item.included,
+					decided: item.decided,
+					unread: isUnread(item),
+					reviewer: key,
+					alsoBy: membersOf(key, item.id).map(({ reviewer, item: m }) => ({
+						reviewer,
+						id: m.id,
+						who: reviewerName(record, reviewer),
+						body: m.body,
+						rationale: m.rationale,
+						path: m.path,
+						line: m.start?.line
+					})),
+					...(item.separatedFrom && exists(item.separatedFrom.reviewer, item.separatedFrom.id)
+						? { separatedFrom: { who: reviewerName(record, item.separatedFrom.reviewer) } }
+						: {}),
+					...(() => {
+						const disputed = membersOf(key, item.id).flatMap(({ item: m }) => (m.disputed ? [m.disputed] : []));
+						return disputed.length ? { disputed } : {};
+					})()
+				}))
 		);
+}
+
+// The findings without lines, for a file's header or the PR's overview.
+export function looseMarksFrom(record: PrRecord): LooseMark[] {
+	return findingMarks(record).filter((m) => !m.start);
+}
+
+export function marksFrom(record: PrRecord): Mark[] {
+	const findings = findingMarks(record).filter((m): m is Mark => !!m.path && !!m.start);
 	const notes = record.notes.map(
 		(note): Mark => ({
 			id: note.id,

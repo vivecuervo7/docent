@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { reviewerName, type Mark } from '$lib/api';
+	import { reviewerName, type LooseMark, type Mark } from '$lib/api';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import FileDiffs from '$lib/components/FileDiffs.svelte';
 	import FindingCard from '$lib/components/FindingCard.svelte';
@@ -43,7 +43,7 @@
 		goto(next ? `${base}/slices/${next.id}` : `${base}/wrap-up`);
 	}
 
-	const markById = (id: string): Mark | undefined => session.findings.find((f) => f.mark.id === id)?.mark;
+	const markById = (id: string): Mark | LooseMark | undefined => session.allFindings.find((f) => f.mark.id === id)?.mark;
 
 	function go(target: string | null) {
 		goto(target ? `${base}/slices/${target}` : `${base}/wrap-up`);
@@ -88,7 +88,7 @@
 	// Findings that landed on this slice after it was reviewed.
 	const lateHere = $derived(
 		session.late.filter(
-			(m) => !session.lateLeft.has(m.id) && !!session.findings.find((f) => f.mark.id === m.id)?.slices.includes(sliceId ?? '')
+			(m) => !session.lateLeft.has(m.id) && !!session.allFindings.find((f) => f.mark.id === m.id)?.slices.includes(sliceId ?? '')
 		)
 	);
 	// Catching up on them, each with its lines.
@@ -107,7 +107,7 @@
 	}
 
 	// Opens a finding where it sits in the diff, through any fold hiding it.
-	function reveal(mark: Mark) {
+	function reveal(mark: Mark | LooseMark) {
 		session.revealing = mark.id;
 	}
 
@@ -219,7 +219,7 @@
 		<h2>{marks.length} {marks.length === 1 ? 'finding' : 'findings'} landed after you reviewed this slice</h2>
 		{#each marks as mark (mark.id)}
 			<div class="late-item">
-				<FindingLines {mark} />
+				{#if 'start' in mark}<FindingLines {mark} />{/if}
 				<FindingCard
 					{mark}
 					onshow={() => {

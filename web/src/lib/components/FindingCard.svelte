@@ -1,18 +1,22 @@
 <script lang="ts">
 	import FilePath from './FilePath.svelte';
-	import type { Mark } from '$lib/api';
+	import type { LooseMark, Mark } from '$lib/api';
 	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
 	import EditorNotes from './EditorNotes.svelte';
 	import SeverityTag from './SeverityTag.svelte';
 
 	// A finding to keep or skip, in a list rather than in the diff.
-	let { mark, onshow }: { mark: Mark; onshow?: () => void } = $props();
+	let { mark, onshow }: { mark: Mark | LooseMark; onshow?: () => void } = $props();
 	const session = useSession();
 	let showWhy = $state(false);
 
 	const lines = $derived(
-		mark.start.line === mark.end.line ? `line ${mark.start.line}` : `lines ${mark.start.line}–${mark.end.line}`
+		!('start' in mark)
+			? 'the whole file'
+			: mark.start.line === mark.end.line
+				? `line ${mark.start.line}`
+				: `lines ${mark.start.line}–${mark.end.line}`
 	);
 	// Kept unless skipped, as in the diff's bubble.
 	const isKept = $derived(mark.included ?? true);
@@ -23,7 +27,7 @@
 	<header>
 		<span class="who">{mark.who}</span>
 		<SeverityTag severity={mark.severity} />
-		<span class="where"><FilePath path={mark.path} {lines} /></span>
+		<span class="where">{#if mark.path}<FilePath path={mark.path} {lines} />{:else}the PR as a whole{/if}</span>
 	</header>
 	<p class="body"><InlineText text={mark.body} /></p>
 	<EditorNotes

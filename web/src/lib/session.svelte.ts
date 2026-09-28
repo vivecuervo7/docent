@@ -1,7 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import * as api from './api';
-import { marksFrom } from './api';
+import { looseMarksFrom, marksFrom, type LooseMark, type Mark } from './api';
 import { nearestHunk, parseFilePatch, type Hunk } from './diff/parse';
 import { Panel, sessionId } from './panel.svelte';
 import { ReviewPost } from './post.svelte';
@@ -397,6 +397,14 @@ export class PrSession {
 			.map((mark) => ({ mark, slices: this.slicesOf(mark.path, mark.start) }))
 	);
 
+	// Findings with no lines: about a whole file, in every slice with that
+	// file, or about the whole PR, in none.
+	readonly looseFindings = $derived.by(() =>
+		looseMarksFrom(this.record).map((mark) => ({ mark, slices: mark.path ? this.slicesOf(mark.path, undefined) : [] }))
+	);
+	// Every finding shown, with lines or without, and the slices it's in.
+	readonly allFindings = $derived<{ mark: Mark | LooseMark; slices: string[] }[]>([...this.findings, ...this.looseFindings]);
+
 	slicesOf(path: string, start: LineRef | undefined): string[] {
 		const hunks = this.hunks.get(path) ?? [];
 		const nearest = start && nearestHunk(hunks, start);
@@ -406,7 +414,7 @@ export class PrSession {
 
 	// Findings on a slice still waiting on a keep or skip.
 	undecidedIn(sliceId: string) {
-		return this.findings.filter((f) => !f.mark.decided && f.slices.includes(sliceId)).map((f) => f.mark);
+		return this.allFindings.filter((f) => !f.mark.decided && f.slices.includes(sliceId)).map((f) => f.mark);
 	}
 
 	// A thread or finding to bring into view and open: its file opens, and so
@@ -428,7 +436,7 @@ export class PrSession {
 	// Findings waiting on a decision in slices already reviewed: they landed
 	// after the reviewer had moved on.
 	readonly late = $derived(
-		this.findings.filter((f) => !f.mark.decided && f.slices.some((id) => {
+		this.allFindings.filter((f) => !f.mark.decided && f.slices.some((id) => {
 			const slice = this.slices.find((s) => s.id === id);
 			return !!slice && isSliceReviewed(slice, this.reviewed);
 		})).map((f) => f.mark)

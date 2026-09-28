@@ -259,6 +259,9 @@
 	const selTo = $derived(selection ? Math.max(selection.anchor, selection.head) : -1);
 
 	const session = useSession();
+	// Findings about this file as a whole, with no lines to sit on: they sit
+	// on its header, open or closed.
+	const wholeFile = $derived(session.looseFindings.filter((f) => f.mark.path === file.filename).map((f) => f.mark));
 	let draft = $state('');
 
 	// A thread on the selected lines, kept with the hunk the selection starts
@@ -326,6 +329,12 @@
 		const id = session.revealing;
 		if (!id) return;
 		untrack(() => {
+			if (wholeFile.some((m) => m.id === id)) {
+				session.revealing = null;
+				session.openMark = id;
+				requestAnimationFrame(() => sectionEl?.querySelector(`[data-pin="${id}"]`)?.scrollIntoView({ block: 'center' }));
+				return;
+			}
 			const mark = marks.find((m) => m.id === id);
 			if (!mark) return;
 			session.revealing = null;
@@ -552,11 +561,26 @@
 			<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
 			<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
 		</button>
-		{#if collapsed && findingMarks.length}
+		{#if (collapsed && findingMarks.length) || wholeFile.length}
 			<!-- A closed file still shows the panel's findings on it, for finding
-			     ones that landed after it was reviewed. -->
+			     ones that landed after it was reviewed; one about the whole file
+			     sits here open or closed. -->
 			<span class="gutter header-pins">
-				{#each findingMarks as m (m.id)}
+				{#each wholeFile as m (m.id)}
+					<button
+						class="pin finding"
+						class:skipped={m.included === false}
+						class:active={session.openMark === m.id}
+						data-pin={m.id}
+						aria-label="Finding about the whole file, from {m.who}"
+						title="A finding about the whole file, from {m.who}"
+						onclick={() => (session.openMark = session.openMark === m.id ? null : m.id)}
+					>
+						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
+						{#if m.unread}<span class="unread" aria-label="New answer"></span>{/if}
+					</button>
+				{/each}
+				{#if collapsed}{#each findingMarks as m (m.id)}
 					<button
 						class="pin finding"
 						class:skipped={m.included === false}
@@ -566,9 +590,17 @@
 					>
 						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
 					</button>
-				{/each}
+				{/each}{/if}
 			</span>
 		{/if}
+		<!-- Outside the pins, whose transform would trap the bubble under the diff. -->
+		{#each wholeFile as m (m.id)}
+			{#if session.openMark === m.id}
+				<Floating anchor={openAnchor} label="Finding" tone="agent">
+					<MarkPopover mark={m} onclose={() => (session.openMark = null)} />
+				</Floating>
+			{/if}
+		{/each}
 		{#if onToggleReviewed}
 			<button
 				class="review"
