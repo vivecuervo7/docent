@@ -26,6 +26,7 @@
 	import type { ReferenceElement } from '@floating-ui/dom';
 	import Floating from './Floating.svelte';
 	import MarkPopover from './MarkPopover.svelte';
+	import { testTitleLines } from '$lib/testTitles';
 	import ThreadPanel from './ThreadPanel.svelte';
 	import NoteText from './NoteText.svelte';
 	import StateMark from './StateMark.svelte';
@@ -168,7 +169,13 @@
 	// - Imports and test setup fold whatever changed, with +/- on the row.
 	type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; rows: Row[]; label?: string };
 	const openFolds = new SvelteSet<string>();
-	const scenarioLines = $derived(new Set(foldTests && note?.kind === 'tests' ? (note.scenarioLines ?? []) : []));
+	// Read from the code where a framework's tests can be recognised; the
+	// file note's lines otherwise, since a model's line counts can drift.
+	const scenarioLines = $derived.by(() => {
+		if (!foldTests || note?.kind !== 'tests') return new Set<number>();
+		const found = testTitleLines(allHunks.flatMap((h) => h.rows));
+		return found.size ? found : new Set(note.scenarioLines ?? []);
+	});
 	const quietRanges = $derived(foldTests ? (note?.quietRanges ?? []) : []);
 	const MIN_FOLD = 3;
 
