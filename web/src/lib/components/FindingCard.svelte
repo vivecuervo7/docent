@@ -3,6 +3,7 @@
 	import type { LooseMark, Mark } from '$lib/api';
 	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
+	import NoteText from './NoteText.svelte';
 	import EditorNotes from './EditorNotes.svelte';
 	import SeverityTag from './SeverityTag.svelte';
 
@@ -29,7 +30,7 @@
 		<SeverityTag severity={mark.severity} />
 		<span class="where">{#if mark.path}<FilePath path={mark.path} {lines} />{:else}the PR as a whole{/if}</span>
 	</header>
-	<p class="body"><InlineText text={mark.body} /></p>
+	<div class="body"><NoteText text={mark.body} /></div>
 	<EditorNotes
 		impact={mark.impact}
 		impactLevel={mark.impactLevel}
@@ -86,6 +87,12 @@
 		text-overflow: ellipsis;
 	}
 	.body,
+	/* A body can hold paragraphs, lists and rules: spaced like a thread. */
+	.body {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
 	.rationale {
 		margin: 0;
 		font-size: 14.5px;

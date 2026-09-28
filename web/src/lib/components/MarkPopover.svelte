@@ -93,7 +93,7 @@
 		</button>
 	</header>
 	<div class="content" bind:this={list}>
-		<p class="body"><InlineText text={mark.body} /></p>
+		<div class="body"><NoteText text={mark.body} /></div>
 		<EditorNotes
 			impact={item?.impact}
 			impactLevel={item?.impactLevel}
@@ -239,6 +239,12 @@
 		margin: 0;
 		font-size: 14.5px;
 		line-height: 1.6;
+	}
+	/* A body can hold paragraphs, lists and rules: spaced like a thread. */
+	.body {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 	}
 	.rationale {
 		color: var(--muted);

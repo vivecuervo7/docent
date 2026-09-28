@@ -6,7 +6,11 @@
 	// would. It's sanitised, since the model's text can carry anything.
 	let { text }: { text: string } = $props();
 
-	const html = $derived(DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: true, async: false })));
+	// A rule written straight under a line would read as underlining it into a
+	// heading; models mean a rule, so it gets the blank lines it needs.
+	const html = $derived(
+		DOMPurify.sanitize(marked.parse(text.replace(/\n *(-{3,}|\*{3,}|_{3,}) *\n/g, '\n\n$1\n\n'), { gfm: true, breaks: true, async: false }))
+	);
 </script>
 
 <!-- Its blocks sit directly in the caller's layout, which spaces them. -->
@@ -46,6 +50,12 @@
 		padding-left: 12px;
 		border-left: 2px solid var(--line-2);
 		color: var(--muted);
+	}
+	.md :global(hr) {
+		width: 100%;
+		margin: 2px 0;
+		border: 0;
+		border-top: 1px solid var(--line-2);
 	}
 	.md :global(a) {
 		text-decoration: underline;
