@@ -45,7 +45,45 @@ export async function fetchPrFiles(
     `repos/${owner}/${repo}/pulls/${number}/files?per_page=100`,
   ]);
 
-  return JSON.parse(stdout) as PrFile[];
+  const files = JSON.parse(stdout) as PrFile[];
+  // GitHub leaves a file's patch out of this list when its diff is large,
+  // though the PR's whole diff still has it. A binary file has no lines
+  // changed, and no patch either way.
+  if (files.some((f) => !f.patch && f.additions + f.deletions > 0)) {
+    const patches = await fetchPrPatches(owner, repo, number).catch(() => new Map<string, string>());
+    for (const f of files) if (!f.patch) f.patch = patches.get(f.filename);
+  }
+  return files;
+}
+
+// Each file's hunks from the PR's whole diff, by its path at the head (or
+// its old path, for a deleted file). GitHub refuses the whole diff for a
+// very large PR, and those files stay without one.
+async function fetchPrPatches(owner: string, repo: string, number: string): Promise<Map<string, string>> {
+  const { stdout } = await execFileAsync(
+    "gh",
+    ["api", "-H", "Accept: application/vnd.github.diff", `repos/${owner}/${repo}/pulls/${number}`],
+    { maxBuffer: 64 * 1024 * 1024 },
+  );
+  const patches = new Map<string, string>();
+  for (const section of stdout.split(/^(?=diff --git )/m)) {
+    const lines = section.replace(/\n$/, "").split("\n");
+    const first = lines.findIndex((l) => l.startsWith("@@"));
+    if (first < 0) continue;
+    const header = lines.slice(0, first);
+    const path = pathIn(header, "+++ b/") ?? pathIn(header, "--- a/");
+    if (path) patches.set(path, lines.slice(first).join("\n"));
+  }
+  return patches;
+}
+
+// The path on a "+++ b/..." or "--- a/..." line. Git quotes a path with
+// unusual characters, and ends one with spaces in a tab.
+function pathIn(header: string[], marker: "+++ b/" | "--- a/"): string | undefined {
+  const [sign, side] = marker.split(" ");
+  const line = header.find((l) => l.startsWith(marker) || l.startsWith(`${sign} "${side}`));
+  const path = line?.slice(sign.length + 1).replace(/\t$/, "");
+  return path?.startsWith('"') ? path.slice(side.length + 1, -1) : path?.slice(side.length);
 }
 
 export interface PrMeta {
