@@ -17,8 +17,10 @@
 	let showFacts = $state(false);
 	let now = $state(Date.now());
 
-	const ran = $derived(panel.reviewers.filter((r) => panel.reviews[r.id] || r.lastRun));
-	const running = $derived(panel.running.length);
+	// Reviewers that have run, are picking, or failed to start: the chip shows
+	// once there's any of those.
+	const ran = $derived(panel.reviewers.filter((r) => panel.reviews[r.id] || r.lastRun || panel.picking[r.id] || panel.errors[r.id]));
+	const running = $derived(panel.running.length + Object.values(panel.picking).filter(Boolean).length);
 
 	// Live times while anything's running and the list is open.
 	$effect(() => {
@@ -61,11 +63,12 @@
 	// "auto" is a step, not a reviewer: it shows while it picks, or when it
 	// picked none; otherwise its picks stand for it.
 	const shown = $derived(
-		panel.reviewers.filter((r) => !isAuto(r) || panel.picking[r.id] || (r.picks && !r.picks.personas.length))
+		panel.reviewers.filter((r) => !isAuto(r) || panel.picking[r.id] || panel.errors[r.id] || (r.picks && !r.picks.personas.length))
 	);
 
 	// Where a reviewer is, in a line.
 	function whereIs(r: AgentReviewer): { text: string; working: boolean } {
+		if (panel.errors[r.id]) return { text: `Couldn’t start: ${panel.errors[r.id]}`, working: false };
 		if (isAuto(r)) {
 			return panel.picking[r.id]
 				? { text: 'Picking the personas this PR warrants', working: true }

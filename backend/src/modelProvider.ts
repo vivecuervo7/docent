@@ -172,10 +172,10 @@ export async function chatWithTool(
 
 // For free-form replies, where a tool call adds nothing: the model answers
 // in the message content.
-export async function chat(messages: ChatMessage[], signal?: AbortSignal, model = modelName()): Promise<string> {
+export async function chat(messages: ChatMessage[], signal?: AbortSignal, model = modelName(), access?: CodeAccess): Promise<string> {
   const resolved = target(model);
-  if (resolved.kind === "claude-code") return claudeCodeChat(resolved.alias, messages, signal);
-  if (resolved.kind === "codex") return codexChat(resolved.model, messages, signal);
+  if (resolved.kind === "claude-code") return claudeCodeChat(resolved.alias, messages, signal, access);
+  if (resolved.kind === "codex") return codexChat(resolved.model, messages, signal, access);
 
   const res = await postJson(resolved.provider, "/chat/completions", { model: resolved.model, messages }, signal);
 

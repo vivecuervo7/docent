@@ -25,7 +25,6 @@
 	});
 
 	let ticked = $state<Partial<Record<AgentId, boolean>>>({});
-	let starting = $state(false);
 
 	const setupOf = (r: AgentReviewer): ReviewerSetup => setupFrom(r, defaultModel);
 	// Reviewers that haven't run are ticked to start; rerunning one replaces
@@ -74,16 +73,16 @@
 	// An "auto" started now replaces its picks, so they aren't started too.
 	const replacing = $derived(new Set(toStart.filter(isAuto).map((r) => r.id)));
 
-	async function startAndRead() {
-		starting = true;
+	// Starting belongs to the PR, not this page, so reading begins at once
+	// while the reviewers start - auto's picking included - and a reviewer
+	// that fails to start says so on the panel chip. Your own agent needs
+	// its command run first, so that stays in view.
+	function startAndRead() {
 		const started = toStart.filter((r) => !(r.pickedBy && replacing.has(r.pickedBy)));
-		await Promise.all(started.map((r) => panel.start(r.id, setupOf(r))));
 		for (const r of started) ticked[r.id] = false;
-		starting = false;
-		// Your own agent needs its command run first, so that stays in view.
-		const failed = started.some((r) => panel.errors[r.id]);
 		const needsCommand = started.some((r) => setupOf(r).mode === 'external');
-		if (!failed && !needsCommand) read();
+		for (const r of started) panel.start(r.id, setupOf(r));
+		if (!needsCommand) read();
 	}
 
 	async function add() {
@@ -351,7 +350,7 @@
 
 	<div class="actions">
 		{#if toStart.length}
-			<button class="btn primary big" disabled={starting} onclick={startAndRead}>
+			<button class="btn primary big" onclick={startAndRead}>
 				<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z" fill="currentColor" /></svg>
 				Start {toStart.length === panel.reviewers.length && toStart.length > 1 ? 'the panel' : toStart.length === 1 ? 'reviewer' : `${toStart.length} reviewers`} and read
 			</button>

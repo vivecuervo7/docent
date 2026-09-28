@@ -262,6 +262,33 @@
 	// Findings about this file as a whole, with no lines to sit on: they sit
 	// on its header, open or closed.
 	const wholeFile = $derived(session.looseFindings.filter((f) => f.mark.path === file.filename).map((f) => f.mark));
+
+	// In a slice, the lines this slice's hunks change, not the whole file's,
+	// and the other slices holding the rest of it.
+	const sliceCounts = $derived.by(() => {
+		if (!hunkIndices) return null;
+		let added = 0;
+		let removed = 0;
+		for (const h of allHunks) {
+			if (!shownIndices.has(h.index)) continue;
+			for (const r of h.rows) {
+				if (r.kind === 'add') added++;
+				else if (r.kind === 'del') removed++;
+			}
+		}
+		return { added, removed };
+	});
+	const elsewhere = $derived.by(() => {
+		if (!hunkIndices) return [];
+		return session.slices.flatMap((sl, i) =>
+			sl.hunks.some((k) => {
+				const at = k.lastIndexOf('#');
+				return k.slice(0, at) === file.filename && !shownIndices.has(Number(k.slice(at + 1)));
+			})
+				? [{ id: sl.id, n: i + 1 }]
+				: []
+		);
+	});
 	let draft = $state('');
 
 	// A thread on the selected lines, kept with the hunk the selection starts
@@ -559,8 +586,18 @@
 			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 			<span class="path"><FilePath path={file.filename} /></span>
 			<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
-			<span class="stat"><span class="plus">+{file.additions}</span> <span class="minus">−{file.deletions}</span></span>
+			<span class="stat"
+				><span class="plus">+{sliceCounts?.added ?? file.additions}</span>
+				<span class="minus">−{sliceCounts?.removed ?? file.deletions}</span></span
+			>
 		</button>
+		{#if elsewhere.length}
+			<span class="rest faint"
+				>rest in {elsewhere.length === 1 ? 'slice' : 'slices'}
+				{#each elsewhere as e, i (e.id)}{i ? ', ' : ''}<a href="/pr/{session.ref.owner}/{session.ref.repo}/{session.ref.number}/slices/{e.id}">{e.n}</a
+					>{/each}</span
+			>
+		{/if}
 		{#if (collapsed && findingMarks.length) || wholeFile.length}
 			<!-- A closed file still shows the panel's findings on it, for finding
 			     ones that landed after it was reviewed; one about the whole file
@@ -662,6 +699,20 @@
 		display: flex;
 		align-items: center;
 		height: 52px;
+	}
+	.rest {
+		flex-shrink: 0;
+		margin-left: -8px;
+		padding-right: 12px;
+		font-size: 12.5px;
+		white-space: nowrap;
+	}
+	.rest a {
+		color: inherit;
+		text-underline-offset: 3px;
+	}
+	.rest a:hover {
+		color: var(--text);
 	}
 	.gutter.header-pins {
 		top: 50%;

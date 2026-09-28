@@ -1,5 +1,6 @@
 import { laneOf } from "./config.js";
-import { chat, type ChatMessage } from "./modelProvider.js";
+import { canReadCode, chat, type ChatMessage } from "./modelProvider.js";
+import { modelName } from "./config.js";
 
 // Replies to notes left on selected lines. These run in their own lane,
 // apart from the generation queue, so a question isn't stuck behind a PR
@@ -100,21 +101,40 @@ export function inLane<T>(work: () => Promise<T>, model?: string): Promise<T> {
   return inNamedLane(key, cap, work);
 }
 
+// Where an answer can look beyond the lines it's shown: the whole repo at the
+// PR's head, through Docent's read tools, on Claude Code or Codex.
+export interface AnswerAccess {
+  pr: string;
+  mcpUrl: string;
+}
+
+const LOOK_NOTE = (pr: string) => `
+
+You can look beyond the code shown, through Docent's tools (pass ${pr} as the PR): read_file for \
+any file at the PR's head, search_code to find where something is defined or used, list_files, \
+and get_diff for the rest of the PR's changes. When the answer depends on code you haven't been \
+shown - a type's definition, what a caller expects, another part of the PR - look it up rather \
+than guess, and say which file and line you relied on. Answer straight away when what's shown is \
+enough.`;
+
 export function replyToNote(
   context: NoteContext,
   messages: NoteMessage[],
   signal: AbortSignal,
   model?: string,
+  access?: AnswerAccess,
 ): Promise<string> {
   return inLane(async () => {
     // Asked while others were ahead of it, then abandoned: skip the model.
     signal.throwIfAborted();
     const [first, ...rest] = messages;
+    const looks = !!access && canReadCode(model ?? modelName());
     const conversation: ChatMessage[] = [
-      { role: "system", content: context.finding ? FINDING_PROMPT : SYSTEM_PROMPT },
+      { role: "system", content: (context.finding ? FINDING_PROMPT : SYSTEM_PROMPT) + (looks ? LOOK_NOTE(access!.pr) : "") },
       { role: "user", content: `${contextMessage(context)}\n\n${context.finding ? "The reviewer asks" : "The reviewer wrote"}:\n${first.text}` },
       ...rest.map((m): ChatMessage => ({ role: m.role, content: m.text })),
     ];
-    return model ? chat(conversation, signal, model) : chat(conversation, signal);
+    const tools = looks ? { mcpUrl: access!.mcpUrl, tools: ["get_diff", "read_file", "list_files", "search_code"] } : undefined;
+    return chat(conversation, signal, model ?? modelName(), tools);
   }, model);
 }

@@ -210,7 +210,12 @@ app.post("/api/pr/:owner/:repo/:number/notes/reply", async (req, res) => {
     if (!res.writableEnded) controller.abort();
   });
   try {
-    res.json({ text: await replyToNote(context, messages, controller.signal, model) });
+    res.json({
+      text: await replyToNote(context, messages, controller.signal, model, {
+        pr: `${owner}/${repo}#${number}`,
+        mcpUrl: `http://localhost:${PORT}/mcp`,
+      }),
+    });
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }

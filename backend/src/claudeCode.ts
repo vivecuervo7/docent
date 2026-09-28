@@ -156,8 +156,8 @@ export async function claudeCodeChatWithTool(
   return { name: tool.name, arguments: result.structured_output };
 }
 
-export async function claudeCodeChat(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
-  const result = await run(model, messages, undefined, signal);
+export async function claudeCodeChat(model: string, messages: ChatMessage[], signal?: AbortSignal, access?: CodeAccess): Promise<string> {
+  const result = await run(model, messages, undefined, signal, access);
   if (result.is_error) throw new Error(`Claude Code: ${result.result ?? "the call failed"}`);
   const text = result.result?.trim();
   if (!text) throw new Error("Claude Code returned an empty reply");

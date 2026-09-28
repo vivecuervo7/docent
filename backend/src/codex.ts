@@ -190,8 +190,8 @@ export async function codexChatWithTool(
   }
 }
 
-export async function codexChat(model: string, messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
-  return run(model, messages, undefined, signal);
+export async function codexChat(model: string, messages: ChatMessage[], signal?: AbortSignal, access?: CodeAccess): Promise<string> {
+  return run(model, messages, undefined, signal, access && { url: access.mcpUrl, tools: access.tools });
 }
 
 // An external reviewer's session on Codex: its prompt in, the findings out
