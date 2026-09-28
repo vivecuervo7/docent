@@ -59,6 +59,8 @@ export interface AgentReview {
   endedAt?: number;
   // Token use over the review, where the model reports it (Claude Code).
   usage?: Usage;
+  // An external reviewer's overall recommendation, when it makes one.
+  verdict?: { event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"; reason?: string };
 }
 
 // What the browser knows about the PR that GitHub doesn't: the slices and
@@ -169,10 +171,11 @@ export function startSessionReview(
   void (async () => {
     const { review, controller } = entry;
     try {
-      const [findings, files] = await Promise.all([
+      const [{ findings, verdict }, files] = await Promise.all([
         runSession(persona, { owner, repo, number }, mcpUrl, controller.signal),
         fetchPrFiles(owner, repo, number),
       ]);
+      if (verdict) review.verdict = verdict;
       for (const finding of findings) {
         try {
           review.findings.push(checkFinding(finding, files));

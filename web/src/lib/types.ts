@@ -181,7 +181,15 @@ export interface AgentReviewer {
 	// For "auto" ("auto:<model>"), the personas it last picked.
 	picks?: { at: number; personas: string[]; error?: string };
 	// Its latest review, kept after the backend has let it go.
-	lastRun?: { startedAt: number; endedAt?: number; status: AgentReview['status']; findings: number; error?: string };
+	lastRun?: {
+		startedAt: number;
+		endedAt?: number;
+		status: AgentReview['status'];
+		findings: number;
+		error?: string;
+		// An external reviewer's own overall recommendation.
+		verdict?: { event: ReviewEvent; reason?: string };
+	};
 }
 
 export interface PrRecord {
@@ -264,6 +272,7 @@ export interface AgentReview {
 	progress?: { done: number; total: number; current?: string; waiting?: boolean; finished?: string[] };
 	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string; slice?: string; severity?: Severity; setAside?: string }[];
 	error?: string;
+	verdict?: { event: ReviewEvent; reason?: string };
 	startedAt: number;
 	endedAt?: number;
 }
@@ -294,6 +303,8 @@ export interface ReviewDraft {
 	// The reviewer chose to post without the review's own text.
 	summaryLeftOut?: boolean;
 	event: ReviewEvent;
+	// How preparing suggested submitting it, and why.
+	suggested?: { event: ReviewEvent; reason?: string };
 	posted?: { at: number; url: string };
 }
 

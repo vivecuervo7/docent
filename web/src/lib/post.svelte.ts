@@ -2,7 +2,7 @@ import * as api from './api';
 import { groupsOf, isShown } from './api';
 import type { Hunk } from './diff/parse';
 import type { PrSession } from './session.svelte';
-import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewPayload } from './types';
+import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from './types';
 
 // Posting the review: preparing it from what's kept (comments making the same
 // point merged, anything already said on the PR set aside), wording it, and
@@ -95,15 +95,26 @@ export class ReviewPost {
 						inline: this.isInline(item),
 						...(item.speculative ? { speculative: item.speculative } : {}),
 						...(item.onPr ? { onPr: item.onPr } : {}),
+						...(item.severity ? { severity: item.severity } : {}),
 						...this.#discussionOf(source, item)
-					}))
+					})),
+					// External reviewers' own overall recommendations, to weigh.
+					verdicts: this.#session.record.agentReviewers.flatMap((a) =>
+						a.lastRun?.verdict ? [{ who: api.reviewerName(this.#session.record, a.id), ...a.lastRun.verdict }] : []
+					)
 				})
 			});
 			const prepared = await api.readOk<{
 				comments: { from: string[]; body: string }[];
 				dropped: { from: string[]; reason: string }[];
 				body: string;
+				event?: ReviewEvent;
+				eventReason?: string;
 			}>(res);
+			// The suggestion, where GitHub allows it: not approving or requesting
+			// changes on your own PR.
+			const own = !!this.people && this.people.viewer === this.people.author;
+			const suggested = prepared.event ? { event: prepared.event, reason: prepared.eventReason } : undefined;
 			const byId = new Map(candidates.map((c) => [c.item.id, c.item]));
 			await this.#save({
 				preparedAt: Date.now(),
@@ -116,7 +127,8 @@ export class ReviewPost {
 				}),
 				dropped: prepared.dropped,
 				summary: prepared.body,
-				event: this.draft?.event ?? 'COMMENT',
+				event: suggested && !(own && suggested.event !== 'COMMENT') ? suggested.event : (this.draft?.event ?? 'COMMENT'),
+				...(suggested ? { suggested } : {}),
 				summaryLeftOut: this.draft?.summaryLeftOut
 			});
 			this.prepareStatus = {};

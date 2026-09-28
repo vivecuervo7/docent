@@ -422,7 +422,8 @@ export class Panel {
 			endedAt: review.endedAt,
 			status: review.status,
 			findings: review.findings.length,
-			...(review.error ? { error: review.error } : {})
+			...(review.error ? { error: review.error } : {}),
+			...(review.verdict ? { verdict: review.verdict } : {})
 		};
 		const saved = this.reviewers.find((a) => a.id === id)?.lastRun;
 		if (JSON.stringify(saved) !== JSON.stringify(lastRun)) {

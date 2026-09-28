@@ -64,6 +64,7 @@ import {
   prepareReview,
   type Candidate,
   type CommentToPost,
+  type ReviewerVerdict,
   type ReviewEvent,
 } from "./postReview.js";
 import { replyToNote, type NoteContext, type NoteMessage } from "./notes.js";
@@ -430,14 +431,22 @@ app.post("/api/pr/:owner/:repo/:number/review/prepare", async (req, res) => {
   if (!validParams(owner, repo, number) || !Array.isArray(candidates)) {
     return res.status(400).json({ error: "invalid candidates" });
   }
-  if (candidates.length === 0) return res.json({ comments: [], dropped: [], body: "", inBody: [] });
+  if (candidates.length === 0) {
+    return res.json({ comments: [], dropped: [], body: "", inBody: [], event: "APPROVE", eventReason: "Nothing kept to raise." });
+  }
+  const verdicts = (Array.isArray(req.body?.verdicts) ? req.body.verdicts : []).filter(
+    (v: unknown): v is ReviewerVerdict =>
+      !!v &&
+      typeof (v as ReviewerVerdict).who === "string" &&
+      ["COMMENT", "APPROVE", "REQUEST_CHANGES"].includes((v as ReviewerVerdict).event),
+  );
 
   const controller = new AbortController();
   res.on("close", () => {
     if (!res.writableEnded) controller.abort();
   });
   try {
-    res.json(await prepareReview(owner, repo, number, candidates, controller.signal, reviewModel(req)));
+    res.json(await prepareReview(owner, repo, number, candidates, controller.signal, reviewModel(req), verdicts));
   } catch (err) {
     if (!controller.signal.aborted) res.status(502).json({ error: (err as Error).message });
   }

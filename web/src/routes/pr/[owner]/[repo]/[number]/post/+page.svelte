@@ -279,6 +279,14 @@
 							>
 						{/each}
 					</div>
+					{#if draft.suggested}
+						{@const option = EVENTS.find((e) => e.event === draft.suggested?.event)}
+						<p class="suggested faint">
+							Suggested: {option?.label}{draft.suggested.reason ? ` - ${draft.suggested.reason}` : ''}{isOwnPr && draft.suggested.event !== 'COMMENT'
+								? ' (GitHub doesn’t allow that on your own PR, so it’s a comment)'
+								: ''}
+						</p>
+					{/if}
 					{#if postError && !confirming}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
 					<div class="actions">
 						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
@@ -549,6 +557,10 @@
 		justify-content: flex-end;
 		gap: 12px;
 		font-size: 13.5px;
+	}
+	.suggested {
+		margin: 8px 0 0;
+		font-size: 13px;
 	}
 	.events {
 		display: flex;

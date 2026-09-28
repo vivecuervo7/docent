@@ -33,6 +33,14 @@ export interface Candidate {
   speculative?: string;
   // The PR thread that already raises its point.
   onPr?: string;
+  severity?: string;
+}
+
+// An external reviewer's own overall recommendation.
+export interface ReviewerVerdict {
+  who: string;
+  event: ReviewEvent;
+  reason?: string;
 }
 
 export interface PreparedComment {
@@ -53,6 +61,9 @@ export interface PreparedReview {
   body: string;
   // The candidates written into the body.
   inBody: string[];
+  // How to submit it, and why, as recommended.
+  event?: ReviewEvent;
+  eventReason?: string;
 }
 
 const REPORT_REVIEW_TOOL = {
@@ -89,8 +100,10 @@ const REPORT_REVIEW_TOOL = {
         items: { type: "string" },
         description: "Ids of the no-lines candidates written into the body.",
       },
+      event: { type: "string", enum: ["COMMENT", "APPROVE", "REQUEST_CHANGES"], description: "How to submit the review." },
+      event_reason: { type: "string", description: "What decided it, in a short sentence naming the comment or reviewer." },
     },
-    required: ["comments", "dropped", "body", "in_body"],
+    required: ["comments", "dropped", "body", "in_body", "event"],
   },
 };
 
@@ -115,7 +128,11 @@ review's body instead, and list its id in "in_body".
 The body is the review's own text, as the reviewer: one to three sentences about the PR overall \
 and what the comments add up to, then the points from the "no lines" candidates, each kept to \
 its substance. Markdown is fine; no headings, and don't repeat the comments on lines.
-Every candidate id goes in exactly one comment's "from", in "in_body", or in "dropped".`;
+Every candidate id goes in exactly one comment's "from", in "in_body", or in "dropped".
+Recommend how to submit the review (event): REQUEST_CHANGES when a comment you keep is a blocker or \
+major the author has to fix before merging; APPROVE when nothing needs changing - no comments, or \
+only nits the author can take or leave; COMMENT otherwise. Where other reviewers gave their own \
+overall verdict, weigh it. Say in event_reason what decided it.`;
 
 export function prepareReview(
   owner: string,
@@ -124,6 +141,7 @@ export function prepareReview(
   candidates: Candidate[],
   signal: AbortSignal,
   model?: string,
+  verdicts: ReviewerVerdict[] = [],
 ): Promise<PreparedReview> {
   return inLane(async () => {
     signal.throwIfAborted();
@@ -131,7 +149,7 @@ export function prepareReview(
     const listed = candidates
       .map(
         (c) =>
-          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.onPr ? `\n\nAlready on the PR: ${c.onPr}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
+          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}${c.severity ? `, ${c.severity}` : ""}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.onPr ? `\n\nAlready on the PR: ${c.onPr}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
       )
       .join("\n\n");
     const call = await chatWithTool(
@@ -139,7 +157,11 @@ export function prepareReview(
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `Candidate comments:\n\n${listed}\n\nAlready said on the PR:\n\n${conversationText(conversation)}`,
+          content: `Candidate comments:\n\n${listed}\n\nAlready said on the PR:\n\n${conversationText(conversation)}${
+            verdicts.length
+              ? `\n\nOther reviewers' overall verdicts:\n${verdicts.map((v) => `- ${v.who}: ${v.event}${v.reason ? ` - ${v.reason}` : ""}`).join("\n")}`
+              : ""
+          }`,
         },
       ],
       REPORT_REVIEW_TOOL,
@@ -195,7 +217,9 @@ function settle(candidates: Candidate[], raw: Record<string, unknown>): Prepared
       inBody.push(candidate.id);
     }
   }
-  return { comments, dropped, body, inBody };
+  const event = raw.event === "APPROVE" || raw.event === "REQUEST_CHANGES" || raw.event === "COMMENT" ? raw.event : undefined;
+  const eventReason = typeof raw.event_reason === "string" && raw.event_reason.trim() ? raw.event_reason.trim() : undefined;
+  return { comments, dropped, body, inBody, ...(event ? { event } : {}), ...(eventReason ? { eventReason } : {}) };
 }
 
 export async function fetchViewer(): Promise<string> {
