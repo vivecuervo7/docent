@@ -21,8 +21,17 @@ export interface NoteContext {
   prWhat?: string;
   sliceTitle?: string;
   sliceSummary?: string;
-  // Set when the question is about a finding a reviewer on the panel raised.
-  finding?: { reviewer: string; body: string; rationale?: string };
+  // Set when the question is about a finding a reviewer on the panel raised:
+  // with the other reviewers' versions of the same point, and what the
+  // panel's editor found.
+  finding?: {
+    reviewer: string;
+    body: string;
+    rationale?: string;
+    severity?: string;
+    others?: { reviewer: string; body: string; severity?: string; disputed?: string }[];
+    editor?: { impact?: string; checked?: string; speculative?: string; onPr?: string; setAside?: string };
+  };
 }
 
 const SYSTEM_PROMPT = `You are helping someone review a pull request. They have selected some \
@@ -38,8 +47,9 @@ const FINDING_PROMPT = `You are helping someone review a pull request. An automa
 a finding on some lines of the diff, and the reviewer is asking about it before deciding whether \
 to post it. Answer their question directly and honestly, grounded in the code shown: whether the \
 finding holds up, what it means, what fixing it would involve. If the code shows the finding is \
-wrong or doesn't apply, say so plainly - agreeing with it isn't the goal. Say so when the code \
-shown isn't enough to be sure.
+wrong or doesn't apply, say so plainly - agreeing with it isn't the goal. When other reviewers \
+raised the same point, or disagree about it, weigh their versions and the editor's notes too, and \
+say where you land and why. Say so when the code shown isn't enough to be sure.
 Keep replies short - a few sentences - since they're read in a small panel. Use backticks for code.`;
 
 function contextMessage(context: NoteContext): string {
@@ -62,8 +72,27 @@ function contextMessage(context: NoteContext): string {
     parts.push(`The finding is about ${context.path ? "the file as a whole" : "the PR as a whole"}.`);
   }
   if (context.finding) {
-    parts.push(`The finding, from ${context.finding.reviewer}:\n${context.finding.body}`);
-    if (context.finding.rationale) parts.push(`Why it raised it:\n${context.finding.rationale}`);
+    const f = context.finding;
+    parts.push(`The finding, from ${f.reviewer}${f.severity ? ` (${f.severity})` : ""}:\n${f.body}`);
+    if (f.rationale) parts.push(`Why it raised it:\n${f.rationale}`);
+    if (f.others?.length) {
+      parts.push(
+        `Other reviewers raised the same point:\n${f.others
+          .map((o) => `- ${o.reviewer}${o.severity ? ` (${o.severity})` : ""}${o.disputed ? ` - disagrees: ${o.disputed}` : ""}: ${o.body}`)
+          .join("\n")}`,
+      );
+    }
+    const e = f.editor;
+    const notes = e
+      ? [
+          e.impact && `Impact: ${e.impact}`,
+          e.checked && `Checked against the code: ${e.checked}`,
+          e.speculative && `Speculative - it assumes: ${e.speculative}`,
+          e.onPr && `Already on the PR: ${e.onPr}`,
+          e.setAside && `Its reviewer had set it aside: ${e.setAside}`,
+        ].filter(Boolean)
+      : [];
+    if (notes.length) parts.push(`What the panel's editor found:\n${notes.join("\n")}`);
   }
   return parts.join("\n\n");
 }
@@ -112,7 +141,8 @@ const LOOK_NOTE = (pr: string) => `
 
 You can look beyond the code shown, through Docent's tools (pass ${pr} as the PR): read_file for \
 any file at the PR's head, search_code to find where something is defined or used, list_files, \
-and get_diff for the rest of the PR's changes. When the answer depends on code you haven't been \
+get_diff for the rest of the PR's changes, and get_existing_comments for what's been said on the \
+PR. When the answer depends on code you haven't been \
 shown - a type's definition, what a caller expects, another part of the PR - look it up rather \
 than guess, and say which file and line you relied on. Answer straight away when what's shown is \
 enough.`;
@@ -134,7 +164,9 @@ export function replyToNote(
       { role: "user", content: `${contextMessage(context)}\n\n${context.finding ? "The reviewer asks" : "The reviewer wrote"}:\n${first.text}` },
       ...rest.map((m): ChatMessage => ({ role: m.role, content: m.text })),
     ];
-    const tools = looks ? { mcpUrl: access!.mcpUrl, tools: ["get_diff", "read_file", "list_files", "search_code"] } : undefined;
+    const tools = looks
+      ? { mcpUrl: access!.mcpUrl, tools: ["get_diff", "read_file", "list_files", "search_code", "get_existing_comments"] }
+      : undefined;
     return chat(conversation, signal, model ?? modelName(), tools);
   }, model);
 }

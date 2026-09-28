@@ -132,7 +132,10 @@
 							<li>
 								{#if a.who !== also[i - 1]?.who}<span class="role">{a.who}</span>{/if}
 								<div class="also-body">
-									<p class="rationale"><InlineText text={a.body} /></p>
+									<div class="also-text">
+										<p class="rationale"><InlineText text={a.body} /></p>
+										{#if a.disputed}<p class="disagrees">Disagrees: <InlineText text={a.disputed} /></p>{/if}
+									</div>
 									<button class="link small separate" onclick={() => separate(a)}>Separate</button>
 								</div>
 							</li>
@@ -297,6 +300,17 @@
 	.chip:hover {
 		color: var(--text);
 		box-shadow: 0 0 0 1px var(--line-2);
+	}
+	.also-text {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+	.disagrees {
+		margin: 0;
+		font-size: 12.5px;
+		color: var(--agent);
 	}
 	.disputed {
 		color: var(--agent);

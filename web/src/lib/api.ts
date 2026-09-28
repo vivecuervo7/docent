@@ -81,7 +81,7 @@ export interface Mark {
 	// A finding with an answer to a question the reviewer hasn't read yet.
 	unread?: boolean;
 	// Other findings making the same point, grouped under this one.
-	alsoBy?: { reviewer: string; id: string; who: string; body: string; rationale?: string; path?: string; line?: number }[];
+	alsoBy?: { reviewer: string; id: string; who: string; body: string; rationale?: string; path?: string; line?: number; disputed?: string }[];
 	// The lead of a group it was separated from.
 	separatedFrom?: { who: string };
 	// What it assumes, when nothing settles it.
@@ -176,7 +176,8 @@ function findingMarks(record: PrRecord): (LooseMark & { start?: LineRef; end?: L
 						body: m.body,
 						rationale: m.rationale,
 						path: m.path,
-						line: m.start?.line
+						line: m.start?.line,
+						...(m.disputed ? { disputed: m.disputed } : {})
 					})),
 					...(item.separatedFrom && exists(item.separatedFrom.reviewer, item.separatedFrom.id)
 						? { separatedFrom: { who: reviewerName(record, item.separatedFrom.reviewer) } }

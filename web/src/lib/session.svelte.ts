@@ -265,7 +265,27 @@ export class PrSession {
 						prWhat: this.record.summary?.what,
 						sliceTitle: slice?.title,
 						sliceSummary: slice?.summary,
-						finding: { reviewer: api.reviewerName(this.record, reviewer), body: item.body, rationale: item.rationale }
+						finding: {
+							reviewer: api.reviewerName(this.record, reviewer),
+							body: item.body,
+							rationale: item.rationale,
+							severity: item.severity,
+							// The other reviewers' versions of the point, and what the
+							// editor found, so the answer can weigh them.
+							others: api.groupsOf(this.record).membersOf(reviewer, id).map(({ reviewer: r, item: m }) => ({
+								reviewer: api.reviewerName(this.record, r),
+								body: m.body,
+								severity: m.severity,
+								disputed: m.disputed
+							})),
+							editor: {
+								impact: item.impact,
+								checked: item.checked,
+								speculative: item.speculative,
+								onPr: item.onPr,
+								setAside: item.setAside
+							}
+						}
 					},
 					messages: item.messages.map(({ role, text, prompt }) => ({ role, text: prompt ?? text })),
 					model: this.#answeringModel(ranWith)

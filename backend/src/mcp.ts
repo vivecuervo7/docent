@@ -210,8 +210,18 @@ function buildServer(): McpServer {
       try {
         const { owner, repo, number } = parsePr(pr);
         if (directory?.trim()) return text(await searchCode(owner, repo, await prHead(owner, repo, number), pattern, directory));
-        const files = await searchRepoCode(owner, repo, pattern);
-        return text(files.length ? `Files mentioning it on the default branch:\n${files.join("\n")}` : "No files found.");
+        // GitHub's index covers the default branch only, so files this PR adds
+        // or changes are matched by name first.
+        const words = pattern.toLowerCase().split(/\s+/).filter(Boolean);
+        const changed = (await fetchPrFiles(owner, repo, number))
+          .map((f) => f.filename)
+          .filter((name) => words.some((w) => name.toLowerCase().includes(w)));
+        const files = await searchRepoCode(owner, repo, pattern).catch(() => []);
+        const found = [
+          changed.length && `Files this PR changes whose names match:\n${changed.join("\n")}`,
+          files.length && `Files mentioning it on the default branch:\n${files.join("\n")}`,
+        ].filter(Boolean);
+        return text(found.length ? found.join("\n\n") : "No files found.");
       } catch (err) {
         return failure(err);
       }
