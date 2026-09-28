@@ -51,7 +51,8 @@
 
 	// Reading it here clears it from unread.
 	$effect(() => {
-		if (mark.reviewer && messages.at(-1)?.role === 'assistant') session.markFindingRead(mark.reviewer, mark.id);
+		void messages.length;
+		if (mark.reviewer) session.markFindingRead(mark.reviewer, mark.id);
 	});
 
 	// The latest answer in view as the conversation grows.

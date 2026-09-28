@@ -155,6 +155,11 @@ export function isUnread(talk: { messages?: NoteMessage[]; readAt?: number }): b
 	return !!reply && reply.at > (talk.readAt ?? 0);
 }
 
+// A panel finding not yet read: never opened, seen in full or decided on.
+export function isNewFinding(item: { readAt?: number; decided?: boolean }): boolean {
+	return !item.readAt && !item.decided;
+}
+
 export type AgentId = `agent-${number}`;
 export const FIRST_AGENT: AgentId = 'agent-1';
 

@@ -1,5 +1,5 @@
 import type { AgentReview, FeedbackItem, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
-import { isUnread } from './types';
+import { isNewFinding, isUnread } from './types';
 import { reviewerLabel } from './reviewers.svelte';
 
 // Calls to Docent's backend, which this app shares with the React app.
@@ -167,7 +167,7 @@ function findingMarks(record: PrRecord): (LooseMark & { start?: LineRef; end?: L
 					...(item.severity ? { severity: item.severity } : {}),
 					included: item.included,
 					decided: item.decided,
-					unread: isUnread(item),
+					unread: isUnread(item) || isNewFinding(item),
 					reviewer: key,
 					alsoBy: membersOf(key, item.id).map(({ reviewer, item: m }) => ({
 						reviewer,

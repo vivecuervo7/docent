@@ -5,7 +5,6 @@
 	import Dialog from '$lib/components/Dialog.svelte';
 	import FileDiffs from '$lib/components/FileDiffs.svelte';
 	import FindingCard from '$lib/components/FindingCard.svelte';
-	import FindingLines from '$lib/components/FindingLines.svelte';
 	import FoldAll from '$lib/components/FoldAll.svelte';
 	import NoteText from '$lib/components/NoteText.svelte';
 	import SliceRail from '$lib/components/SliceRail.svelte';
@@ -59,7 +58,11 @@
 
 	function showOpinion(ids: string[], next: string | null, stay = false) {
 		// Seen here, so they aren't news when the slice is next opened.
-		for (const id of ids) session.lateLeft.add(id);
+		// Seen here in full, so they're read.
+		for (const id of ids) {
+			const mark = markById(id);
+			if (mark?.reviewer) session.markFindingRead(mark.reviewer, id);
+		}
 		opinion = { ids, next, stay };
 	}
 
@@ -85,14 +88,6 @@
 		if (pending.length) showOpinion(pending, null, true);
 	});
 
-	// Findings that landed on this slice after it was reviewed.
-	const lateHere = $derived(
-		session.late.filter(
-			(m) => !session.lateLeft.has(m.id) && !!session.allFindings.find((f) => f.mark.id === m.id)?.slices.includes(sliceId ?? '')
-		)
-	);
-	// Catching up on them, each with its lines.
-	let catchUp = $state<string[] | null>(null);
 
 	// The panel's editor at work on this slice, and what it filtered out.
 	const reviewing = $derived(sliceId ? session.panel.reviewing(sliceId) : false);
@@ -114,7 +109,7 @@
 	function onKey(e: KeyboardEvent) {
 		const el = e.target as HTMLElement;
 		if (e.metaKey || e.ctrlKey || e.altKey || el.closest('input, textarea, select, [contenteditable]')) return;
-		if (opinion || catchUp) return;
+		if (opinion) return;
 		if (e.key === 'r' && !done) {
 			e.preventDefault();
 			markReviewed();
@@ -138,16 +133,6 @@
 			</div>
 			<h1>{slice.title}</h1>
 			<div class="summary"><NoteText text={slice.summary} /></div>
-			{#if lateHere.length}
-				<div class="late" role="status">
-					<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" fill="var(--agent)" /></svg>
-					<span class="grow">
-						{lateHere.length} {lateHere.length === 1 ? 'finding' : 'findings'} landed after you reviewed this slice
-					</span>
-					<button class="btn" onclick={() => lateHere.forEach((m) => session.lateLeft.add(m.id))}>Later</button>
-					<button class="btn primary" onclick={() => (catchUp = lateHere.map((m) => m.id))}>Catch up</button>
-				</div>
-			{/if}
 			{#if reviewing || filtered.length}
 				<div class="editor faint">
 					{#if reviewing}<span>The panel is still reviewing this slice</span>{/if}
@@ -213,27 +198,6 @@
 	</Dialog>
 {/if}
 
-{#if catchUp}
-	{@const marks = catchUp.map(markById).filter((m) => m !== undefined)}
-	<Dialog label="Catch up" onclose={() => (catchUp = null)}>
-		<h2>{marks.length} {marks.length === 1 ? 'finding' : 'findings'} landed after you reviewed this slice</h2>
-		{#each marks as mark (mark.id)}
-			<div class="late-item">
-				{#if 'start' in mark}<FindingLines {mark} />{/if}
-				<FindingCard
-					{mark}
-					onshow={() => {
-						catchUp = null;
-						reveal(mark);
-					}}
-				/>
-			</div>
-		{/each}
-		<div class="dialog-foot">
-			<button class="btn primary big" onclick={() => (catchUp = null)}>Done</button>
-		</div>
-	</Dialog>
-{/if}
 
 <style>
 	.page {
@@ -272,17 +236,7 @@
 		line-height: 1.2;
 		letter-spacing: -0.01em;
 	}
-	.late {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		margin: 14px 0 12px;
-		padding: 10px 10px 10px 16px;
-		border-radius: 12px;
-		background: var(--popover);
-		box-shadow: 0 0 0 1px var(--popover-line);
-		font-size: 14px;
-	}
+
 	.editor {
 		display: flex;
 		gap: 16px;
@@ -333,11 +287,7 @@
 		font-weight: 500;
 		line-height: 1.2;
 	}
-	.late-item {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
+
 	.dialog-foot {
 		display: flex;
 		align-items: center;

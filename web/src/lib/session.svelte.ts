@@ -7,7 +7,7 @@ import { Panel, sessionId } from './panel.svelte';
 import { ReviewPost } from './post.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
-import { isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
+import { isNewFinding, isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -205,10 +205,10 @@ export class PrSession {
 			.catch((err) => (this.findingStatus[id] = { error: (err as Error).message }));
 	}
 
-	// Seeing a finding's answer clears it from unread.
+	// Seeing a finding - or a new answer about it - clears it from unread.
 	markFindingRead(reviewer: string, id: string) {
 		const item = this.record.feedback[reviewer]?.items.find((i) => i.id === id);
-		if (!item || !isUnread(item)) return;
+		if (!item || !(isUnread(item) || isNewFinding(item))) return;
 		const readAt = Date.now();
 		this.#changeFinding(reviewer, id, (i) => ({ ...i, readAt })).catch(() => {});
 	}
@@ -421,6 +421,14 @@ export class PrSession {
 		return this.slices.filter((s) => s.hunks.some((k) => keys.includes(k))).map((s) => s.id);
 	}
 
+	// What's on a slice still to read: findings never opened or decided, and
+	// answers not yet seen, on findings or your own threads.
+	unreadIn(sliceId: string): number {
+		const findings = this.allFindings.filter((f) => f.mark.unread && f.slices.includes(sliceId)).length;
+		const threads = this.record.notes.filter((n) => isUnread(n) && this.slicesOf(n.path, n.start).includes(sliceId)).length;
+		return findings + threads;
+	}
+
 	// Findings on a slice still waiting on a keep or skip.
 	undecidedIn(sliceId: string) {
 		return this.allFindings.filter((f) => !f.mark.decided && f.slices.includes(sliceId)).map((f) => f.mark);
@@ -433,8 +441,6 @@ export class PrSession {
 	// opening another, in any file, closes it.
 	openMark = $state<string | null>(null);
 
-	// Late findings the reviewer chose to leave for Wrap up, for this visit.
-	readonly lateLeft = new SvelteSet<string>();
 
 	// Wrap up's folded lists, kept here so going to the diff and back finds
 	// them as they were left, with the scroll position intact.
@@ -442,14 +448,6 @@ export class PrSession {
 	// Long line excerpts opened out in full, likewise.
 	readonly openExcerpts = new SvelteSet<string>();
 
-	// Findings waiting on a decision in slices already reviewed: they landed
-	// after the reviewer had moved on.
-	readonly late = $derived(
-		this.allFindings.filter((f) => !f.mark.decided && f.slices.some((id) => {
-			const slice = this.slices.find((s) => s.id === id);
-			return !!slice && isSliceReviewed(slice, this.reviewed);
-		})).map((f) => f.mark)
-	);
 
 	// Saves a change to the review, and shows the record as saved.
 	async update(change: (record: PrRecord) => void): Promise<void> {

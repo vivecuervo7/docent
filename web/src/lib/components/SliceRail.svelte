@@ -14,15 +14,13 @@
 	<ol>
 		{#each session.slices as s (s.id)}
 			{@const reviewed = isSliceReviewed(s, session.reviewed)}
-			{@const waiting = reviewed ? session.undecidedIn(s.id).length : 0}
+			{@const unread = session.unreadIn(s.id)}
 			<li>
 				<a href="{base}/slices/{s.id}" class:current={s.id === current} aria-current={s.id === current ? 'page' : undefined}>
 					<span class="mark"><StateMark state={reviewed ? 'done' : s.id === current ? 'now' : 'todo'} /></span>
 					<span class="title">{s.title}</span>
-					{#if waiting}
-						<span class="waiting" title="{waiting} {waiting === 1 ? 'finding' : 'findings'} landed after you reviewed this">
-							<svg width="9" height="9" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" fill="var(--agent)" /></svg>{waiting}
-						</span>
+					{#if unread}
+						<span class="unread" title="{unread} new to read" aria-label="{unread} new to read"></span>
 					{/if}
 				</a>
 			</li>
@@ -97,14 +95,14 @@
 	.title {
 		flex-grow: 1;
 	}
-	.waiting {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		padding-top: 1px;
-		font-size: 12px;
-		color: var(--agent-text);
-		white-space: nowrap;
+	/* Something new to read on the slice: the dot a marker in the diff shows. */
+	.unread {
+		flex-shrink: 0;
+		width: 7px;
+		height: 7px;
+		margin-top: 7px;
+		border-radius: 4px;
+		background: var(--you);
 	}
 	.all {
 		align-items: center;
