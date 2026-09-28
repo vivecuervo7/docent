@@ -111,8 +111,10 @@ const SYSTEM_PROMPT = `You are preparing a code review to post on a pull request
 candidate comments the reviewer has already chosen to post - some they drafted, some from an \
 automated review - and everything already said on the PR. Whether each is worth posting is \
 decided: keep them all, however minor, except in the two cases below.
-- Merge candidates that make the same point about the same code into one comment, keeping the \
-clearest wording.
+- Merge candidates that make the same point about the same lines (overlapping lines of one file) \
+into one comment, keeping the clearest wording. A point repeated on other lines is its own comment \
+there. A merge that includes one of the reviewer's own candidates is posted on their lines, in \
+wording close to theirs.
 - Drop a candidate only when its point has already been made in the existing conversation, and \
 say who made it. Only drop it if the point really is the same.
 Keep every other candidate exactly as written - unless the reviewer discussed it. A discussion \

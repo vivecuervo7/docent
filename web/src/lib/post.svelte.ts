@@ -116,14 +116,27 @@ export class ReviewPost {
 			const own = !!this.people && this.people.viewer === this.people.author;
 			const suggested = prepared.event ? { event: prepared.event, reason: prepared.eventReason } : undefined;
 			const byId = new Map(candidates.map((c) => [c.item.id, c.item]));
+			const yours = new Set(candidates.filter((c) => c.source === 'yours').map((c) => c.item.id));
+			const place = (item: FeedbackItem | undefined) => ({ path: item?.path, start: item?.start, end: item?.end });
 			await this.#save({
 				preparedAt: Date.now(),
 				basedOn: candidates.map((c) => c.item.id),
-				// A merged comment sits on the lines of the first item it came from
-				// that has any.
-				comments: prepared.comments.map(({ from, body }) => {
-					const anchor = from.map((id) => byId.get(id)).find((item) => item?.path);
-					return { id: crypto.randomUUID(), body, included: true, from, path: anchor?.path, start: anchor?.start, end: anchor?.end };
+				comments: prepared.comments.flatMap(({ from, body }) => {
+					const items = from.map((id) => byId.get(id)).filter((i): i is FeedbackItem => !!i);
+					const own = items.find((i) => yours.has(i.id));
+					if (!own) {
+						// Sits on the lines of the first item it came from that has any.
+						return [{ id: crypto.randomUUID(), body, included: true, from, ...place(items.find((i) => i.path)) }];
+					}
+					// With one of yours in it, it stays on your lines, whatever the
+					// model listed first. Anything folded in from other lines goes back
+					// to being its own comment there, in its own words.
+					const apart = items.filter((i) => !sameLines(i, own));
+					const kept = from.filter((id) => !apart.some((i) => i.id === id));
+					return [
+						{ id: crypto.randomUUID(), body, included: true, from: kept, ...place(own) },
+						...apart.map((i) => ({ id: crypto.randomUUID(), body: i.body, included: true, from: [i.id], ...place(i) }))
+					];
 				}),
 				dropped: prepared.dropped,
 				summary: prepared.body,
@@ -242,6 +255,14 @@ export class ReviewPost {
 	startOver() {
 		this.#save(undefined).catch(() => {});
 	}
+}
+
+// Whether two comments are about the same lines: overlapping lines of one
+// file, the same whole file, or both about the PR as a whole.
+function sameLines(a: Pick<FeedbackItem, 'path' | 'start' | 'end'>, b: Pick<FeedbackItem, 'path' | 'start' | 'end'>): boolean {
+	if (a.path !== b.path) return false;
+	if (!a.start || !a.end || !b.start || !b.end) return !a.start && !b.start;
+	return a.end.side === b.end.side && a.start.line <= b.end.line && b.start.line <= a.end.line;
 }
 
 export function describeLines(start: LineRef, end: LineRef): string {
