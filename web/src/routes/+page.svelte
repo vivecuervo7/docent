@@ -629,14 +629,16 @@
 	.status-label.new {
 		--tone: #c8a8ff;
 	}
+	/* Docent busy with it: the spinner says so, so the colour stays quiet. */
 	.status-label.working {
-		--tone: #ffb85c;
+		--tone: #e8e2d6;
 	}
 	.status-label.ready {
 		--tone: #8ab4ff;
 	}
+	/* You're partway through it: the one to spot. */
 	.status-label.going {
-		--tone: #e8e2d6;
+		--tone: #ffb85c;
 	}
 	.status-label.read {
 		--tone: var(--muted);
