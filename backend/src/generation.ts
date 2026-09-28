@@ -4,6 +4,7 @@ import { generateConversationSummary, generateSummary } from "./overview.js";
 import { generateFileNotes } from "./fileNotes.js";
 import { generateSlices } from "./slices.js";
 import type { ConversationSummary, FileNote, PrSummary, Slice } from "./types.js";
+import { persistent } from "./persistent.js";
 
 // Preparing a PR's review runs here rather than in the browser, so it keeps
 // going when the tab closes and can be checked in on or stopped. Jobs live in
@@ -54,9 +55,9 @@ interface Job {
   controller: AbortController;
 }
 
-const jobs = new Map<string, Job>();
-const queue: string[] = [];
-let running = 0;
+const jobs = persistent("generation.jobs", () => new Map<string, Job>());
+const queue = persistent("generation.queue", () => [] as string[]);
+const slots = persistent("generation.slots", () => ({ running: 0 }));
 
 function keyFor(owner: string, repo: string, number: string): string {
   return `${owner}/${repo}/${number}`;
@@ -135,12 +136,12 @@ export function dismissGeneration(owner: string, repo: string, number: string): 
 }
 
 function pump() {
-  while (running < maxConcurrentGenerations() && queue.length > 0) {
+  while (slots.running < maxConcurrentGenerations() && queue.length > 0) {
     const job = jobs.get(queue.shift()!);
     if (!job || job.generation.status !== "queued") continue;
-    running++;
+    slots.running++;
     run(job).finally(() => {
-      running--;
+      slots.running--;
       pump();
     });
   }

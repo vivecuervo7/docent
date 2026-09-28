@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { persistent } from "./persistent.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -21,13 +22,13 @@ const MAX_FILE_BYTES = 400_000;
 const MAX_SEARCH_FILES = 4000;
 const MAX_SEARCH_LINES = 200;
 
-let tokenPromise: Promise<string> | null = null;
+const github = persistent("repo-cache.github", () => ({ token: null as Promise<string> | null }));
 
 // GitHub's token, passed in the environment so it's never on a command line
 // or written into the clone's config.
 async function env(): Promise<NodeJS.ProcessEnv> {
-  tokenPromise ??= execFileAsync("gh", ["auth", "token"]).then(({ stdout }) => stdout.trim());
-  const auth = Buffer.from(`x-access-token:${await tokenPromise}`).toString("base64");
+  github.token ??= execFileAsync("gh", ["auth", "token"]).then(({ stdout }) => stdout.trim());
+  const auth = Buffer.from(`x-access-token:${await github.token}`).toString("base64");
   return {
     ...process.env,
     GIT_TERMINAL_PROMPT: "0",
@@ -49,7 +50,7 @@ async function git(dir: string, args: string[], extraEnv: Record<string, string>
 
 // One git operation at a time per repo, so fetches and reads can't trip
 // over each other.
-const queues = new Map<string, Promise<unknown>>();
+const queues = persistent("repo-cache.queues", () => new Map<string, Promise<unknown>>());
 
 function inRepo<T>(owner: string, repo: string, work: (dir: string) => Promise<T>): Promise<T> {
   const dir = join(root, owner, `${repo}.git`);
@@ -70,7 +71,7 @@ async function ensureRepo(owner: string, repo: string, dir: string) {
 
 // A PR's head commit, fetched if it isn't here yet. Fetched again at most
 // once a minute, so a model's reads in a row don't each ask GitHub.
-const heads = new Map<string, { sha: string; at: number }>();
+const heads = persistent("repo-cache.heads", () => new Map<string, { sha: string; at: number }>());
 
 export function prHead(owner: string, repo: string, number: string): Promise<string> {
   const key = `${owner}/${repo}#${number}`;

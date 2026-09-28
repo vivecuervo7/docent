@@ -10,6 +10,7 @@ import type { PrSummary, Slice } from "./types.js";
 import { runSession } from "./sessions.js";
 import { emptyUsage, usageScope, type Usage } from "./usage.js";
 import type { ExternalReviewer } from "./config.js";
+import { persistent } from "./persistent.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
 // the reviewer's own agent, which submits them over MCP (see mcp.ts). Both
@@ -81,8 +82,8 @@ interface Entry {
 export const DEFAULT_REVIEWER = "agent-1";
 export const REVIEWER_RE = /^[a-z0-9-]{1,40}$/;
 
-const reviews = new Map<string, Entry>();
-const contexts = new Map<string, ReviewContext>();
+const reviews = persistent("agent-reviews", () => new Map<string, Entry>());
+const contexts = persistent("agent-review.contexts", () => new Map<string, ReviewContext>());
 
 function prKey(owner: string, repo: string, number: string): string {
   return `${owner}/${repo}/${number}`;

@@ -2,6 +2,7 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
+import { persistent } from "./persistent.js";
 
 // Each PR's review - slices, summary, threads, feedback, the prepared review
 // - as one JSON record, kept here on the backend so anything that talks to
@@ -13,16 +14,20 @@ import { fileURLToPath } from "node:url";
 const dbFile = join(dirname(fileURLToPath(import.meta.url)), "..", "data", "docent.db");
 mkdirSync(dirname(dbFile), { recursive: true });
 
-const db = new DatabaseSync(dbFile);
-// Reviews can quote private code, so only this user can read them.
-chmodSync(dbFile, 0o600);
-db.exec(`
-  CREATE TABLE IF NOT EXISTS prs (
-    key TEXT PRIMARY KEY,
-    record TEXT NOT NULL,
-    version INTEGER NOT NULL
-  )
-`);
+// Opened once for the process, however often this module is reloaded.
+const db = persistent("db", () => {
+  const opened = new DatabaseSync(dbFile);
+  // Reviews can quote private code, so only this user can read them.
+  chmodSync(dbFile, 0o600);
+  opened.exec(`
+    CREATE TABLE IF NOT EXISTS prs (
+      key TEXT PRIMARY KEY,
+      record TEXT NOT NULL,
+      version INTEGER NOT NULL
+    )
+  `);
+  return opened;
+});
 
 export interface StoredRecord {
   record: Record<string, unknown>;

@@ -1,6 +1,7 @@
 import { laneOf } from "./config.js";
 import { canReadCode, chat, type ChatMessage } from "./modelProvider.js";
 import { modelName } from "./config.js";
+import { persistent } from "./persistent.js";
 
 // Replies to notes left on selected lines. These run in their own lane,
 // apart from the generation queue, so a question isn't stuck behind a PR
@@ -99,7 +100,7 @@ function contextMessage(context: NoteContext): string {
 
 // A queue per tool or provider (see laneOf), each running as many calls at
 // once as it allows, the rest waiting their turn.
-const lanes = new Map<string, { active: number; waiting: (() => void)[] }>();
+const lanes = persistent("lanes", () => new Map<string, { active: number; waiting: (() => void)[] }>());
 
 function admit(key: string, cap: number) {
   const lane = lanes.get(key)!;

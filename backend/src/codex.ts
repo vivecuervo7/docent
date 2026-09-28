@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { ChatMessage, CodeAccess, ToolCall, ToolDefinition } from "./modelProvider.js";
+import { persistent } from "./persistent.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -18,24 +19,23 @@ const workDir = join(tmpdir(), "docent-codex");
 
 const OFF = ["shell_tool", "apps", "browser_use", "computer_use", "in_app_browser", "image_generation", "multi_agent", "plugins", "goals"];
 
-let available: Promise<boolean> | null = null;
+const checks = persistent("codex.checks", () => ({ available: null as Promise<boolean> | null, catalog: null as Promise<string[]> | null }));
 
 // Whether `codex` is installed and signed in, checked once.
 export function codexAvailable(): Promise<boolean> {
-  available ??= execFileAsync("codex", ["login", "status"], { timeout: 10_000 }).then(
+  checks.available ??= execFileAsync("codex", ["login", "status"], { timeout: 10_000 }).then(
     ({ stdout, stderr }) => /logged in/i.test(`${stdout}${stderr}`),
     () => false,
   );
-  return available;
+  return checks.available;
 }
 
-let catalog: Promise<string[]> | null = null;
 
 // The models Codex offers for picking, from its own catalog, checked once.
 // A model can be listed and still be outside the reviewer's plan; a call to
 // it then says so.
 export function codexModels(): Promise<string[]> {
-  catalog ??= execFileAsync("codex", ["debug", "models"], { timeout: 10_000, cwd: tmpdir(), maxBuffer: 16 * 1024 * 1024 }).then(
+  checks.catalog ??= execFileAsync("codex", ["debug", "models"], { timeout: 10_000, cwd: tmpdir(), maxBuffer: 16 * 1024 * 1024 }).then(
     ({ stdout }) => {
       const { models } = JSON.parse(stdout) as { models?: { slug?: string; visibility?: string; priority?: number }[] };
       return (models ?? [])
@@ -45,7 +45,7 @@ export function codexModels(): Promise<string[]> {
     },
     () => [],
   );
-  return catalog;
+  return checks.catalog;
 }
 
 // Codex holds its answer to the schema strictly: every object closed, every

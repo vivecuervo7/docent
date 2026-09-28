@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { persistent } from "./persistent.js";
 
 // Token use, added up over a piece of work - an agent review - so what
 // caching saves can be seen. Model calls made inside `usageScope.run` add to
@@ -12,7 +13,7 @@ export interface Usage {
   output: number;
 }
 
-export const usageScope = new AsyncLocalStorage<Usage>();
+export const usageScope = persistent("usage-scope", () => new AsyncLocalStorage<Usage>());
 
 export function emptyUsage(): Usage {
   return { calls: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };

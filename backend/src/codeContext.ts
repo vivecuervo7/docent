@@ -4,6 +4,7 @@ import { canReadCode, chatWithTool } from "./modelProvider.js";
 import { inLane } from "./notes.js";
 import { numberedFileDiff } from "./prDiff.js";
 import { prHead } from "./repoCache.js";
+import { persistent } from "./persistent.js";
 
 // What the code around a PR shows, looked up once and shared by every one of
 // Docent's reviewers. They review from the diff alone, and guess at what it
@@ -57,9 +58,9 @@ export interface Lookup {
   endedAt?: number;
 }
 
-const passes = new Map<string, Promise<string>>();
+const passes = persistent("code-context.passes", () => new Map<string, Promise<string>>());
 // The latest lookup for each PR, by owner/repo#number.
-const latest = new Map<string, Lookup>();
+const latest = persistent("code-context.latest", () => new Map<string, Lookup>());
 
 export function getLookup(owner: string, repo: string, number: string): Lookup | null {
   return latest.get(`${owner}/${repo}#${number}`) ?? null;

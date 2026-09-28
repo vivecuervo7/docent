@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { ChatMessage, CodeAccess, ToolCall, ToolDefinition } from "./modelProvider.js";
 import { addUsage } from "./usage.js";
+import { persistent } from "./persistent.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -21,15 +22,15 @@ const execFileAsync = promisify(execFile);
 // Claude Code's model aliases; it has no command to list models.
 export const CLAUDE_CODE_MODELS = ["opus", "sonnet", "haiku"];
 
-let available: Promise<boolean> | null = null;
+const checks = persistent("claude-code.checks", () => ({ available: null as Promise<boolean> | null }));
 
 // Whether `claude` is on the PATH, checked once.
 export function claudeCodeAvailable(): Promise<boolean> {
-  available ??= execFileAsync("claude", ["--version"]).then(
+  checks.available ??= execFileAsync("claude", ["--version"]).then(
     () => true,
     () => false,
   );
-  return available;
+  return checks.available;
 }
 
 const workDir = join(tmpdir(), "docent-claude-code");
