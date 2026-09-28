@@ -48,9 +48,18 @@ function contextMessage(context: NoteContext): string {
   if (context.sliceTitle) {
     parts.push(`Part of the PR being reviewed: ${context.sliceTitle}${context.sliceSummary ? ` - ${context.sliceSummary}` : ""}`);
   }
-  parts.push(`File: ${context.path}`);
-  parts.push(`All of this PR's changes to the file:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
-  parts.push(`${context.finding ? "The finding is on" : "Selected"} ${context.lines}:\n\`\`\`diff\n${context.code}\n\`\`\``);
+  // Without a file, it's about the PR as a whole; without code, the file as a whole.
+  if (context.path) {
+    parts.push(`File: ${context.path}`);
+    parts.push(`All of this PR's changes to the file:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
+  } else {
+    parts.push(`All of this PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
+  }
+  if (context.code) {
+    parts.push(`${context.finding ? "The finding is on" : "Selected"} ${context.lines}:\n\`\`\`diff\n${context.code}\n\`\`\``);
+  } else if (context.finding) {
+    parts.push(`The finding is about ${context.path ? "the file as a whole" : "the PR as a whole"}.`);
+  }
   if (context.finding) {
     parts.push(`The finding, from ${context.finding.reviewer}:\n${context.finding.body}`);
     if (context.finding.rationale) parts.push(`Why it raised it:\n${context.finding.rationale}`);

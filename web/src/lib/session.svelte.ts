@@ -226,13 +226,14 @@ export class PrSession {
 
 	async #answerFinding(reviewer: string, id: string) {
 		const item = this.record.feedback[reviewer]?.items.find((i) => i.id === id);
-		if (!item?.path || !item.start || !item.messages?.length) return;
+		if (!item?.messages?.length) return;
 		const { path, start } = item;
 		const end = item.end ?? start;
-		const file = this.files.find((f) => f.filename === path);
-		const hunk = nearestHunk(this.hunks.get(path) ?? [], start);
-		const slice = hunk && this.slices.find((s) => s.hunks.includes(`${path}#${hunk.index}`));
+		const file = path ? this.files.find((f) => f.filename === path) : undefined;
+		const hunk = path && start ? nearestHunk(this.hunks.get(path) ?? [], start) : undefined;
+		const slice = hunk ? this.slices.find((s) => s.hunks.includes(`${path}#${hunk.index}`)) : undefined;
 		const within = (r: { kind: string; new?: number; old?: number }) => {
+			if (!start || !end) return false;
 			const n = start.side === 'new' ? (r.kind !== 'del' ? r.new : undefined) : r.kind !== 'add' ? r.old : undefined;
 			return n !== undefined && n >= start.line && n <= end.line;
 		};
@@ -240,6 +241,14 @@ export class PrSession {
 			.filter(within)
 			.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`)
 			.join('\n');
+		// A finding about the whole PR is answered from all of its changes, as
+		// far as they fit.
+		const everything = path
+			? ''
+			: this.files
+					.map((f) => `--- ${f.filename}\n${f.patch ?? ''}`)
+					.join('\n\n')
+					.slice(0, 120_000);
 		const ranWith = this.record.agentReviewers.find((a) => a.id === reviewer)?.ranWith;
 		this.findingStatus[id] = { pending: true };
 		try {
@@ -248,10 +257,10 @@ export class PrSession {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					context: {
-						path,
-						lines: start.line === end.line ? `line ${start.line}` : `lines ${start.line}-${end.line}`,
-						code: code || '(unchanged lines outside the diff)',
-						fileDiff: file?.patch ?? code,
+						path: path ?? '',
+						lines: start && end ? (start.line === end.line ? `line ${start.line}` : `lines ${start.line}-${end.line}`) : '',
+						code: start ? code || '(unchanged lines outside the diff)' : '',
+						fileDiff: path ? (file?.patch ?? code) : everything,
 						prTitle: this.title,
 						prWhat: this.record.summary?.what,
 						sliceTitle: slice?.title,
