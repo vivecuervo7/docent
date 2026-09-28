@@ -1,6 +1,4 @@
-// The shapes Docent's backend stores and returns. The React app in
-// frontend/ reads and writes the same records, so these follow its
-// frontend/src/prDb.ts.
+// The shapes Docent's backend stores and returns.
 
 export interface PrRef {
 	owner: string;

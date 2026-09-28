@@ -44,7 +44,7 @@ than a review that seems to have failed.
 
 ## How
 
-**What exists already.** Docent's own reviewer (`backend/src/agentReview.ts`)
+**What exists already.** Docent's own reviewer (`web/src/lib/server/agentReview.ts`)
 already makes one pass per slice. What's missing is the integration pass,
 triggering one slice's review on its own, and keeping findings attached to
 their slice.

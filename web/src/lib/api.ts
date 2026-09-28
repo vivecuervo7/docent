@@ -2,7 +2,7 @@ import type { AgentReview, FeedbackItem, Generation, LineRef, ModelOption, Note,
 import { isNewFinding, isUnread } from './types';
 import { reviewerLabel } from './reviewers.svelte';
 
-// Calls to Docent's backend, which this app shares with the React app.
+// Calls to Docent's backend, the API routes under routes/api.
 
 export async function readOk<T>(res: Response): Promise<T> {
 	const body = await res.json().catch(() => ({}));

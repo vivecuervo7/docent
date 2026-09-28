@@ -22,7 +22,9 @@ const run = (cmd: string, args: string[]) =>
     () => null,
   );
 
-export async function checkSetup(): Promise<SetupCheck> {
+// The MCP server counts as added only at this address, so an entry left
+// pointing somewhere else isn't taken for a working one.
+export async function checkSetup(mcpUrl: string): Promise<SetupCheck> {
   const [ghVersion, login, claudeVersion, codexVersion] = await Promise.all([
     run("gh", ["--version"]),
     run("gh", ["api", "user", "--jq", ".login"]),
@@ -30,8 +32,8 @@ export async function checkSetup(): Promise<SetupCheck> {
     run("codex", ["--version"]),
   ]);
   const [claudeMcp, codexMcp] = await Promise.all([
-    claudeVersion !== null && run("claude", ["mcp", "get", "docent"]).then((out) => out !== null),
-    codexVersion !== null && run("codex", ["mcp", "get", "docent"]).then((out) => out !== null),
+    claudeVersion !== null && run("claude", ["mcp", "get", "docent"]).then((out) => !!out?.includes(mcpUrl)),
+    codexVersion !== null && run("codex", ["mcp", "get", "docent"]).then((out) => !!out?.includes(mcpUrl)),
   ]);
   return {
     gh: { installed: ghVersion !== null, login: login || undefined },

@@ -6,8 +6,8 @@ you through them one at a time, starting from an overview of what the PR does,
 why, and what reviewers have already said.
 
 Everything runs on your machine: GitHub is read through the `gh` CLI, and the
-summaries come from the model you configure. Reviews are saved by the backend,
-in `backend/data/docent.db`.
+summaries come from the model you configure. Reviews are saved in
+`web/data/docent.db`.
 
 ## Requirements
 
@@ -30,10 +30,9 @@ in `backend/data/docent.db`.
     **Settings** page, with a key if they need one and how many concurrent
     requests each takes.
 
-Settings are saved on your machine in `backend/data/settings.json` (keys
+Settings are saved on your machine in `web/data/settings.json` (keys
 included; the file is written owner-only and keys never go back to the
-browser). An endpoint from an older `backend/.env` is imported there the
-first time the backend starts, after which the `.env` file isn't used.
+browser). Set `DOCENT_DATA_DIR` to keep the data folder somewhere else.
 
 Pick the model from the menu on the start page. The app's **Getting started**
 page (linked from the start page) checks each of these for you.
@@ -41,8 +40,7 @@ page (linked from the start page) checks each of these for you.
 ## Running
 
 ```sh
-cd backend && npm install && npm run dev    # http://localhost:3001
-cd web && npm install && npm run dev        # http://localhost:5174
+cd web && npm install && npm run dev    # http://localhost:5174
 ```
 
 Open http://localhost:5174 and paste a GitHub PR URL.
@@ -50,12 +48,12 @@ Open http://localhost:5174 and paste a GitHub PR URL.
 ## Bringing your own agent
 
 A PR's review panel can include your own agent beside Docent's reviewers.
-The backend serves an MCP server at `http://localhost:3001/mcp` (Streamable
+Docent serves an MCP server at `http://localhost:5174/mcp` (Streamable
 HTTP, local connections only). With Claude Code, add it once for all your
 projects:
 
 ```sh
-claude mcp add --scope user --transport http docent http://localhost:3001/mcp
+claude mcp add --scope user --transport http docent http://localhost:5174/mcp
 ```
 
 Then set a reviewer on the panel to "Connect via MCP" and start

@@ -258,7 +258,7 @@
 
 	<ExternalReviewerSettings />
 
-	<p class="faint note">Saved on this machine in <code>backend/data/settings.json</code>. Keys never go back to the browser.</p>
+	<p class="faint note">Saved on this machine in <code>web/data/settings.json</code>. Keys never go back to the browser.</p>
 </main>
 
 <style>

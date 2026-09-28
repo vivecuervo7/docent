@@ -12,7 +12,7 @@
 		mcp: { claude: boolean; codex: boolean };
 	}
 
-	const MCP_URL = 'http://localhost:3001/mcp';
+	const MCP_URL = `${location.origin}/mcp`;
 	// How each agent adds Docent's MCP server, for all your projects.
 	const AGENTS = {
 		claude: { name: 'Claude Code', command: `claude mcp add --scope user --transport http docent ${MCP_URL}` },
@@ -76,7 +76,7 @@
 	</p>
 
 	{#if error}
-		<p class="bad">Couldn’t reach Docent’s backend: {error}. Is it running (<code>cd backend && npm run dev</code>)?</p>
+		<p class="bad">Couldn’t reach Docent’s backend: {error}. Is it running (<code>cd web && npm run dev</code>)?</p>
 	{/if}
 
 	<ol>
