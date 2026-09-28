@@ -482,6 +482,9 @@ export class PrSession {
 	// wrong model, say.
 	async prepare({ fresh = false } = {}) {
 		const { slices, conversation, fileNotes } = this.record;
+		// Shown as starting while the model is looked up, so the page goes
+		// straight to the steps rather than the overview first.
+		this.generation = { ...(this.generation ?? emptyGeneration()), status: 'queued', error: undefined };
 		try {
 			const model = await this.#reviewModel();
 			this.#collect(await api.startGeneration(this.ref, fresh ? {} : { slices, conversation, fileNotes }, model));
