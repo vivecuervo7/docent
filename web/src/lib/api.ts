@@ -10,6 +10,14 @@ export async function readOk<T>(res: Response): Promise<T> {
 	return body as T;
 }
 
+// The answer to a call the backend holds open until a model replies; see
+// heldOpen in server/http.ts.
+export async function readHeld<T>(res: Response): Promise<T> {
+	const body = await readOk<{ result?: T; error?: string }>(res);
+	if (body.error !== undefined) throw new Error(body.error);
+	return body.result as T;
+}
+
 const prUrl = (ref: PrRef) => `/api/pr/${ref.owner}/${ref.repo}/${ref.number}`;
 
 export async function fetchPr(ref: PrRef): Promise<{ files: PrFile[]; meta: PrMeta | null }> {

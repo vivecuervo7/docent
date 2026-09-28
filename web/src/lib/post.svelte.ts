@@ -104,7 +104,7 @@ export class ReviewPost {
 					)
 				})
 			});
-			const prepared = await api.readOk<{
+			const prepared = await api.readHeld<{
 				comments: { from: string[]; body: string }[];
 				dropped: { from: string[]; reason: string }[];
 				body: string;

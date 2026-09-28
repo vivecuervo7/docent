@@ -182,7 +182,7 @@ export class PrSession {
 					model: this.record.model
 				})
 			});
-			const { text } = await api.readOk<{ text: string }>(res);
+			const { text } = await api.readHeld<{ text: string }>(res);
 			// The thread may have been deleted while the reply was on its way.
 			await this.update((r) => {
 				r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, { role: 'assistant', text, at: Date.now() }] } : n));
@@ -291,7 +291,7 @@ export class PrSession {
 					model: this.#answeringModel(ranWith)
 				})
 			});
-			const { text } = await api.readOk<{ text: string }>(res);
+			const { text } = await api.readHeld<{ text: string }>(res);
 			await this.#changeFinding(reviewer, id, (i) => ({ ...i, messages: [...(i.messages ?? []), { role: 'assistant', text, at: Date.now() }] }));
 			this.findingStatus[id] = {};
 		} catch (err) {
@@ -351,7 +351,7 @@ export class PrSession {
 					}))
 				})
 			});
-			const { comments } = await api.readOk<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
+			const { comments } = await api.readHeld<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
 			const items = comments.map(({ threads: indices, body, rationale }) => ({
 				id: crypto.randomUUID(),
 				body,

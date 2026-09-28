@@ -568,7 +568,7 @@ export class Panel {
 					filter: first.docents
 				})
 			});
-			edits = (await api.readOk<{ edits: typeof edits }>(res)).edits;
+			edits = (await api.readHeld<{ edits: typeof edits }>(res)).edits;
 		} catch {
 			for (const w of batch) this.#tried.add(w.item.id);
 			await this.#settle(batch, () => ({ editFailed: true }));
