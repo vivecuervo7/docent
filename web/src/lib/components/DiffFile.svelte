@@ -278,6 +278,18 @@
 		}
 		return { added, removed };
 	});
+	// A closed file's one marker for its findings, while any await
+	// confirming: solid when one would go in - an unconfirmed Keep, or a
+	// suggested skip beside anything kept - outlined when all that's left is
+	// suggested skips. Opening it goes to the first unconfirmed one.
+	const summary = $derived.by(() => {
+		const all = [...findingMarks, ...wholeFile];
+		const unconfirmed = all.filter((m) => !m.decided);
+		if (!unconfirmed.length) return null;
+		const kept = (m: { included?: boolean }) => m.included !== false;
+		const solid = unconfirmed.some(kept) || all.some(kept);
+		return { first: unconfirmed[0], solid, unread: all.some((m) => m.unread), count: unconfirmed.length };
+	});
 	const elsewhere = $derived.by(() => {
 		if (!hunkIndices) return [];
 		return session.slices.flatMap((sl, i) =>
@@ -358,6 +370,7 @@
 		untrack(() => {
 			if (wholeFile.some((m) => m.id === id)) {
 				session.revealing = null;
+				collapsed = false;
 				session.openMark = id;
 				requestAnimationFrame(() => sectionEl?.querySelector(`[data-pin="${id}"]`)?.scrollIntoView({ block: 'center' }));
 				return;
@@ -598,36 +611,38 @@
 					>{/each}</span
 			>
 		{/if}
-		{#if (collapsed && findingMarks.length) || wholeFile.length}
-			<!-- A closed file still shows the panel's findings on it, for finding
-			     ones that landed after it was reviewed; one about the whole file
-			     sits here open or closed. -->
+		{#if collapsed ? summary : wholeFile.length}
+			<!-- A closed file shows one marker for its findings while any await
+			     confirming; an open one shows those about the whole file, which
+			     have no lines to sit on. -->
 			<span class="gutter header-pins">
-				{#each wholeFile as m (m.id)}
+				{#if collapsed && summary}
 					<button
 						class="pin finding"
-						class:skipped={m.included === false}
-						class:active={session.openMark === m.id}
-						data-pin={m.id}
-						aria-label="Finding about the whole file, from {m.who}"
-						title="A finding about the whole file, from {m.who}"
-						onclick={() => (session.openMark = session.openMark === m.id ? null : m.id)}
+						class:skipped={!summary.solid}
+						aria-label="{summary.count} {summary.count === 1 ? 'finding' : 'findings'} to confirm - open the first"
+						title="{summary.count} {summary.count === 1 ? 'finding' : 'findings'} to confirm"
+						onclick={() => (session.revealing = summary.first.id)}
 					>
 						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
-						{#if m.unread}<span class="unread" aria-label="New answer"></span>{/if}
+						{#if summary.unread}<span class="unread" aria-label="New to read"></span>{/if}
 					</button>
-				{/each}
-				{#if collapsed}{#each findingMarks as m (m.id)}
-					<button
-						class="pin finding"
-						class:skipped={m.included === false}
-						aria-label="Open the finding from {m.who}"
-						title="A finding from {m.who}"
-						onclick={() => (session.revealing = m.id)}
-					>
-						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
-					</button>
-				{/each}{/if}
+				{:else if !collapsed}
+					{#each wholeFile as m (m.id)}
+						<button
+							class="pin finding"
+							class:skipped={m.included === false}
+							class:active={session.openMark === m.id}
+							data-pin={m.id}
+							aria-label="Finding about the whole file, from {m.who}"
+							title="A finding about the whole file, from {m.who}"
+							onclick={() => (session.openMark = session.openMark === m.id ? null : m.id)}
+						>
+							<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
+							{#if m.unread}<span class="unread" aria-label="New answer"></span>{/if}
+						</button>
+					{/each}
+				{/if}
 			</span>
 		{/if}
 		<!-- Outside the pins, whose transform would trap the bubble under the diff. -->
