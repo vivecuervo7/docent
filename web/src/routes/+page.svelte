@@ -326,6 +326,7 @@
 		if (generation?.status === 'failed') return { label: 'Preparing failed', tone: 'bad' };
 		if (generation?.status === 'stopped' && !pr.record.summary) return { label: 'Stopped', tone: 'quiet' };
 		if (pr.record.completedAt) return { label: 'Complete', tone: 'done' };
+		if (pr.record.review?.posted?.pending) return { label: 'Pending on GitHub', tone: 'going' };
 		if (pr.record.review?.posted) return { label: 'Posted', tone: 'done' };
 		if (panelFor(pr)?.running) return { label: 'Reviewing', tone: 'working' };
 		const { done, total } = progress(pr);

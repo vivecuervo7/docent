@@ -175,12 +175,13 @@ export class ReviewPost {
 		});
 	}
 
-	#send(draft: ReviewDraft, dryRun: boolean) {
+	#send(draft: ReviewDraft, dryRun: boolean, pending: boolean) {
 		return fetch(this.#url('post'), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				dryRun,
+				pending,
 				event: draft.event,
 				summary: draft.summaryLeftOut ? '' : draft.summary,
 				comments: draft.comments.filter((c) => c.included && c.body.trim()).map(({ body, path, start, end }) => ({ body, path, start, end }))
@@ -189,28 +190,43 @@ export class ReviewPost {
 	}
 
 	// Exactly what posting would send, without sending it.
-	async preview(): Promise<ReviewPayload> {
+	async preview(pending = false): Promise<ReviewPayload> {
 		if (!this.draft) throw new Error('Nothing prepared yet.');
-		return (await api.readOk<{ payload: ReviewPayload }>(await this.#send(this.draft, true))).payload;
+		return (await api.readOk<{ payload: ReviewPayload }>(await this.#send(this.draft, true, pending))).payload;
 	}
 
-	async post() {
+	#pendingReview() {
+		return fetch(this.#url('pending'))
+			.then((res) => api.readOk<{ url: string | null }>(res))
+			.then((r) => r.url);
+	}
+
+	// Pending leaves the review on GitHub for the reviewer to add to and
+	// submit there.
+	async post({ pending = false } = {}) {
 		const draft = this.draft;
 		if (!draft) return;
+		// GitHub allows one pending review at a time; one found after a failed
+		// post is then this one.
+		if (pending && (await this.#pendingReview())) {
+			throw new Error('You already have a pending review on this PR. Submit or discard it on GitHub first.');
+		}
 		// A little before now, allowing for the clocks here and at GitHub.
 		const since = Date.now() - 30_000;
 		try {
-			const { url } = await api.readOk<{ url: string }>(await this.#send(draft, false));
-			await this.#save({ ...draft, posted: { at: Date.now(), url } });
+			const { url } = await api.readOk<{ url: string }>(await this.#send(draft, false, pending));
+			await this.#save({ ...draft, posted: { at: Date.now(), url, ...(pending ? { pending } : {}) } });
 		} catch (err) {
 			// The post can succeed and its answer still be lost on the way back.
 			// Only report a failure once GitHub confirms nothing arrived.
-			const found = await fetch(`${this.#url('posted-since')}?since=${since}`)
-				.then((res) => api.readOk<{ url: string | null }>(res))
-				.then((r) => r.url)
-				.catch(() => null);
+			const found = await (pending
+				? this.#pendingReview()
+				: fetch(`${this.#url('posted-since')}?since=${since}`)
+						.then((res) => api.readOk<{ url: string | null }>(res))
+						.then((r) => r.url)
+			).catch(() => null);
 			if (!found) throw err;
-			await this.#save({ ...draft, posted: { at: Date.now(), url: found } });
+			await this.#save({ ...draft, posted: { at: Date.now(), url: found, ...(pending ? { pending } : {}) } });
 		}
 	}
 

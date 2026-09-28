@@ -3,7 +3,8 @@ import { json } from '@sveltejs/kit';
 import { badRequest, bodyOf, failed, validParams } from '$lib/server/http.js';
 import { buildReviewPayload, postReviewPayload, type CommentToPost, type ReviewEvent } from '$lib/server/postReview.js';
 
-// With dryRun, returns exactly what would be sent without sending it.
+// With dryRun, returns exactly what would be sent without sending it. With
+// pending, the review is left for the reviewer to submit on GitHub.
 export const POST: RequestHandler = async ({ params: { owner, repo, number }, request }) => {
 	const body = await bodyOf(request);
 	const event = body.event as ReviewEvent | undefined;
@@ -13,7 +14,7 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 	}
 	try {
 		const summary = typeof body.summary === 'string' ? body.summary : '';
-		const payload = await buildReviewPayload(owner, repo, number, event, summary, comments);
+		const payload = await buildReviewPayload(owner, repo, number, body.pending === true ? undefined : event, summary, comments);
 		if (body.dryRun) return json({ payload });
 		return json({ payload, ...(await postReviewPayload(owner, repo, number, payload)) });
 	} catch (err) {

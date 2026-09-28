@@ -247,6 +247,17 @@ export async function findReviewSince(
   return mine[0]?.html_url ?? null;
 }
 
+// The reviewer's pending review on the PR, if they have one. GitHub allows
+// only one at a time, so another can't be left until it's submitted.
+export async function findPendingReview(owner: string, repo: string, number: string): Promise<string | null> {
+  const [viewer, { stdout }] = await Promise.all([
+    fetchViewer(),
+    execFileAsync("gh", ["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
+  ]);
+  const reviews = JSON.parse(stdout) as { user: { login?: string } | null; state: string; html_url: string }[];
+  return reviews.find((r) => r.user?.login === viewer && r.state === "PENDING")?.html_url ?? null;
+}
+
 export type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
 
 export interface CommentToPost {
@@ -265,8 +276,10 @@ interface InlineComment {
   start_side?: "LEFT" | "RIGHT";
 }
 
+// Without an event, the review is left pending: only the reviewer sees it,
+// and they submit it on GitHub, choosing the outcome there.
 export interface ReviewPayload {
-  event: ReviewEvent;
+  event?: ReviewEvent;
   body: string;
   comments: InlineComment[];
 }
@@ -289,7 +302,7 @@ export async function buildReviewPayload(
   owner: string,
   repo: string,
   number: string,
-  event: ReviewEvent,
+  event: ReviewEvent | undefined,
   summary: string,
   comments: CommentToPost[],
 ): Promise<ReviewPayload> {
@@ -316,7 +329,7 @@ export async function buildReviewPayload(
     inBody.push(`${describeLocation(comment)}${comment.body}`);
   }
   const body = [summary.trim(), ...inBody].filter(Boolean).join("\n\n");
-  return { event, body, comments: inline };
+  return { ...(event ? { event } : {}), body, comments: inline };
 }
 
 export async function postReviewPayload(

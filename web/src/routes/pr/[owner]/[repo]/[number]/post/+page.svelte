@@ -36,6 +36,8 @@
 
 	let editing = $state<Record<string, boolean>>({});
 	let confirming = $state<ReviewPayload | null>(null);
+	// A review left pending goes without an outcome, chosen on GitHub.
+	const confirmingPending = $derived(!!confirming && !confirming.event);
 
 	// What's changed in Wrap up since the review was prepared, in words.
 	const staleChange = $derived.by(() => {
@@ -67,10 +69,10 @@
 	const keptInline = $derived(inline.filter((c) => c.included).length);
 	const keptInBody = $derived(inBody.filter((c) => c.included).length);
 
-	async function review() {
+	async function review(pending = false) {
 		postError = null;
 		try {
-			confirming = await post.preview();
+			confirming = await post.preview(pending);
 		} catch (err) {
 			postError = (err as Error).message;
 		}
@@ -80,7 +82,7 @@
 		posting = true;
 		postError = null;
 		try {
-			await post.post();
+			await post.post({ pending: confirmingPending });
 			confirming = null;
 		} catch (err) {
 			postError = (err as Error).message;
@@ -150,7 +152,11 @@
 		{#if draft.posted}
 			<div class="posted" role="status">
 				<span class="grow">
-					Posted {new Date(draft.posted.at).toLocaleString()}.{#if session.record.completedAt}{' '}Marked complete.{/if}
+					{#if draft.posted.pending}
+						Left pending on GitHub {new Date(draft.posted.at).toLocaleString()}. Add to it and submit it there.
+					{:else}
+						Posted {new Date(draft.posted.at).toLocaleString()}.
+					{/if}{#if session.record.completedAt}{' '}Marked complete.{/if}
 				</span>
 				<a href={draft.posted.url} target="_blank" rel="noreferrer">View on GitHub</a>
 				{#if session.record.completedAt}
@@ -290,7 +296,8 @@
 					{#if postError && !confirming}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
 					<div class="actions">
 						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
-						<button class="btn primary big" onclick={review}>Post review</button>
+						<button class="btn big" title="Only you see it until you submit it on GitHub" onclick={() => review(true)}>Leave pending</button>
+						<button class="btn primary big" onclick={() => review()}>Post review</button>
 					</div>
 			</section>
 		{/if}
@@ -298,12 +305,18 @@
 </main>
 
 {#if confirming && draft}
-	<Dialog label="Post this review?" width={520} onclose={() => !posting && (confirming = null)}>
-		<h2>Post this review?</h2>
+	{@const title = confirmingPending ? 'Leave this review pending?' : 'Post this review?'}
+	<Dialog label={title} width={520} onclose={() => !posting && (confirming = null)}>
+		<h2>{title}</h2>
 		<p class="confirm-text">
 			To {session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if post.people}{' '}as {post.people.viewer}{/if}:
-			{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, hasSummary)}.
-			It’s visible to everyone on the PR.
+			{#if confirmingPending}
+				a pending review, with {tally(confirming.comments.length, keptInBody, hasSummary)}. Only you see it until you
+				submit it on GitHub, where you choose Comment, Approve or Request changes.
+			{:else}
+				{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, hasSummary)}.
+				It’s visible to everyone on the PR.
+			{/if}
 		</p>
 		{#if post.stale}
 			<p class="confirm-stale">This review is out of date: since it was prepared, {staleChange}. It will post as it is now.</p>
@@ -312,7 +325,7 @@
 		<div class="actions">
 			<button class="btn" disabled={posting} onclick={() => (confirming = null)}>Back</button>
 			<button class="btn primary big" disabled={posting} onclick={send}>
-				{#if posting}<Spinner size={13} />{/if} Post to GitHub
+				{#if posting}<Spinner size={13} />{/if} {confirmingPending ? 'Leave pending on GitHub' : 'Post to GitHub'}
 			</button>
 		</div>
 	</Dialog>

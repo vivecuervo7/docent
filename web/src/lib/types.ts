@@ -303,12 +303,14 @@ export interface ReviewDraft {
 	event: ReviewEvent;
 	// How preparing suggested submitting it, and why.
 	suggested?: { event: ReviewEvent; reason?: string };
-	posted?: { at: number; url: string };
+	// Pending: left on GitHub for the reviewer to add to and submit there.
+	posted?: { at: number; url: string; pending?: boolean };
 }
 
 // What would be sent to GitHub, as the backend builds it.
 export interface ReviewPayload {
-	event: ReviewEvent;
+	// None for a review left pending.
+	event?: ReviewEvent;
 	body: string;
 	comments: { path: string; line: number; start_line?: number; body: string }[];
 }
