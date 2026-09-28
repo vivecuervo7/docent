@@ -442,11 +442,14 @@
 					</span>
 					<span class="state">
 						{#if updatedSince(pr)}<span class="updated" title="The PR has new commits since Docent prepared it">Updated since</span>{/if}
-						{#if changes.length}
-							<span class="changed" title="Since you last opened it: {changes.join(', ')}" aria-label="Since you last opened it: {changes.join(', ')}"></span>
-						{/if}
-						<span class="status-label {standing.tone}">
-							{#if standing.tone === 'working'}<Spinner size={11} />{/if}
+						<span
+							class="status-label {standing.tone}"
+							title={changes.length ? `Since you last opened it: ${changes.join(', ')}` : undefined}
+						>
+							{#if standing.tone === 'working'}<Spinner size={11} />{:else if changes.length}<span
+									class="dot"
+									aria-label="Since you last opened it: {changes.join(', ')}"
+								></span>{/if}
 							{standing.label}
 						</span>
 					</span>
@@ -617,11 +620,11 @@
 		white-space: nowrap;
 	}
 	/* Something new since you last opened it. */
-	.changed {
-		width: 8px;
-		height: 8px;
+	.status-label .dot {
+		width: 6px;
+		height: 6px;
 		border-radius: 50%;
-		background: var(--agent);
+		background: currentColor;
 	}
 	.status-label.new {
 		--tone: #c8a8ff;
