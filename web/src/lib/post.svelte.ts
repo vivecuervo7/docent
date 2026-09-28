@@ -93,6 +93,7 @@ export class ReviewPost {
 							: 'the PR as a whole',
 						body: item.body,
 						inline: this.isInline(item),
+						...(item.asWritten ? { asWritten: true } : {}),
 						...(item.speculative ? { speculative: item.speculative } : {}),
 						...(item.onPr ? { onPr: item.onPr } : {}),
 						...(item.severity ? { severity: item.severity } : {}),
@@ -118,27 +119,35 @@ export class ReviewPost {
 			const byId = new Map(candidates.map((c) => [c.item.id, c.item]));
 			const yours = new Set(candidates.filter((c) => c.source === 'yours').map((c) => c.item.id));
 			const place = (item: FeedbackItem | undefined) => ({ path: item?.path, start: item?.start, end: item?.end });
+			const alone = (i: FeedbackItem) => ({ id: crypto.randomUUID(), body: i.body, included: true, from: [i.id], ...place(i) });
+			const comments = prepared.comments.flatMap(({ from, body }) => {
+				const items = from.map((id) => byId.get(id)).filter((i): i is FeedbackItem => !!i);
+				const own = items.find((i) => i.asWritten) ?? items.find((i) => yours.has(i.id));
+				if (!own) {
+					// Sits on the lines of the first item it came from that has any.
+					return [{ id: crypto.randomUUID(), body, included: true, from, ...place(items.find((i) => i.path)) }];
+				}
+				// With one of yours in it, it stays on your lines, whatever the
+				// model listed first. Anything folded in from other lines goes back
+				// to being its own comment there, in its own words.
+				const apart = items.filter((i) => !sameLines(i, own));
+				const kept = items.filter((i) => !apart.includes(i));
+				// Comments you wrote go out in your words: reworded, they're
+				// put back as you wrote them.
+				const written = kept.filter((i) => i.asWritten);
+				const words = written.every((i) => body.includes(i.body)) ? body : written.map((i) => i.body).join('\n\n');
+				return [{ id: crypto.randomUUID(), body: words, included: true, from: kept.map((i) => i.id), ...place(own) }, ...apart.map(alone)];
+			});
+			// Comments you wrote are never left out, however already said.
+			const placed = new Set(comments.flatMap((c) => c.from));
+			const missed = candidates.filter((c) => c.item.asWritten && !placed.has(c.item.id)).map((c) => c.item);
 			await this.#save({
 				preparedAt: Date.now(),
 				basedOn: candidates.map((c) => c.item.id),
-				comments: prepared.comments.flatMap(({ from, body }) => {
-					const items = from.map((id) => byId.get(id)).filter((i): i is FeedbackItem => !!i);
-					const own = items.find((i) => yours.has(i.id));
-					if (!own) {
-						// Sits on the lines of the first item it came from that has any.
-						return [{ id: crypto.randomUUID(), body, included: true, from, ...place(items.find((i) => i.path)) }];
-					}
-					// With one of yours in it, it stays on your lines, whatever the
-					// model listed first. Anything folded in from other lines goes back
-					// to being its own comment there, in its own words.
-					const apart = items.filter((i) => !sameLines(i, own));
-					const kept = from.filter((id) => !apart.some((i) => i.id === id));
-					return [
-						{ id: crypto.randomUUID(), body, included: true, from: kept, ...place(own) },
-						...apart.map((i) => ({ id: crypto.randomUUID(), body: i.body, included: true, from: [i.id], ...place(i) }))
-					];
-				}),
-				dropped: prepared.dropped,
+				comments: [...comments, ...missed.map(alone)],
+				dropped: prepared.dropped
+					.map((d) => ({ ...d, from: d.from.filter((id) => !missed.some((i) => i.id === id)) }))
+					.filter((d) => d.from.length),
 				summary: prepared.body,
 				event: suggested && !(own && suggested.event !== 'COMMENT') ? suggested.event : (this.draft?.event ?? 'COMMENT'),
 				...(suggested ? { suggested } : {}),

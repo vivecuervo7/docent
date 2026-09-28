@@ -29,6 +29,8 @@ export interface Candidate {
   inline: boolean;
   // The reviewer's questions about it and the answers, when they asked.
   discussion?: string;
+  // The reviewer's own words, to post as written.
+  asWritten?: boolean;
   // What it assumes, when it rests on something nobody has confirmed.
   speculative?: string;
   // The PR thread that already raises its point.
@@ -121,16 +123,21 @@ Keep every other candidate exactly as written - unless the reviewer discussed it
 shows what the reviewer asked about the candidate and what they learned: word the comment in light \
 of what it settled, and if it showed the point is wrong or already resolved, drop it with that as \
 the reason.
+A candidate marked "as written" is the reviewer's own words: it keeps a comment of its own, \
+worded exactly as written, even with no lines or when the point is already on the PR. Merge \
+another candidate into it only on the same lines, adding that point briefly after the reviewer's \
+words.
 A candidate marked already on the PR repeats a thread there: fold what it adds into a reply on \
 that thread's lines, or drop it with the thread as the reason if it adds nothing.
 A candidate marked speculative rests on an assumption nobody has confirmed: word its comment as a \
 question to the author about that assumption, not as a claim that something is wrong.
-Candidates marked "no lines" can't be posted as comments on lines. Write each of them into the \
-review's body instead, and list its id in "in_body".
+Candidates marked "no lines" can't be posted as comments on lines. Write each of them, other than \
+"as written" ones, into the review's body instead, and list its id in "in_body".
 The body is the review's own text, as the reviewer: one to three sentences about the PR overall \
 and what the comments add up to, then the points from the "no lines" candidates, each kept to \
 its substance. Markdown is fine; no headings, and don't repeat the comments on lines.
-Every candidate id goes in exactly one comment's "from", in "in_body", or in "dropped".
+Every candidate id goes in exactly one comment's "from", in "in_body", or in "dropped"; an "as \
+written" one always in a comment's "from".
 Recommend how to submit the review (event): REQUEST_CHANGES when a comment you keep is a blocker or \
 major the author has to fix before merging; APPROVE when nothing needs changing - no comments, or \
 only nits the author can take or leave; COMMENT otherwise. Where other reviewers gave their own \
@@ -151,7 +158,7 @@ export function prepareReview(
     const listed = candidates
       .map(
         (c) =>
-          `Candidate ${c.id} (${c.source === "yours" ? "the reviewer's" : "automated review"}${c.severity ? `, ${c.severity}` : ""}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.onPr ? `\n\nAlready on the PR: ${c.onPr}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
+          `Candidate ${c.id} (${c.asWritten ? "the reviewer's, as written" : c.source === "yours" ? "the reviewer's" : "automated review"}${c.severity ? `, ${c.severity}` : ""}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.onPr ? `\n\nAlready on the PR: ${c.onPr}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
       )
       .join("\n\n");
     const call = await chatWithTool(
