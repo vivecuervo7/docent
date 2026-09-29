@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Mark } from '$lib/api/client';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 
 	// The few diff lines a finding is about, with a line either side, for
 	// deciding on it away from the slice.

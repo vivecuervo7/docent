@@ -2,7 +2,7 @@
 	import { raisedBy, type LooseMark, type Mark } from '$lib/api/client';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
 	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import EditorNotes from './EditorNotes.svelte';
 	import NoteText from '../../components/NoteText.svelte';
 	import SeverityTag from './SeverityTag.svelte';

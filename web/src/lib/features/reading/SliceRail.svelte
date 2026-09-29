@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { isSliceReviewed, useSession } from '$lib/session.svelte';
+	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import StateMark from '../../components/StateMark.svelte';
 
 	// The slices, down the side while reading, with All files beneath.

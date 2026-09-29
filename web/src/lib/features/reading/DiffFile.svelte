@@ -21,7 +21,7 @@
 		type Row
 	} from '$lib/features/reading/diff/parse';
 	import InlineText from '../../components/InlineText.svelte';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import { isUnread } from '$lib/types';
 	import type { ReferenceElement } from '@floating-ui/dom';
 	import Floating from '../../components/Floating.svelte';

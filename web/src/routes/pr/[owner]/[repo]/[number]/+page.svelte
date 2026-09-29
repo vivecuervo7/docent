@@ -5,7 +5,7 @@
 	import PreparingView from '$lib/features/preparing/PreparingView.svelte';
 	import ReviewModel from '$lib/features/preparing/ReviewModel.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
-	import { isGenerating, isSliceReviewed, useSession } from '$lib/session.svelte';
+	import { isGenerating, isSliceReviewed, useSession } from '$lib/session/session.svelte';
 
 	// The Overview: what the PR is, its slices, and the review panel to start
 	// before reading. Kept plain on purpose. The conversation summary is saved

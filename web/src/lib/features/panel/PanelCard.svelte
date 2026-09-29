@@ -3,7 +3,7 @@
 	import { ask } from '$lib/confirm.svelte';
 	import { listModels } from '$lib/api/client';
 	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/features/panel/panel.svelte';
-	import { isSliceReviewed, useSession } from '$lib/session.svelte';
+	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';
 	import Spinner from '../../components/Spinner.svelte';
 

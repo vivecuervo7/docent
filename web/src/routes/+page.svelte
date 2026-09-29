@@ -7,7 +7,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { parsePrUrl, timeAgo } from '$lib/format';
 	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
-	import { isGenerating, isSliceReviewed } from '$lib/session.svelte';
+	import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
 	import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '$lib/types';
 
 	let url = $state('');

@@ -3,7 +3,7 @@
 	import { groupsOf, isShown, reviewerName } from '$lib/api/client';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import WrapRow from '$lib/features/wrap-up/WrapRow.svelte';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import { SEVERITY_ORDER, type FeedbackItem } from '$lib/types';
 
 	// Wrap up: confirming what goes into the review. The panel's findings you

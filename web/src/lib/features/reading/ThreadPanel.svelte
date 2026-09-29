@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ask } from '$lib/confirm.svelte';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import { MOD } from '$lib/keys';
 	import type { Note } from '$lib/types';
 	import NoteText from '../../components/NoteText.svelte';

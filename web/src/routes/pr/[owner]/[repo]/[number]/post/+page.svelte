@@ -5,7 +5,7 @@
 	import FindingLines from '$lib/features/posting/FindingLines.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { describeLines } from '$lib/features/posting/post.svelte';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import type { ReviewComment, ReviewEvent, ReviewPayload } from '$lib/types';
 
 	// The last look before posting: the review laid out the way the author

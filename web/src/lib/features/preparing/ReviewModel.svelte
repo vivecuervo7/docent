@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { listModels } from '$lib/api/client';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import type { ModelOption } from '$lib/types';
 
 	// This review's model, changeable for it alone. Until it's first prepared

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import { marksFrom } from '$lib/api/client';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import type { FileNote } from '$lib/types';
 	import DiffFile from './DiffFile.svelte';
 

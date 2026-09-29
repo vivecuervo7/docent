@@ -1,7 +1,7 @@
 import * as api from '../../api/client';
 import { groupsOf, isShown } from '../../api/client';
 import type { Hunk } from '../reading/diff/parse';
-import type { PrSession } from '../../session.svelte';
+import type { PrSession } from '../../session/session.svelte';
 import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from '../../types';
 
 // Posting the review: preparing it from what's kept (comments making the same

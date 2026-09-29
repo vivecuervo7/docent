@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 
 	// How the diffs are shown. Kept in this browser.
 	const session = useSession();

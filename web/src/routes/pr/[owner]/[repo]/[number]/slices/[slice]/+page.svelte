@@ -9,7 +9,7 @@
 	import NoteText from '$lib/components/NoteText.svelte';
 	import SliceRail from '$lib/features/reading/SliceRail.svelte';
 	import ViewOptions from '$lib/features/reading/ViewOptions.svelte';
-	import { isSliceReviewed, useSession } from '$lib/session.svelte';
+	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 
 	const session = useSession();
 	let anyOpen = $state(false);

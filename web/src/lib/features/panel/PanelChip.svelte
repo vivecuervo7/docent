@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { isAuto, modelLabel, nameOf } from '$lib/features/panel/panel.svelte';
 	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
-	import { useSession } from '$lib/session.svelte';
+	import { useSession } from '$lib/session/session.svelte';
 	import type { AgentReviewer } from '$lib/types';
 	import InlineText from '../../components/InlineText.svelte';
 	import Spinner from '../../components/Spinner.svelte';

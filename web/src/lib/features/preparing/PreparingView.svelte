@@ -3,7 +3,7 @@
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
 	import ReviewModel from './ReviewModel.svelte';
 	import { elapsed } from '$lib/format';
-	import { isGenerating, useSession } from '$lib/session.svelte';
+	import { isGenerating, useSession } from '$lib/session/session.svelte';
 	import type { StepName } from '$lib/types';
 	import Spinner from '../../components/Spinner.svelte';
 	import StateMark from '../../components/StateMark.svelte';
