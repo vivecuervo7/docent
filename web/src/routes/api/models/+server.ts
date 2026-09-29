@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { modelName, setModelName } from '$lib/storage/settings.server.js';
-import { listModelOptions } from '$lib/server/modelProvider.js';
+import { listModelOptions } from '$lib/models/modelProvider.server.js';
 
 // The models that can be picked right now, and which one Docent uses. When
 // the picked one isn't among them (its provider was removed, or none was

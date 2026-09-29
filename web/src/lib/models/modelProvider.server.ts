@@ -6,8 +6,8 @@
 
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.js";
-import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.js";
+import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.server.js";
+import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.server.js";
 import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "../storage/settings.server.js";
 
 export interface ChatMessage {

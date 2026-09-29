@@ -1,5 +1,5 @@
 import type { PrFile } from "./github.js";
-import { chatWithTool } from "./modelProvider.js";
+import { chatWithTool } from "../models/modelProvider.server.js";
 import { inLane } from "./notes.js";
 import { linesInDiff, numberedFileDiff } from "./prDiff.js";
 import type { FileNote, Slice } from "./types.js";

@@ -1,4 +1,4 @@
-import { chatWithTool } from "./modelProvider.js";
+import { chatWithTool } from "../models/modelProvider.server.js";
 import { inLane, type NoteMessage } from "./notes.js";
 
 // Drafting your feedback: review comments worth posting, from the threads

@@ -1,4 +1,4 @@
-import { chatWithTool } from "./modelProvider.js";
+import { chatWithTool } from "../models/modelProvider.server.js";
 import type { PrFile } from "./github.js";
 import type { Slice } from "./types.js";
 

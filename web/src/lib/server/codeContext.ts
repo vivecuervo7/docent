@@ -1,6 +1,6 @@
 import { fetchPrFiles } from "./github.js";
 import { editorModel } from "./grouping.js";
-import { canReadCode, chatWithTool } from "./modelProvider.js";
+import { canReadCode, chatWithTool } from "../models/modelProvider.server.js";
 import { inLane } from "./notes.js";
 import { numberedFileDiff } from "./prDiff.js";
 import { prHead } from "./repoCache.js";

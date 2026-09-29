@@ -1,7 +1,7 @@
-import { claudeCodeAvailable } from "./claudeCode.js";
+import { claudeCodeAvailable } from "../models/claudeCode.server.js";
 import { modelName, resolveModel, savedEditorModel } from "../storage/settings.server.js";
 import { fetchPrConversation, fetchPrFiles } from "./github.js";
-import { canReadCode, chatWithTool } from "./modelProvider.js";
+import { canReadCode, chatWithTool } from "../models/modelProvider.server.js";
 import { inNamedLane } from "./notes.js";
 import { conversationText } from "../features/posting/postReview.server.js";
 import { hunkIndicesByFile, numberedFileDiff } from "./prDiff.js";

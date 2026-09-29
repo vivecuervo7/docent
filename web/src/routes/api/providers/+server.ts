@@ -1,10 +1,10 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from '$lib/server/claudeCode.js';
+import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from '$lib/models/claudeCode.server.js';
 import { addProvider, providers, runnerConcurrency, type Provider } from '$lib/storage/settings.server.js';
 import { providerFields, publicProvider } from '$lib/server/fields.js';
 import { bodyOf } from '$lib/server/http.js';
-import { codexStatus, listProviderModels } from '$lib/server/modelProvider.js';
+import { codexStatus, listProviderModels } from '$lib/models/modelProvider.server.js';
 
 // The Settings page: Claude Code, Codex, and the OpenAI-compatible providers
 // with whether each answers.

@@ -3,7 +3,7 @@ import { json } from '@sveltejs/kit';
 import { resolveModel, setEditorModel } from '$lib/storage/settings.server.js';
 import { editorModel } from '$lib/server/grouping.js';
 import { badRequest, bodyOf } from '$lib/server/http.js';
-import { listModelOptions } from '$lib/server/modelProvider.js';
+import { listModelOptions } from '$lib/models/modelProvider.server.js';
 
 // The model the panel's editor uses, and the models it could.
 export const GET: RequestHandler = async () => json({ options: await listModelOptions(), selected: await editorModel() });

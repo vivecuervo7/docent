@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { fetchPrConversation, fetchPrFiles, type PrConversation } from "../../server/github.js";
-import { chatWithTool } from "../../server/modelProvider.js";
+import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../server/notes.js";
 import { commentableLines } from "../../server/prDiff.js";
 

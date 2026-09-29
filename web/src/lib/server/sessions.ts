@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { codexSession } from "./codex.js";
+import { codexSession } from "../models/codex.server.js";
 import type { ExternalReviewer } from "../storage/settings.server.js";
 
 // An external reviewer: the reviewer's own tooling - a skill, a command, a

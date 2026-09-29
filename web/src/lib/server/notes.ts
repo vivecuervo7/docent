@@ -1,5 +1,5 @@
 import { laneOf } from "../storage/settings.server.js";
-import { canReadCode, chat, type ChatMessage } from "./modelProvider.js";
+import { canReadCode, chat, type ChatMessage } from "../models/modelProvider.server.js";
 import { modelName } from "../storage/settings.server.js";
 import { persistent } from "../storage/persistent.server.js";
 

@@ -3,8 +3,8 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { ChatMessage, CodeAccess, ToolCall, ToolDefinition } from "./modelProvider.js";
-import { addUsage } from "./usage.js";
+import type { ChatMessage, CodeAccess, ToolCall, ToolDefinition } from "./modelProvider.server.js";
+import { addUsage } from "./usage.server.js";
 import { persistent } from "../storage/persistent.server.js";
 
 const execFileAsync = promisify(execFile);
