@@ -1,7 +1,7 @@
 import { fetchPrFiles } from "../../github/github.server.js";
 import { editorModel } from "./editor.server.js";
 import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js";
-import { inLane } from "../reading/threadReplies.server.js";
+import { inLane } from "../../models/lanes.server.js";
 import { numberedFileDiff } from "../../github/prDiff.server.js";
 import { prHead } from "../../github/repoCache.server.js";
 import { persistent } from "../../storage/persistent.server.js";
