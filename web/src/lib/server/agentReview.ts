@@ -372,6 +372,11 @@ intent. Where you're given facts about the code around the change, trust them ov
 5. Fixing it asks for no more rigour than the rest of the codebase shows.
 6. It isn't plainly deliberate.
 7. The author would likely fix it once told.
+A missing test is worth raising when the code looks right but a likely mistake in it would go \
+unnoticed, or when a test would still pass with the code wrong. A test for a problem you're \
+already raising belongs in that finding's fix, not in a finding of its own.
+A risk to later changes counts when the PR already pays for it: a comment or doc it has made \
+wrong, logic that has already drifted apart, a name that already misleads.
 Leave out style preferences, "worth considering" design remarks, and what a linter, type checker or \
 the build would catch. Don't ask for comments that restate what the code does; a comment the change \
 has made wrong is worth raising. Never report that code is correct, and never hedge with "ensure \
@@ -393,7 +398,19 @@ and its severity is shown beside it, so don't start the body with it. Put code i
 keep any snippet to three lines. One finding per distinct problem.
 Also give a rationale, for the reviewer deciding whether to post it (the author never sees it): \
 why it matters, what in the code shows it, and how sure you are - say so plainly if you're \
-unsure, here rather than in the body. Two or three sentences.`;
+unsure, here rather than in the body. Two or three sentences.
+
+Before reporting, go through your findings once more and keep only those that meet every rule \
+above, and that the author couldn't fairly answer with "it was already like that" or "that's \
+deliberate". Keep nits to the few that are cheap and clearly worth it, so they don't bury what \
+matters.`;
+
+// A persona narrows where the reviewer looks; the reviewer's own bar still
+// decides what it raises.
+const focusNote = (focus: string) =>
+  `\n\nThis review has a particular focus. It narrows where you look, and doesn't lower the bar \
+for what you raise: report only what falls within it and is still worth the author's time. The \
+focus:\n${focus}`;
 
 // The whole-PR pass: read everything first, so each part is reviewed
 // knowing what the rest of the PR does.
@@ -469,9 +486,7 @@ async function runBuiltin(
   mcpUrl: string,
 ) {
   const { review, controller } = entry;
-  const system = focus
-    ? `${SYSTEM_PROMPT}\n\nThis review has a particular focus, and raises only what falls within it:\n${focus}`
-    : SYSTEM_PROMPT;
+  const system = focus ? SYSTEM_PROMPT + focusNote(focus) : SYSTEM_PROMPT;
   const { signal } = controller;
   try {
     const [files, conversation] = await Promise.all([
@@ -510,7 +525,7 @@ async function runBuiltin(
     const wholeDiff = files.map((f) => numberedFileDiff(f)).join("\n\n");
     const fits = wholeDiff.length <= WHOLE_DIFF_LIMIT;
     const fileList = files.map((f) => `${f.filename} (+${f.additions} -${f.deletions})`).join("\n");
-    const focusNote = focus ? `\n\nThis review has a particular focus, and raises only what falls within it:\n${focus}` : "";
+    const briefFocus = focus ? focusNote(focus) : "";
     const keep = async (raw: unknown, slice?: string) => {
       for (const item of Array.isArray(raw) ? raw : []) {
         const { path, start_line, end_line, body, rationale, severity } = (item ?? {}) as Record<string, unknown>;
@@ -577,7 +592,7 @@ async function runBuiltin(
       review.progress = { ...review.progress!, waiting: false };
       return chatWithTool(
         [
-          { role: "system", content: BRIEF_PROMPT + focusNote },
+          { role: "system", content: BRIEF_PROMPT + briefFocus },
           {
             role: "user",
             content: `${about}\n\nIts parts:\n${partList}\n\n${fits ? `The whole diff:\n\n${wholeDiff}` : `The files it changes:\n${fileList}`}${said}`,
