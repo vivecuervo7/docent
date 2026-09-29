@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { fetchPrConversation, fetchPrFiles, type PrConversation } from "../../github/github.server.js";
+import { conversationText, fetchPrConversation, fetchPrFiles } from "../../github/github.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { commentableLines } from "../../github/prDiff.server.js";
@@ -9,15 +9,6 @@ const execFileAsync = promisify(execFile);
 
 // The last step: combining the comments the reviewer kept into one review,
 // then posting it. Preparing uses the model; posting doesn't.
-
-export function conversationText(conversation: PrConversation): string {
-  const parts = [
-    ...conversation.reviews.filter((r) => r.body).map((r) => `Review by ${r.author} (${r.state}):\n${r.body}`),
-    ...conversation.comments.map((c) => `Comment by ${c.author}:\n${c.body}`),
-    ...conversation.threads.map((t) => `Thread on ${t.path}:\n${t.entries.map((e) => `${e.author}: ${e.body}`).join("\n")}`),
-  ];
-  return parts.length > 0 ? parts.join("\n\n") : "Nothing's been said on this PR yet.";
-}
 
 export interface Candidate {
   id: string;

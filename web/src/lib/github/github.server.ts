@@ -129,6 +129,16 @@ export interface PrConversation {
   threads: InlineThread[];
 }
 
+// What's been said on a PR, as text for a model to read.
+export function conversationText(conversation: PrConversation): string {
+  const parts = [
+    ...conversation.reviews.filter((r) => r.body).map((r) => `Review by ${r.author} (${r.state}):\n${r.body}`),
+    ...conversation.comments.map((c) => `Comment by ${c.author}:\n${c.body}`),
+    ...conversation.threads.map((t) => `Thread on ${t.path}:\n${t.entries.map((e) => `${e.author}: ${e.body}`).join("\n")}`),
+  ];
+  return parts.length > 0 ? parts.join("\n\n") : "Nothing's been said on this PR yet.";
+}
+
 interface RawUser {
   login?: string;
 }

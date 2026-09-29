@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
 import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from "../features/panel/agentReviews.server.js";
 import {
+  conversationText,
   fetchFileContentAtRef,
   fetchPrBaseSha,
   fetchPrConversation,
@@ -10,7 +11,6 @@ import {
   searchRepoCode,
 } from "../github/github.server.js";
 import { listFiles, prHead, readFile, searchCode } from "../github/repoCache.server.js";
-import { conversationText } from "../features/posting/postReview.server.js";
 import { numberedFileDiff } from "../github/prDiff.server.js";
 
 // Docent over MCP, so a reviewer can run their own agent - any model, any
