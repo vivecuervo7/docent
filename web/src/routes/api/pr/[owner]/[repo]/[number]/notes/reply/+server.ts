@@ -3,7 +3,7 @@ import { badRequest, bodyOf, heldOpen, mcpUrl, validParams } from '$lib/api/http
 import { replyToNote, type NoteContext, type NoteMessage } from '$lib/features/reading/threadReplies.server.js';
 
 // Answers a question (or writes up a remark) about lines the reviewer
-// selected. Held open until the model replies; see notes.ts for the lane.
+// selected. Held open until the model replies; see models/lanes.server.ts for the lane.
 export const POST: RequestHandler = async ({ params: { owner, repo, number }, request, url }) => {
 	const body = await bodyOf(request);
 	const context = body.context as NoteContext | undefined;

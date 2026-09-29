@@ -12,7 +12,7 @@ import type { ExternalReviewer } from "../../storage/settings.server.js";
 import { persistent } from "../../storage/persistent.server.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
-// the reviewer's own agent, which submits them over MCP (see mcp.ts). Both
+// the reviewer's own agent, which submits them over MCP (see mcp/mcp.server.ts). Both
 // land in the same place, which the browser checks in on and copies from,
 // like review preparation. It lives in memory, as long as this process.
 

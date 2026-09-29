@@ -6,9 +6,9 @@ import { known, reviewerLabel, sessionId } from './reviewers.svelte';
 import type { PrSession } from '../../session/session.svelte';
 import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type FeedbackDraft, type FeedbackItem } from '../../types';
 
-// The PR's review panel: its agent reviewers (saved in the record, shared
-// with the React app), the review each is running, and copying their
-// findings into the record as they arrive.
+// The PR's review panel: its agent reviewers (saved in the record), the
+// review each is running, and copying their findings into the record as
+// they arrive.
 
 // What runs a reviewer: Docent's reviewer on a model, with a persona (none
 // is the default); one of the reviewer's external reviewers, a session of

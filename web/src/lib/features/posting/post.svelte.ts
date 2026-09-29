@@ -6,8 +6,7 @@ import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, Re
 
 // Posting the review: preparing it from what's kept (comments making the same
 // point merged, anything already said on the PR set aside), wording it, and
-// sending it to GitHub. The prepared review is saved in the record, in the
-// same shape the React app uses.
+// sending it to GitHub. The prepared review is saved in the record.
 
 const inHunks = (hunks: Hunk[], ref: LineRef) =>
 	hunks.some((h) => h.rows.some((r) => (ref.side === 'new' ? r.kind !== 'del' && r.new === ref.line : r.kind !== 'add' && r.old === ref.line)));

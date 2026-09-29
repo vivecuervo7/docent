@@ -1,7 +1,7 @@
 import { FIRST_AGENT, type PrRecord, type PrRef, type SavedPr } from '../types';
 
 // Each PR's review is one record on the backend. Every write names the
-// version it started from; if something else saved first (the React app, or
+// version it started from; if something else saved first (another tab, or
 // an agent over MCP), the backend refuses with the latest copy and the change
 // is made again on that.
 
@@ -21,7 +21,7 @@ export function emptyRecord(): PrRecord {
 	};
 }
 
-// Fills in what an older record lacks, the same way the React app does.
+// Fills in what an older record lacks.
 export function normalize(stored: Partial<PrRecord> | undefined): PrRecord {
 	const record = { ...emptyRecord(), ...stored } as PrRecord;
 	if (Array.isArray(record.conversation)) record.conversation = null;

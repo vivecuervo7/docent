@@ -3,7 +3,7 @@ import { inLane } from "../../models/lanes.server.js";
 import type { NoteMessage } from "../reading/threadReplies.server.js";
 
 // Drafting your feedback: review comments worth posting, from the threads
-// you had on selected lines. The agent review is in agentReview.ts.
+// you had on selected lines. The panel's reviews are in features/panel.
 
 export interface ThreadForFeedback {
   path: string;

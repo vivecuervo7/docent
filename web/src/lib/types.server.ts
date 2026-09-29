@@ -32,7 +32,7 @@ export interface ConversationSummary {
   authorNotes?: string;
 }
 
-// A note on one file within a slice (see fileNotes.ts).
+// A note on one file within a slice (see features/preparing/fileNotes.server.ts).
 export interface FileNote {
   path: string;
   // What a test file tests, or what a large change amounts to.

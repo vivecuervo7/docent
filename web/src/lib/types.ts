@@ -284,7 +284,7 @@ export interface AgentReview {
 
 export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
 
-// One comment in the prepared review. Shared with the React app's records.
+// One comment in the prepared review.
 export interface ReviewComment {
 	id: string;
 	body: string;

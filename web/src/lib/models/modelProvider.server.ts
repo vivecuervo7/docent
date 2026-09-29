@@ -2,7 +2,7 @@
 // (a local server like oMLX, or a hosted proxy like LiteLLM), Claude Code or
 // Codex.
 // Kept generic (messages + tool schema in, tool calls out) so callers don't
-// care which. The providers are set on the Settings page (config.ts).
+// care which. The providers are set on the Settings page (storage/settings.server.ts).
 
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";

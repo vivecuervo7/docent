@@ -58,7 +58,7 @@ export interface PanelEntry {
 
 interface Settings {
   model?: string;
-  // The panel's editor's model; see editorModel in grouping.ts.
+  // The panel's editor's model; see editorModel in features/panel/editor.server.ts.
   editorModel?: string;
   personas?: Persona[];
   externalReviewers?: ExternalReviewer[];

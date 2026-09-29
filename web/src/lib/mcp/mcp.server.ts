@@ -16,7 +16,7 @@ import { numberedFileDiff } from "../github/prDiff.server.js";
 // Docent over MCP, so a reviewer can run their own agent - any model, any
 // harness - against a PR and have its findings land on the Agent feedback
 // page. Stateless: each request gets a fresh server, and review state lives
-// in agentReview.ts.
+// in features/panel/agentReviews.server.ts.
 
 const PR_REF_RE = /^(?:https:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#|\/)(\d+)\/?$/;
 
