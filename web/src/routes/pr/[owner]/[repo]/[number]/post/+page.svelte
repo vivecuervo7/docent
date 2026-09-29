@@ -1,5 +1,7 @@
 <script lang="ts">
 	import Dialog from '$lib/ui/Dialog.svelte';
+	import Disclosure from '$lib/ui/Disclosure.svelte';
+	import Segmented from '$lib/ui/Segmented.svelte';
 	import EditableText from '$lib/ui/EditableText.svelte';
 	import FilePath from '$lib/ui/FilePath.svelte';
 	import FindingLines from '$lib/features/posting/FindingLines.svelte';
@@ -250,10 +252,7 @@
 
 		{#if draft.dropped.length}
 			<section>
-				<button class="fold-head" aria-expanded={post.showDropped} onclick={() => (post.showDropped = !post.showDropped)}>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={post.showDropped ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-					Already said on the PR <span class="count">{draft.dropped.length}</span>
-				</button>
+				<Disclosure bind:open={post.showDropped} look="heading" label="Already said on the PR" count={draft.dropped.length} />
 				{#if post.showDropped}
 					<ul class="dropped">
 						{#each draft.dropped as dropped, i (i)}
@@ -273,18 +272,20 @@
 
 		{#if !readOnly}
 			<section class="send">
-					<div class="events" role="group" aria-label="Outcome">
-						{#each EVENTS as option (option.event)}
-							{@const unavailable = isOwnPr && option.event !== 'COMMENT'}
-							<button
-								class:on={draft.event === option.event}
-								aria-pressed={draft.event === option.event}
-								disabled={unavailable}
-								title={unavailable ? 'GitHub doesn’t let you approve or request changes on your own PR.' : undefined}
-								onclick={() => post.change((d) => ({ ...d, event: option.event }))}>{option.label}</button
-							>
-						{/each}
-					</div>
+					<Segmented
+						label="Outcome"
+						value={draft.event}
+						onchange={(event) => post.change((d) => ({ ...d, event }))}
+						options={EVENTS.map((option) => {
+							const unavailable = isOwnPr && option.event !== 'COMMENT';
+							return {
+								value: option.event,
+								label: option.label,
+								disabled: unavailable,
+								title: unavailable ? 'GitHub doesn’t let you approve or request changes on your own PR.' : undefined
+							};
+						})}
+					/>
 					{#if draft.suggested}
 						{@const option = EVENTS.find((e) => e.event === draft.suggested?.event)}
 						<p class="suggested faint">
@@ -507,27 +508,6 @@
 		display: flex;
 		flex-direction: column;
 	}
-	.fold-head {
-		display: flex;
-		align-items: center;
-		align-self: flex-start;
-		gap: 10px;
-		border: 0;
-		background: none;
-		padding: 0;
-		color: var(--muted);
-		font-family: var(--serif);
-		font-size: 19px;
-		cursor: pointer;
-	}
-	.fold-head:hover {
-		color: var(--text);
-	}
-	.count {
-		font-family: var(--mono);
-		font-size: 13px;
-		color: var(--faint);
-	}
 	.dropped {
 		list-style: none;
 		margin: 12px 0 0;
@@ -574,33 +554,6 @@
 	.suggested {
 		margin: 8px 0 0;
 		font-size: 13px;
-	}
-	.events {
-		display: flex;
-		align-self: flex-start;
-		padding: 2px;
-		border-radius: 10px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
-	}
-	.events button {
-		height: 30px;
-		padding: 0 14px;
-		border: 0;
-		border-radius: 8px;
-		background: none;
-		color: var(--muted);
-		font: inherit;
-		font-size: 13px;
-		font-weight: 500;
-		cursor: pointer;
-	}
-	.events button.on {
-		background: #ece8df;
-		color: #141413;
-	}
-	.events button:disabled {
-		opacity: 0.4;
-		cursor: default;
 	}
 	.big {
 		height: 42px;

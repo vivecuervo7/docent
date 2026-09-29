@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import { goto } from '$app/navigation';
 	import { groupsOf, isShown, reviewerName } from '$lib/features/panel/findings';
 	import Spinner from '$lib/ui/Spinner.svelte';
@@ -136,20 +137,14 @@
 
 	{#if kept.length}
 		<section>
-			<button class="fold-head" aria-expanded={session.wrapUpOpen.kept} onclick={() => (session.wrapUpOpen.kept = !session.wrapUpOpen.kept)}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={session.wrapUpOpen.kept ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-				Kept <span class="count">{kept.length}</span>
-			</button>
+			<Disclosure bind:open={session.wrapUpOpen.kept} look="heading" label="Kept" count={kept.length} />
 			{#if session.wrapUpOpen.kept}<ul>{#each kept as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
 		</section>
 	{/if}
 
 	{#if skipped.length}
 		<section>
-			<button class="fold-head" aria-expanded={session.wrapUpOpen.skipped} onclick={() => (session.wrapUpOpen.skipped = !session.wrapUpOpen.skipped)}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={session.wrapUpOpen.skipped ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-				Skipped <span class="count">{skipped.length}</span>
-			</button>
+			<Disclosure bind:open={session.wrapUpOpen.skipped} look="heading" label="Skipped" count={skipped.length} />
 			{#if session.wrapUpOpen.skipped}<ul>{#each skipped as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
 		</section>
 	{/if}
@@ -185,8 +180,11 @@
 		display: flex;
 		flex-direction: column;
 	}
-	h2,
-	.fold-head {
+	/* Kept and Skipped fold open under their headings, spaced like the rest. */
+	section > :global(.disclosure) {
+		margin-bottom: 8px;
+	}
+	h2 {
 		display: flex;
 		align-items: baseline;
 		gap: 10px;
@@ -194,19 +192,6 @@
 		font-family: var(--serif);
 		font-size: 22px;
 		font-weight: 500;
-	}
-	.fold-head {
-		align-items: center;
-		align-self: flex-start;
-		border: 0;
-		background: none;
-		padding: 0;
-		color: var(--muted);
-		font-size: 19px;
-		cursor: pointer;
-	}
-	.fold-head:hover {
-		color: var(--text);
 	}
 	.count {
 		font-family: var(--mono);

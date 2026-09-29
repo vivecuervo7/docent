@@ -2,6 +2,7 @@
 	import { readOk } from '$lib/api/client';
 	import type { ModelOption } from '$lib/types';
 	import Spinner from '$lib/ui/Spinner.svelte';
+	import Segmented from '$lib/ui/Segmented.svelte';
 	import StateMark from '$lib/ui/StateMark.svelte';
 
 	// What Docent needs on this machine, each step checked live.
@@ -126,14 +127,15 @@
 				<h2>Bring your own agent <span class="faint optional">optional</span></h2>
 				<p>Your own agent can sit on a PR’s review panel beside Docent’s reviewers. Add Docent’s MCP server to it once, for all your projects.</p>
 				<div class="agent-box">
-					<div class="tabs" role="tablist" aria-label="Your agent">
-						{#each Object.entries(AGENTS) as [key, a] (key)}
-							<button role="tab" aria-selected={agent === key} class:on={agent === key} onclick={() => (picked = key as Agent)}>
-								{a.name}
-								{#if check?.mcp[key as Agent]}<StateMark state="done" size={13} />{/if}
-							</button>
-						{/each}
-					</div>
+					<Segmented
+						tabs
+						label="Your agent"
+						value={agent}
+						onchange={(key) => (picked = key)}
+						options={(Object.keys(AGENTS) as Agent[]).map((key) => ({ value: key, label: AGENTS[key].name }))}
+					>
+						{#snippet after(key)}{#if check?.mcp[key]}<StateMark state="done" size={13} />{/if}{/snippet}
+					</Segmented>
 				<div class="command">
 					<code>{AGENTS[agent].command}</code>
 					<button class="icon" aria-label="Copy the command" onclick={copy}>
@@ -260,32 +262,6 @@
 		border-radius: 12px;
 		background: var(--surface);
 		box-shadow: inset 0 0 0 1px var(--line-2);
-	}
-	.tabs {
-		display: flex;
-		align-self: flex-start;
-		padding: 2px;
-		border-radius: 10px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
-	}
-	.tabs button {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		height: 30px;
-		padding: 0 14px;
-		border: 0;
-		border-radius: 8px;
-		background: none;
-		color: var(--muted);
-		font: inherit;
-		font-size: 13px;
-		font-weight: 500;
-		cursor: pointer;
-	}
-	.tabs button.on {
-		background: #ece8df;
-		color: #141413;
 	}
 	.step p.small {
 		font-size: 13px;

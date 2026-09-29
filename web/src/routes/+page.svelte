@@ -5,6 +5,8 @@
 	import { ask } from '$lib/ui/confirm.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
+	import Disclosure from '$lib/ui/Disclosure.svelte';
+	import Segmented from '$lib/ui/Segmented.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import { parsePrUrl, timeAgo } from '$lib/ui/format';
 	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
@@ -506,13 +508,19 @@
 		{/snippet}
 
 		{#snippet viewMenu()}
-			<div class="grouping" role="group" aria-label="Group by">
+			<div class="grouping">
 				<span class="faint">Group by</span>
-				<div class="segments">
-					{#each [['none', 'None'], ['repo', 'Repo'], ['author', 'Author']] as [value, label] (value)}
-						<button class:on={sort === value} aria-pressed={sort === value} onclick={() => setSort(value as Sort)}>{label}</button>
-					{/each}
-				</div>
+				<Segmented
+					small
+					label="Group by"
+					value={sort}
+					onchange={setSort}
+					options={[
+						{ value: 'none', label: 'None' },
+						{ value: 'repo', label: 'Repo' },
+						{ value: 'author', label: 'Author' }
+					]}
+				/>
 			</div>
 		{/snippet}
 
@@ -546,10 +554,7 @@
 
 		{#if complete.length}
 			<section>
-				<button class="fold-head" aria-expanded={showComplete} onclick={() => (showComplete = !showComplete)}>
-					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showComplete ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-					Complete <span class="count">({complete.length})</span>
-				</button>
+				<Disclosure bind:open={showComplete} label="Complete" count={complete.length} />
 				{#if showComplete}
 					<ul class="done-list">
 						{#each complete as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
@@ -560,10 +565,7 @@
 
 		{#if hiddenRows.length}
 			<section>
-				<button class="fold-head" aria-expanded={showHidden} onclick={() => (showHidden = !showHidden)}>
-					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showHidden ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-					Hidden <span class="count">({hiddenRows.length})</span>
-				</button>
+				<Disclosure bind:open={showHidden} label="Hidden" count={hiddenRows.length} />
 				{#if showHidden}
 					<ul class="done-list">
 						{#each hiddenRows as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
@@ -580,31 +582,6 @@
 		align-items: center;
 		gap: 10px;
 		font-size: 13px;
-	}
-	.segments {
-		display: flex;
-		padding: 2px;
-		border-radius: 9px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
-	}
-	.segments button {
-		height: 26px;
-		padding: 0 11px;
-		border: 0;
-		border-radius: 7px;
-		background: none;
-		color: var(--muted);
-		font: inherit;
-		font-size: 12.5px;
-		font-weight: 500;
-		cursor: pointer;
-	}
-	.segments button:hover {
-		color: var(--text);
-	}
-	.segments button.on {
-		background: #ece8df;
-		color: #141413;
 	}
 	/* The state as a badge, tinted in its colour. */
 	.status-label {
@@ -714,24 +691,6 @@
 	.hidden-note {
 		margin: 12px 0 0;
 		font-size: 14px;
-	}
-	.fold-head {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		border: 0;
-		background: none;
-		padding: 0;
-		color: var(--faint);
-		font: inherit;
-		font-size: 11.5px;
-		letter-spacing: 0.09em;
-		text-transform: uppercase;
-		font-weight: 600;
-		cursor: pointer;
-	}
-	.fold-head:hover {
-		color: var(--text);
 	}
 	.count {
 		font-family: var(--mono);
