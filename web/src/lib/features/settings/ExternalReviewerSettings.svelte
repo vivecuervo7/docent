@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { readOk } from '../../api/client';
 	import { ask } from '$lib/ui/confirm.svelte';
+	import Field from '$lib/ui/Field.svelte';
 	import MenuSelect from '../../ui/MenuSelect.svelte';
-	import { Reorder } from '$lib/ui/reorder.svelte';
-	import Spinner from '../../ui/Spinner.svelte';
+	import SettingsList from './SettingsList.svelte';
+	import SettingsSection from './SettingsSection.svelte';
 
 	// External reviewers: your own tooling as a reviewer on the panel. Each
 	// runs its prompt in an unattended Claude Code or Codex session, reading
 	// the PR through Docent, and its findings come back like any reviewer's.
-	interface Persona {
+	interface Reviewer {
 		id: string;
 		name: string;
 		runner: 'claude-code' | 'codex';
@@ -16,7 +17,7 @@
 		model?: string;
 		tools?: string;
 	}
-	interface Draft {
+	interface Draft extends Record<string, unknown> {
 		name: string;
 		runner: 'claude-code' | 'codex';
 		command: string;
@@ -24,45 +25,17 @@
 		tools: string;
 	}
 
-	let personas = $state<Persona[] | null>(null);
+	let reviewers = $state<Reviewer[] | null>(null);
 	let codexModels = $state<string[]>([]);
 	let always = $state<string[]>([]);
-	let editing = $state<string | null>(null);
-	let draft = $state<Draft>(blank());
-	let saving = $state(false);
-	let formError = $state<string | null>(null);
-
-	function blank(): Draft {
-		return { name: '', runner: 'claude-code', command: '', model: '', tools: '' };
-	}
 
 	async function load() {
-		const res = await readOk<{ items: Persona[]; alwaysAllowed: string[] }>(await fetch('/api/external-reviewers'));
-		personas = res.items;
+		const res = await readOk<{ items: Reviewer[]; alwaysAllowed: string[] }>(await fetch('/api/external-reviewers'));
+		reviewers = res.items;
 		always = res.alwaysAllowed;
 	}
-	// Dragged into a new order, saved as it lands.
-	const order = new Reorder(
-		() => (personas ?? []).map((p) => p.id),
-		async (ids) => {
-			const byId = new Map((personas ?? []).map((p) => [p.id, p]));
-			personas = ids.map((id) => byId.get(id)!);
-			try {
-				await readOk(
-					await fetch('/api/external-reviewers', {
-						method: 'PUT',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ order: ids })
-					})
-				);
-			} catch {
-				await load();
-			}
-		}
-	);
-
 	$effect(() => {
-		load().catch(() => (personas = []));
+		load().catch(() => (reviewers = []));
 		fetch('/api/providers')
 			.then((res) => readOk<{ codex?: { models: string[] } }>(res))
 			.then((r) => (codexModels = r.codex?.models ?? []))
@@ -70,238 +43,102 @@
 	});
 
 	// The models the chosen tool offers.
-	const modelOptions = $derived(
-		draft.runner === 'codex'
+	const modelOptions = (runner: Draft['runner']) =>
+		runner === 'codex'
 			? [{ value: '', label: 'Codex’s default' }, ...codexModels.map((m) => ({ value: m, label: m }))]
 			: [
 					{ value: '', label: 'Claude Code’s default' },
 					{ value: 'opus', label: 'opus' },
 					{ value: 'sonnet', label: 'sonnet' },
 					{ value: 'haiku', label: 'haiku' }
-				]
-	);
+				];
 
-	function edit(p: Persona | null) {
-		formError = null;
-		editing = p?.id ?? 'new';
-		draft = p ? { name: p.name, runner: p.runner, command: p.command, model: p.model ?? '', tools: p.tools ?? '' } : blank();
+	const send = (url: string, method: string, body: unknown) =>
+		fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(readOk);
+
+	// Dragged into a new order, saved as it lands.
+	async function reorder(ids: string[]) {
+		const byId = new Map((reviewers ?? []).map((p) => [p.id, p]));
+		reviewers = ids.map((id) => byId.get(id)!);
+		await send('/api/external-reviewers', 'PUT', { order: ids }).catch(load);
 	}
 
-	async function save() {
-		saving = true;
-		formError = null;
-		const isNew = editing === 'new';
-		try {
-			await readOk(
-				await fetch(isNew ? '/api/external-reviewers' : `/api/external-reviewers/${editing}`, {
-					method: isNew ? 'POST' : 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						name: draft.name,
-						runner: draft.runner,
-						command: draft.command,
-						model: draft.model || null,
-						tools: draft.runner === 'claude-code' ? draft.tools || null : null
-					})
-				})
-			);
-			editing = null;
-			await load();
-		} catch (err) {
-			formError = (err as Error).message;
-		} finally {
-			saving = false;
-		}
+	const blank = (p: Reviewer | null): Draft =>
+		p
+			? { name: p.name, runner: p.runner, command: p.command, model: p.model ?? '', tools: p.tools ?? '' }
+			: { name: '', runner: 'claude-code', command: '', model: '', tools: '' };
+
+	async function save(draft: Draft, p: Reviewer | null) {
+		await send(p ? `/api/external-reviewers/${p.id}` : '/api/external-reviewers', p ? 'PUT' : 'POST', {
+			name: draft.name,
+			runner: draft.runner,
+			command: draft.command,
+			model: draft.model || null,
+			tools: draft.runner === 'claude-code' ? draft.tools || null : null
+		});
+		await load();
 	}
 
-	async function remove(p: Persona) {
+	async function remove(p: Reviewer) {
 		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Reviewers set to it will need something else to run them.', action: 'Remove' }))) return;
 		await fetch(`/api/external-reviewers/${p.id}`, { method: 'DELETE' });
 		await load();
 	}
 </script>
 
-{#snippet form(p: Persona | null)}
-	<form
-		class="form"
-		onsubmit={(e) => {
-			e.preventDefault();
-			save();
-		}}
-	>
-		<label>
-			<span>Name</span>
-			<input bind:value={draft.name} placeholder="thorough-reviewer" required maxlength="60" />
-		</label>
-		<div class="field">
-			<span>Runs in</span>
-			<MenuSelect
-				bind:value={draft.runner}
-				label="Runs in"
-				options={[
-					{ value: 'claude-code', label: 'Claude Code' },
-					{ value: 'codex', label: 'Codex' }
-				]}
-			/>
-		</div>
-		<label>
-			<span>Prompt</span>
-			<textarea bind:value={draft.command} rows="1" placeholder="Review {'{pr_url}'} for correctness and security issues" required></textarea>
-			<small class="faint">
-				A prompt or a skill, as you’d type it in Claude Code. <code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>,
-				<code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in. It runs unattended, so include anything it needs to
-				skip questions or posting. Built-in commands like <code>/review</code> can’t hand their findings back.
-			</small>
-		</label>
-		<div class="field">
-			<span>Model</span>
-			{#key draft.runner}<MenuSelect bind:value={draft.model} label="Model" options={modelOptions} />{/key}
-		</div>
-		{#if draft.runner === 'claude-code'}
-		<label>
-			<span>Also allow</span>
-			<input class="mono" bind:value={draft.tools} placeholder="e.g. Bash(gh pr view:*) Bash(gh pr diff:*)" />
-			<small class="faint">
-				Tools beyond these, which it always has: {always.join(', ')}. Anything else is refused, since nobody is there to
-				approve it.
-			</small>
-		</label>
-		{:else}
-			<p class="faint note">On Codex it reads the PR through Docent’s tools only, with its shell and the rest switched off.</p>
-		{/if}
-		{#if formError}<p class="bad">{formError}</p>{/if}
-		<div class="actions">
-			<button type="button" class="btn" onclick={() => (editing = null)}>Cancel</button>
-			<button type="submit" class="btn primary" disabled={saving}>{#if saving}<Spinner size={13} />{/if} Save</button>
-		</div>
-	</form>
-{/snippet}
-
-<section>
-	<h2>External reviewers</h2>
-	<p class="faint intro">
-		Your own review tooling as a reviewer on the panel: a prompt or skill run in an unattended Claude Code or Codex
-		session, which reads the PR through Docent and hands its findings back.
-	</p>
-	{#if personas}
-		<ul>
-			{#each personas as p (p.id)}
-				<li
-					class:movable={editing !== p.id}
-					class:dragging={order.dragging === p.id}
-					class:over={order.over === p.id && order.dragging !== p.id}
-					draggable={order.armed === p.id}
-					ondragstart={(e) => order.start(e, p.id)}
-					ondragover={(e) => order.hover(e, p.id)}
-					ondrop={(e) => order.drop(e, p.id)}
-					ondragend={() => order.end()}
-				>
-					{#if editing === p.id}
-						{@render form(p)}
-					{:else}
-						<button
-							class="grip"
-							aria-label="Move {p.name} (Alt+↑ or ↓)"
-							onpointerdown={() => order.arm(p.id)}
-							onkeydown={(e) => order.key(e, p.id)}
-						><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><circle cx="3.5" cy="3" r="1.4" /><circle cx="8.5" cy="3" r="1.4" /><circle cx="3.5" cy="8" r="1.4" /><circle cx="8.5" cy="8" r="1.4" /><circle cx="3.5" cy="13" r="1.4" /><circle cx="8.5" cy="13" r="1.4" /></svg></button>
-						<div class="row">
-							<div class="text">
-								<span class="name">{p.name}</span>
-								<p class="command">{p.command}</p>
-								<p class="faint meta">
-									{p.runner === 'codex' ? 'Codex' : 'Claude Code'} · {p.model ?? 'default model'}{p.tools ? ` · also allows ${p.tools}` : ''}
-								</p>
-							</div>
-							<div class="controls">
-								<button class="link" onclick={() => edit(p)}>Edit</button>
-								<button class="link" onclick={() => remove(p)}>Remove</button>
-							</div>
-						</div>
-					{/if}
-				</li>
-			{/each}
-			{#if editing === 'new'}
-				<li>{@render form(null)}</li>
-			{/if}
-		</ul>
-		{#if editing !== 'new'}
-			<button class="add" onclick={() => edit(null)}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-				Add an external reviewer
-			</button>
-		{/if}
+<SettingsSection
+	title="External reviewers"
+	intro="Your own review tooling as a reviewer on the panel: a prompt or skill run in an unattended Claude Code or Codex session, which reads the PR through Docent and hands its findings back."
+>
+	{#if reviewers}
+		<SettingsList items={reviewers} addLabel="Add an external reviewer" {blank} {save} {remove} {reorder}>
+			{#snippet row(p)}
+				<span class="name">{p.name}</span>
+				<p class="command">{p.command}</p>
+				<p class="meta">
+					{p.runner === 'codex' ? 'Codex' : 'Claude Code'} · {p.model ?? 'default model'}{p.tools ? ` · also allows ${p.tools}` : ''}
+				</p>
+			{/snippet}
+			{#snippet fields(draft)}
+				<Field label="Name"><input bind:value={draft.name} placeholder="thorough-reviewer" required maxlength="60" /></Field>
+				<Field label="Runs in" element="div">
+					<MenuSelect
+						bind:value={draft.runner}
+						label="Runs in"
+						options={[
+							{ value: 'claude-code', label: 'Claude Code' },
+							{ value: 'codex', label: 'Codex' }
+						]}
+					/>
+				</Field>
+				<Field label="Prompt">
+					<textarea bind:value={draft.command} rows="1" placeholder="Review {'{pr_url}'} for correctness and security issues" required
+					></textarea>
+					{#snippet hint()}
+						A prompt or a skill, as you’d type it in Claude Code. <code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>,
+						<code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in. It runs unattended, so include anything it needs to
+						skip questions or posting. Built-in commands like <code>/review</code> can’t hand their findings back.
+					{/snippet}
+				</Field>
+				<Field label="Model" element="div">
+					{#key draft.runner}<MenuSelect bind:value={draft.model} label="Model" options={modelOptions(draft.runner)} />{/key}
+				</Field>
+				{#if draft.runner === 'claude-code'}
+					<Field
+						label="Also allow"
+						hint="Tools beyond these, which it always has: {always.join(', ')}. Anything else is refused, since nobody is there to approve it."
+					>
+						<input class="mono" bind:value={draft.tools} placeholder="e.g. Bash(gh pr view:*) Bash(gh pr diff:*)" />
+					</Field>
+				{:else}
+					<p class="note">On Codex it reads the PR through Docent’s tools only, with its shell and the rest switched off.</p>
+				{/if}
+			{/snippet}
+		</SettingsList>
 	{/if}
-</section>
+</SettingsSection>
 
 <style>
-	section {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-	h2 {
-		margin: 8px 0 0;
-		font-family: var(--serif);
-		font-size: 22px;
-		font-weight: 500;
-	}
-	.intro {
-		margin: 0;
-		font-size: 14px;
-		line-height: 1.6;
-	}
-	ul {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-	li {
-		padding: 16px 0;
-		border-top: 1px solid var(--line);
-	}
-	li.movable {
-		position: relative;
-	}
-	li.dragging {
-		opacity: 0.4;
-	}
-	li.over {
-		box-shadow: inset 0 2px 0 var(--agent);
-	}
-	.grip {
-		position: absolute;
-		top: 18px;
-		left: -26px;
-		display: flex;
-		padding: 2px 4px;
-		border: 0;
-		border-radius: 4px;
-		background: none;
-		color: var(--faint);
-		fill: currentColor;
-		cursor: grab;
-		opacity: 0;
-	}
-	li.movable:hover .grip,
-	.grip:focus-visible {
-		opacity: 1;
-	}
-	.grip:hover {
-		color: var(--text);
-	}
-	.row {
-		display: flex;
-		align-items: flex-start;
-		gap: 14px;
-	}
-	.text {
-		flex-grow: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
 	.name {
 		font-weight: 500;
 		color: var(--agent-text);
@@ -317,107 +154,10 @@
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
-	.meta {
-		margin: 0;
-		font-size: 13px;
-	}
-	.controls {
-		flex-shrink: 0;
-		display: flex;
-		gap: 14px;
-	}
-	.link {
-		border: 0;
-		background: none;
-		padding: 0;
-		color: var(--faint);
-		font: inherit;
-		font-size: 13px;
-		cursor: pointer;
-	}
-	.link:hover {
-		color: var(--text);
-	}
-	.add {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		align-self: flex-start;
-		padding: 12px 0 0;
-		border: 0;
-		border-top: 1px solid var(--line);
-		width: 100%;
-		background: none;
-		color: var(--faint);
-		font: inherit;
-		font-size: 13.5px;
-		cursor: pointer;
-	}
-	.add:hover {
-		color: var(--text);
-	}
-	.form {
-		display: flex;
-		flex-direction: column;
-		gap: 14px;
-	}
-	.form > label,
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		font-size: 13px;
-		color: var(--muted);
-	}
-	.form input,
-	.form textarea {
-		height: 36px;
-		padding: 0 12px;
-		border: 0;
-		border-radius: 9px;
-		background: var(--bg);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		color: var(--text);
-		font: inherit;
-		font-size: 14px;
-		outline: none;
-	}
-	.form input.mono {
-		font-family: var(--mono);
-		font-size: 13px;
-	}
-	.form textarea {
-		height: auto;
-		min-height: 36px;
-		box-sizing: border-box;
-		padding: 7px 12px;
-		resize: vertical;
-		field-sizing: content;
-		line-height: 1.5;
-	}
-	.form input:focus,
-	.form textarea:focus {
-		box-shadow: inset 0 0 0 1px var(--you);
-	}
-	.field {
-		align-items: flex-start;
-	}
-	small {
-		font-size: 12.5px;
-		line-height: 1.5;
-	}
-	.actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-	}
+	.meta,
 	.note {
 		margin: 0;
+		color: var(--faint);
 		font-size: 13px;
-	}
-	.bad {
-		margin: 0;
-		color: var(--danger);
-		font-size: 14px;
 	}
 </style>
