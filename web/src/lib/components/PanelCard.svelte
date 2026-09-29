@@ -242,7 +242,11 @@
 							<span class="status faint">
 								{r.picks.personas.length
 									? `Picked ${r.picks.personas.map((p) => panel.personaName(p)).join(', ')}`
-									: 'Picked none: nothing here warrants a specialist'}{isTicked(r) ? ' · picks again, replacing them' : ''}
+									: r.picks.general
+										? 'Picked general: nothing here warrants a specialist'
+										: panel.hasGeneral
+											? 'Picked none: the general reviewer already on the panel covers it'
+											: 'Picked none: nothing here warrants a specialist'}{isTicked(r) ? ' · picks again, replacing them' : ''}
 							</span>
 						{/if}
 					{:else if running && review.source === 'builtin'}

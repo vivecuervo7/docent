@@ -63,7 +63,7 @@
 	// "auto" is a step, not a reviewer: it shows while it picks, or when it
 	// picked none; otherwise its picks stand for it.
 	const shown = $derived(
-		panel.reviewers.filter((r) => !isAuto(r) || panel.picking[r.id] || panel.errors[r.id] || (r.picks && !r.picks.personas.length))
+		panel.reviewers.filter((r) => !isAuto(r) || panel.picking[r.id] || panel.errors[r.id] || (r.picks && !r.picks.personas.length && !r.picks.general))
 	);
 
 	// Where a reviewer is, in a line.
@@ -72,7 +72,12 @@
 		if (isAuto(r)) {
 			return panel.picking[r.id]
 				? { text: 'Picking the personas this PR warrants', working: true }
-				: { text: 'Picked none: nothing here warrants a specialist', working: false };
+				: {
+						text: panel.hasGeneral
+							? 'Picked none: the general reviewer already on the panel covers it'
+							: 'Picked none: nothing here warrants a specialist',
+						working: false
+					};
 		}
 		const live = panel.reviews[r.id];
 		const run = live

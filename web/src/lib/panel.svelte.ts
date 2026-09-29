@@ -53,6 +53,12 @@ function setupOfValue(runs: string | undefined, persona: string | undefined, def
 	return { mode: 'builtin', model: runs ?? defaultModel, ...(persona ? { persona } : {}) };
 }
 
+// Whether Docent's own reviewer runs it, rather than an external one.
+function isDocents(a: AgentReviewer): boolean {
+	const runs = a.planned ?? a.ranWith;
+	return runs !== 'external' && !sessionId(runs);
+}
+
 export function setupFrom(reviewer: AgentReviewer, defaultModel: string): ReviewerSetup {
 	return setupOfValue(reviewer.planned ?? reviewer.ranWith, reviewer.persona, defaultModel);
 }
@@ -257,17 +263,15 @@ export class Panel {
 
 	// This PR's panel, as what every new PR starts with.
 	// "auto" picks personas the PR warrants, leaving out any already on the
-	// panel by choice, and runs them in place of its last picks.
+	// panel by choice, and runs them in place of its last picks. Picking none
+	// still reviews the PR: the general reviewer goes in their place, unless
+	// one is on the panel by choice already.
 	async #startAuto(id: AgentId, model: string) {
 		const session = this.#session;
 		this.errors[id] = undefined;
 		this.picking[id] = true;
 		try {
-			const chosen = this.reviewers.flatMap((a) => {
-				const runs = a.planned ?? a.ranWith;
-				const docents = runs !== 'external' && !sessionId(runs);
-				return !a.pickedBy && docents && a.persona && !isAuto(a) ? [a.persona] : [];
-			});
+			const chosen = this.reviewers.flatMap((a) => (!a.pickedBy && isDocents(a) && a.persona && !isAuto(a) ? [a.persona] : []));
 			const { owner, repo, number } = session.ref;
 			const res = await fetch(`/api/pr/${owner}/${repo}/${number}/panel/pick`, {
 				method: 'POST',
@@ -275,6 +279,7 @@ export class Panel {
 				body: JSON.stringify({ exclude: chosen, model })
 			});
 			const { picks } = await api.readOk<{ picks: { persona: string; reason: string }[] }>(res);
+			const general = !picks.length && !this.hasGeneral;
 			const previous = this.reviewers.filter((a) => a.pickedBy === id).map((a) => a.id);
 			for (const old of previous) {
 				this.#removed.add(old);
@@ -285,18 +290,21 @@ export class Panel {
 			await session.update((r) => {
 				for (const old of previous) delete r.feedback[old];
 				const highest = Math.max(0, r.agentHighest ?? 0, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length))));
-				const fresh = picks.map((p, i): AgentReviewer => {
+				const wanted: { persona?: string; reason: string }[] = general
+					? [{ reason: 'Nothing here warrants a specialist, so the general reviewer.' }]
+					: picks;
+				const fresh = wanted.map((p, i): AgentReviewer => {
 					const pid: AgentId = `agent-${highest + i + 1}`;
 					added.push(pid);
-					return { id: pid, planned: model, persona: p.persona, pickedBy: id, pickReason: p.reason };
+					return { id: pid, planned: model, ...(p.persona ? { persona: p.persona } : {}), pickedBy: id, pickReason: p.reason };
 				});
-				r.agentHighest = highest + picks.length;
+				r.agentHighest = highest + fresh.length;
 				// Its picks sit just after it.
 				const kept = r.agentReviewers.filter((a) => a.pickedBy !== id);
 				const at = kept.findIndex((a) => a.id === id);
 				kept.splice(at + 1, 0, ...fresh);
 				r.agentReviewers = kept.map((a) =>
-					a.id === id ? { ...a, ranWith: model, planned: undefined, picks: { at: Date.now(), personas: picks.map((p) => p.persona) } } : a
+					a.id === id ? { ...a, ranWith: model, planned: undefined, picks: { at: Date.now(), personas: picks.map((p) => p.persona), ...(general ? { general } : {}) } } : a
 				);
 				r.panelSettled = true;
 				nameAll(r);
@@ -312,6 +320,11 @@ export class Panel {
 		} finally {
 			this.picking[id] = false;
 		}
+	}
+
+	// A general reviewer - Docent's, without a persona - on the panel by choice.
+	get hasGeneral() {
+		return this.reviewers.some((a) => !a.pickedBy && isDocents(a) && !a.persona && !isAuto(a));
 	}
 
 	// The panel as chosen, without what "auto" added.
