@@ -3,7 +3,7 @@
 	import * as api from '$lib/api/client';
 	import { ask } from '$lib/confirm.svelte';
 	import InlineText from '$lib/components/InlineText.svelte';
-	import ModelPicker from '$lib/components/ModelPicker.svelte';
+	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { parsePrUrl, timeAgo } from '$lib/format';
 	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
