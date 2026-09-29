@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { removeProvider, updateProvider } from '$lib/storage/settings.server.js';
 import { providerFields, publicProvider } from '$lib/server/fields.js';
-import { bodyOf, noContent, notFound } from '$lib/server/http.js';
+import { bodyOf, noContent, notFound } from '$lib/api/http.server.js';
 
 export const PUT: RequestHandler = async ({ params: { id }, request }) => {
 	const checked = providerFields(await bodyOf(request), true);

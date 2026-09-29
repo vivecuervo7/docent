@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { mcpUrl } from '$lib/server/http.js';
+import { mcpUrl } from '$lib/api/http.server.js';
 import { checkSetup } from '$lib/server/setup.js';
 
 // What's set up on this machine, for the Getting started page.

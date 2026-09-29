@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { fetchFileContentAtRef, fetchPrBaseSha } from '$lib/github/github.server.js';
-import { badRequest, failed, validParams } from '$lib/server/http.js';
+import { badRequest, failed, validParams } from '$lib/api/http.server.js';
 
 export const GET: RequestHandler = async ({ params: { owner, repo, number }, url }) => {
 	const path = url.searchParams.get('path');

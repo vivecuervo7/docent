@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { fetchPrStatuses } from '$lib/github/github.server.js';
-import { badRequest, bodyOf, failed, validParams } from '$lib/server/http.js';
+import { badRequest, bodyOf, failed, validParams } from '$lib/api/http.server.js';
 
 // Where saved PRs stand on GitHub now, for the start page.
 export const POST: RequestHandler = async ({ request }) => {

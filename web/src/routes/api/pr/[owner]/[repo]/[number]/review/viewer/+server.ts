@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { fetchPrConversation } from '$lib/github/github.server.js';
-import { badRequest, failed, validParams } from '$lib/server/http.js';
+import { badRequest, failed, validParams } from '$lib/api/http.server.js';
 import { fetchViewer } from '$lib/features/posting/postReview.server.js';
 
 // Who's reviewing: GitHub won't let you approve or request changes on your

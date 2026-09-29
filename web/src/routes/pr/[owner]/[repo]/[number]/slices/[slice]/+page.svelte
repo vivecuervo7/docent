@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { reviewerName, type LooseMark, type Mark } from '$lib/api';
+	import { reviewerName, type LooseMark, type Mark } from '$lib/api/client';
 	import Dialog from '$lib/components/Dialog.svelte';
 	import FileDiffs from '$lib/components/FileDiffs.svelte';
 	import FindingCard from '$lib/components/FindingCard.svelte';

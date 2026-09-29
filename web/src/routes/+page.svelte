@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import * as api from '$lib/api';
+	import * as api from '$lib/api/client';
 	import { ask } from '$lib/confirm.svelte';
 	import InlineText from '$lib/components/InlineText.svelte';
 	import ModelPicker from '$lib/components/ModelPicker.svelte';

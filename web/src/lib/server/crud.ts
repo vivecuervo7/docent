@@ -1,7 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import type { externalReviewers, personas } from '../storage/settings.server.js';
 import type { personaFields } from './fields.js';
-import { badRequest, bodyOf, noContent, notFound } from './http.js';
+import { badRequest, bodyOf, noContent, notFound } from '../api/http.server.js';
 
 // The routes for a list kept in settings - personas, external reviewers -
 // to list, add and reorder them, and to change or remove one.

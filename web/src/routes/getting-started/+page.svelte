@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk } from '$lib/api';
+	import { readOk } from '$lib/api/client';
 	import type { ModelOption } from '$lib/types';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';

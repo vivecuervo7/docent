@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { editFindings } from '$lib/server/grouping.js';
-import { badRequest, bodyOf, heldOpen, mcpUrl, validParams } from '$lib/server/http.js';
+import { badRequest, bodyOf, heldOpen, mcpUrl, validParams } from '$lib/api/http.server.js';
 
 // The panel's editor, over new findings: which repeat a point already made,
 // and, unless the reviewer sifted their own, which to filter out.

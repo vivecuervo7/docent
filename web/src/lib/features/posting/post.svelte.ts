@@ -1,5 +1,5 @@
-import * as api from '../../api';
-import { groupsOf, isShown } from '../../api';
+import * as api from '../../api/client';
+import { groupsOf, isShown } from '../../api/client';
 import type { Hunk } from '../../diff/parse';
 import type { PrSession } from '../../session.svelte';
 import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from '../../types';

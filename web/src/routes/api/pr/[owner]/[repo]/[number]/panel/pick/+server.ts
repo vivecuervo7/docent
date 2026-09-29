@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, failed, reviewModel, validParams } from '$lib/server/http.js';
+import { badRequest, bodyOf, failed, reviewModel, validParams } from '$lib/api/http.server.js';
 import { pickPersonas } from '$lib/server/pickPersonas.js';
 
 // "Auto" on the panel: the personas this PR warrants, less those already on it.

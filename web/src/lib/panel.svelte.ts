@@ -1,4 +1,4 @@
-import * as api from './api';
+import * as api from './api/client';
 import { reviewerName } from './names';
 import { known, reviewerLabel, sessionId } from './reviewers.svelte';
 import type { PrSession } from './session.svelte';

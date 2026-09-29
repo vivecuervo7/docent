@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { dismissGeneration, getGeneration, startGeneration, type Reuse } from '$lib/server/generation.js';
-import { badRequest, bodyOf, noContent, reviewModel, validParams } from '$lib/server/http.js';
+import { badRequest, bodyOf, noContent, reviewModel, validParams } from '$lib/api/http.server.js';
 import type { ConversationSummary, Slice } from '$lib/server/types.js';
 
 const invalid = () => badRequest('invalid owner, repo, or PR number');

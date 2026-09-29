@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { badRequest, failed, validParams } from '$lib/server/http.js';
+import { badRequest, failed, validParams } from '$lib/api/http.server.js';
 import { findPendingReview } from '$lib/features/posting/postReview.server.js';
 
 export const GET: RequestHandler = async ({ params: { owner, repo, number } }) => {

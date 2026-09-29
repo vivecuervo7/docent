@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { fetchAttachment } from '$lib/github/github.server.js';
-import { badRequest, failed } from '$lib/server/http.js';
+import { badRequest, failed } from '$lib/api/http.server.js';
 
 export const GET: RequestHandler = async ({ url }) => {
 	const target = url.searchParams.get('url');

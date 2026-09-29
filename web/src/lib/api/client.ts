@@ -1,6 +1,6 @@
-import type { AgentReview, FeedbackItem, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from './types';
-import { isNewFinding, isUnread } from './types';
-import { reviewerLabel } from './reviewers.svelte';
+import type { AgentReview, FeedbackItem, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from '../types';
+import { isNewFinding, isUnread } from '../types';
+import { reviewerLabel } from '../reviewers.svelte';
 
 // Calls to Docent's backend, the API routes under routes/api.
 
@@ -102,7 +102,7 @@ export interface Mark {
 	checked?: string;
 	checkedVerdict?: string;
 	skipSuggested?: string;
-	severity?: import('./types').Severity;
+	severity?: import('../types').Severity;
 	// What the reviewers it's grouped with disagree with it about.
 	disputed?: string[];
 }

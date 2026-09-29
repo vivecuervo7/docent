@@ -1,7 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
-import * as api from './api';
-import { looseMarksFrom, marksFrom, type LooseMark, type Mark } from './api';
+import * as api from './api/client';
+import { looseMarksFrom, marksFrom, type LooseMark, type Mark } from './api/client';
 import { nearestHunk, parseFilePatch, type Hunk } from './diff/parse';
 import { Panel, sessionId } from './panel.svelte';
 import { ReviewPost } from './features/posting/post.svelte';

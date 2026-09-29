@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk } from '$lib/api';
+	import { readOk } from '$lib/api/client';
 	import { ask } from '$lib/confirm.svelte';
 	import EditorModel from '$lib/components/EditorModel.svelte';
 	import ExternalReviewerSettings from '$lib/components/ExternalReviewerSettings.svelte';

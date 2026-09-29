@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { defaultPanel, setDefaultPanel } from '$lib/storage/settings.server.js';
-import { badRequest, bodyOf } from '$lib/server/http.js';
+import { badRequest, bodyOf } from '$lib/api/http.server.js';
 
 // The review panel a new PR starts with, the same for every repo.
 export const GET: RequestHandler = () => json({ panel: defaultPanel() });

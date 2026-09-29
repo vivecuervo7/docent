@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk } from '$lib/api';
+	import { readOk } from '$lib/api/client';
 	import { ask } from '$lib/confirm.svelte';
 	import MenuSelect from './MenuSelect.svelte';
 	import { Reorder } from '$lib/reorder.svelte';

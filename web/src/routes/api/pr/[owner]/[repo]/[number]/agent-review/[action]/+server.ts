@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { finishAgentReview, stopAgentReview } from '$lib/server/agentReview.js';
-import { badRequest, reviewerParam, validParams } from '$lib/server/http.js';
+import { badRequest, reviewerParam, validParams } from '$lib/api/http.server.js';
 
 export const POST: RequestHandler = ({ params: { owner, repo, number, action }, url }) => {
 	const reviewer = reviewerParam(url);

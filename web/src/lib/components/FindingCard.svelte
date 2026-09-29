@@ -1,6 +1,6 @@
 <script lang="ts">
 	import FilePath from './FilePath.svelte';
-	import type { LooseMark, Mark } from '$lib/api';
+	import type { LooseMark, Mark } from '$lib/api/client';
 	import { useSession } from '$lib/session.svelte';
 	import InlineText from './InlineText.svelte';
 	import NoteText from './NoteText.svelte';

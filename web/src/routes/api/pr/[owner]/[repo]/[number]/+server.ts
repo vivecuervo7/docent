@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { fetchPrFiles, fetchPrMeta } from '$lib/github/github.server.js';
-import { badRequest, failed, validParams } from '$lib/server/http.js';
+import { badRequest, failed, validParams } from '$lib/api/http.server.js';
 
 export const GET: RequestHandler = async ({ params: { owner, repo, number } }) => {
 	if (!validParams(owner, repo, number)) return badRequest('invalid owner, repo, or PR number');

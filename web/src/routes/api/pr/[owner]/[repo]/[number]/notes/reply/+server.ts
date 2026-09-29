@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { badRequest, bodyOf, heldOpen, mcpUrl, validParams } from '$lib/server/http.js';
+import { badRequest, bodyOf, heldOpen, mcpUrl, validParams } from '$lib/api/http.server.js';
 import { replyToNote, type NoteContext, type NoteMessage } from '$lib/server/notes.js';
 
 // Answers a question (or writes up a remark) about lines the reviewer

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { listModels, selectModel } from '$lib/api';
+	import { listModels, selectModel } from '$lib/api/client';
 	import { modelLabel } from '$lib/panel.svelte';
 	import type { ModelOption } from '$lib/types';
 
