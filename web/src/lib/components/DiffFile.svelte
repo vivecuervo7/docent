@@ -70,6 +70,7 @@
 	// for a line outside the diff; only those in hunks shown here count here.
 	const homeOf = (m: Mark) => (m.note ? allHunks[m.note.hunk] : nearestHunk(allHunks, m.start));
 	const findingMarks = $derived(marks.filter((m) => m.kind === 'finding' && shownIndices.has(homeOf(m)?.index ?? -1)));
+	const threadMarks = $derived(marks.filter((m) => m.kind === 'note' && shownIndices.has(homeOf(m)?.index ?? -1)));
 
 	// Unchanged lines shown around each hunk. They come from the file as it
 	// was, fetched the first time any are asked for.
@@ -286,17 +287,24 @@
 		}
 		return { added, removed };
 	});
-	// A closed file's one marker for its findings, while any await
-	// confirming: solid when one would go in - an unconfirmed Keep, or a
-	// suggested skip beside anything kept - outlined when all that's left is
-	// suggested skips. Opening it goes to the first unconfirmed one.
+	// A closed file's one marker, while any finding awaits confirming or
+	// anything is new to read: a finding, an answer about one, or a reply in a
+	// thread. With findings to confirm it's solid when one would go in - an
+	// unconfirmed Keep, or a suggested skip beside anything kept - outlined
+	// when all that's left is suggested skips, and opens the first of them.
+	// Otherwise it's the first thing new to read, and opens that.
 	const summary = $derived.by(() => {
 		const all = [...findingMarks, ...wholeFile];
 		const unconfirmed = all.filter((m) => !m.decided);
-		if (!unconfirmed.length) return null;
+		const unread = [...all.filter((m) => m.unread), ...threadMarks.filter((m) => m.note && isUnread(m.note))];
 		const kept = (m: { included?: boolean }) => m.included !== false;
-		const solid = unconfirmed.some(kept) || all.some(kept);
-		return { first: unconfirmed[0], solid, unread: all.some((m) => m.unread), count: unconfirmed.length };
+		if (unconfirmed.length) {
+			const solid = unconfirmed.some(kept) || all.some(kept);
+			return { kind: 'finding', first: unconfirmed[0], solid, unread: unread.length > 0, count: unconfirmed.length };
+		}
+		if (!unread.length) return null;
+		const first = unread[0];
+		return { kind: first.kind, first, solid: kept(first), unread: true, count: 0 };
 	});
 	const elsewhere = $derived.by(() => {
 		if (!hunkIndices) return [];
@@ -625,19 +633,28 @@
 			>
 		{/if}
 		{#if collapsed ? summary : wholeFile.length}
-			<!-- A closed file shows one marker for its findings while any await
-			     confirming; an open one shows those about the whole file, which
-			     have no lines to sit on. -->
+			<!-- A closed file shows one marker while findings await confirming or
+			     anything is new to read; an open one shows the findings about the
+			     whole file, which have no lines to sit on. -->
 			<span class="gutter header-pins">
 				{#if collapsed && summary}
+					{@const label = summary.count
+						? `${summary.count} ${summary.count === 1 ? 'finding' : 'findings'} to confirm`
+						: summary.kind === 'finding'
+							? 'New to read on a finding'
+							: 'New reply in a thread'}
 					<button
-						class="pin finding"
+						class="pin {summary.kind}"
 						class:skipped={!summary.solid}
-						aria-label="{summary.count} {summary.count === 1 ? 'finding' : 'findings'} to confirm - open the first"
-						title="{summary.count} {summary.count === 1 ? 'finding' : 'findings'} to confirm"
+						aria-label="{label} - open {summary.count ? 'the first' : 'it'}"
+						title={label}
 						onclick={() => (session.revealing = summary.first.id)}
 					>
-						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
+						{#if summary.kind === 'finding'}
+							<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
+						{:else}
+							<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+						{/if}
 						{#if summary.unread}<span class="unread" aria-label="New to read"></span>{/if}
 					</button>
 				{:else if !collapsed}
