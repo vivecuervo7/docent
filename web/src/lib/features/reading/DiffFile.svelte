@@ -1,5 +1,4 @@
 <script lang="ts">
-	import FilePath from '../../ui/FilePath.svelte';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Mark } from './marks';
@@ -21,6 +20,12 @@
 		type Row
 	} from '$lib/features/reading/diff/parse';
 	import InlineText from '../../ui/InlineText.svelte';
+	import Composer from './Composer.svelte';
+	import FileHeader from './FileHeader.svelte';
+	import FoldRow from './FoldRow.svelte';
+	import HiddenMarks from './HiddenMarks.svelte';
+	import Pin from './Pin.svelte';
+	import { quietPieces } from './quietFolds';
 	import { useSession } from '$lib/session/session.svelte';
 	import { isUnread } from '$lib/types';
 	import type { ReferenceElement } from '@floating-ui/dom';
@@ -29,8 +34,6 @@
 	import { testTitleLines } from '$lib/features/reading/testTitles';
 	import ThreadPanel from './ThreadPanel.svelte';
 	import NoteText from '../../ui/NoteText.svelte';
-	import StateMark from '../../ui/StateMark.svelte';
-	import { MOD } from '$lib/ui/keys';
 
 	let {
 		file,
@@ -163,13 +166,7 @@
 		return () => (live = false);
 	});
 
-	// Quiet, not hidden: code only worth skimming folds, and its row says
-	// what's inside.
-	// - Test files read as their scenarios: the code between the lines that
-	//   name a test folds, but only when it's wholly new or unchanged - an
-	//   edit or a deletion is what needs reading, so it stays open.
-	// - Imports and test setup fold whatever changed, with +/- on the row.
-	type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; rows: Row[]; label?: string };
+	// Quiet code folds; see quietFolds.ts.
 	const openFolds = new SvelteSet<string>();
 	// Read from the code where a framework's tests can be recognised; the
 	// file note's lines otherwise, since a model's line counts can drift.
@@ -179,41 +176,8 @@
 		return found.size ? found : new Set(note.scenarioLines ?? []);
 	});
 	const quietRanges = $derived(foldTests ? (note?.quietRanges ?? []) : []);
-	const MIN_FOLD = 3;
 
-	function pieces(hunk: Hunk): Piece[] {
-		const { rows } = hunk;
-		const onNew = (r: Row, from: number, to: number) => r.kind !== 'del' && r.new !== undefined && r.new >= from && r.new <= to;
-		const ranges: { from: number; to: number; label?: string }[] = [];
-		for (const q of quietRanges) {
-			const from = rows.findIndex((r) => onNew(r, q.startLine, q.endLine));
-			const to = rows.findLastIndex((r) => onNew(r, q.startLine, q.endLine));
-			const body = rows.slice(from, to + 1);
-			// Setup, like test bodies, only folds when nothing in it was edited.
-			const uniform = body.every((r) => r.kind === 'add') || body.every((r) => r.kind === 'context');
-			if (from >= 0 && to - from + 1 >= MIN_FOLD && (q.kind === 'imports' || uniform)) ranges.push({ from, to, label: q.kind });
-		}
-		const titles = rows.flatMap((r, i) => (r.kind !== 'del' && r.new !== undefined && scenarioLines.has(r.new) ? [i] : []));
-		titles.forEach((t, n) => {
-			const end = n + 1 < titles.length ? titles[n + 1] : rows.length;
-			const body = rows.slice(t + 1, end);
-			const uniform = body.every((r) => r.kind === 'add') || body.every((r) => r.kind === 'context');
-			if (body.length >= MIN_FOLD && uniform) ranges.push({ from: t + 1, to: end - 1 });
-		});
-		ranges.sort((a, b) => a.from - b.from);
-		const out: Piece[] = [];
-		let i = 0;
-		for (const range of ranges) {
-			if (range.from < i) continue;
-			for (; i < range.from; i++) out.push({ type: 'row', row: rows[i] });
-			out.push({ type: 'fold', id: `${hunk.index}:${range.from}`, rows: rows.slice(range.from, range.to + 1), label: range.label });
-			i = range.to + 1;
-		}
-		for (; i < rows.length; i++) out.push({ type: 'row', row: rows[i] });
-		return out;
-	}
-
-	const piecesOf = $derived(new Map(hunks.map((h) => [h.index, pieces(h)])));
+	const piecesOf = $derived(new Map(hunks.map((h) => [h.index, quietPieces(h, quietRanges, scenarioLines)])));
 	const visible = (h: Hunk) =>
 		(piecesOf.get(h.index) ?? []).flatMap((p) => (p.type === 'row' ? [p.row] : openFolds.has(p.id) ? p.rows : []));
 
@@ -300,7 +264,7 @@
 		const kept = (m: { included?: boolean }) => m.included !== false;
 		if (unconfirmed.length) {
 			const solid = unconfirmed.some(kept) || all.some(kept);
-			return { kind: 'finding', first: unconfirmed[0], solid, unread: unread.length > 0, count: unconfirmed.length };
+			return { kind: 'finding' as const, first: unconfirmed[0], solid, unread: unread.length > 0, count: unconfirmed.length };
 		}
 		if (!unread.length) return null;
 		const first = unread[0];
@@ -322,9 +286,8 @@
 	// A thread on the selected lines, kept with the hunk the selection starts
 	// in and the lines as they read now. It starts with a question for
 	// Docent, or with a comment to post as written.
-	function startThread({ comment = false } = {}) {
-		const text = draft.trim();
-		if (!text || !selection) return;
+	function startThread(text: string, { comment }: { comment: boolean }) {
+		if (!selection) return;
 		const rows = shown.slice(selFrom, selTo + 1);
 		const ref = (r: Row): LineRef => (r.kind === 'del' ? { side: 'old', line: r.old! } : { side: 'new', line: r.new! });
 		const id = session.createNote(
@@ -339,7 +302,6 @@
 			{ comment }
 		);
 		selection = null;
-		draft = '';
 		session.openMark = id;
 	}
 
@@ -421,12 +383,6 @@
 		return () => window.removeEventListener('pointerdown', close);
 	});
 
-	// The composer takes focus as it opens, so typing goes to it and never to
-	// the page's shortcuts. Autofocus alone loses to whatever held focus.
-	function focusNow(node: HTMLElement) {
-		requestAnimationFrame(() => node.focus());
-	}
-
 	function startSelect(e: PointerEvent, pos: number) {
 		if (e.button !== 0) return;
 		e.preventDefault();
@@ -492,24 +448,18 @@
 		>
 		<span class="gutter">
 			{#each pins ?? [] as p (p.mark.id)}
-				<button
-					class="pin {p.mark.kind}"
-					class:skipped={p.mark.kind === 'finding' && p.mark.included === false}
-					class:active={session.openMark === p.mark.id}
-					data-pin={p.mark.id}
-					aria-label="{p.mark.kind === 'finding' ? 'Finding' : 'Thread'} from {p.mark.who}"
+				<Pin
+					kind={p.mark.kind}
+					id={p.mark.id}
+					skipped={p.mark.kind === 'finding' && p.mark.included === false}
+					active={session.openMark === p.mark.id}
+					unread={p.mark.kind === 'finding' ? !!p.mark.unread : !!p.mark.note && isUnread(p.mark.note)}
+					unreadLabel={p.mark.kind === 'finding' ? 'New answer' : 'New reply'}
+					label="{p.mark.kind === 'finding' ? 'Finding' : 'Thread'} from {p.mark.who}"
 					onclick={() => (session.openMark = session.openMark === p.mark.id ? null : p.mark.id)}
 					onpointerenter={() => (hovered = p.mark.id)}
 					onpointerleave={() => (hovered = null)}
-				>
-					{#if p.mark.kind === 'finding'}
-						<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
-						{#if p.mark.unread}<span class="unread" aria-label="New answer"></span>{/if}
-					{:else}
-						<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
-						{#if p.mark.note && isUnread(p.mark.note)}<span class="unread" aria-label="New reply"></span>{/if}
-					{/if}
-				</button>
+				/>
 			{/each}
 		</span>
 		{#each pins ?? [] as p (p.mark.id)}
@@ -532,58 +482,19 @@
 						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
 					</button>
 				</div>
-				<textarea
+				<Composer
 					bind:value={draft}
-					rows="2"
-					use:focusNow
+					rows={2}
+					autofocus
+					actionsAlways
 					placeholder="Ask Docent, or write a comment to post as written…"
-					aria-label="Ask or comment"
-					onkeydown={(e) => {
-						if (e.key === 'Enter' && !e.shiftKey) {
-							e.preventDefault();
-							startThread({ comment: e.metaKey || e.ctrlKey });
-						} else if (e.key === 'Escape') selection = null;
-					}}
-				></textarea>
-				<div class="composer-foot">
-					<span class="faint">Enter to ask · {MOD}Enter to comment</span>
-					<span class="composer-actions">
-						<button class="btn" disabled={!draft.trim()} onclick={() => startThread({ comment: true })}>Comment</button>
-						<button class="btn primary" disabled={!draft.trim()} onclick={() => startThread()}>Ask</button>
-					</span>
-				</div>
+					onsend={startThread}
+					onescape={() => (selection = null)}
+				/>
 			</div>
 			</Floating>
 		{/if}
 	</div>
-{/snippet}
-
-{#snippet foldRow(id: string, rows: Row[], label?: string)}
-	{@const isOpen = openFolds.has(id)}
-	{@const hidden = isOpen ? [] : hiddenMarks(rows)}
-	{@const added = rows.filter((r) => r.kind === 'add').length}
-	{@const removed = rows.filter((r) => r.kind === 'del').length}
-	<button class="fold-row" aria-expanded={isOpen} title={`${isOpen ? 'Fold' : 'Show'} ${label ? `the ${label}` : 'this code'}`} onclick={() => (isOpen ? openFolds.delete(id) : openFolds.add(id))}>
-		<span class="fold-tab" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" style:transform={isOpen ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg></span>
-		<span class="fold-kind">…</span>
-		<!-- The counts say what's hidden, so they go once it's open. -->
-		{#if !isOpen}
-			{#if added || removed}
-				<span class="fold-changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
-			{:else}
-				<span class="fold-changes">{rows.length} unchanged lines</span>
-			{/if}
-		{/if}
-		{#if hidden.length}
-			<span class="fold-pins">
-				{#each hidden as m (m.id)}
-					<span class="fold-pin {m.kind}" class:skipped={m.kind === 'finding' && m.included === false} title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
-						{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
-					</span>
-				{/each}
-			</span>
-		{/if}
-	</button>
 {/snippet}
 
 {#snippet hunkBlock(hunk: Hunk)}
@@ -600,7 +511,14 @@
 		{#if piece.type === 'row'}
 			{@render row(piece.row)}
 		{:else}
-			{@render foldRow(piece.id, piece.rows, piece.label)}
+			{@const id = piece.id}
+			<FoldRow
+				rows={piece.rows}
+				label={piece.label}
+				open={openFolds.has(id)}
+				hidden={hiddenMarks(piece.rows)}
+				ontoggle={() => (openFolds.has(id) ? openFolds.delete(id) : openFolds.add(id))}
+			/>
 			{#if openFolds.has(piece.id)}{#each piece.rows as r (r.key)}{@render row(r)}{/each}{/if}
 		{/if}
 	{/each}
@@ -615,86 +533,18 @@
 {/snippet}
 
 <section class="file" data-path={file.filename} bind:this={sectionEl}>
-	<header>
-		<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
-			<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
-			<span class="path"><FilePath path={file.filename} /></span>
-			<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
-			<span class="stat"
-				><span class="plus">+{sliceCounts?.added ?? file.additions}</span>
-				<span class="minus">−{sliceCounts?.removed ?? file.deletions}</span></span
-			>
-		</button>
-		{#if elsewhere.length}
-			<span class="rest faint"
-				>rest in {elsewhere.length === 1 ? 'slice' : 'slices'}
-				{#each elsewhere as e, i (e.id)}{i ? ', ' : ''}<a href="/pr/{session.ref.owner}/{session.ref.repo}/{session.ref.number}/slices/{e.id}">{e.n}</a
-					>{/each}</span
-			>
-		{/if}
-		{#if collapsed ? summary : wholeFile.length}
-			<!-- A closed file shows one marker while findings await confirming or
-			     anything is new to read; an open one shows the findings about the
-			     whole file, which have no lines to sit on. -->
-			<span class="gutter header-pins">
-				{#if collapsed && summary}
-					{@const label = summary.count
-						? `${summary.count} ${summary.count === 1 ? 'finding' : 'findings'} to confirm`
-						: summary.kind === 'finding'
-							? 'New to read on a finding'
-							: 'New reply in a thread'}
-					<button
-						class="pin {summary.kind}"
-						class:skipped={!summary.solid}
-						aria-label="{label} - open {summary.count ? 'the first' : 'it'}"
-						title={label}
-						onclick={() => (session.revealing = summary.first.id)}
-					>
-						{#if summary.kind === 'finding'}
-							<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
-						{:else}
-							<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
-						{/if}
-						{#if summary.unread}<span class="unread" aria-label="New to read"></span>{/if}
-					</button>
-				{:else if !collapsed}
-					{#each wholeFile as m (m.id)}
-						<button
-							class="pin finding"
-							class:skipped={m.included === false}
-							class:active={session.openMark === m.id}
-							data-pin={m.id}
-							aria-label="Finding about the whole file, from {m.who}"
-							title="A finding about the whole file, from {m.who}"
-							onclick={() => (session.openMark = session.openMark === m.id ? null : m.id)}
-						>
-							<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>
-							{#if m.unread}<span class="unread" aria-label="New answer"></span>{/if}
-						</button>
-					{/each}
-				{/if}
-			</span>
-		{/if}
-		<!-- Outside the pins, whose transform would trap the bubble under the diff. -->
-		{#each wholeFile as m (m.id)}
-			{#if session.openMark === m.id}
-				<Floating anchor={openAnchor} label="Finding" tone="agent">
-					<MarkPopover mark={m} onclose={() => (session.openMark = null)} />
-				</Floating>
-			{/if}
-		{/each}
-		{#if onToggleReviewed}
-			<button
-				class="review"
-				class:done={reviewed}
-				aria-pressed={reviewed}
-				onclick={toggleReviewed}
-			>
-				<StateMark state={reviewed ? 'done' : 'todo'} size={15} />
-				{reviewed ? 'Reviewed' : 'Mark reviewed'}
-			</button>
-		{/if}
-	</header>
+	<FileHeader
+		{file}
+		{note}
+		bind:collapsed
+		counts={sliceCounts ?? { added: file.additions, removed: file.deletions }}
+		{elsewhere}
+		{summary}
+		{wholeFile}
+		{openAnchor}
+		{reviewed}
+		onreview={onToggleReviewed ? toggleReviewed : undefined}
+	/>
 	{#if !collapsed && note?.note}
 		<div class="file-note">
 			<NoteText text={note.note} />
@@ -716,15 +566,7 @@
 						{item.expanded ? 'Showing' : 'The same change in'}
 						{item.hunks.length} more places
 						<span class="faint">· lines {foldLines(item)}</span>
-						{#if !item.expanded && hiddenMarks(item.hunks.flatMap((h) => h.rows)).length}
-							<span class="fold-pins">
-								{#each hiddenMarks(item.hunks.flatMap((h) => h.rows)) as m (m.id)}
-									<span class="fold-pin {m.kind}" class:skipped={m.kind === 'finding' && m.included === false} title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
-										{#if m.kind === 'finding'}<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .6 11.4 6 6 11.4.6 6Z" /></svg>{:else}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>{/if}
-									</span>
-								{/each}
-							</span>
-						{/if}
+						<HiddenMarks marks={item.expanded ? [] : hiddenMarks(item.hunks.flatMap((h) => h.rows))} />
 					</button>
 					{#if item.expanded}
 						{#each item.hunks as hunk (hunk.index)}{@render hunkBlock(hunk)}{/each}
@@ -739,80 +581,6 @@
 	.file {
 		border-bottom: 1px solid var(--line);
 	}
-	header {
-		position: relative;
-		display: flex;
-		align-items: center;
-		height: 52px;
-	}
-	.rest {
-		flex-shrink: 0;
-		margin-left: 6px;
-		padding-right: 12px;
-		font-size: 12.5px;
-		white-space: nowrap;
-	}
-	.rest a {
-		color: inherit;
-		text-underline-offset: 3px;
-	}
-	.rest a:hover {
-		color: var(--text);
-	}
-	.gutter.header-pins {
-		top: 50%;
-		transform: translateY(-50%);
-	}
-	.toggle {
-		flex-grow: 1;
-		min-width: 0;
-		height: 100%;
-		display: flex;
-		align-items: center;
-		gap: 14px;
-		padding: 0 4px 0 0;
-		border: 0;
-		background: none;
-		color: inherit;
-		font: inherit;
-		font-size: 13.5px;
-		text-align: left;
-		cursor: pointer;
-	}
-	.chevron {
-		flex-shrink: 0;
-		color: var(--faint);
-	}
-	.toggle:hover .chevron,
-	.toggle:hover .path {
-		color: #fff;
-	}
-	.path {
-		display: flex;
-		min-width: 0;
-		flex-shrink: 1;
-		font-family: var(--mono);
-		color: var(--text);
-		white-space: nowrap;
-	}
-	.gist {
-		flex-grow: 1;
-		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.stat {
-		font-family: var(--mono);
-		font-size: 12px;
-		white-space: nowrap;
-	}
-	.plus {
-		color: var(--plus-dull);
-	}
-	.minus {
-		color: var(--minus-dull);
-	}
 	.file-note {
 		display: flex;
 		flex-direction: column;
@@ -825,67 +593,6 @@
 	}
 	.file-note p {
 		margin: 0;
-	}
-	.fold-row {
-		position: relative;
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		width: 100%;
-		height: 28px;
-		padding: 0 16px;
-		border: 0;
-		background: var(--hunk-bg);
-		color: var(--muted);
-		font-family: var(--sans);
-		font-size: 12.5px;
-		text-align: left;
-		cursor: pointer;
-	}
-	.fold-row:hover {
-		color: var(--text);
-		background: #202127;
-	}
-	.fold-kind {
-		font-family: var(--mono);
-		font-size: 12px;
-	}
-	.fold-changes {
-		margin-left: auto;
-		font-family: var(--mono);
-		font-size: 12px;
-	}
-	/* Hangs off the block's left edge, so a fold is seen even at a glance. */
-	.fold-tab {
-		position: absolute;
-		left: -20px;
-		top: 5px;
-		display: grid;
-		place-items: center;
-		width: 16px;
-		height: 18px;
-		color: var(--muted);
-	}
-	.fold-pin {
-		display: grid;
-		place-items: center;
-		flex-shrink: 0;
-		width: 22px;
-		height: 18px;
-		margin-top: 1px;
-		border-radius: 9px;
-	}
-	.fold-pin.finding {
-		fill: var(--agent);
-	}
-	.fold-pin.note {
-		fill: var(--you);
-	}
-	.fold-pin.finding.skipped {
-		fill: none;
-		stroke: var(--agent);
-		stroke-width: 1.2;
-		opacity: 0.75;
 	}
 	.diff {
 		margin-bottom: 18px;
@@ -938,28 +645,6 @@
 	.expand:hover {
 		background: rgba(255, 255, 255, 0.05);
 		color: var(--text);
-	}
-	.review {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		flex-shrink: 0;
-		height: 30px;
-		margin-left: 14px;
-		padding: 0 11px;
-		border: 0;
-		border-radius: 8px;
-		background: none;
-		color: var(--text);
-		font: inherit;
-		font-size: 13px;
-		cursor: pointer;
-	}
-	.review.done {
-		color: var(--faint);
-	}
-	.review:hover {
-		background: rgba(255, 255, 255, 0.04);
 	}
 	.diff > .hunk-header:first-child {
 		border-radius: 12px 12px 0 0;
@@ -1021,44 +706,12 @@
 	}
 	/* Threads and findings hang off the block's right edge, as folds hang
 	   off its left, so the code and its highlights keep the full width. */
-	.gutter,
-	.fold-pins {
+	.gutter {
 		position: absolute;
 		left: calc(100% + 8px);
 		top: 2px;
 		display: flex;
 		gap: 4px;
-	}
-	.fold-pins {
-		top: 50%;
-		transform: translateY(-50%);
-	}
-	.pin {
-		display: grid;
-		place-items: center;
-		width: 20px;
-		height: 18px;
-		padding: 0;
-		border: 0;
-		background: none;
-		cursor: pointer;
-	}
-	.pin.finding {
-		fill: var(--agent);
-	}
-	/* Skipped, or suggested for skipping: the same diamond, outlined. */
-	.pin.finding.skipped {
-		fill: none;
-		stroke: var(--agent);
-		stroke-width: 1.2;
-		opacity: 0.75;
-	}
-	.pin.note {
-		fill: var(--you);
-	}
-	.pin.active,
-	.pin:hover {
-		filter: brightness(1.3);
 	}
 	.fold {
 		position: relative;
@@ -1091,50 +744,10 @@
 		font-size: 13px;
 		white-space: normal;
 	}
-	.composer-head,
-	.composer-foot {
+	.composer-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 8px;
-	}
-	.composer-foot > span.faint {
-		font-size: 12px;
-	}
-	.composer-actions {
-		display: flex;
-		gap: 6px;
-	}
-	.composer textarea {
-		resize: vertical;
-		padding: 8px 10px;
-		border: 0;
-		border-radius: 9px;
-		background: var(--bg);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		color: var(--text);
-		font: inherit;
-		font-size: 14px;
-		line-height: 1.5;
-		outline: none;
-	}
-	.composer textarea:focus {
-		box-shadow: inset 0 0 0 1px var(--you);
-	}
-	.composer .btn:disabled {
-		opacity: 0.5;
-	}
-	.pin {
-		position: relative;
-	}
-	.unread {
-		position: absolute;
-		top: -2px;
-		right: 0;
-		width: 7px;
-		height: 7px;
-		border-radius: 4px;
-		background: var(--you);
-		box-shadow: 0 0 0 2px var(--code-bg);
 	}
 </style>

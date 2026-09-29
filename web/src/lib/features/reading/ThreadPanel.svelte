@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { ask } from '$lib/ui/confirm.svelte';
 	import { useSession } from '$lib/session/session.svelte';
-	import { MOD } from '$lib/ui/keys';
 	import type { Note } from '$lib/types';
 	import NoteText from '../../ui/NoteText.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
+	import Composer from './Composer.svelte';
 
 	// A thread on selected lines: what the reviewer asked, the model's
 	// replies, the comments they mean to post as written, and room to follow
@@ -30,13 +30,6 @@
 		void status.pending;
 		list?.scrollTo({ top: list.scrollHeight });
 	});
-
-	function send({ comment = false } = {}) {
-		const text = draft.trim();
-		if (!text || (status.pending && !comment)) return;
-		session.sendNote(note.id, text, { comment });
-		draft = '';
-	}
 
 	async function remove() {
 		if (!(await ask({ title: 'Delete this thread?', body: 'Its messages go with it.', action: 'Delete' }))) return;
@@ -78,25 +71,12 @@
 	</ol>
 
 	<div class="reply">
-		<textarea
+		<Composer
 			bind:value={draft}
-			rows="1"
 			placeholder="Ask, or comment…"
-			aria-label="Ask or comment"
-			onkeydown={(e) => {
-				if (e.key === 'Enter' && !e.shiftKey) {
-					e.preventDefault();
-					send({ comment: e.metaKey || e.ctrlKey });
-				}
-			}}
-		></textarea>
-		{#if draft.trim()}
-			<div class="reply-foot">
-				<span class="faint">Enter to ask · {MOD}Enter to comment</span>
-				<button class="btn" onclick={() => send({ comment: true })}>Comment</button>
-				<button class="btn primary" disabled={status.pending} onclick={() => send()}>Ask</button>
-			</div>
-		{/if}
+			askDisabled={status.pending}
+			onsend={(text, { comment }) => session.sendNote(note.id, text, { comment })}
+		/>
 	</div>
 </div>
 
@@ -181,36 +161,7 @@
 		gap: 8px;
 		padding: 12px;
 	}
-	.reply-foot {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.reply-foot .faint {
-		flex-grow: 1;
-		font-size: 12px;
-	}
 	.as-written {
 		color: var(--you);
-	}
-	textarea {
-		width: 100%;
-		box-sizing: border-box;
-		resize: none;
-		field-sizing: content;
-		max-height: 160px;
-		padding: 9px 12px;
-		border: 0;
-		border-radius: 10px;
-		background: var(--bg);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		color: var(--text);
-		font: inherit;
-		font-size: 14px;
-		line-height: 1.5;
-		outline: none;
-	}
-	textarea:focus {
-		box-shadow: inset 0 0 0 1px var(--you);
 	}
 </style>
