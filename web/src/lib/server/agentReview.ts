@@ -6,7 +6,7 @@ import { conversationText } from "../features/posting/postReview.server.js";
 import { inLane } from "./notes.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../github/prDiff.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
-import type { PrSummary, Slice } from "./types.js";
+import type { PrSummary, Slice } from "../types.server.js";
 import { runSession } from "./sessions.js";
 import { emptyUsage, usageScope, type Usage } from "../models/usage.server.js";
 import type { ExternalReviewer } from "../storage/settings.server.js";

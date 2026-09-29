@@ -1,6 +1,6 @@
-import { chatWithTool } from "../models/modelProvider.server.js";
-import type { PrFile } from "../github/github.server.js";
-import type { Slice } from "./types.js";
+import { chatWithTool } from "../../models/modelProvider.server.js";
+import type { PrFile } from "../../github/github.server.js";
+import type { Slice } from "../../types.server.js";
 
 // Splits a unified-diff patch into its hunks purely by the "@@ ... @@"
 // header lines, matching how the web app's diff parser splits hunks, so the

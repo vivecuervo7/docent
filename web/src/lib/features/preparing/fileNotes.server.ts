@@ -1,8 +1,8 @@
-import type { PrFile } from "../github/github.server.js";
-import { chatWithTool } from "../models/modelProvider.server.js";
-import { inLane } from "./notes.js";
-import { linesInDiff, numberedFileDiff } from "../github/prDiff.server.js";
-import type { FileNote, Slice } from "./types.js";
+import type { PrFile } from "../../github/github.server.js";
+import { chatWithTool } from "../../models/modelProvider.server.js";
+import { inLane } from "../../server/notes.js";
+import { linesInDiff, numberedFileDiff } from "../../github/prDiff.server.js";
+import type { FileNote, Slice } from "../../types.server.js";
 
 // Notes on individual files within a slice, where a file needs more than the
 // slice's summary: what a test file actually tests, or what a large change

@@ -3,7 +3,7 @@ import { fetchPrFiles } from "../github/github.server.js";
 import { chatWithTool } from "../models/modelProvider.server.js";
 import { inLane } from "./notes.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
-import type { PrSummary, Slice } from "./types.js";
+import type { PrSummary, Slice } from "../types.server.js";
 
 // "Auto" on the panel: which of the reviewer's personas this PR warrants.
 // A persona earns a place when its area is a real part of the change, not

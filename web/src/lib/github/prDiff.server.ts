@@ -1,6 +1,6 @@
 import type { PrFile } from "./github.server.js";
-import { splitPatchIntoHunks } from "../server/slices.js";
-import type { Slice } from "../server/types.js";
+import { splitPatchIntoHunks } from "../features/preparing/slices.server.js";
+import type { Slice } from "../types.server.js";
 
 // Diffs as reviewers read them: each line numbered by where it sits in the
 // new file, so a finding can say exactly which lines it's about. Deleted

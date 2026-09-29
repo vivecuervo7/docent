@@ -6,7 +6,7 @@ import { inNamedLane } from "./notes.js";
 import { conversationText } from "../features/posting/postReview.server.js";
 import { hunkIndicesByFile, numberedFileDiff } from "../github/prDiff.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
-import type { PrSummary, Slice } from "./types.js";
+import type { PrSummary, Slice } from "../types.server.js";
 
 // The panel's editor: with several reviewers on a PR, the same point is
 // often raised more than once, and reviewers seeing only the diff raise

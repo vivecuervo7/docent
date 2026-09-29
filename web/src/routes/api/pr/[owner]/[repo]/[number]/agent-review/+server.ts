@@ -10,7 +10,7 @@ import {
 } from '$lib/server/agentReview.js';
 import { externalReviewers, personas } from '$lib/storage/settings.server.js';
 import { badRequest, bodyOf, mcpUrl, noContent, reviewerParam, validParams } from '$lib/api/http.server.js';
-import type { Slice } from '$lib/server/types.js';
+import type { Slice } from '$lib/types.server.js';
 
 // The agent review: Docent's own reviewer ("builtin"), one of the reviewer's
 // external reviewers ("session"), or waiting for the reviewer's own agent to

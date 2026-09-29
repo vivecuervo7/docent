@@ -2,8 +2,8 @@
 	import FindingCard from '$lib/components/FindingCard.svelte';
 	import InlineText from '$lib/components/InlineText.svelte';
 	import PanelCard from '$lib/components/PanelCard.svelte';
-	import PreparingView from '$lib/components/PreparingView.svelte';
-	import ReviewModel from '$lib/components/ReviewModel.svelte';
+	import PreparingView from '$lib/features/preparing/PreparingView.svelte';
+	import ReviewModel from '$lib/features/preparing/ReviewModel.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 	import { isGenerating, isSliceReviewed, useSession } from '$lib/session.svelte';
 

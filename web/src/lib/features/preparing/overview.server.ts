@@ -1,5 +1,5 @@
-import { chatWithTool } from "../models/modelProvider.server.js";
-import type { ConversationEntry, PrConversation, PrMeta } from "../github/github.server.js";
+import { chatWithTool } from "../../models/modelProvider.server.js";
+import type { ConversationEntry, PrConversation, PrMeta } from "../../github/github.server.js";
 import type {
   ConversationSummary,
   Slice,
@@ -7,7 +7,7 @@ import type {
   ReplyOutcome,
   ReviewerConversation,
   ThreadReply,
-} from "./types.js";
+} from "../../types.server.js";
 
 const SUMMARY_TOOL = {
   name: "report_summary",
