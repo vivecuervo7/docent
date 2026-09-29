@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { buildServer } from '$lib/server/mcp.js';
+import { buildServer } from '$lib/mcp/mcp.server.js';
 
 // MCP, for the reviewer's own agent and external reviewers' sessions. Local
 // only: hooks.server.ts refuses other hosts, so sites the browser has open
