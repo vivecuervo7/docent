@@ -2,10 +2,10 @@
 	import { goto } from '$app/navigation';
 	import { ask } from '$lib/confirm.svelte';
 	import { listModels } from '$lib/api/client';
-	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/panel.svelte';
+	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/features/panel/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';
-	import Spinner from './Spinner.svelte';
+	import Spinner from '../../components/Spinner.svelte';
 
 	// Mockup A's "Start your review panel": the PR's agent reviewers, what
 	// each runs with, and one button to start them and begin reading.

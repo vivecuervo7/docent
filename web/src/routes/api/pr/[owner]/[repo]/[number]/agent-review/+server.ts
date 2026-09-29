@@ -7,7 +7,7 @@ import {
 	startBuiltinReview,
 	startSessionReview,
 	type ReviewContext
-} from '$lib/server/agentReview.js';
+} from '$lib/features/panel/agentReviews.server.js';
 import { externalReviewers, personas } from '$lib/storage/settings.server.js';
 import { badRequest, bodyOf, mcpUrl, noContent, reviewerParam, validParams } from '$lib/api/http.server.js';
 import type { Slice } from '$lib/types.server.js';

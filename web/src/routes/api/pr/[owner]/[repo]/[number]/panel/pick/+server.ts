@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { badRequest, bodyOf, failed, reviewModel, validParams } from '$lib/api/http.server.js';
-import { pickPersonas } from '$lib/server/pickPersonas.js';
+import { pickPersonas } from '$lib/features/panel/auto.server.js';
 
 // "Auto" on the panel: the personas this PR warrants, less those already on it.
 export const POST: RequestHandler = async ({ params: { owner, repo, number }, request }) => {

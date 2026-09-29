@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { raisedBy, type LooseMark, type Mark } from '$lib/api/client';
-	import { modelLabel } from '$lib/panel.svelte';
-	import { namedByKind } from '$lib/reviewers.svelte';
+	import { modelLabel } from '$lib/features/panel/panel.svelte';
+	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import EditorNotes from './EditorNotes.svelte';
-	import NoteText from './NoteText.svelte';
+	import NoteText from '../../components/NoteText.svelte';
 	import SeverityTag from './SeverityTag.svelte';
-	import Spinner from './Spinner.svelte';
-	import InlineText from './InlineText.svelte';
+	import Spinner from '../../components/Spinner.svelte';
+	import InlineText from '../../components/InlineText.svelte';
 
 	// An agent's finding, to keep for the review or skip, and to ask about
 	// first. Shown inside a Floating bubble.

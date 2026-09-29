@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { raisedBy } from '$lib/api/client';
 	import FilePath from './FilePath.svelte';
-	import EditorNotes from './EditorNotes.svelte';
-	import SeverityTag from './SeverityTag.svelte';
+	import EditorNotes from '../features/panel/EditorNotes.svelte';
+	import SeverityTag from '../features/panel/SeverityTag.svelte';
 	import type { Severity } from '$lib/types';
 	import type { LineRef } from '$lib/types';
 	import type { NoteMessage } from '$lib/types';

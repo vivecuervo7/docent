@@ -1,6 +1,6 @@
 import type { AgentReview, FeedbackItem, Generation, LineRef, ModelOption, Note, PrFile, PrMeta, PrRecord, PrRef, PrSummary, Reuse, Slice } from '../types';
 import { isNewFinding, isUnread } from '../types';
-import { reviewerLabel } from '../reviewers.svelte';
+import { reviewerLabel } from '../features/panel/reviewers.svelte';
 
 // Calls to Docent's backend, the API routes under routes/api.
 

@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { DEFAULT_REVIEWER, REVIEWER_RE } from '../server/agentReview.js';
+import { DEFAULT_REVIEWER, REVIEWER_RE } from '../features/panel/agentReviews.server.js';
 
 // What Docent's API routes share: checking a PR's owner, repo and number,
 // reading a JSON body, and answering with an error.

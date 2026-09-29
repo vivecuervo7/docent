@@ -1,6 +1,6 @@
 <script lang="ts">
 	import InlineText from '../../components/InlineText.svelte';
-	import { modelLabel } from '$lib/panel.svelte';
+	import { modelLabel } from '$lib/features/panel/panel.svelte';
 	import ReviewModel from './ReviewModel.svelte';
 	import { elapsed } from '$lib/format';
 	import { isGenerating, useSession } from '$lib/session.svelte';

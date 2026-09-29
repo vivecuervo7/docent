@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { listModels } from '$lib/api/client';
-	import { modelLabel } from '$lib/panel.svelte';
+	import { modelLabel } from '$lib/features/panel/panel.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import type { ModelOption } from '$lib/types';
 

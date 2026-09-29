@@ -2,7 +2,7 @@
 	import InlineText from './InlineText.svelte';
 	import { page } from '$app/state';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
-	import PanelChip from './PanelChip.svelte';
+	import PanelChip from '../features/panel/PanelChip.svelte';
 	import StateMark from './StateMark.svelte';
 
 	// The review's stages.

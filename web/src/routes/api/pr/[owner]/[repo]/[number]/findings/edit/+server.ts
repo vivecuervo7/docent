@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { editFindings } from '$lib/server/grouping.js';
+import { editFindings } from '$lib/features/panel/editor.server.js';
 import { badRequest, bodyOf, heldOpen, mcpUrl, validParams } from '$lib/api/http.server.js';
 
 // The panel's editor, over new findings: which repeat a point already made,

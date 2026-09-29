@@ -1,5 +1,5 @@
 <script lang="ts">
-	import InlineText from './InlineText.svelte';
+	import InlineText from '../../components/InlineText.svelte';
 
 	// What the panel's editor found about a finding, each folded behind its
 	// verdict in a word, so the verdict shows and the detail is a click away.

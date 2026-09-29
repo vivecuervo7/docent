@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { isAuto, modelLabel, nameOf } from '$lib/panel.svelte';
-	import { namedByKind } from '$lib/reviewers.svelte';
+	import { isAuto, modelLabel, nameOf } from '$lib/features/panel/panel.svelte';
+	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import type { AgentReviewer } from '$lib/types';
-	import InlineText from './InlineText.svelte';
-	import Spinner from './Spinner.svelte';
-	import StateMark from './StateMark.svelte';
+	import InlineText from '../../components/InlineText.svelte';
+	import Spinner from '../../components/Spinner.svelte';
+	import StateMark from '../../components/StateMark.svelte';
 
 	// The panel at a glance, from any page: a chip while its reviewers work,
 	// staying as "done" once they've finished, that opens to where each one is.

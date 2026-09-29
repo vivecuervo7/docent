@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod/v4";
-import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from "../server/agentReview.js";
+import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from "../features/panel/agentReviews.server.js";
 import {
   fetchFileContentAtRef,
   fetchPrBaseSha,

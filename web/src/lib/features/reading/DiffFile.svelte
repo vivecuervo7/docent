@@ -25,7 +25,7 @@
 	import { isUnread } from '$lib/types';
 	import type { ReferenceElement } from '@floating-ui/dom';
 	import Floating from '../../components/Floating.svelte';
-	import MarkPopover from '../../components/MarkPopover.svelte';
+	import MarkPopover from '../panel/MarkPopover.svelte';
 	import { testTitleLines } from '$lib/features/reading/testTitles';
 	import ThreadPanel from './ThreadPanel.svelte';
 	import NoteText from '../../components/NoteText.svelte';

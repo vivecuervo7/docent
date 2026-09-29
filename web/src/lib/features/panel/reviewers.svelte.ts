@@ -1,4 +1,4 @@
-import type { AgentReviewer } from './types';
+import type { AgentReviewer } from '../../types';
 
 // What reviewers are called: after their persona - "general" when it has
 // none - or external reviewer, so the name says what they look for

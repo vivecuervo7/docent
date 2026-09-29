@@ -1,9 +1,9 @@
 <script lang="ts">
-	import FilePath from './FilePath.svelte';
+	import FilePath from '../../components/FilePath.svelte';
 	import type { LooseMark, Mark } from '$lib/api/client';
 	import { useSession } from '$lib/session.svelte';
-	import InlineText from './InlineText.svelte';
-	import NoteText from './NoteText.svelte';
+	import InlineText from '../../components/InlineText.svelte';
+	import NoteText from '../../components/NoteText.svelte';
 	import EditorNotes from './EditorNotes.svelte';
 	import SeverityTag from './SeverityTag.svelte';
 

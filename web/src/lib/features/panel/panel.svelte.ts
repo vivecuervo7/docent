@@ -1,8 +1,8 @@
-import * as api from './api/client';
+import * as api from '../../api/client';
 import { reviewerName } from './names';
 import { known, reviewerLabel, sessionId } from './reviewers.svelte';
-import type { PrSession } from './session.svelte';
-import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type FeedbackDraft, type FeedbackItem } from './types';
+import type { PrSession } from '../../session.svelte';
+import { FIRST_AGENT, type AgentId, type AgentReview, type AgentReviewer, type FeedbackDraft, type FeedbackItem } from '../../types';
 
 // The PR's review panel: its agent reviewers (saved in the record, shared
 // with the React app), the review each is running, and copying their

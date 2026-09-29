@@ -1,10 +1,10 @@
-import { fetchPrFiles } from "../github/github.server.js";
-import { editorModel } from "./grouping.js";
-import { canReadCode, chatWithTool } from "../models/modelProvider.server.js";
-import { inLane } from "../features/reading/threadReplies.server.js";
-import { numberedFileDiff } from "../github/prDiff.server.js";
-import { prHead } from "../github/repoCache.server.js";
-import { persistent } from "../storage/persistent.server.js";
+import { fetchPrFiles } from "../../github/github.server.js";
+import { editorModel } from "./editor.server.js";
+import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js";
+import { inLane } from "../reading/threadReplies.server.js";
+import { numberedFileDiff } from "../../github/prDiff.server.js";
+import { prHead } from "../../github/repoCache.server.js";
+import { persistent } from "../../storage/persistent.server.js";
 
 // What the code around a PR shows, looked up once and shared by every one of
 // Docent's reviewers. They review from the diff alone, and guess at what it

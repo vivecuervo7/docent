@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { codeContext } from "./codeContext.js";
-import { fetchPrConversation, fetchPrFiles, type PrFile } from "../github/github.server.js";
-import { chatWithTool } from "../models/modelProvider.server.js";
-import { conversationText } from "../features/posting/postReview.server.js";
-import { inLane } from "../features/reading/threadReplies.server.js";
-import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../github/prDiff.server.js";
-import { getRecord, keyFor } from "../storage/store.server.js";
-import type { PrSummary, Slice } from "../types.server.js";
-import { runSession } from "./sessions.js";
-import { emptyUsage, usageScope, type Usage } from "../models/usage.server.js";
-import type { ExternalReviewer } from "../storage/settings.server.js";
-import { persistent } from "../storage/persistent.server.js";
+import { codeContext } from "./codeContext.server.js";
+import { fetchPrConversation, fetchPrFiles, type PrFile } from "../../github/github.server.js";
+import { chatWithTool } from "../../models/modelProvider.server.js";
+import { conversationText } from "../posting/postReview.server.js";
+import { inLane } from "../reading/threadReplies.server.js";
+import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../../github/prDiff.server.js";
+import { getRecord, keyFor } from "../../storage/store.server.js";
+import type { PrSummary, Slice } from "../../types.server.js";
+import { runSession } from "./externalSessions.server.js";
+import { emptyUsage, usageScope, type Usage } from "../../models/usage.server.js";
+import type { ExternalReviewer } from "../../storage/settings.server.js";
+import { persistent } from "../../storage/persistent.server.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
 // the reviewer's own agent, which submits them over MCP (see mcp.ts). Both
