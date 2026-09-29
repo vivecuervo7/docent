@@ -1,5 +1,5 @@
-import { chatWithTool } from "../models/modelProvider.server.js";
-import { inLane, type NoteMessage } from "../features/reading/threadReplies.server.js";
+import { chatWithTool } from "../../models/modelProvider.server.js";
+import { inLane, type NoteMessage } from "../reading/threadReplies.server.js";
 
 // Drafting your feedback: review comments worth posting, from the threads
 // you had on selected lines. The agent review is in agentReview.ts.

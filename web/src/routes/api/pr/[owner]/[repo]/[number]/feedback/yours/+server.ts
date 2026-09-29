@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { draftYourFeedback, type ThreadForFeedback } from '$lib/server/feedback.js';
+import { draftYourFeedback, type ThreadForFeedback } from '$lib/features/wrap-up/draftComments.server.js';
 import { badRequest, bodyOf, heldOpen, reviewModel, validParams } from '$lib/api/http.server.js';
 
 // Drafts review comments from the reviewer's threads. Held open like a note
