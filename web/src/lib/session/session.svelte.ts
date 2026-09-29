@@ -5,7 +5,8 @@ import { looseMarksFrom, marksFrom, type LooseMark, type Mark } from '../api/cli
 import { nearestHunk, parseFilePatch, type Hunk } from '../features/reading/diff/parse';
 import { Panel, sessionId } from '../features/panel/panel.svelte';
 import { ReviewPost } from '../features/posting/post.svelte';
-import { everythingElse, isSliceReviewed, readPref, writePref } from '../features/reading/progress';
+import { everythingElse, isSliceReviewed } from '../features/reading/progress';
+import { readPref, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
 import { isNewFinding, isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from '../types';
 
