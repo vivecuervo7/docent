@@ -1,5 +1,5 @@
-import * as api from '../../api/client';
-import { groupsOf, isShown } from '../../api/client';
+import { readHeld, readOk } from '../../api/client';
+import { groupsOf, isShown, reviewerName } from '../panel/findings';
 import type { Hunk } from '../reading/diff/parse';
 import type { PrSession } from '../../session/session.svelte';
 import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from '../../types';
@@ -71,7 +71,7 @@ export class ReviewPost {
 	loadPeople() {
 		if (this.people) return;
 		fetch(this.#url('viewer'))
-			.then((res) => api.readOk<{ viewer: string; author: string }>(res))
+			.then((res) => readOk<{ viewer: string; author: string }>(res))
 			.then((people) => (this.people = people))
 			.catch(() => {});
 	}
@@ -101,11 +101,11 @@ export class ReviewPost {
 					})),
 					// External reviewers' own overall recommendations, to weigh.
 					verdicts: this.#session.record.agentReviewers.flatMap((a) =>
-						a.lastRun?.verdict ? [{ who: api.reviewerName(this.#session.record, a.id), ...a.lastRun.verdict }] : []
+						a.lastRun?.verdict ? [{ who: reviewerName(this.#session.record, a.id), ...a.lastRun.verdict }] : []
 					)
 				})
 			});
-			const prepared = await api.readHeld<{
+			const prepared = await readHeld<{
 				comments: { from: string[]; body: string }[];
 				dropped: { from: string[]; reason: string }[];
 				body: string;
@@ -214,12 +214,12 @@ export class ReviewPost {
 	// Exactly what posting would send, without sending it.
 	async preview(pending = false): Promise<ReviewPayload> {
 		if (!this.draft) throw new Error('Nothing prepared yet.');
-		return (await api.readOk<{ payload: ReviewPayload }>(await this.#send(this.draft, true, pending))).payload;
+		return (await readOk<{ payload: ReviewPayload }>(await this.#send(this.draft, true, pending))).payload;
 	}
 
 	#pendingReview() {
 		return fetch(this.#url('pending'))
-			.then((res) => api.readOk<{ url: string | null }>(res))
+			.then((res) => readOk<{ url: string | null }>(res))
 			.then((r) => r.url);
 	}
 
@@ -236,7 +236,7 @@ export class ReviewPost {
 		// A little before now, allowing for the clocks here and at GitHub.
 		const since = Date.now() - 30_000;
 		try {
-			const { url } = await api.readOk<{ url: string }>(await this.#send(draft, false, pending));
+			const { url } = await readOk<{ url: string }>(await this.#send(draft, false, pending));
 			await this.#save({ ...draft, posted: { at: Date.now(), url, ...(pending ? { pending } : {}) } });
 		} catch (err) {
 			// The post can succeed and its answer still be lost on the way back.
@@ -244,7 +244,7 @@ export class ReviewPost {
 			const found = await (pending
 				? this.#pendingReview()
 				: fetch(`${this.#url('posted-since')}?since=${since}`)
-						.then((res) => api.readOk<{ url: string | null }>(res))
+						.then((res) => readOk<{ url: string | null }>(res))
 						.then((r) => r.url)
 			).catch(() => null);
 			if (!found) throw err;

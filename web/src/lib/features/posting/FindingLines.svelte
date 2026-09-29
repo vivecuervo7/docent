@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Mark } from '$lib/api/client';
+	import type { Mark } from '../reading/marks';
 	import { useSession } from '$lib/session/session.svelte';
 
 	// The few diff lines a finding is about, with a line either side, for

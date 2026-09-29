@@ -1,7 +1,9 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
-import * as api from '../api/client';
-import { looseMarksFrom, marksFrom, type LooseMark, type Mark } from '../api/client';
+import { fetchPr, listModels, readHeld } from '../api/client';
+import { groupsOf, reviewerName } from '../features/panel/findings';
+import { dismissGeneration, getGeneration, startGeneration, stopGeneration } from '../features/preparing/generations';
+import { type LooseMark, type Mark, looseMarksFrom, marksFrom } from '../features/reading/marks';
 import { nearestHunk, parseFilePatch, type Hunk } from '../features/reading/diff/parse';
 import { Panel, sessionId } from '../features/panel/panel.svelte';
 import { ReviewPost } from '../features/posting/post.svelte';
@@ -62,9 +64,9 @@ export class PrSession {
 	async open() {
 		try {
 			const [pr, { record }, existing] = await Promise.all([
-				api.fetchPr(this.ref),
+				fetchPr(this.ref),
 				getRecord(this.ref),
-				api.getGeneration(this.ref).catch(() => null)
+				getGeneration(this.ref).catch(() => null)
 			]);
 			if (this.#closed) return;
 			this.files = pr.files;
@@ -187,7 +189,7 @@ export class PrSession {
 					model: this.record.model
 				})
 			});
-			const { text } = await api.readHeld<{ text: string }>(res);
+			const { text } = await readHeld<{ text: string }>(res);
 			// The thread may have been deleted while the reply was on its way.
 			await this.update((r) => {
 				r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, { role: 'assistant', text, at: Date.now() }] } : n));
@@ -271,14 +273,14 @@ export class PrSession {
 						sliceTitle: slice?.title,
 						sliceSummary: slice?.summary,
 						finding: {
-							reviewer: api.reviewerName(this.record, reviewer),
+							reviewer: reviewerName(this.record, reviewer),
 							body: item.body,
 							rationale: item.rationale,
 							severity: item.severity,
 							// The other reviewers' versions of the point, and what the
 							// editor found, so the answer can weigh them.
-							others: api.groupsOf(this.record).membersOf(reviewer, id).map(({ reviewer: r, item: m }) => ({
-								reviewer: api.reviewerName(this.record, r),
+							others: groupsOf(this.record).membersOf(reviewer, id).map(({ reviewer: r, item: m }) => ({
+								reviewer: reviewerName(this.record, r),
 								body: m.body,
 								severity: m.severity,
 								disputed: m.disputed
@@ -296,7 +298,7 @@ export class PrSession {
 					model: this.#answeringModel(ranWith)
 				})
 			});
-			const { text } = await api.readHeld<{ text: string }>(res);
+			const { text } = await readHeld<{ text: string }>(res);
 			await this.#changeFinding(reviewer, id, (i) => ({ ...i, messages: [...(i.messages ?? []), { role: 'assistant', text, at: Date.now() }] }));
 			this.findingStatus[id] = {};
 		} catch (err) {
@@ -391,7 +393,7 @@ export class PrSession {
 				}))
 			})
 		});
-		const { comments } = await api.readHeld<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
+		const { comments } = await readHeld<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
 		return comments.map(({ threads: indices, body, rationale }) => ({
 			id: crypto.randomUUID(),
 			body,
@@ -516,7 +518,7 @@ export class PrSession {
 		this.generation = { ...(this.generation ?? emptyGeneration()), status: 'queued', error: undefined };
 		try {
 			const model = await this.#reviewModel();
-			this.#collect(await api.startGeneration(this.ref, fresh ? {} : { slices, conversation, fileNotes }, model));
+			this.#collect(await startGeneration(this.ref, fresh ? {} : { slices, conversation, fileNotes }, model));
 		} catch (err) {
 			this.generation = {
 				...(this.generation ?? emptyGeneration()),
@@ -532,7 +534,7 @@ export class PrSession {
 
 	async #reviewModel(): Promise<string | undefined> {
 		if (this.record.model) return this.record.model;
-		const selected = await api.listModels().then((m) => m.selected).catch(() => undefined);
+		const selected = await listModels().then((m) => m.selected).catch(() => undefined);
 		if (selected) await this.update((r) => (r.model ??= selected)).catch(() => {});
 		return this.record.model ?? selected;
 	}
@@ -542,7 +544,7 @@ export class PrSession {
 	}
 
 	async stopPreparing() {
-		const generation = await api.stopGeneration(this.ref).catch(() => null);
+		const generation = await stopGeneration(this.ref).catch(() => null);
 		if (generation) this.#collect(generation);
 	}
 
@@ -573,7 +575,7 @@ export class PrSession {
 		if (next.status === 'done') {
 			this.generation = null;
 			this.#stopPolling();
-			api.dismissGeneration(this.ref);
+			dismissGeneration(this.ref);
 		} else {
 			this.generation = next;
 			if (isGenerating(next)) this.#startPolling();
@@ -585,7 +587,7 @@ export class PrSession {
 		if (this.#poll) return;
 		this.#poll = setInterval(async () => {
 			try {
-				const generation = await api.getGeneration(this.ref);
+				const generation = await getGeneration(this.ref);
 				if (generation) this.#collect(generation);
 				else if (this.generation) {
 					// Runs only live as long as the backend process.

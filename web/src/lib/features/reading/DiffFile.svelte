@@ -2,7 +2,7 @@
 	import FilePath from '../../ui/FilePath.svelte';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import type { Mark } from '$lib/api/client';
+	import type { Mark } from './marks';
 	import type { FileNote, LineRef, PrFile, PrRef } from '$lib/types';
 	import { highlightHunks, segments, type Token } from '$lib/features/reading/diff/highlight';
 	import {

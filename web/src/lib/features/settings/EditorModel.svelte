@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk } from '$lib/api/client';
+	import { readOk } from '../../api/client';
 	import type { ModelOption } from '$lib/types';
 	import MenuSelect from '../../ui/MenuSelect.svelte';
 

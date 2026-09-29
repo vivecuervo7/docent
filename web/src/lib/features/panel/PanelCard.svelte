@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { ask } from '$lib/ui/confirm.svelte';
-	import { listModels } from '$lib/api/client';
+	import { listModels } from '../../api/client';
 	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/features/panel/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';

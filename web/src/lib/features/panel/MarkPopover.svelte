@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { raisedBy, type LooseMark, type Mark } from '$lib/api/client';
+	import { raisedBy } from './findings';
+	import type { LooseMark, Mark } from '../reading/marks';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
 	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
 	import { useSession } from '$lib/session/session.svelte';

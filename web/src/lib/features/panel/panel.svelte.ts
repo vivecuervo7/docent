@@ -1,4 +1,6 @@
-import * as api from '../../api/client';
+import { readHeld, readOk } from '../../api/client';
+import { reviewerName as nameOnPanel } from './findings';
+import { dismissAgentReview, endAgentReview, getAgentReview, getDefaultPanel, setDefaultPanel, startAgentReview } from './reviewCalls';
 import { reviewerName } from './names';
 import { known, reviewerLabel, sessionId } from './reviewers.svelte';
 import type { PrSession } from '../../session/session.svelte';
@@ -148,18 +150,18 @@ export class Panel {
 	// running from an earlier visit.
 	async load() {
 		fetch('/api/personas')
-			.then((res) => api.readOk<{ items: Persona[] }>(res))
+			.then((res) => readOk<{ items: Persona[] }>(res))
 			.then((r) => (this.personas = r.items))
 			.catch(() => {});
 		fetch('/api/external-reviewers')
-			.then((res) => api.readOk<{ items: ExternalReviewer[] }>(res))
+			.then((res) => readOk<{ items: ExternalReviewer[] }>(res))
 			.then((r) => (this.externals = r.items))
 			.catch(() => {});
-		this.defaultPanel = await api.getDefaultPanel().catch(() => null);
+		this.defaultPanel = await getDefaultPanel().catch(() => null);
 		if (this.reviewers.some((r) => !r.name)) this.#session.update(nameAll).catch(() => {});
 		await Promise.all(
 			this.reviewers.map(async ({ id }) => {
-				const review = await api.getAgentReview(this.#session.ref, id).catch(() => null);
+				const review = await getAgentReview(this.#session.ref, id).catch(() => null);
 				if (review) this.#collect(id, review);
 			})
 		);
@@ -187,7 +189,7 @@ export class Panel {
 	// then, so one saved while other PRs were still preparing reaches them.
 	async applyDefault() {
 		if (!this.#untouched(this.#session.record)) return;
-		const saved = await api.getDefaultPanel().catch(() => null);
+		const saved = await getDefaultPanel().catch(() => null);
 		this.defaultPanel = saved;
 		await this.#session
 			.update((r) => {
@@ -231,7 +233,7 @@ export class Panel {
 		const session = this.#session;
 		this.errors[id] = undefined;
 		try {
-			const review = await api.startAgentReview(session.ref, id, {
+			const review = await startAgentReview(session.ref, id, {
 				mode: setup.mode,
 				...(setup.mode === 'builtin' ? { model: setup.model, persona: setup.persona } : {}),
 				...(setup.mode === 'session' ? { session: setup.session } : {}),
@@ -278,13 +280,13 @@ export class Panel {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ exclude: chosen, model })
 			});
-			const { picks } = await api.readOk<{ picks: { persona: string; reason: string }[] }>(res);
+			const { picks } = await readOk<{ picks: { persona: string; reason: string }[] }>(res);
 			const general = !picks.length && !this.hasGeneral;
 			const previous = this.reviewers.filter((a) => a.pickedBy === id).map((a) => a.id);
 			for (const old of previous) {
 				this.#removed.add(old);
 				delete this.reviews[old];
-				api.dismissAgentReview(session.ref, old, true);
+				dismissAgentReview(session.ref, old, true);
 			}
 			const added: AgentId[] = [];
 			await session.update((r) => {
@@ -334,7 +336,7 @@ export class Panel {
 
 	async saveAsDefault(defaultModel: string) {
 		const panel = this.#chosen().map((r) => entryOf(setupFrom(r, defaultModel)));
-		this.defaultPanel = await api.setDefaultPanel(panel);
+		this.defaultPanel = await setDefaultPanel(panel);
 	}
 
 	isDefault(defaultModel: string): boolean {
@@ -354,7 +356,7 @@ export class Panel {
 	}
 
 	async end(id: AgentId, action: 'stop' | 'finish') {
-		const review = await api.endAgentReview(this.#session.ref, id, action).catch(() => null);
+		const review = await endAgentReview(this.#session.ref, id, action).catch(() => null);
 		if (review) this.#collect(id, review);
 	}
 
@@ -380,7 +382,7 @@ export class Panel {
 		for (const g of gone) {
 			this.#removed.add(g);
 			delete this.reviews[g];
-			api.dismissAgentReview(this.#session.ref, g, true);
+			dismissAgentReview(this.#session.ref, g, true);
 		}
 		await this.#session.update((r) => {
 			r.agentReviewers = r.agentReviewers.filter((a) => !gone.includes(a.id));
@@ -448,7 +450,7 @@ export class Panel {
 		}
 		if (review.status === 'running') this.#startPolling();
 		else {
-			api.dismissAgentReview(this.#session.ref, id);
+			dismissAgentReview(this.#session.ref, id);
 			if (!this.running.length) this.#stopPolling();
 		}
 	}
@@ -547,7 +549,7 @@ export class Panel {
 		const where = (i: FeedbackItem) => (i.path ? `${i.path}${i.start ? ` line ${i.start.line}` : ''}` : 'the PR as a whole');
 		const describe = ({ reviewer, item }: { reviewer: string; item: FeedbackItem }) => ({
 			id: item.id,
-			who: api.reviewerName(session.record, reviewer),
+			who: nameOnPanel(session.record, reviewer),
 			location: where(item),
 			body: item.body,
 			...(item.rationale ? { rationale: item.rationale } : {}),
@@ -581,7 +583,7 @@ export class Panel {
 					filter: first.docents
 				})
 			});
-			edits = (await api.readHeld<{ edits: typeof edits }>(res)).edits;
+			edits = (await readHeld<{ edits: typeof edits }>(res)).edits;
 		} catch {
 			for (const w of batch) this.#tried.add(w.item.id);
 			await this.#settle(batch, () => ({ editFailed: true }));
@@ -665,7 +667,7 @@ export class Panel {
 	#checkLookup() {
 		const { owner, repo, number } = this.#session.ref;
 		fetch(`/api/pr/${owner}/${repo}/${number}/code-context`)
-			.then((res) => api.readOk<{ lookup: Panel['lookup'] }>(res))
+			.then((res) => readOk<{ lookup: Panel['lookup'] }>(res))
 			.then((r) => (this.lookup = r.lookup))
 			.catch(() => {});
 	}
@@ -675,8 +677,7 @@ export class Panel {
 		this.#poll = setInterval(() => {
 			this.#checkLookup();
 			for (const { id } of this.running) {
-				api
-					.getAgentReview(this.#session.ref, id)
+				getAgentReview(this.#session.ref, id)
 					.then((review) => {
 						if (review) this.#collect(id, review);
 						else {

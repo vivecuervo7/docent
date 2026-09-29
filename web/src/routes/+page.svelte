@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import * as api from '$lib/api/client';
+	import { readOk } from '$lib/api/client';
+	import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
@@ -97,7 +98,7 @@
 	let involved = $state<InvolvedPr[]>(cached.involved ?? []);
 	function loadInvolved() {
 		fetch('/api/involved-prs')
-			.then((res) => api.readOk<{ prs: InvolvedPr[] }>(res))
+			.then((res) => readOk<{ prs: InvolvedPr[] }>(res))
 			.then((r) => (involved = r.prs))
 			.catch(() => {});
 	}
@@ -161,7 +162,7 @@
 	let hiddenKeys = $state<string[]>(cached.hidden ?? []);
 	$effect(() => {
 		fetch('/api/hidden-prs')
-			.then((res) => api.readOk<{ hidden: string[] }>(res))
+			.then((res) => readOk<{ hidden: string[] }>(res))
 			.then((r) => (hiddenKeys = r.hidden))
 			.catch(() => {});
 	});
@@ -212,7 +213,7 @@
 	let login = $state<string | null>(cached.login ?? null);
 	$effect(() => {
 		fetch('/api/setup')
-			.then((res) => api.readOk<{ gh: { login?: string } }>(res))
+			.then((res) => readOk<{ gh: { login?: string } }>(res))
 			.then((check) => {
 				ghMissing = !check.gh.login;
 				login = check.gh.login ?? null;
@@ -229,10 +230,10 @@
 	// then dropped from the backend.
 	async function refresh() {
 		fetch('/api/agent-reviews')
-			.then((res) => api.readOk<{ reviews: typeof agentReviews }>(res))
+			.then((res) => readOk<{ reviews: typeof agentReviews }>(res))
 			.then(({ reviews }) => (agentReviews = reviews))
 			.catch(() => {});
-		const listed = await api.listGenerations().catch(() => []);
+		const listed = await listGenerations().catch(() => []);
 		for (const { generation, ...ref } of listed) {
 			const mark = `${generation.id}:${generation.status}`;
 			if (isGenerating(generation) || collected.has(mark)) continue;
@@ -247,7 +248,7 @@
 					if (fileNotes) r.fileNotes = fileNotes;
 				}).catch(() => {});
 			}
-			if (generation.status === 'done') await api.dismissGeneration(ref);
+			if (generation.status === 'done') await dismissGeneration(ref);
 		}
 		const list = await listSaved().catch(() => [] as SavedPr[]);
 		// A run can exist for a PR with nothing saved yet.
@@ -283,7 +284,7 @@
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ prs: list.map(({ owner, repo, number }) => ({ owner, repo, number })) })
 		})
-			.then((res) => api.readOk<{ statuses: PrStatus[] }>(res))
+			.then((res) => readOk<{ statuses: PrStatus[] }>(res))
 			.then((r) => (statuses = Object.fromEntries(r.statuses.map((st) => [keyOf(st), st]))))
 			.catch(() => {});
 	}
@@ -379,8 +380,8 @@
 		const title = pr.record.title ?? `#${pr.number}`;
 		if (!(await ask({ title: `Delete your review of “${title}”?`, body: 'Its threads and feedback go with it.', action: 'Delete' }))) return;
 		const generation = generationFor(pr);
-		if (isGenerating(generation)) await api.stopGeneration(pr).catch(() => {});
-		await api.dismissGeneration(pr);
+		if (isGenerating(generation)) await stopGeneration(pr).catch(() => {});
+		await dismissGeneration(pr);
 		await deleteSaved(pr);
 		await refresh();
 	}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { raisedBy } from '$lib/api/client';
+	import { raisedBy } from '../panel/findings';
 	import FilePath from '../../ui/FilePath.svelte';
 	import EditorNotes from '../panel/EditorNotes.svelte';
 	import SeverityTag from '../panel/SeverityTag.svelte';
