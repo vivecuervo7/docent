@@ -2,9 +2,10 @@
 	import { goto } from '$app/navigation';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import { listModels } from '../../api/client';
-	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, type ReviewerSetup } from '$lib/features/panel/panel.svelte';
+	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, setupValue, type ReviewerSetup } from '$lib/features/panel/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';
+	import Menu from '$lib/ui/Menu.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 
 	// Mockup A's "Start your review panel": the PR's agent reviewers, what
@@ -45,11 +46,42 @@
 	}
 
 	// Choosing a model keeps the reviewer's persona.
+	// A choice from a reviewer's "what runs it" menu: a model for Docent's
+	// reviewer, keeping its persona, an external reviewer, or your own agent.
 	function choose(r: AgentReviewer, value: string) {
 		const setup = setupOf(r);
 		const persona = setup.mode === 'builtin' ? setup.persona : undefined;
-		panel.plan(r.id, value === 'external' ? { mode: 'external' } : { mode: 'builtin', model: value, persona });
+		if (value === 'external') panel.plan(r.id, { mode: 'external' });
+		else if (value.startsWith('session:')) panel.plan(r.id, { mode: 'session', session: value.slice('session:'.length) });
+		else panel.plan(r.id, { mode: 'builtin', model: value, persona });
 	}
+
+	// What can run a reviewer, as its menu lists it.
+	const runOptions = $derived([
+		{ heading: 'Docent’s reviewer', items: models.map((m) => ({ value: m.id, label: m.label, hint: m.source })) },
+		...(panel.externals.length
+			? [
+					{
+						heading: 'External reviewers',
+						items: panel.externals.map((e) => ({
+							value: `session:${e.id}`,
+							label: e.name,
+							hint: `${e.runner === 'codex' ? 'Codex' : 'Claude Code'}${e.model ? ` · ${e.model}` : ''}`
+						}))
+					}
+				]
+			: []),
+		{ heading: 'Your own agent', items: [{ value: 'external', label: 'Connect via MCP' }] }
+	]);
+	const personaOptions = $derived([
+		{
+			items: [
+				{ value: AUTO_PERSONA, label: 'Auto', hint: 'Picks the personas this PR warrants' },
+				{ value: '', label: 'general', hint: 'Correctness, clarity, tests and risk' },
+				...panel.personas.map((p) => ({ value: p.id, label: p.name }))
+			]
+		}
+	]);
 
 	// How many of an "auto"'s picks are still reviewing.
 	const picksRunning = (r: AgentReviewer) => panel.reviewers.filter((a) => a.pickedBy === r.id && isRunning(a)).length;
@@ -62,8 +94,6 @@
 	// Picks whose reason is open.
 	let showWhy = $state<Partial<Record<AgentId, boolean>>>({});
 
-	// The reviewer whose persona menu is open.
-	let personaMenuFor = $state<AgentId | null>(null);
 
 	function read() {
 		const next = session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0];
@@ -96,23 +126,6 @@
 		await panel.remove(r.id);
 	}
 
-	// The reviewer whose "what runs it" menu is open.
-	let menuFor = $state<AgentId | null>(null);
-	$effect(() => {
-		if (!menuFor && !personaMenuFor) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.model-picker, .persona-picker')) {
-				menuFor = null;
-				personaMenuFor = null;
-			}
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
-	});
 
 	let copied = $state<AgentId | null>(null);
 	function copy(r: AgentReviewer) {
@@ -144,89 +157,60 @@
 					<div class="picker">
 						<span class="name">{nameOf(r, panel.reviewers)}</span>
 						<div class="choices">
-						<div class="model-picker">
 						{#if running}
 							<span class="runs faint">{runsWith(r)}</span>
 						{:else}
-							<button
-								class="trigger"
-								aria-haspopup="menu"
-								aria-label="What runs {nameOf(r, panel.reviewers)}: {runsWith(r)}"
-								aria-expanded={menuFor === r.id}
-								onclick={() => (menuFor = menuFor === r.id ? null : r.id)}
+							<Menu
+								groups={runOptions}
+								value={setupValue(setup)}
+								onchoose={(v) => choose(r, v)}
+								label="What runs this reviewer"
+								tone="agent"
+								width={292}
+								placement="outside"
 							>
-								{runsWith(r)}
-								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-							</button>
-						{/if}
-						{#if menuFor === r.id}
-							<div class="menu" role="menu" aria-label="What runs this reviewer">
-								<span class="group">Docent’s reviewer</span>
-								{#each models as m (m.id)}
-									{@const current = setup.mode === 'builtin' && setup.model === m.id}
-									<button role="menuitemradio" aria-checked={current} onclick={() => { choose(r, m.id); menuFor = null; }}>
-										<span class="tick">{#if current}✓{/if}</span>
-										<span>{m.label}</span>
-										<span class="hint">{m.source}</span>
-									</button>
-								{/each}
-								{#if panel.externals.length}
-									<span class="group">External reviewers</span>
-									{#each panel.externals as e (e.id)}
-										{@const current = setup.mode === 'session' && setup.session === e.id}
-										<button role="menuitemradio" aria-checked={current} onclick={() => { panel.plan(r.id, { mode: 'session', session: e.id }); menuFor = null; }}>
-											<span class="tick">{#if current}✓{/if}</span>
-											<span>{e.name}</span>
-											<span class="hint">{e.runner === 'codex' ? 'Codex' : 'Claude Code'}{e.model ? ` · ${e.model}` : ''}</span>
-										</button>
-									{/each}
-								{/if}
-								<span class="group">Your own agent</span>
-								<button role="menuitemradio" aria-checked={setup.mode === 'external'} onclick={() => { choose(r, 'external'); menuFor = null; }}>
-									<span class="tick">{#if setup.mode === 'external'}✓{/if}</span>
-									<span>Connect via MCP</span>
-								</button>
-							</div>
-						{/if}
-						</div>
-						{#if setup.mode === 'builtin' && (panel.personas.length || setup.persona)}
-							<span class="dot faint" aria-hidden="true">·</span>
-							<div class="persona-picker">
-								{#if running}
-									<span class="runs faint">{panel.personaName(setup.persona)}</span>
-								{:else}
+								{#snippet trigger({ open, toggle })}
 									<button
 										class="trigger"
 										aria-haspopup="menu"
-										aria-label="Persona for {nameOf(r, panel.reviewers)}: {panel.personaName(setup.persona)}"
-										aria-expanded={personaMenuFor === r.id}
-										onclick={() => (personaMenuFor = personaMenuFor === r.id ? null : r.id)}
+										aria-label="What runs {nameOf(r, panel.reviewers)}: {runsWith(r)}"
+										aria-expanded={open}
+										onclick={toggle}
 									>
-										{panel.personaName(setup.persona)}
+										{runsWith(r)}
 										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
 									</button>
-								{/if}
-								{#if personaMenuFor === r.id}
-									<div class="menu" role="menu" aria-label="Persona">
-										<button role="menuitemradio" aria-checked={setup.persona === AUTO_PERSONA} onclick={() => { choosePersona(r, AUTO_PERSONA); personaMenuFor = null; }}>
-											<span class="tick">{#if setup.persona === AUTO_PERSONA}✓{/if}</span>
-											<span>Auto</span>
-											<span class="hint">Picks the personas this PR warrants</span>
+								{/snippet}
+							</Menu>
+						{/if}
+						{#if setup.mode === 'builtin' && (panel.personas.length || setup.persona)}
+							<span class="dot faint" aria-hidden="true">·</span>
+							{#if running}
+								<span class="runs faint">{panel.personaName(setup.persona)}</span>
+							{:else}
+								<Menu
+									groups={personaOptions}
+									value={setup.persona ?? ''}
+									onchoose={(v) => choosePersona(r, v || undefined)}
+									label="Persona"
+									tone="agent"
+									width={292}
+									placement="outside"
+								>
+									{#snippet trigger({ open, toggle })}
+										<button
+											class="trigger"
+											aria-haspopup="menu"
+											aria-label="Persona for {nameOf(r, panel.reviewers)}: {panel.personaName(setup.persona)}"
+											aria-expanded={open}
+											onclick={toggle}
+										>
+											{panel.personaName(setup.persona)}
+											<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
 										</button>
-										<button role="menuitemradio" aria-checked={!setup.persona} onclick={() => { choosePersona(r, undefined); personaMenuFor = null; }}>
-											<span class="tick">{#if !setup.persona}✓{/if}</span>
-											<span>general</span>
-											<span class="hint">Correctness, clarity, tests and risk</span>
-										</button>
-										{#each panel.personas as p (p.id)}
-											<button role="menuitemradio" aria-checked={setup.persona === p.id} onclick={() => { choosePersona(r, p.id); personaMenuFor = null; }}>
-												<span class="tick">{#if setup.persona === p.id}✓{/if}</span>
-												<span>{p.name}</span>
-											</button>
-										{/each}
-									</div>
-								{/if}
-							</div>
+									{/snippet}
+								</Menu>
+							{/if}
 						{/if}
 						</div>
 					</div>
@@ -465,10 +449,6 @@
 		flex-wrap: wrap;
 		gap: 2px 8px;
 	}
-	.model-picker,
-	.persona-picker {
-		position: relative;
-	}
 	.dot {
 		margin-left: -2px;
 		font-size: 13px;
@@ -496,56 +476,6 @@
 	.trigger:hover,
 	.trigger[aria-expanded='true'] {
 		background: #26221a;
-	}
-	.menu {
-		position: absolute;
-		z-index: 10;
-		top: calc(100% + 6px);
-		left: -8px;
-		min-width: 280px;
-		padding: 6px;
-		border-radius: 12px;
-		background: #221e17;
-		box-shadow:
-			0 0 0 1px #3a3226,
-			0 24px 60px -20px rgba(0, 0, 0, 0.8);
-		display: flex;
-		flex-direction: column;
-	}
-	.menu .group {
-		padding: 8px 10px 4px;
-		font-size: 11px;
-		letter-spacing: 0.09em;
-		text-transform: uppercase;
-		font-weight: 600;
-		color: var(--faint);
-	}
-	.menu button {
-		display: grid;
-		grid-template-columns: 16px minmax(0, 1fr) auto;
-		align-items: center;
-		gap: 8px;
-		height: 34px;
-		padding: 0 10px;
-		border: 0;
-		border-radius: 8px;
-		background: none;
-		color: var(--text);
-		font: inherit;
-		font-size: 14px;
-		text-align: left;
-		cursor: pointer;
-	}
-	.menu button:hover {
-		background: #2e281e;
-	}
-	.tick {
-		color: var(--agent);
-		font-size: 13px;
-	}
-	.hint {
-		font-size: 12px;
-		color: var(--faint);
 	}
 	.status {
 		display: flex;

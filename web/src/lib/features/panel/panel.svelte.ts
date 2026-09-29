@@ -65,7 +65,8 @@ export function setupFrom(reviewer: AgentReviewer, defaultModel: string): Review
 	return setupOfValue(reviewer.planned ?? reviewer.ranWith, reviewer.persona, defaultModel);
 }
 
-const setupValue = (setup: ReviewerSetup) =>
+// A reviewer's setup as one value: its model, `session:<id>`, or `external`.
+export const setupValue = (setup: ReviewerSetup) =>
 	setup.mode === 'external' ? 'external' : setup.mode === 'session' ? `session:${setup.session}` : setup.model;
 
 const entryOf = (setup: ReviewerSetup): PanelEntry => ({
