@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { codeContext } from "./codeContext.js";
 import { fetchPrConversation, fetchPrFiles, type PrFile } from "./github.js";
 import { chatWithTool } from "./modelProvider.js";
-import { conversationText } from "./postReview.js";
+import { conversationText } from "../features/posting/postReview.server.js";
 import { inLane } from "./notes.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";

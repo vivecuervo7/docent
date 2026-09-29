@@ -2,9 +2,9 @@
 	import Dialog from '$lib/components/Dialog.svelte';
 	import EditableText from '$lib/components/EditableText.svelte';
 	import FilePath from '$lib/components/FilePath.svelte';
-	import FindingLines from '$lib/components/FindingLines.svelte';
+	import FindingLines from '$lib/features/posting/FindingLines.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import { describeLines } from '$lib/post.svelte';
+	import { describeLines } from '$lib/features/posting/post.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import type { ReviewComment, ReviewEvent, ReviewPayload } from '$lib/types';
 

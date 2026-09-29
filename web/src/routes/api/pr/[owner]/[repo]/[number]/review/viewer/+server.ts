@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { fetchPrConversation } from '$lib/server/github.js';
 import { badRequest, failed, validParams } from '$lib/server/http.js';
-import { fetchViewer } from '$lib/server/postReview.js';
+import { fetchViewer } from '$lib/features/posting/postReview.server.js';
 
 // Who's reviewing: GitHub won't let you approve or request changes on your
 // own PR.

@@ -10,7 +10,7 @@ import {
   searchRepoCode,
 } from "./github.js";
 import { listFiles, prHead, readFile, searchCode } from "./repoCache.js";
-import { conversationText } from "./postReview.js";
+import { conversationText } from "../features/posting/postReview.server.js";
 import { numberedFileDiff } from "./prDiff.js";
 
 // Docent over MCP, so a reviewer can run their own agent - any model, any

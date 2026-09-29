@@ -1,8 +1,8 @@
-import * as api from './api';
-import { groupsOf, isShown } from './api';
-import type { Hunk } from './diff/parse';
-import type { PrSession } from './session.svelte';
-import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from './types';
+import * as api from '../../api';
+import { groupsOf, isShown } from '../../api';
+import type { Hunk } from '../../diff/parse';
+import type { PrSession } from '../../session.svelte';
+import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from '../../types';
 
 // Posting the review: preparing it from what's kept (comments making the same
 // point merged, anything already said on the PR set aside), wording it, and

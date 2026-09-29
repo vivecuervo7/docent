@@ -4,7 +4,7 @@ import * as api from './api';
 import { looseMarksFrom, marksFrom, type LooseMark, type Mark } from './api';
 import { nearestHunk, parseFilePatch, type Hunk } from './diff/parse';
 import { Panel, sessionId } from './panel.svelte';
-import { ReviewPost } from './post.svelte';
+import { ReviewPost } from './features/posting/post.svelte';
 import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
 import { emptyRecord, getRecord, updateRecord } from './record';
 import { isNewFinding, isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';

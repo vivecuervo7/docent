@@ -1,9 +1,9 @@
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { fetchPrConversation, fetchPrFiles, type PrConversation } from "./github.js";
-import { chatWithTool } from "./modelProvider.js";
-import { inLane } from "./notes.js";
-import { commentableLines } from "./prDiff.js";
+import { fetchPrConversation, fetchPrFiles, type PrConversation } from "../../server/github.js";
+import { chatWithTool } from "../../server/modelProvider.js";
+import { inLane } from "../../server/notes.js";
+import { commentableLines } from "../../server/prDiff.js";
 
 const execFileAsync = promisify(execFile);
 

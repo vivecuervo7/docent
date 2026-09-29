@@ -3,7 +3,7 @@ import { modelName, resolveModel, savedEditorModel } from "./config.js";
 import { fetchPrConversation, fetchPrFiles } from "./github.js";
 import { canReadCode, chatWithTool } from "./modelProvider.js";
 import { inNamedLane } from "./notes.js";
-import { conversationText } from "./postReview.js";
+import { conversationText } from "../features/posting/postReview.server.js";
 import { hunkIndicesByFile, numberedFileDiff } from "./prDiff.js";
 import { getRecord, keyFor } from "./store.js";
 import type { PrSummary, Slice } from "./types.js";

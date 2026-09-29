@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { badRequest, bodyOf, heldOpen, reviewModel, validParams } from '$lib/server/http.js';
-import { prepareReview, type Candidate, type ReviewerVerdict } from '$lib/server/postReview.js';
+import { prepareReview, type Candidate, type ReviewerVerdict } from '$lib/features/posting/postReview.server.js';
 
 export const POST: RequestHandler = async ({ params: { owner, repo, number }, request }) => {
 	const body = await bodyOf(request);
