@@ -48,7 +48,7 @@ same headless session so a thread keeps its context.
 **State moves to the backend.** Done. Building the feedback needs the
 reviewer's threads and ticks, which agents couldn't reach while each PR's
 state lived in the browser's IndexedDB. It now lives in a SQLite store the
-backend owns (`web/src/lib/server/store.ts`), which the browser reads and writes
+backend owns (`web/src/lib/storage/store.server.ts`), which the browser reads and writes
 through the API. Every write names the version it was made from, so an agent
 and the page can't silently undo each other's changes.
 
