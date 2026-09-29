@@ -1,5 +1,5 @@
 import { chatWithTool } from "../models/modelProvider.server.js";
-import type { ConversationEntry, PrConversation, PrMeta } from "./github.js";
+import type { ConversationEntry, PrConversation, PrMeta } from "../github/github.server.js";
 import type {
   ConversationSummary,
   Slice,

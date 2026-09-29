@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { codeContext } from "./codeContext.js";
-import { fetchPrConversation, fetchPrFiles, type PrFile } from "./github.js";
+import { fetchPrConversation, fetchPrFiles, type PrFile } from "../github/github.server.js";
 import { chatWithTool } from "../models/modelProvider.server.js";
 import { conversationText } from "../features/posting/postReview.server.js";
 import { inLane } from "./notes.js";
-import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "./prDiff.js";
+import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../github/prDiff.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
 import type { PrSummary, Slice } from "./types.js";
 import { runSession } from "./sessions.js";

@@ -1,5 +1,5 @@
 import { chatWithTool } from "../models/modelProvider.server.js";
-import type { PrFile } from "./github.js";
+import type { PrFile } from "../github/github.server.js";
 import type { Slice } from "./types.js";
 
 // Splits a unified-diff patch into its hunks purely by the "@@ ... @@"

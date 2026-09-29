@@ -1,4 +1,4 @@
-import { fetchPrConversation, fetchPrFiles, fetchPrHeadSha, fetchPrMeta } from "./github.js";
+import { fetchPrConversation, fetchPrFiles, fetchPrHeadSha, fetchPrMeta } from "../github/github.server.js";
 import { maxConcurrentGenerations } from "../storage/settings.server.js";
 import { generateConversationSummary, generateSummary } from "./overview.js";
 import { generateFileNotes } from "./fileNotes.js";

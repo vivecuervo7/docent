@@ -8,10 +8,10 @@ import {
   fetchPrFiles,
   fetchPrMeta,
   searchRepoCode,
-} from "./github.js";
-import { listFiles, prHead, readFile, searchCode } from "./repoCache.js";
+} from "../github/github.server.js";
+import { listFiles, prHead, readFile, searchCode } from "../github/repoCache.server.js";
 import { conversationText } from "../features/posting/postReview.server.js";
-import { numberedFileDiff } from "./prDiff.js";
+import { numberedFileDiff } from "../github/prDiff.server.js";
 
 // Docent over MCP, so a reviewer can run their own agent - any model, any
 // harness - against a PR and have its findings land on the Agent feedback

@@ -1,7 +1,7 @@
-import type { PrFile } from "./github.js";
+import type { PrFile } from "../github/github.server.js";
 import { chatWithTool } from "../models/modelProvider.server.js";
 import { inLane } from "./notes.js";
-import { linesInDiff, numberedFileDiff } from "./prDiff.js";
+import { linesInDiff, numberedFileDiff } from "../github/prDiff.server.js";
 import type { FileNote, Slice } from "./types.js";
 
 // Notes on individual files within a slice, where a file needs more than the

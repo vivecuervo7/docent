@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { fetchInvolvedPrs } from '$lib/server/github.js';
+import { fetchInvolvedPrs } from '$lib/github/github.server.js';
 import { failed } from '$lib/server/http.js';
 
 // Open PRs the reviewer is part of, for the start page.
