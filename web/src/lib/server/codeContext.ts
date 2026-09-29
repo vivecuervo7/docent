@@ -4,7 +4,7 @@ import { canReadCode, chatWithTool } from "./modelProvider.js";
 import { inLane } from "./notes.js";
 import { numberedFileDiff } from "./prDiff.js";
 import { prHead } from "./repoCache.js";
-import { persistent } from "./persistent.js";
+import { persistent } from "../storage/persistent.server.js";
 
 // What the code around a PR shows, looked up once and shared by every one of
 // Docent's reviewers. They review from the diff alone, and guess at what it

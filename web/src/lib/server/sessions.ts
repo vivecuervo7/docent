@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codexSession } from "./codex.js";
-import type { ExternalReviewer } from "./config.js";
+import type { ExternalReviewer } from "../storage/settings.server.js";
 
 // An external reviewer: the reviewer's own tooling - a skill, a command, a
 // prompt - run as an unattended Claude Code session. It reads the PR through

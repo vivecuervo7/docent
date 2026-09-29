@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { removeProvider, updateProvider } from '$lib/server/config.js';
+import { removeProvider, updateProvider } from '$lib/storage/settings.server.js';
 import { providerFields, publicProvider } from '$lib/server/fields.js';
 import { bodyOf, noContent, notFound } from '$lib/server/http.js';
 

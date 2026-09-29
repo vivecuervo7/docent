@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { hiddenPrs, setHidden } from '$lib/server/config.js';
+import { hiddenPrs, setHidden } from '$lib/storage/settings.server.js';
 import { badRequest, bodyOf, validParams } from '$lib/server/http.js';
 
 // PRs hidden from the start page's lists: old ones that can't be closed.

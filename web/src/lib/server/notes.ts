@@ -1,7 +1,7 @@
-import { laneOf } from "./config.js";
+import { laneOf } from "../storage/settings.server.js";
 import { canReadCode, chat, type ChatMessage } from "./modelProvider.js";
-import { modelName } from "./config.js";
-import { persistent } from "./persistent.js";
+import { modelName } from "../storage/settings.server.js";
+import { persistent } from "../storage/persistent.server.js";
 
 // Replies to notes left on selected lines. These run in their own lane,
 // apart from the generation queue, so a question isn't stuck behind a PR

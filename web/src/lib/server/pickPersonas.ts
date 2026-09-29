@@ -1,8 +1,8 @@
-import { personas } from "./config.js";
+import { personas } from "../storage/settings.server.js";
 import { fetchPrFiles } from "./github.js";
 import { chatWithTool } from "./modelProvider.js";
 import { inLane } from "./notes.js";
-import { getRecord, keyFor } from "./store.js";
+import { getRecord, keyFor } from "../storage/store.server.js";
 import type { PrSummary, Slice } from "./types.js";
 
 // "Auto" on the panel: which of the reviewer's personas this PR warrants.

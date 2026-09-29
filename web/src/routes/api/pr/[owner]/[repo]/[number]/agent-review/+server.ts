@@ -8,7 +8,7 @@ import {
 	startSessionReview,
 	type ReviewContext
 } from '$lib/server/agentReview.js';
-import { externalReviewers, personas } from '$lib/server/config.js';
+import { externalReviewers, personas } from '$lib/storage/settings.server.js';
 import { badRequest, bodyOf, mcpUrl, noContent, reviewerParam, validParams } from '$lib/server/http.js';
 import type { Slice } from '$lib/server/types.js';
 

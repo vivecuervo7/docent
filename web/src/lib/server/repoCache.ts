@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { dataDir } from "./dataDir.js";
+import { dataDir } from "../storage/dataDir.server.js";
 import { promisify } from "node:util";
-import { persistent } from "./persistent.js";
+import { persistent } from "../storage/persistent.server.js";
 
 const execFileAsync = promisify(execFile);
 

@@ -1,4 +1,4 @@
-import { externalReviewers } from '$lib/server/config.js';
+import { externalReviewers } from '$lib/storage/settings.server.js';
 import { collectionRoutes } from '$lib/server/crud.js';
 import { externalFields } from '$lib/server/fields.js';
 import { ALWAYS_ALLOWED } from '$lib/server/sessions.js';

@@ -1,8 +1,8 @@
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { dataDir } from "./dataDir.js";
-import { persistent } from "./persistent.js";
+import { dataDir } from "./dataDir.server.js";
+import { persistent } from "./persistent.server.js";
 
 // Each PR's review - slices, summary, threads, feedback, the prepared review
 // - as one JSON record, kept here on the backend so anything that talks to

@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { modelName, setModelName } from '$lib/server/config.js';
+import { modelName, setModelName } from '$lib/storage/settings.server.js';
 import { listModelOptions } from '$lib/server/modelProvider.js';
 
 // The models that can be picked right now, and which one Docent uses. When

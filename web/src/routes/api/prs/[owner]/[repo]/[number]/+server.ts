@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { badRequest, bodyOf, noContent, validParams } from '$lib/server/http.js';
-import { deleteRecord, getRecord, keyFor, putRecord, VersionConflict } from '$lib/server/store.js';
+import { deleteRecord, getRecord, keyFor, putRecord, VersionConflict } from '$lib/storage/store.server.js';
 
 const invalid = () => badRequest('invalid owner, repo, or PR number');
 

@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { resolveModel, setEditorModel } from '$lib/server/config.js';
+import { resolveModel, setEditorModel } from '$lib/storage/settings.server.js';
 import { editorModel } from '$lib/server/grouping.js';
 import { badRequest, bodyOf } from '$lib/server/http.js';
 import { listModelOptions } from '$lib/server/modelProvider.js';

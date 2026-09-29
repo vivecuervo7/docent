@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { persistent } from "./persistent.js";
+import { persistent } from "../storage/persistent.server.js";
 
 // Token use, added up over a piece of work - an agent review - so what
 // caching saves can be seen. Model calls made inside `usageScope.run` add to

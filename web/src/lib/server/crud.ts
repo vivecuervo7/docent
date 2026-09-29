@@ -1,5 +1,5 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import type { externalReviewers, personas } from './config.js';
+import type { externalReviewers, personas } from '../storage/settings.server.js';
 import type { personaFields } from './fields.js';
 import { badRequest, bodyOf, noContent, notFound } from './http.js';
 

@@ -1,4 +1,4 @@
-import { FIRST_AGENT, type PrRecord, type PrRef, type SavedPr } from './types';
+import { FIRST_AGENT, type PrRecord, type PrRef, type SavedPr } from '../types';
 
 // Each PR's review is one record on the backend. Every write names the
 // version it started from; if something else saved first (the React app, or

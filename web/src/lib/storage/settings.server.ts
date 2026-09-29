@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { dataDir } from "./dataDir.js";
+import { dataDir } from "./dataDir.server.js";
 
 // Docent's settings, all in the data folder's settings.json: the model providers
 // (OpenAI-compatible endpoints, keys included, so the file is written

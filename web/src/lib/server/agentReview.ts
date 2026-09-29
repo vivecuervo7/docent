@@ -5,12 +5,12 @@ import { chatWithTool } from "./modelProvider.js";
 import { conversationText } from "../features/posting/postReview.server.js";
 import { inLane } from "./notes.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "./prDiff.js";
-import { getRecord, keyFor } from "./store.js";
+import { getRecord, keyFor } from "../storage/store.server.js";
 import type { PrSummary, Slice } from "./types.js";
 import { runSession } from "./sessions.js";
 import { emptyUsage, usageScope, type Usage } from "./usage.js";
-import type { ExternalReviewer } from "./config.js";
-import { persistent } from "./persistent.js";
+import type { ExternalReviewer } from "../storage/settings.server.js";
+import { persistent } from "../storage/persistent.server.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
 // the reviewer's own agent, which submits them over MCP (see mcp.ts). Both

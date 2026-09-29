@@ -1,10 +1,10 @@
 import { fetchPrConversation, fetchPrFiles, fetchPrHeadSha, fetchPrMeta } from "./github.js";
-import { maxConcurrentGenerations } from "./config.js";
+import { maxConcurrentGenerations } from "../storage/settings.server.js";
 import { generateConversationSummary, generateSummary } from "./overview.js";
 import { generateFileNotes } from "./fileNotes.js";
 import { generateSlices } from "./slices.js";
 import type { ConversationSummary, FileNote, PrSummary, Slice } from "./types.js";
-import { persistent } from "./persistent.js";
+import { persistent } from "../storage/persistent.server.js";
 
 // Preparing a PR's review runs here rather than in the browser, so it keeps
 // going when the tab closes and can be checked in on or stopped. Jobs live in

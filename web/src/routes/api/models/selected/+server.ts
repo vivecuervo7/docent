@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { modelName, setModelName } from '$lib/server/config.js';
+import { modelName, setModelName } from '$lib/storage/settings.server.js';
 import { badRequest, bodyOf } from '$lib/server/http.js';
 
 export const PUT: RequestHandler = async ({ request }) => {

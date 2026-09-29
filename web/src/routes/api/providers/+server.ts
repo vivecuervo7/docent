@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from '$lib/server/claudeCode.js';
-import { addProvider, providers, runnerConcurrency, type Provider } from '$lib/server/config.js';
+import { addProvider, providers, runnerConcurrency, type Provider } from '$lib/storage/settings.server.js';
 import { providerFields, publicProvider } from '$lib/server/fields.js';
 import { bodyOf } from '$lib/server/http.js';
 import { codexStatus, listProviderModels } from '$lib/server/modelProvider.js';

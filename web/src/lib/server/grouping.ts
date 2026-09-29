@@ -1,11 +1,11 @@
 import { claudeCodeAvailable } from "./claudeCode.js";
-import { modelName, resolveModel, savedEditorModel } from "./config.js";
+import { modelName, resolveModel, savedEditorModel } from "../storage/settings.server.js";
 import { fetchPrConversation, fetchPrFiles } from "./github.js";
 import { canReadCode, chatWithTool } from "./modelProvider.js";
 import { inNamedLane } from "./notes.js";
 import { conversationText } from "../features/posting/postReview.server.js";
 import { hunkIndicesByFile, numberedFileDiff } from "./prDiff.js";
-import { getRecord, keyFor } from "./store.js";
+import { getRecord, keyFor } from "../storage/store.server.js";
 import type { PrSummary, Slice } from "./types.js";
 
 // The panel's editor: with several reviewers on a PR, the same point is
