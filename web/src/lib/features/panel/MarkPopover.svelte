@@ -4,10 +4,10 @@
 	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
 	import { useSession } from '$lib/session/session.svelte';
 	import EditorNotes from './EditorNotes.svelte';
-	import NoteText from '../../components/NoteText.svelte';
+	import NoteText from '../../ui/NoteText.svelte';
 	import SeverityTag from './SeverityTag.svelte';
-	import Spinner from '../../components/Spinner.svelte';
-	import InlineText from '../../components/InlineText.svelte';
+	import Spinner from '../../ui/Spinner.svelte';
+	import InlineText from '../../ui/InlineText.svelte';
 
 	// An agent's finding, to keep for the review or skip, and to ask about
 	// first. Shown inside a Floating bubble.

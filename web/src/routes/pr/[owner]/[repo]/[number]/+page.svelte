@@ -1,10 +1,10 @@
 <script lang="ts">
 	import FindingCard from '$lib/features/panel/FindingCard.svelte';
-	import InlineText from '$lib/components/InlineText.svelte';
+	import InlineText from '$lib/ui/InlineText.svelte';
 	import PanelCard from '$lib/features/panel/PanelCard.svelte';
 	import PreparingView from '$lib/features/preparing/PreparingView.svelte';
 	import ReviewModel from '$lib/features/preparing/ReviewModel.svelte';
-	import StateMark from '$lib/components/StateMark.svelte';
+	import StateMark from '$lib/ui/StateMark.svelte';
 	import { isGenerating, isSliceReviewed, useSession } from '$lib/session/session.svelte';
 
 	// The Overview: what the PR is, its slices, and the review panel to start

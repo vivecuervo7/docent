@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import * as api from '$lib/api/client';
-	import { ask } from '$lib/confirm.svelte';
-	import InlineText from '$lib/components/InlineText.svelte';
+	import { ask } from '$lib/ui/confirm.svelte';
+	import InlineText from '$lib/ui/InlineText.svelte';
 	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
-	import { parsePrUrl, timeAgo } from '$lib/format';
+	import Spinner from '$lib/ui/Spinner.svelte';
+	import { parsePrUrl, timeAgo } from '$lib/ui/format';
 	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
 	import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
 	import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '$lib/types';

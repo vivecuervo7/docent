@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
-	import { ask } from '$lib/confirm.svelte';
+	import { ask } from '$lib/ui/confirm.svelte';
 	import EditorModel from '$lib/features/settings/EditorModel.svelte';
 	import ExternalReviewerSettings from '$lib/features/settings/ExternalReviewerSettings.svelte';
 	import PersonaSettings from '$lib/features/settings/PersonaSettings.svelte';
 	import RunnerConcurrency from '$lib/features/settings/RunnerConcurrency.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
-	import StateMark from '$lib/components/StateMark.svelte';
+	import Spinner from '$lib/ui/Spinner.svelte';
+	import StateMark from '$lib/ui/StateMark.svelte';
 
 	// Where Docent's models come from: Claude Code, Codex, and any number of
 	// OpenAI-compatible providers; personas and external reviewers. The model menu on the start page picks from

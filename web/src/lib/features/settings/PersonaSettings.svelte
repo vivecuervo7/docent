@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
-	import { ask } from '$lib/confirm.svelte';
-	import { Reorder } from '$lib/reorder.svelte';
-	import Spinner from '../../components/Spinner.svelte';
+	import { ask } from '$lib/ui/confirm.svelte';
+	import { Reorder } from '$lib/ui/reorder.svelte';
+	import Spinner from '../../ui/Spinner.svelte';
 
 	// Personas: Docent's own reviewer with a point of view. Default is today's
 	// general review; your own add instructions, like a security focus. A

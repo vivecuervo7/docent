@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Dialog from '$lib/components/Dialog.svelte';
-	import EditableText from '$lib/components/EditableText.svelte';
-	import FilePath from '$lib/components/FilePath.svelte';
+	import Dialog from '$lib/ui/Dialog.svelte';
+	import EditableText from '$lib/ui/EditableText.svelte';
+	import FilePath from '$lib/ui/FilePath.svelte';
 	import FindingLines from '$lib/features/posting/FindingLines.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
+	import Spinner from '$lib/ui/Spinner.svelte';
 	import { describeLines } from '$lib/features/posting/post.svelte';
 	import { useSession } from '$lib/session/session.svelte';
 	import type { ReviewComment, ReviewEvent, ReviewPayload } from '$lib/types';

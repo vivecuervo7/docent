@@ -1,5 +1,5 @@
 <script lang="ts">
-	import FilePath from '../../components/FilePath.svelte';
+	import FilePath from '../../ui/FilePath.svelte';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Mark } from '$lib/api/client';
@@ -20,17 +20,17 @@
 		type Hunk,
 		type Row
 	} from '$lib/features/reading/diff/parse';
-	import InlineText from '../../components/InlineText.svelte';
+	import InlineText from '../../ui/InlineText.svelte';
 	import { useSession } from '$lib/session/session.svelte';
 	import { isUnread } from '$lib/types';
 	import type { ReferenceElement } from '@floating-ui/dom';
-	import Floating from '../../components/Floating.svelte';
+	import Floating from '../../ui/Floating.svelte';
 	import MarkPopover from '../panel/MarkPopover.svelte';
 	import { testTitleLines } from '$lib/features/reading/testTitles';
 	import ThreadPanel from './ThreadPanel.svelte';
-	import NoteText from '../../components/NoteText.svelte';
-	import StateMark from '../../components/StateMark.svelte';
-	import { MOD } from '$lib/keys';
+	import NoteText from '../../ui/NoteText.svelte';
+	import StateMark from '../../ui/StateMark.svelte';
+	import { MOD } from '$lib/ui/keys';
 
 	let {
 		file,

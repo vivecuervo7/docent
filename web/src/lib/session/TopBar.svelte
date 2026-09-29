@@ -1,9 +1,9 @@
 <script lang="ts">
-	import InlineText from '../components/InlineText.svelte';
+	import InlineText from '../ui/InlineText.svelte';
 	import { page } from '$app/state';
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import PanelChip from '../features/panel/PanelChip.svelte';
-	import StateMark from '../components/StateMark.svelte';
+	import StateMark from '../ui/StateMark.svelte';
 
 	// The review's stages.
 

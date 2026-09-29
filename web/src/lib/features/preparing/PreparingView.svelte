@@ -1,12 +1,12 @@
 <script lang="ts">
-	import InlineText from '../../components/InlineText.svelte';
+	import InlineText from '../../ui/InlineText.svelte';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
 	import ReviewModel from './ReviewModel.svelte';
-	import { elapsed } from '$lib/format';
+	import { elapsed } from '$lib/ui/format';
 	import { isGenerating, useSession } from '$lib/session/session.svelte';
 	import type { StepName } from '$lib/types';
-	import Spinner from '../../components/Spinner.svelte';
-	import StateMark from '../../components/StateMark.svelte';
+	import Spinner from '../../ui/Spinner.svelte';
+	import StateMark from '../../ui/StateMark.svelte';
 
 	const session = useSession();
 

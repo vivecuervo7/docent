@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { ask } from '$lib/confirm.svelte';
+	import { ask } from '$lib/ui/confirm.svelte';
 	import { useSession } from '$lib/session/session.svelte';
-	import { MOD } from '$lib/keys';
+	import { MOD } from '$lib/ui/keys';
 	import type { Note } from '$lib/types';
-	import NoteText from '../../components/NoteText.svelte';
-	import Spinner from '../../components/Spinner.svelte';
+	import NoteText from '../../ui/NoteText.svelte';
+	import Spinner from '../../ui/Spinner.svelte';
 
 	// A thread on selected lines: what the reviewer asked, the model's
 	// replies, the comments they mean to post as written, and room to follow

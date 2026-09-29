@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
 	import type { ModelOption } from '$lib/types';
-	import Spinner from '$lib/components/Spinner.svelte';
-	import StateMark from '$lib/components/StateMark.svelte';
+	import Spinner from '$lib/ui/Spinner.svelte';
+	import StateMark from '$lib/ui/StateMark.svelte';
 
 	// What Docent needs on this machine, each step checked live.
 	interface SetupCheck {

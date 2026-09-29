@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
-	import StateMark from '../../components/StateMark.svelte';
+	import StateMark from '../../ui/StateMark.svelte';
 
 	// The slices, down the side while reading, with All files beneath.
 	let { current = null, allFiles = false }: { current?: string | null; allFiles?: boolean } = $props();

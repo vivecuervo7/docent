@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { raisedBy } from '$lib/api/client';
-	import FilePath from '../../components/FilePath.svelte';
+	import FilePath from '../../ui/FilePath.svelte';
 	import EditorNotes from '../panel/EditorNotes.svelte';
 	import SeverityTag from '../panel/SeverityTag.svelte';
 	import type { Severity } from '$lib/types';
 	import type { LineRef } from '$lib/types';
 	import type { NoteMessage } from '$lib/types';
-	import NoteText from '../../components/NoteText.svelte';
+	import NoteText from '../../ui/NoteText.svelte';
 
 	// One thing that could go into the review: an agent's finding or one of
 	// your drafted comments, with keep or skip.

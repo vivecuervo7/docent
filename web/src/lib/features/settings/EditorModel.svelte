@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
 	import type { ModelOption } from '$lib/types';
-	import MenuSelect from '../../components/MenuSelect.svelte';
+	import MenuSelect from '../../ui/MenuSelect.svelte';
 
 	// The model the panel's editor groups and checks findings with.
 	let options = $state<ModelOption[]>([]);

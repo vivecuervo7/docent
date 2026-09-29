@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { groupsOf, isShown, reviewerName } from '$lib/api/client';
-	import Spinner from '$lib/components/Spinner.svelte';
+	import Spinner from '$lib/ui/Spinner.svelte';
 	import WrapRow from '$lib/features/wrap-up/WrapRow.svelte';
 	import { useSession } from '$lib/session/session.svelte';
 	import { SEVERITY_ORDER, type FeedbackItem } from '$lib/types';
