@@ -1,7 +1,7 @@
 import { personas } from "../storage/settings.server.js";
 import { fetchPrFiles } from "../github/github.server.js";
 import { chatWithTool } from "../models/modelProvider.server.js";
-import { inLane } from "./notes.js";
+import { inLane } from "../features/reading/threadReplies.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
 import type { PrSummary, Slice } from "../types.server.js";
 

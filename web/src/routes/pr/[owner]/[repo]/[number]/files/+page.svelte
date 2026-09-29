@@ -1,8 +1,8 @@
 <script lang="ts">
-	import FileDiffs from '$lib/components/FileDiffs.svelte';
-	import FoldAll from '$lib/components/FoldAll.svelte';
-	import SliceRail from '$lib/components/SliceRail.svelte';
-	import ViewOptions from '$lib/components/ViewOptions.svelte';
+	import FileDiffs from '$lib/features/reading/FileDiffs.svelte';
+	import FoldAll from '$lib/features/reading/FoldAll.svelte';
+	import SliceRail from '$lib/features/reading/SliceRail.svelte';
+	import ViewOptions from '$lib/features/reading/ViewOptions.svelte';
 	import { useSession } from '$lib/session.svelte';
 
 	// Every file in the PR, whole, outside the slices.

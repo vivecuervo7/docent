@@ -2,10 +2,10 @@ import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import * as api from './api/client';
 import { looseMarksFrom, marksFrom, type LooseMark, type Mark } from './api/client';
-import { nearestHunk, parseFilePatch, type Hunk } from './diff/parse';
+import { nearestHunk, parseFilePatch, type Hunk } from './features/reading/diff/parse';
 import { Panel, sessionId } from './panel.svelte';
 import { ReviewPost } from './features/posting/post.svelte';
-import { everythingElse, isSliceReviewed, readPref, writePref } from './review';
+import { everythingElse, isSliceReviewed, readPref, writePref } from './features/reading/progress';
 import { emptyRecord, getRecord, updateRecord } from './storage/record';
 import { isNewFinding, isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from './types';
 

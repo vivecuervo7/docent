@@ -1,10 +1,10 @@
 <script lang="ts">
-	import FilePath from './FilePath.svelte';
+	import FilePath from '../../components/FilePath.svelte';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Mark } from '$lib/api/client';
 	import type { FileNote, LineRef, PrFile, PrRef } from '$lib/types';
-	import { highlightHunks, segments, type Token } from '$lib/diff/highlight';
+	import { highlightHunks, segments, type Token } from '$lib/features/reading/diff/highlight';
 	import {
 		EXPAND_STEP,
 		expandHunk,
@@ -19,17 +19,17 @@
 		type Expansion,
 		type Hunk,
 		type Row
-	} from '$lib/diff/parse';
-	import InlineText from './InlineText.svelte';
+	} from '$lib/features/reading/diff/parse';
+	import InlineText from '../../components/InlineText.svelte';
 	import { useSession } from '$lib/session.svelte';
 	import { isUnread } from '$lib/types';
 	import type { ReferenceElement } from '@floating-ui/dom';
-	import Floating from './Floating.svelte';
-	import MarkPopover from './MarkPopover.svelte';
-	import { testTitleLines } from '$lib/testTitles';
+	import Floating from '../../components/Floating.svelte';
+	import MarkPopover from '../../components/MarkPopover.svelte';
+	import { testTitleLines } from '$lib/features/reading/testTitles';
 	import ThreadPanel from './ThreadPanel.svelte';
-	import NoteText from './NoteText.svelte';
-	import StateMark from './StateMark.svelte';
+	import NoteText from '../../components/NoteText.svelte';
+	import StateMark from '../../components/StateMark.svelte';
 	import { MOD } from '$lib/keys';
 
 	let {

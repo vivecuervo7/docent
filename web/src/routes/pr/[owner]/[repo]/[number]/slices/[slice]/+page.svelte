@@ -3,12 +3,12 @@
 	import { page } from '$app/state';
 	import { reviewerName, type LooseMark, type Mark } from '$lib/api/client';
 	import Dialog from '$lib/components/Dialog.svelte';
-	import FileDiffs from '$lib/components/FileDiffs.svelte';
+	import FileDiffs from '$lib/features/reading/FileDiffs.svelte';
 	import FindingCard from '$lib/components/FindingCard.svelte';
-	import FoldAll from '$lib/components/FoldAll.svelte';
+	import FoldAll from '$lib/features/reading/FoldAll.svelte';
 	import NoteText from '$lib/components/NoteText.svelte';
-	import SliceRail from '$lib/components/SliceRail.svelte';
-	import ViewOptions from '$lib/components/ViewOptions.svelte';
+	import SliceRail from '$lib/features/reading/SliceRail.svelte';
+	import ViewOptions from '$lib/features/reading/ViewOptions.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session.svelte';
 
 	const session = useSession();

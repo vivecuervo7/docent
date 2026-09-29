@@ -1,4 +1,4 @@
-import type { Slice } from './types';
+import type { Slice } from '../../types';
 
 export function isSliceReviewed(slice: Slice, reviewed: Record<string, boolean>): boolean {
 	return slice.hunks.length > 0 && slice.hunks.every((key) => reviewed[key]);
