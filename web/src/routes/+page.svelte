@@ -1,372 +1,20 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { readOk } from '$lib/api/client';
-	import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
-	import { ask } from '$lib/ui/confirm.svelte';
-	import InlineText from '$lib/ui/InlineText.svelte';
+	import GroupHeading from '$lib/features/start/GroupHeading.svelte';
 	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
+	import ReviewRow from '$lib/features/start/ReviewRow.svelte';
+	import { keyOf, StartPage, type Row } from '$lib/features/start/startPage.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import { parsePrUrl, timeAgo } from '$lib/ui/format';
-	import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
-	import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
-	import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '$lib/types';
+	import { parsePrUrl } from '$lib/ui/format';
+
+	// Opening a PR by its link, and the reviews and PRs you're part of below.
+	const page = new StartPage();
 
 	let url = $state('');
 	let formError = $state<string | null>(null);
-	// The page as it was last time, shown straight away so the lists don't
-	// reshuffle as each fetch lands; fresh results then update it in place.
-	const CACHE_KEY = 'docent.landing';
-	const cached = readCache();
-	function readCache(): {
-		saved?: SavedPr[];
-		involved?: InvolvedPr[];
-		statuses?: Record<string, PrStatus>;
-		hidden?: string[];
-		login?: string | null;
-	} {
-		try {
-			return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}');
-		} catch {
-			return {};
-		}
-	}
-	// A conversation's latest answer, all that telling whether it's unread needs.
-	function lastAnswer(messages: NoteMessage[] | undefined): NoteMessage[] | undefined {
-		const answer = messages?.findLast((m) => m.role === 'assistant');
-		return answer ? [{ ...answer, text: '' }] : undefined;
-	}
-
-	// Only what the rows need is kept, not each review's slices and notes.
-	function trimmed(pr: SavedPr): SavedPr {
-		const r = pr.record;
-		return {
-			owner: pr.owner,
-			repo: pr.repo,
-			number: pr.number,
-			record: {
-				...normalize({}),
-				title: r.title,
-				author: r.author,
-				completedAt: r.completedAt,
-				preparedHead: r.preparedHead,
-				lastOpenedAt: r.lastOpenedAt,
-				summary: r.summary ? { what: '', why: '' } : null,
-				slices: r.slices?.map((sl) => ({ ...sl, title: '', summary: '' })) ?? null,
-				reviewed: r.reviewed,
-				review: r.review?.posted ? ({ posted: r.review.posted } as PrRecord['review']) : undefined,
-				agentReviewers: r.agentReviewers.map((a) => ({ id: a.id, lastRun: a.lastRun })),
-				feedback: Object.fromEntries(
-					Object.entries(r.feedback).map(([k, d]) => [
-						k,
-						d ? { ...d, items: d.items.map((i) => ({ id: i.id, body: '', included: i.included, readAt: i.readAt, messages: lastAnswer(i.messages) })) } : d
-					])
-				),
-				// Enough of each thread to tell whether its latest reply is unread.
-				notes: r.notes.map((n) => ({ ...n, messages: lastAnswer(n.messages) ?? [] }))
-			}
-		};
-	}
-	let saved = $state<SavedPr[] | null>(cached.saved ?? null);
-	$effect(() => {
-		try {
-			localStorage.setItem(
-				CACHE_KEY,
-				JSON.stringify({ saved: saved?.map(trimmed), involved, statuses, hidden: hiddenKeys, login })
-			);
-		} catch {
-			// Keeping it is a nicety; the page still works without.
-		}
-	});
-	let generations = $state<(PrRef & { generation: Generation })[]>([]);
-	// Agent reviews running, or finished and not yet collected by the PR.
-	let agentReviews = $state<(PrRef & { reviewer: string; status: string; findings: number })[]>([]);
-	let now = $state(Date.now());
-
-	// Open PRs you're part of on GitHub - asked to review, reviewed, or wrote -
-	// refreshed on load and every few minutes. They're always listed; ones not
-	// opened in Docent yet read as New.
-	interface InvolvedPr extends PrRef {
-		title: string;
-		author?: string;
-		updatedAt: string;
-		createdAt: string;
-		isDraft: boolean;
-		decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
-		reviews: { state: string; author?: string }[];
-		mine: boolean;
-	}
-	let involved = $state<InvolvedPr[]>(cached.involved ?? []);
-	function loadInvolved() {
-		fetch('/api/involved-prs')
-			.then((res) => readOk<{ prs: InvolvedPr[] }>(res))
-			.then((r) => (involved = r.prs))
-			.catch(() => {});
-	}
-	$effect(() => {
-		loadInvolved();
-		const every = setInterval(loadInvolved, 5 * 60_000);
-		return () => clearInterval(every);
-	});
-
-	// A row on the page: a saved review, or a PR you're part of that Docent
-	// hasn't opened yet.
-	type Row = SavedPr & { unsaved?: boolean };
-	const involvedOf = (pr: PrRef) => involved.find((i) => keyOf(i) === keyOf(pr));
-	const rows = $derived.by((): Row[] => {
-		const list: Row[] = [...(saved ?? [])];
-		for (const i of involved) {
-			if (list.some((r) => keyOf(r) === keyOf(i))) continue;
-			list.push({ owner: i.owner, repo: i.repo, number: i.number, record: { ...normalize({}), title: i.title, author: i.author }, unsaved: true });
-		}
-		return list;
-	});
-
-	function reviewState(r: InvolvedPr): string {
-		const draft = r.isDraft ? 'Draft · ' : '';
-		if (r.decision === 'APPROVED') return `${draft}Approved`;
-		if (r.decision === 'CHANGES_REQUESTED') return `${draft}Changes requested`;
-		const by = [...new Set(r.reviews.map((v) => v.author).filter(Boolean))];
-		if (!by.length) return `${draft}No reviews yet`;
-		return `${draft}Reviewed by ${by.slice(0, 2).join(', ')}${by.length > 2 ? ` and ${by.length - 2} more` : ''}`;
-	}
-
-	// How Your reviews are ordered, kept in this browser.
-	type Sort = 'none' | 'repo' | 'author';
-	let sort = $state<Sort>(readSort());
-	function readSort(): Sort {
-		try {
-			const value = localStorage.getItem('docent.sort');
-			return value === 'repo' || value === 'author' ? value : 'none';
-		} catch {
-			return 'none';
-		}
-	}
-	function setSort(value: Sort) {
-		sort = value;
-		try {
-			localStorage.setItem('docent.sort', value);
-		} catch {
-			// Remembering it is a nicety.
-		}
-	}
 	let showComplete = $state(false);
-
-	// PRs the reviewer wrote get a section of their own.
-	const isMine = (pr: SavedPr) => !!involvedOf(pr)?.mine || (!!login && authorOf(pr) === login);
-
-	const notComplete = $derived(rows.filter((pr) => !pr.record.completedAt && !isHidden(pr)));
-	const active = $derived(notComplete.filter((pr) => !isMine(pr)));
-	const mine = $derived(notComplete.filter(isMine));
-	// Old PRs that can't be closed can be hidden: they leave the lists above
-	// for a section of their own. Kept in Docent's settings.
-	let hiddenKeys = $state<string[]>(cached.hidden ?? []);
-	$effect(() => {
-		fetch('/api/hidden-prs')
-			.then((res) => readOk<{ hidden: string[] }>(res))
-			.then((r) => (hiddenKeys = r.hidden))
-			.catch(() => {});
-	});
-	const isHidden = (pr: PrRef) => hiddenKeys.includes(keyOf(pr));
-	async function setHidden(pr: PrRef, hidden: boolean) {
-		hiddenKeys = hidden ? [...hiddenKeys, keyOf(pr)] : hiddenKeys.filter((k) => k !== keyOf(pr));
-		const res = await fetch('/api/hidden-prs', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ owner: pr.owner, repo: pr.repo, number: pr.number, hidden })
-		}).catch(() => null);
-		if (res?.ok) hiddenKeys = (await res.json()).hidden;
-	}
 	let showHidden = $state(false);
-	const hiddenRows = $derived(rows.filter(isHidden));
-	const complete = $derived((saved ?? []).filter((pr) => pr.record.completedAt && !isHidden(pr)));
-
-	// Repo and author groups folded away, kept in this browser.
-	let collapsed = $state<string[]>(readCollapsed());
-	function readCollapsed(): string[] {
-		try {
-			return JSON.parse(localStorage.getItem('docent.collapsedGroups') ?? '[]');
-		} catch {
-			return [];
-		}
-	}
-	function toggleGroup(key: string) {
-		collapsed = collapsed.includes(key) ? collapsed.filter((k) => k !== key) : [...collapsed, key];
-		try {
-			localStorage.setItem('docent.collapsedGroups', JSON.stringify(collapsed));
-		} catch {
-			// Remembering it is a nicety.
-		}
-	}
-	// A list in groups: one group by recency, else one per repo or author.
-	// Oldest first throughout: the longest-waiting PRs are cleared first.
-	function grouped<T extends PrRef>(list: T[], authorOf: (item: T) => string | undefined, raised: (item: T) => number) {
-		list = [...list].sort((a, b) => raised(a) - raised(b));
-		if (sort === 'none') return [{ label: '', items: list }];
-		const labelOf = (item: T) => (sort === 'repo' ? `${item.owner}/${item.repo}` : (authorOf(item) ?? 'Author not known yet'));
-		const byLabel = new Map<string, T[]>();
-		for (const pr of list) byLabel.set(labelOf(pr), [...(byLabel.get(labelOf(pr)) ?? []), pr]);
-		return [...byLabel.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, items]) => ({ label, items }));
-	}
-	// Without a signed-in GitHub CLI nothing opens, so say where to start.
-	let ghMissing = $state(false);
-	// The reviewer's GitHub login, to tell their own PRs apart.
-	let login = $state<string | null>(cached.login ?? null);
-	$effect(() => {
-		fetch('/api/setup')
-			.then((res) => readOk<{ gh: { login?: string } }>(res))
-			.then((check) => {
-				ghMissing = !check.gh.login;
-				login = check.gh.login ?? null;
-			})
-			.catch(() => {});
-	});
-
-	const keyOf = (ref: PrRef) => `${ref.owner}/${ref.repo}/${ref.number}`;
-	// Runs whose results are already saved, so each is written once.
-	const collected = new Set<string>();
-
-	// Reads saved reviews and the backend's runs together. A run that ended
-	// while nobody was looking gets its results saved here; a finished one is
-	// then dropped from the backend.
-	async function refresh() {
-		fetch('/api/agent-reviews')
-			.then((res) => readOk<{ reviews: typeof agentReviews }>(res))
-			.then(({ reviews }) => (agentReviews = reviews))
-			.catch(() => {});
-		const listed = await listGenerations().catch(() => []);
-		for (const { generation, ...ref } of listed) {
-			const mark = `${generation.id}:${generation.status}`;
-			if (isGenerating(generation) || collected.has(mark)) continue;
-			collected.add(mark);
-			const { slices, conversation, summary, fileNotes, head } = generation.results;
-			if (slices || conversation || summary || fileNotes) {
-				await updateRecord(ref, (r) => {
-					if (slices) r.slices = slices;
-					if (slices && head) r.preparedHead = head;
-					if (conversation) r.conversation = conversation;
-					if (summary) r.summary = summary;
-					if (fileNotes) r.fileNotes = fileNotes;
-				}).catch(() => {});
-			}
-			if (generation.status === 'done') await dismissGeneration(ref);
-		}
-		const list = await listSaved().catch(() => [] as SavedPr[]);
-		// A run can exist for a PR with nothing saved yet.
-		for (const { generation: _, ...ref } of listed) {
-			if (!list.some((s) => keyOf(s) === keyOf(ref))) list.push({ ...ref, record: normalize({}) });
-		}
-		saved = list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0));
-		loadStatuses(list);
-		generations = listed.filter(({ generation }) => generation.status !== 'done');
-	}
-
-	$effect(() => {
-		refresh();
-	});
-
-	// Where each saved PR stands on GitHub now: its author, when it was
-	// raised, and its head commit, to tell which have had new commits since
-	// they were prepared. Checked on load and every few minutes.
-	interface PrStatus extends PrRef {
-		head: string;
-		createdAt: string;
-		updatedAt?: string;
-		author?: string;
-		state: 'OPEN' | 'CLOSED' | 'MERGED';
-	}
-	let statuses = $state<Record<string, PrStatus>>(cached.statuses ?? {});
-	let statusesAt = 0;
-	function loadStatuses(list: SavedPr[], force = false) {
-		if (!list.length || (!force && Date.now() - statusesAt < 5 * 60_000)) return;
-		statusesAt = Date.now();
-		fetch('/api/pr-statuses', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ prs: list.map(({ owner, repo, number }) => ({ owner, repo, number })) })
-		})
-			.then((res) => readOk<{ statuses: PrStatus[] }>(res))
-			.then((r) => (statuses = Object.fromEntries(r.statuses.map((st) => [keyOf(st), st]))))
-			.catch(() => {});
-	}
-	$effect(() => {
-		const every = setInterval(() => saved && loadStatuses(saved, true), 5 * 60_000);
-		return () => clearInterval(every);
-	});
-	const authorOf = (pr: SavedPr) => pr.record.author ?? statuses[keyOf(pr)]?.author ?? involvedOf(pr)?.author;
-	const raisedAt = (pr: SavedPr) => Date.parse(statuses[keyOf(pr)]?.createdAt ?? involvedOf(pr)?.createdAt ?? '') || 0;
-	// New commits since the slices were made.
-	const updatedSince = (pr: SavedPr) => {
-		const now = statuses[keyOf(pr)]?.head;
-		return !!pr.record.preparedHead && !!now && now !== pr.record.preparedHead;
-	};
-
-	// Where a review stands, as one of a few states.
-	// What's happened since you last opened a PR: activity on GitHub, a
-	// reviewer finishing, an answer you haven't read. None for one never opened.
-	function changesSince(pr: Row): string[] {
-		const opened = pr.record.lastOpenedAt;
-		if (pr.unsaved || !opened) return [];
-		const updated = Date.parse(statuses[keyOf(pr)]?.updatedAt ?? involvedOf(pr)?.updatedAt ?? '') || 0;
-		const finished = pr.record.agentReviewers.filter((a) => (a.lastRun?.endedAt ?? 0) > opened).length;
-		const answers = [
-			...Object.values(pr.record.feedback).flatMap((d) => d?.items ?? []),
-			...pr.record.notes
-		].filter(isUnread).length;
-		return [
-			updated > opened ? 'new activity on GitHub' : '',
-			finished ? `${finished} ${finished === 1 ? 'reviewer' : 'reviewers'} finished` : '',
-			answers ? `${answers} unread ${answers === 1 ? 'answer' : 'answers'}` : ''
-		].filter(Boolean);
-	}
-
-	function stateOf(pr: Row): { label: string; tone: 'new' | 'working' | 'ready' | 'going' | 'read' | 'done' | 'bad' | 'quiet' } {
-		if (pr.unsaved) return { label: 'New', tone: 'new' };
-		const generation = generationFor(pr);
-		if (generation?.status === 'queued') return { label: 'Queued', tone: 'quiet' };
-		if (isGenerating(generation) && generation?.steps.summary.status !== 'done') return { label: 'Preparing', tone: 'working' };
-		if (generation?.status === 'failed') return { label: 'Preparing failed', tone: 'bad' };
-		if (generation?.status === 'stopped' && !pr.record.summary) return { label: 'Stopped', tone: 'quiet' };
-		if (pr.record.completedAt) return { label: 'Complete', tone: 'done' };
-		if (pr.record.review?.posted?.pending) return { label: 'Pending on GitHub', tone: 'going' };
-		if (pr.record.review?.posted) return { label: 'Posted', tone: 'done' };
-		if (panelFor(pr)?.running) return { label: 'Reviewing', tone: 'working' };
-		const { done, total } = progress(pr);
-		if (total && done === total) return { label: 'Read', tone: 'read' };
-		if (done > 0) return { label: 'In progress', tone: 'going' };
-		if (pr.record.summary || total) return { label: 'Ready', tone: 'ready' };
-		return { label: 'Not prepared', tone: 'quiet' };
-	}
-
-	const anyRunning = $derived(
-		generations.some(({ generation }) => isGenerating(generation)) || agentReviews.some((r) => r.status === 'running')
-	);
-
-	// Where a PR's panel is: reviewing, or done with its findings in.
-	function panelFor(pr: SavedPr): { running: number; findings: number } | null {
-		const live = agentReviews.filter((r) => keyOf(r) === keyOf(pr));
-		const running = live.filter((r) => r.status === 'running').length;
-		const ran = live.length > 0 || pr.record.agentReviewers.some((a) => a.lastRun);
-		if (!ran) return null;
-		const collected = Object.entries(pr.record.feedback)
-			.filter(([key]) => key.startsWith('agent-') && !live.some((r) => r.reviewer === key))
-			.reduce((n, [, d]) => n + (d?.items.length ?? 0), 0);
-		return { running, findings: collected + live.reduce((n, r) => n + r.findings, 0) };
-	}
-	$effect(() => {
-		if (!anyRunning) return;
-		const poll = setInterval(refresh, 2000);
-		const tick = setInterval(() => (now = Date.now()), 30000);
-		return () => {
-			clearInterval(poll);
-			clearInterval(tick);
-		};
-	});
-
-	function generationFor(pr: SavedPr): Generation | undefined {
-		return generations.find((g) => keyOf(g) === keyOf(pr))?.generation;
-	}
 
 	function open(e: SubmitEvent) {
 		e.preventDefault();
@@ -377,27 +25,29 @@
 		}
 		goto(`/pr/${ref.owner}/${ref.repo}/${ref.number}`);
 	}
-
-	async function remove(pr: SavedPr) {
-		const title = pr.record.title ?? `#${pr.number}`;
-		if (!(await ask({ title: `Delete your review of “${title}”?`, body: 'Its threads and feedback go with it.', action: 'Delete' }))) return;
-		const generation = generationFor(pr);
-		if (isGenerating(generation)) await stopGeneration(pr).catch(() => {});
-		await dismissGeneration(pr);
-		await deleteSaved(pr);
-		await refresh();
-	}
-
-	// A run still going can already have its slices; they count as soon as
-	// they exist.
-	function progress(pr: SavedPr) {
-		const slices = pr.record.slices ?? generationFor(pr)?.results.slices ?? [];
-		const done = slices.filter((s) => isSliceReviewed(s, pr.record.reviewed)).length;
-		return { done, total: slices.length };
-	}
 </script>
 
 <svelte:head><title>Docent</title></svelte:head>
+
+{#snippet groups(list: Row[])}
+	{#each page.grouped(list) as group (group.label)}
+		{@const key = `${page.sort}:${group.label}`}
+		{#if group.label}
+			<GroupHeading
+				label={group.label}
+				count={group.items.length}
+				byRepo={page.sort === 'repo'}
+				folded={page.collapsed.includes(key)}
+				ontoggle={() => page.toggleGroup(key)}
+			/>
+		{/if}
+		{#if !group.label || !page.collapsed.includes(key)}
+			<ul>
+				{#each group.items as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
+			</ul>
+		{/if}
+	{/each}
+{/snippet}
 
 <div class="page">
 	<div class="picker">
@@ -422,153 +72,62 @@
 				<button class="btn primary big" type="submit">Open</button>
 			</div>
 			{#if formError}<p class="error">{formError}</p>{/if}
-			{#if ghMissing}
+			{#if page.ghMissing}
 				<p class="setup">Docent can’t reach GitHub yet. <a href="/getting-started">Getting started</a> shows what to set up.</p>
 			{/if}
 		</form>
 
-		{#snippet reviewRow(pr: Row)}
-			{@const standing = stateOf(pr)}
-			{@const changes = changesSince(pr)}
-			<li>
-				<a href="/pr/{pr.owner}/{pr.repo}/{pr.number}">
-					<span class="text">
-						<span class="title"><InlineText text={pr.record.title ?? `#${pr.number}`} /></span>
-						<span class="faint meta">
-							{pr.owner}/{pr.repo} #{pr.number}{authorOf(pr) ? ` · by ${authorOf(pr)}` : ''}{raisedAt(pr)
-									? ` · raised ${timeAgo(raisedAt(pr), now)}`
-									: ''}
-							{#if involvedOf(pr) && (pr.unsaved || !pr.record.review?.posted)}· {reviewState(involvedOf(pr)!)}{/if}
-							{#if panelFor(pr)?.findings && !panelFor(pr)?.running}
-								· {panelFor(pr)!.findings} {panelFor(pr)!.findings === 1 ? 'finding' : 'findings'}
-							{/if}
-						</span>
-					</span>
-					<span class="state">
-						{#if updatedSince(pr)}<span class="updated" title="The PR has new commits since Docent prepared it">Updated since</span>{/if}
-						<span
-							class="status-label {standing.tone}"
-							title={changes.length ? `Since you last opened it: ${changes.join(', ')}` : undefined}
-						>
-							{#if standing.tone === 'working'}<Spinner size={11} />{:else if changes.length}<span
-									class="dot"
-									aria-label="Since you last opened it: {changes.join(', ')}"
-								></span>{/if}
-							{standing.label}
-						</span>
-					</span>
-				</a>
-				<span class="row-actions">
-					<button class="icon" aria-label={isHidden(pr) ? 'Show in the lists again' : 'Hide'} title={isHidden(pr) ? 'Show in the lists again' : 'Hide'} onclick={() => setHidden(pr, !isHidden(pr))}>
-						{#if isHidden(pr)}
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
-						{:else}
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17.4 17.4 0 0 1-2.9 3.9M6.6 6.6A17.6 17.6 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
-						{/if}
-					</button>
-					{#if !pr.unsaved}<button class="icon" aria-label="Delete this review" title="Delete this review" onclick={() => remove(pr)}>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-							><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg
-						>
-					</button>{/if}
-				</span>
-			</li>
-		{/snippet}
-
-		{#if active.length || mine.length}
-			<!-- How every list below is ordered. -->
-			<div class="list-tools">{@render viewMenu()}</div>
+		{#if page.active.length || page.mine.length}
+			<!-- How every list below is grouped. -->
+			<div class="list-tools">
+				<div class="grouping">
+					<span class="faint">Group by</span>
+					<Segmented
+						small
+						label="Group by"
+						value={page.sort}
+						onchange={(value) => page.setSort(value)}
+						options={[
+							{ value: 'none', label: 'None' },
+							{ value: 'repo', label: 'Repo' },
+							{ value: 'author', label: 'Author' }
+						]}
+					/>
+				</div>
+			</div>
 		{/if}
 
-
-		<!-- A repo links to its pull requests on GitHub; an author shows their avatar. -->
-		{#snippet groupHeading(label: string, count: number, key: string)}
-			<h3 class="group">
-				{#if sort === 'repo'}
-					<a class="group-link" href="https://github.com/{label}/pulls" target="_blank" rel="noreferrer" title="{label}’s pull requests on GitHub">
-						<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
-							><path
-								fill="currentColor"
-								d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
-							/></svg
-						>
-						{label}
-					</a>
-				{:else if label !== 'Author not known yet'}
-					<img class="avatar" src="https://github.com/{label}.png?size=48" alt="" width="20" height="20" loading="lazy" />
-					{label}
-				{:else}
-					{label}
-				{/if}
-				<span class="count">{count}</span>
-				<button class="fold" aria-expanded={!collapsed.includes(key)} aria-label="{collapsed.includes(key) ? 'Show' : 'Fold'} {label}" onclick={() => toggleGroup(key)}>
-					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed.includes(key) ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
-				</button>
-			</h3>
-		{/snippet}
-
-		{#snippet viewMenu()}
-			<div class="grouping">
-				<span class="faint">Group by</span>
-				<Segmented
-					small
-					label="Group by"
-					value={sort}
-					onchange={setSort}
-					options={[
-						{ value: 'none', label: 'None' },
-						{ value: 'repo', label: 'Repo' },
-						{ value: 'author', label: 'Author' }
-					]}
-				/>
-			</div>
-		{/snippet}
-
-		{#snippet groups(list: Row[])}
-			{#each grouped(list, authorOf, raisedAt) as group (group.label)}
-				{@const key = `${sort}:${group.label}`}
-				{#if group.label}{@render groupHeading(group.label, group.items.length, key)}{/if}
-				{#if !group.label || !collapsed.includes(key)}
-					<ul>
-						{#each group.items as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
-					</ul>
-				{/if}
-			{/each}
-		{/snippet}
-
-		{#if active.length}
+		{#if page.active.length}
 			<section aria-labelledby="saved-heading">
-				<div class="section-head">
-					<h2 id="saved-heading" class="caps">Your reviews</h2>
-				</div>
-				{@render groups(active)}
+				<h2 id="saved-heading" class="caps">Your reviews</h2>
+				{@render groups(page.active)}
 			</section>
 		{/if}
 
-		{#if mine.length}
+		{#if page.mine.length}
 			<section aria-labelledby="mine-heading">
 				<h2 id="mine-heading" class="caps">My pull requests</h2>
-				{@render groups(mine)}
+				{@render groups(page.mine)}
 			</section>
 		{/if}
 
-		{#if complete.length}
+		{#if page.complete.length}
 			<section>
-				<Disclosure bind:open={showComplete} label="Complete" count={complete.length} />
+				<Disclosure bind:open={showComplete} label="Complete" count={page.complete.length} />
 				{#if showComplete}
 					<ul class="done-list">
-						{#each complete as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
+						{#each page.complete as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
 					</ul>
 				{/if}
 			</section>
 		{/if}
 
-		{#if hiddenRows.length}
+		{#if page.hiddenRows.length}
 			<section>
-				<Disclosure bind:open={showHidden} label="Hidden" count={hiddenRows.length} />
+				<Disclosure bind:open={showHidden} label="Hidden" count={page.hiddenRows.length} />
 				{#if showHidden}
 					<ul class="done-list">
-						{#each hiddenRows as pr (keyOf(pr))}{@render reviewRow(pr)}{/each}
+						{#each page.hiddenRows as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
 					</ul>
 				{/if}
 			</section>
@@ -583,129 +142,13 @@
 		gap: 10px;
 		font-size: 13px;
 	}
-	/* The state as a badge, tinted in its colour. */
-	.status-label {
-		--tone: var(--muted);
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 3px 10px;
-		border-radius: 999px;
-		background: color-mix(in srgb, var(--tone) 16%, transparent);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
-		color: var(--tone);
-		font-size: 12.5px;
-		font-weight: 500;
-		white-space: nowrap;
-	}
-	/* Something new since you last opened it. */
-	.status-label .dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: currentColor;
-	}
-	.status-label.new {
-		--tone: #c8a8ff;
-	}
-	/* Docent busy with it: the spinner says so, so the colour stays quiet. */
-	.status-label.working {
-		--tone: #e8e2d6;
-	}
-	.status-label.ready {
-		--tone: #8ab4ff;
-	}
-	/* You're partway through it: the one to spot. */
-	.status-label.going {
-		--tone: #ffb85c;
-	}
-	.status-label.read {
-		--tone: var(--muted);
-	}
-	.status-label.done {
-		--tone: #7fd89b;
-	}
-	.status-label.bad {
-		--tone: #ff8a7a;
-	}
-	.status-label.quiet {
-		--tone: var(--faint);
-	}
-	.updated {
-		padding: 2px 8px;
-		border-radius: 999px;
-		background: var(--agent-chip);
-		color: var(--agent-text);
-		font-size: 12px;
-		white-space: nowrap;
-	}
 	.list-tools {
 		display: flex;
 		justify-content: flex-end;
 		margin-bottom: -28px;
 	}
-	.section-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-	}
-	/* A heading per repo or author: the repo's GitHub link, or the author's avatar. */
-	.group {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		margin: 26px 0 8px;
-		font-size: 14px;
-		font-weight: 500;
-		color: var(--text);
-	}
-	.group-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 9px;
-		color: inherit;
-		text-decoration: none;
-	}
-	.group-link svg {
-		color: var(--muted);
-	}
-	.group-link:hover {
-		text-decoration: underline;
-		text-underline-offset: 3px;
-	}
-	.avatar {
-		border-radius: 50%;
-		background: var(--surface-2);
-	}
-	.group .count {
-		font-family: var(--mono);
-		font-size: 12px;
-		font-weight: 400;
-		color: var(--faint);
-	}
-	.tick {
-		color: var(--done);
-		font-size: 13px;
-	}
-	.hidden-note {
-		margin: 12px 0 0;
-		font-size: 14px;
-	}
-	.count {
-		font-family: var(--mono);
-		letter-spacing: 0;
-	}
 	.done-list {
 		opacity: 0.7;
-	}
-	.panel {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-	}
-	.panel.working {
-		color: var(--agent-text);
 	}
 	.page {
 		position: relative;
@@ -800,93 +243,5 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-	}
-	li {
-		position: relative;
-		display: flex;
-		align-items: center;
-		border-top: 1px solid var(--line);
-	}
-	li a {
-		flex-grow: 1;
-		min-width: 0;
-		display: flex;
-		align-items: center;
-		gap: 20px;
-		padding: 16px 4px;
-		text-decoration: none;
-	}
-	li a:hover .title {
-		color: #fff;
-	}
-	.text {
-		flex-grow: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-	.title {
-		font-size: 15.5px;
-		font-weight: 500;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.meta {
-		font-size: 13px;
-	}
-	.state {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		font-size: 13px;
-		white-space: nowrap;
-	}
-	.state.working {
-		color: var(--agent-text);
-	}
-	.state.bad {
-		color: var(--danger);
-	}
-	.bar {
-		display: block;
-		width: 64px;
-		height: 4px;
-		border-radius: 2px;
-		background: var(--line-2);
-		overflow: hidden;
-	}
-	.bar span {
-		display: block;
-		height: 4px;
-		background: var(--done);
-	}
-	/* Float just outside the row, so the states line up at its edge. */
-	.row-actions {
-		position: absolute;
-		left: calc(100% + 6px);
-		display: flex;
-		gap: 2px;
-		opacity: 0;
-	}
-	li:hover .row-actions,
-	.row-actions:focus-within {
-		opacity: 1;
-	}
-	.fold {
-		display: grid;
-		place-items: center;
-		width: 20px;
-		height: 20px;
-		margin-left: -2px;
-		border: 0;
-		border-radius: 5px;
-		background: none;
-		color: var(--faint);
-		cursor: pointer;
-	}
-	.fold:hover {
-		color: var(--text);
 	}
 </style>
