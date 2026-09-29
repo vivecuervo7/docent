@@ -2,7 +2,7 @@
 	import { readOk } from '$lib/api/client';
 	import { ask } from '$lib/confirm.svelte';
 	import { Reorder } from '$lib/reorder.svelte';
-	import Spinner from './Spinner.svelte';
+	import Spinner from '../../components/Spinner.svelte';
 
 	// Personas: Docent's own reviewer with a point of view. Default is today's
 	// general review; your own add instructions, like a security focus. A

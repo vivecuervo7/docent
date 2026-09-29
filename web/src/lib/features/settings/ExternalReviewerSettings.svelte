@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
 	import { ask } from '$lib/confirm.svelte';
-	import MenuSelect from './MenuSelect.svelte';
+	import MenuSelect from '../../components/MenuSelect.svelte';
 	import { Reorder } from '$lib/reorder.svelte';
-	import Spinner from './Spinner.svelte';
+	import Spinner from '../../components/Spinner.svelte';
 
 	// External reviewers: your own tooling as a reviewer on the panel. Each
 	// runs its prompt in an unattended Claude Code or Codex session, reading

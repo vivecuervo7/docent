@@ -1,4 +1,4 @@
-import type { Provider } from '../storage/settings.server.js';
+import type { Provider } from '../../storage/settings.server.js';
 
 // Checking and tidying the fields the Settings page sends, for providers,
 // personas and external reviewers; `partial` for an edit.

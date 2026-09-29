@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
 	import { ask } from '$lib/confirm.svelte';
-	import EditorModel from '$lib/components/EditorModel.svelte';
-	import ExternalReviewerSettings from '$lib/components/ExternalReviewerSettings.svelte';
-	import PersonaSettings from '$lib/components/PersonaSettings.svelte';
-	import RunnerConcurrency from '$lib/components/RunnerConcurrency.svelte';
+	import EditorModel from '$lib/features/settings/EditorModel.svelte';
+	import ExternalReviewerSettings from '$lib/features/settings/ExternalReviewerSettings.svelte';
+	import PersonaSettings from '$lib/features/settings/PersonaSettings.svelte';
+	import RunnerConcurrency from '$lib/features/settings/RunnerConcurrency.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import StateMark from '$lib/components/StateMark.svelte';
 
