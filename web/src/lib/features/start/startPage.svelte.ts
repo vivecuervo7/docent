@@ -1,4 +1,4 @@
-import { readOk } from '$lib/api/client';
+import { listModels, readOk } from '$lib/api/client';
 import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
 import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
 import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
@@ -127,10 +127,15 @@ export class StartPage {
 	// for a section of their own. Kept in Docent's settings.
 	hiddenKeys = $state<string[]>(this.#cached.hidden ?? []);
 	statuses = $state<Record<string, PrStatus>>(this.#cached.statuses ?? {});
-	// Without a signed-in GitHub CLI nothing opens, so say where to start.
-	ghMissing = $state(false);
+	// What Docent needs before it can do anything: the GitHub CLI signed in,
+	// and a model to use. Null until checked.
+	gh = $state<{ installed: boolean; login?: string } | null>(null);
+	// Where the available models come from: "Claude Code", "Codex", a provider.
+	modelSources = $state<string[] | null>(null);
 	// The reviewer's GitHub login, to tell their own PRs apart.
 	login = $state<string | null>(this.#cached.login ?? null);
+	// The setup guide shows once, for someone missing what's needed.
+	setupSeen = $state(readPref('docent.setupSeen', (v) => v === 'true'));
 	// How the lists are grouped, and the groups folded away, kept in this browser.
 	sort = $state<Sort>(readPref('docent.sort', (v) => (v === 'repo' || v === 'author' ? v : 'none')));
 	collapsed = $state<string[]>(readPref('docent.collapsedGroups', (v) => JSON.parse(v ?? '[]')));
@@ -153,6 +158,8 @@ export class StartPage {
 	readonly mine = $derived(this.notComplete.filter((pr) => this.isMine(pr)));
 	readonly hiddenRows = $derived(this.rows.filter((pr) => this.isHidden(pr)));
 	readonly complete = $derived((this.saved ?? []).filter((pr) => pr.record.completedAt && !this.isHidden(pr)));
+	readonly checked = $derived(this.gh !== null && this.modelSources !== null);
+	readonly ready = $derived(!!this.gh?.login && !!this.modelSources?.length);
 	readonly anyRunning = $derived(
 		this.generations.some(({ generation }) => isGenerating(generation)) || this.agentReviews.some((r) => r.status === 'running')
 	);
@@ -174,13 +181,7 @@ export class StartPage {
 				.catch(() => {});
 		});
 		$effect(() => {
-			fetch('/api/setup')
-				.then((res) => readOk<{ gh: { login?: string } }>(res))
-				.then((check) => {
-					this.ghMissing = !check.gh.login;
-					this.login = check.gh.login ?? null;
-				})
-				.catch(() => {});
+			this.recheck();
 		});
 		$effect(() => {
 			this.refresh();
@@ -198,6 +199,26 @@ export class StartPage {
 				clearInterval(tick);
 			};
 		});
+	}
+
+	// What's set up on this machine, checked again on asking.
+	async recheck() {
+		const [setup, models] = await Promise.all([
+			fetch('/api/setup')
+				.then((res) => readOk<{ gh: { installed: boolean; login?: string } }>(res))
+				.catch(() => null),
+			listModels().catch(() => null)
+		]);
+		if (setup) {
+			this.gh = setup.gh;
+			this.login = setup.gh.login ?? null;
+		}
+		if (models) this.modelSources = [...new Set(models.options.map((o) => o.source))];
+	}
+
+	dismissSetup() {
+		this.setupSeen = true;
+		writePref('docent.setupSeen', 'true');
 	}
 
 	#loadInvolved() {

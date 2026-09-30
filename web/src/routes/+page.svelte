@@ -3,6 +3,7 @@
 	import GroupHeading from '$lib/features/start/GroupHeading.svelte';
 	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
 	import ReviewRow from '$lib/features/start/ReviewRow.svelte';
+	import SetupDialog from '$lib/features/start/SetupDialog.svelte';
 	import { keyOf, StartPage, type Row } from '$lib/features/start/startPage.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
@@ -28,6 +29,10 @@
 </script>
 
 <svelte:head><title>Docent</title></svelte:head>
+
+{#if page.checked && !page.ready && !page.setupSeen}
+	<SetupDialog {page} onclose={() => page.dismissSetup()} />
+{/if}
 
 {#snippet groups(list: Row[])}
 	{#each page.grouped(list) as group (group.label)}
@@ -72,8 +77,9 @@
 				<button class="btn primary big" type="submit">Open</button>
 			</div>
 			{#if formError}<p class="error">{formError}</p>{/if}
-			{#if page.ghMissing}
-				<p class="setup">Docent can’t reach GitHub yet. <a href="/getting-started">Getting started</a> shows what to set up.</p>
+			{#if page.checked && !page.ready}
+				{@const needs = [!page.gh?.login && 'the GitHub CLI signed in', !page.modelSources?.length && 'a model'].filter(Boolean)}
+				<p class="setup">Docent needs {needs.join(' and ')} first. <a href="/getting-started">Getting started</a> shows how.</p>
 			{/if}
 		</form>
 
