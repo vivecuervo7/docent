@@ -5,7 +5,8 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import StateMark from '$lib/ui/StateMark.svelte';
 
-	// What Docent needs on this machine, each step checked live.
+	// What Docent needs on this machine, then the optional extras, each
+	// checked live.
 	interface SetupCheck {
 		gh: { installed: boolean; login?: string };
 		claude: { installed: boolean; version?: string };
@@ -25,6 +26,8 @@
 	let check = $state<SetupCheck | null>(null);
 	// The models available right now, by where they run.
 	let sources = $state<string[] | null>(null);
+	// How many of each optional extra are set up.
+	let counts = $state<{ personas: number; externals: number } | null>(null);
 	// The one chosen here, else whichever is installed.
 	let picked = $state<Agent | null>(null);
 	const agent = $derived<Agent>(picked ?? (check && !check.claude.installed && check.codex.installed ? 'codex' : 'claude'));
@@ -44,6 +47,11 @@
 			]);
 			check = setup;
 			sources = [...new Set(models.options.map((o) => o.source))];
+			const [personas, externals] = await Promise.all([
+				readOk<{ items: unknown[] }>(await fetch('/api/personas')),
+				readOk<{ items: unknown[] }>(await fetch('/api/external-reviewers'))
+			]);
+			counts = { personas: personas.items.length, externals: externals.items.length };
 		} catch (err) {
 			error = (err as Error).message;
 		} finally {
@@ -77,7 +85,7 @@
 	</div>
 	<p class="lede">
 		Docent runs on your machine. It reads pull requests and posts your reviews through GitHub’s own CLI, as you, and uses
-		a model you choose for the summaries, slices and reviewers.
+		a model you choose for the summaries, slices and reviewers. Those two are all it needs.
 	</p>
 
 	{#if error}
@@ -88,7 +96,7 @@
 		<li>
 			<StateMark state={check?.gh.login ? 'done' : 'todo'} />
 			<div class="step">
-				<h2>Sign in to the GitHub CLI</h2>
+				<h3>Sign in to the GitHub CLI</h3>
 				<p>Docent reads each PR and posts your review with <code>gh</code>, so it sees what you can see.</p>
 				{#if !check}
 					<p class="status faint">Checking…</p>
@@ -108,7 +116,7 @@
 		<li>
 			<StateMark state={sources?.length ? 'done' : 'todo'} />
 			<div class="step">
-				<h2>Have a model available</h2>
+				<h3>Have a model available</h3>
 				<p>
 					Any one will do. <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> or
 					<a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a>, installed and signed in,
@@ -125,10 +133,15 @@
 			</div>
 		</li>
 
+	</ol>
+
+	<h2 class="caps">Advanced</h2>
+	<p class="section-note">None of these is needed to review. They shape who sits on a PR’s review panel.</p>
+	<ol>
 		<li>
 			<StateMark state={check?.mcp.claude.added || check?.mcp.codex.added ? 'done' : 'todo'} />
 			<div class="step">
-				<h2>Bring your own agent <span class="faint optional">optional</span></h2>
+				<h3>Bring your own agent</h3>
 				<p>Your own agent can sit on a PR’s review panel beside Docent’s reviewers. Add Docent’s MCP server to it once, for all your projects.</p>
 				<div class="agent-box">
 					<Segmented
@@ -162,7 +175,7 @@
 					<p class="status">{AGENTS[agent].name} isn’t installed.</p>
 				{/if}
 				<p>
-					Then set a reviewer on the panel to “Your own agent” and start it. After your usual review, tell your agent the
+					Then set a reviewer on the panel to “Connect via MCP”, under Your own agent, and start it. After your usual review, tell your agent the
 					sentence the panel shows, and its findings land on the code as you read.
 					{#if agent === 'claude'}
 						In Claude Code, <code>/mcp__docent__review owner/repo#123</code> also asks it to review a PR, and
@@ -171,6 +184,44 @@
 				</p>
 				</div>
 				<p class="faint small">Other MCP agents can connect to <code>{MCP_URL}</code>.</p>
+			</div>
+		</li>
+
+		<li>
+			<StateMark state={counts?.externals ? 'done' : 'todo'} />
+			<div class="step">
+				<h3>Add external reviewers</h3>
+				<p>
+					Your own review tooling - a prompt or a skill - as a reviewer on the panel, run in an unattended Claude Code or Codex
+					session that reads the PR through Docent. Add them in <a href="/settings">Settings</a>.
+				</p>
+				{#if !counts || !check}
+					<p class="status faint">Checking…</p>
+				{:else if !check.claude.installed && !check.codex.installed}
+					<p class="status">They run in Claude Code or Codex, so they need one of those installed.</p>
+				{:else if counts.externals}
+					<p class="status ok">{counts.externals} set up.</p>
+				{:else}
+					<p class="status">None yet.</p>
+				{/if}
+			</div>
+		</li>
+
+		<li>
+			<StateMark state={counts?.personas ? 'done' : 'todo'} />
+			<div class="step">
+				<h3>Give Docent’s reviewer personas</h3>
+				<p>
+					A point of view for Docent’s own reviewer, such as security or tests, so a panel can hold more than one. Auto picks
+					the ones a PR warrants. Write them in <a href="/settings">Settings</a>.
+				</p>
+				{#if !counts}
+					<p class="status faint">Checking…</p>
+				{:else if counts.personas}
+					<p class="status ok">{counts.personas} {counts.personas === 1 ? 'persona' : 'personas'} besides general.</p>
+				{:else}
+					<p class="status">Only general so far.</p>
+				{/if}
 			</div>
 		</li>
 	</ol>
@@ -232,17 +283,25 @@
 		flex-direction: column;
 		gap: 10px;
 	}
-	h2 {
+	h3 {
 		margin: 0;
 		font-family: var(--serif);
 		font-size: 22px;
 		font-weight: 500;
 	}
-	.optional {
-		margin-left: 6px;
-		font-family: var(--sans);
-		font-size: 13px;
-		font-weight: 400;
+	.caps {
+		margin: 24px 0 -14px;
+		color: var(--faint);
+		font-size: 11.5px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+	}
+	.section-note {
+		margin: 0 0 -8px;
+		color: var(--faint);
+		font-size: 14px;
+		line-height: 1.6;
 	}
 	.step p {
 		margin: 0;
