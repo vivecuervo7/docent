@@ -32,9 +32,11 @@ const PICK_TOOL = {
 };
 
 const PROMPT = `You're choosing which specialist reviewers a pull request warrants. A general \
-reviewer always reviews it; pick a specialist only when its area is a substantial part of this \
-change - several files, the change's main purpose, or a risk the change plainly creates - not \
-when one line brushes against it. One log line doesn't warrant an operations reviewer, and one \
+reviewer always reviews it, looking at correctness, clarity, tests and risk. Pick a specialist \
+only where it would likely catch problems the general reviewer would miss: when its area is a \
+substantial part of this change - several files, the change's main purpose, or a risk the change \
+plainly creates - and needs a closer look than a general review gives it, not when one line \
+brushes against it. One log line doesn't warrant an operations reviewer, and one \
 nullable column doesn't warrant a data reviewer. When the PR adds or changes tests, or changes \
 behaviour that has tests, a reviewer of test quality is warranted. Pick at most three, the most \
 warranted first. Picking none is fine.`;
