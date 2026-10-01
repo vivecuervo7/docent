@@ -11,7 +11,7 @@ summaries come from the model you configure. Reviews are saved in
 
 ## Requirements
 
-- A recent Node.js
+- Node.js 22.13 or later, for its built-in SQLite
 - [GitHub CLI](https://cli.github.com/), signed in (`gh auth login`) with
   access to the repos you want to review. Docent reads PRs and posts your
   reviews through it, as you.
