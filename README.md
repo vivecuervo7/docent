@@ -1,6 +1,6 @@
 # Docent
 
-A local tool for reviewing large pull requests. Docent breaks a PR into small "slices" — each a handful of related hunks with a short explanation — and walks you through them one at a time, starting from an overview of what the PR does, why, and what reviewers have already said. A panel of reviewers reads the PR alongside you, and their findings are pinned on the code as you go.
+A local tool for reviewing large pull requests. Docent breaks a PR into small "slices" — each a handful of related hunks with a short explanation — and walks you through them one at a time, starting from an overview of what the PR does and why. A panel of reviewers reads the PR alongside you, and their findings are pinned on the code as you go.
 
 Everything runs on your machine: GitHub is read through the `gh` CLI, and the summaries and reviews come from the model you choose.
 
@@ -29,7 +29,7 @@ Open http://localhost:17321 and paste a GitHub PR URL. To run a built copy inste
 
 A review moves through four steps, shown along the top:
 
-- **Overview** — what the PR does and why, what's been said on it, and the slices to read.
+- **Overview** — what the PR does and why, the slices to read, and the review panel to start. What's already been said on the PR shapes the summary, and the reviewers leave out points raised there.
 - **Read** — each slice's changes, with notes on the files that need them. Select lines by dragging down their line numbers to **Ask** Docent about them, or to leave a **Comment** to post as written.
 - **Wrap up** — confirm or skip the panel's findings, and draft your comments from your threads.
 - **Post** — Docent prepares the review: comments making the same point merged, anything already said on the PR set aside, and a suggested outcome. Post it, or leave it pending on GitHub to add to and submit there.
