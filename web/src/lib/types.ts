@@ -182,8 +182,8 @@ export interface AgentReviewer {
 	pickedBy?: AgentId;
 	pickReason?: string;
 	// For "auto" ("auto:<model>"), the personas it last picked.
-	// `general` when it picked no persona, so the general reviewer went in
-	// their place.
+	// `general` when the general reviewer went in with its picks, which it
+	// does unless one is on the panel by choice.
 	picks?: { at: number; personas: string[]; general?: boolean; error?: string };
 	// Its latest review, kept after the backend has let it go.
 	lastRun?: {

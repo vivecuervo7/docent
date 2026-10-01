@@ -266,9 +266,9 @@ export class Panel {
 
 	// This PR's panel, as what every new PR starts with.
 	// "auto" picks personas the PR warrants, leaving out any already on the
-	// panel by choice, and runs them in place of its last picks. Picking none
-	// still reviews the PR: the general reviewer goes in their place, unless
-	// one is on the panel by choice already.
+	// panel by choice, and runs them in place of its last picks. The general
+	// reviewer always goes in with them, unless one is on the panel by choice
+	// already.
 	async #startAuto(id: AgentId, model: string) {
 		const session = this.#session;
 		this.errors[id] = undefined;
@@ -282,7 +282,7 @@ export class Panel {
 				body: JSON.stringify({ exclude: chosen, model })
 			});
 			const { picks } = await readOk<{ picks: { persona: string; reason: string }[] }>(res);
-			const general = !picks.length && !this.hasGeneral;
+			const general = !this.hasGeneral;
 			const previous = this.reviewers.filter((a) => a.pickedBy === id).map((a) => a.id);
 			for (const old of previous) {
 				this.#removed.add(old);
@@ -293,9 +293,10 @@ export class Panel {
 			await session.update((r) => {
 				for (const old of previous) delete r.feedback[old];
 				const highest = Math.max(0, r.agentHighest ?? 0, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length))));
-				const wanted: { persona?: string; reason: string }[] = general
-					? [{ reason: 'Nothing here warrants a specialist, so the general reviewer.' }]
-					: picks;
+				const wanted: { persona?: string; reason: string }[] = [
+					...(general ? [{ reason: 'The general reviewer reviews every PR.' }] : []),
+					...picks
+				];
 				const fresh = wanted.map((p, i): AgentReviewer => {
 					const pid: AgentId = `agent-${highest + i + 1}`;
 					added.push(pid);

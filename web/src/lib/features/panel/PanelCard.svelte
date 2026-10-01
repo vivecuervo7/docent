@@ -225,7 +225,7 @@
 						{:else if r.picks}
 							<span class="status faint">
 								{r.picks.personas.length
-									? `Picked ${r.picks.personas.map((p) => panel.personaName(p)).join(', ')}`
+									? `Picked ${[...(r.picks.general ? ['general'] : []), ...r.picks.personas.map((p) => panel.personaName(p))].join(', ')}`
 									: r.picks.general
 										? 'Picked general: nothing here warrants a specialist'
 										: panel.hasGeneral
