@@ -285,7 +285,7 @@
 						<span class="tell faint">After your usual review, tell your agent:</span>
 						<span class="command">
 							<span class="sentence">{agentInstruction(session, r)}</span>
-							<button class="icon" aria-label="Copy what to tell your agent" onclick={() => copy(r)}>
+							<button class="icon" aria-label="Copy what to tell your agent" title="Copy what to tell your agent" onclick={() => copy(r)}>
 								{#if copied === r.id}
 									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
 								{:else}
@@ -303,13 +303,14 @@
 							role="switch"
 							aria-checked={isTicked(r)}
 							aria-label="Start {nameOf(r, panel.reviewers)}"
+							title={isTicked(r) ? 'Runs when you start the panel' : 'Turn on to run it when you start the panel'}
 							onclick={() => (ticked[r.id] = !isTicked(r))}
 						>
 							<span></span>
 						</button>
 					{/if}
 					{#if r.id !== FIRST_AGENT}
-						<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
+						<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" title="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
 						</button>
 					{:else}

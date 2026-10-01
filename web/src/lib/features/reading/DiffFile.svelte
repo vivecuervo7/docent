@@ -226,6 +226,7 @@
 	}
 
 	// Dragging down the line numbers selects lines to ask about.
+	const SELECT_HINT = 'Drag down the line numbers to ask about or comment on those lines';
 	let selection = $state<{ anchor: number; head: number } | null>(null);
 	let dragging = $state(false);
 	const selFrom = $derived(selection ? Math.min(selection.anchor, selection.head) : -1);
@@ -438,8 +439,8 @@
 		role="presentation"
 		onpointerenter={() => dragging && selection && (selection = { ...selection, head: pos })}
 	>
-		<span class="n" role="presentation" onpointerdown={(e) => startSelect(e, pos)}>{r.old ?? ''}</span>
-		<span class="n" role="presentation" onpointerdown={(e) => startSelect(e, pos)}>{r.new ?? ''}</span>
+		<span class="n" role="presentation" title={SELECT_HINT} onpointerdown={(e) => startSelect(e, pos)}>{r.old ?? ''}</span>
+		<span class="n" role="presentation" title={SELECT_HINT} onpointerdown={(e) => startSelect(e, pos)}>{r.new ?? ''}</span>
 		<span class="code"
 			>{#each segments(r.text, tokens.get(r.key), edits.get(r.key)) as s, i (i)}<span
 					class:edit={s.edit}
@@ -478,7 +479,7 @@
 			<div class="composer">
 				<div class="composer-head">
 					<span class="faint">{describe(selFrom, selTo)}</span>
-					<button class="icon" aria-label="Cancel" onclick={() => (selection = null)}>
+					<button class="icon" aria-label="Cancel" title="Cancel" onclick={() => (selection = null)}>
 						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
 					</button>
 				</div>

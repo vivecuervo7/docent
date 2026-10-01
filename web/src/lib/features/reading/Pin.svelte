@@ -37,7 +37,7 @@
 	class:active
 	data-pin={id}
 	aria-label={label}
-	{title}
+	title={title ?? label}
 	{onclick}
 	{onpointerenter}
 	{onpointerleave}

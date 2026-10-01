@@ -105,6 +105,7 @@
 					<button
 						class="grip"
 						aria-label="Move {item.name} (Alt+↑ or ↓)"
+						title="Drag to reorder, or Alt+↑ or ↓"
 						onpointerdown={() => order.arm(item.id)}
 						onkeydown={(e) => order.key(e, item.id)}
 					><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><circle cx="3.5" cy="3" r="1.4" /><circle cx="8.5" cy="3" r="1.4" /><circle cx="3.5" cy="8" r="1.4" /><circle cx="8.5" cy="8" r="1.4" /><circle cx="3.5" cy="13" r="1.4" /><circle cx="8.5" cy="13" r="1.4" /></svg></button>
