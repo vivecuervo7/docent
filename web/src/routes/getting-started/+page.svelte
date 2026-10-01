@@ -10,14 +10,16 @@
 		gh: { installed: boolean; login?: string };
 		claude: { installed: boolean; version?: string };
 		codex: { installed: boolean; version?: string };
-		mcp: { claude: boolean; codex: boolean };
+		// Added here, or at another address that needs replacing.
+		mcp: Record<Agent, { added: boolean; elsewhere?: string }>;
 	}
 
 	const MCP_URL = `${location.origin}/mcp`;
-	// How each agent adds Docent's MCP server, for all your projects.
+	// How each agent adds Docent's MCP server, for all your projects, and
+	// removes an entry left at another address.
 	const AGENTS = {
-		claude: { name: 'Claude Code', command: `claude mcp add --scope user --transport http docent ${MCP_URL}` },
-		codex: { name: 'Codex', command: `codex mcp add docent --url ${MCP_URL}` }
+		claude: { name: 'Claude Code', add: `claude mcp add --scope user --transport http docent ${MCP_URL}`, remove: 'claude mcp remove docent' },
+		codex: { name: 'Codex', add: `codex mcp add docent --url ${MCP_URL}`, remove: 'codex mcp remove docent' }
 	} as const;
 	type Agent = keyof typeof AGENTS;
 	let check = $state<SetupCheck | null>(null);
@@ -26,6 +28,8 @@
 	// The one chosen here, else whichever is installed.
 	let picked = $state<Agent | null>(null);
 	const agent = $derived<Agent>(picked ?? (check && !check.claude.installed && check.codex.installed ? 'codex' : 'claude'));
+	const elsewhere = $derived(check?.mcp[agent].elsewhere);
+	const command = $derived(elsewhere ? `${AGENTS[agent].remove} && ${AGENTS[agent].add}` : AGENTS[agent].add);
 	let checking = $state(false);
 	let error = $state<string | null>(null);
 	let copied = $state(false);
@@ -51,7 +55,7 @@
 	});
 
 	function copy() {
-		navigator.clipboard.writeText(AGENTS[agent].command).then(() => {
+		navigator.clipboard.writeText(command).then(() => {
 			copied = true;
 			setTimeout(() => (copied = false), 1500);
 		});
@@ -122,7 +126,7 @@
 		</li>
 
 		<li>
-			<StateMark state={check?.mcp.claude || check?.mcp.codex ? 'done' : 'todo'} />
+			<StateMark state={check?.mcp.claude.added || check?.mcp.codex.added ? 'done' : 'todo'} />
 			<div class="step">
 				<h2>Bring your own agent <span class="faint optional">optional</span></h2>
 				<p>Your own agent can sit on a PR’s review panel beside Docent’s reviewers. Add Docent’s MCP server to it once, for all your projects.</p>
@@ -134,10 +138,10 @@
 						onchange={(key) => (picked = key)}
 						options={(Object.keys(AGENTS) as Agent[]).map((key) => ({ value: key, label: AGENTS[key].name }))}
 					>
-						{#snippet after(key)}{#if check?.mcp[key]}<StateMark state="done" size={13} />{/if}{/snippet}
+						{#snippet after(key)}{#if check?.mcp[key].added}<StateMark state="done" size={13} />{/if}{/snippet}
 					</Segmented>
 				<div class="command">
-					<code>{AGENTS[agent].command}</code>
+					<code>{command}</code>
 					<button class="icon" aria-label="Copy the command" onclick={copy}>
 						{#if copied}
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
@@ -148,8 +152,10 @@
 				</div>
 				{#if !check}
 					<p class="status faint">Checking…</p>
-				{:else if check.mcp[agent]}
+				{:else if check.mcp[agent].added}
 					<p class="status ok">Docent’s MCP server is added to {AGENTS[agent].name}.</p>
+				{:else if elsewhere}
+					<p class="status">Added to {AGENTS[agent].name} at <code>{elsewhere}</code>, which isn’t where Docent runs now. The command above replaces it.</p>
 				{:else if check[agent].installed}
 					<p class="status">Not added to {AGENTS[agent].name} yet.</p>
 				{:else}
