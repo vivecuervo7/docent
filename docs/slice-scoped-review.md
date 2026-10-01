@@ -1,8 +1,15 @@
 # Slice-scoped review
 
-An idea we want to explore but haven't built: review a PR one slice at a
-time, then in a second pass look at how the slices fit together, instead of
-reviewing the whole PR in one go.
+An idea for reviewing a PR one slice at a time, then in a second pass
+looking at how the slices fit together, instead of reviewing the whole PR in
+one go.
+
+Partly built, in a different order: Docent's reviewer reads the whole PR
+first and writes itself a brief, raising what shows only across parts, then
+reviews each part with that brief. Its findings record their slice, and
+every reviewer gets the code around the change looked up for it. Not built:
+reviewing one slice on demand, re-reviewing a changed slice, an integration
+pass after the parts, and the MCP slice commands.
 
 ## What
 
@@ -44,10 +51,12 @@ than a review that seems to have failed.
 
 ## How
 
-**What exists already.** Docent's own reviewer (`web/src/lib/features/panel/agentReviews.server.ts`)
-already makes one pass per slice. What's missing is the integration pass,
-triggering one slice's review on its own, and keeping findings attached to
-their slice.
+**What exists already.** Docent's own reviewer
+(`web/src/lib/features/panel/agentReviews.server.ts`) makes one pass per
+part after a whole-PR brief, and its findings keep the slice they came
+from. A reviewer with a persona reviews the whole PR in one call when the
+diff fits. What's missing is an integration pass after the parts, and
+triggering one slice's review on its own.
 
 **Findings know their slice.** A finding records the slice it came from,
 alongside its file and lines. Integration findings record the slices they

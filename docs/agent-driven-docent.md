@@ -1,8 +1,16 @@
 # Agent-driven Docent
 
-A direction we've discussed but haven't built: letting the reviewer's own
-coding agent (Claude Code, Codex, or anything that speaks MCP) do Docent's
-heavy lifting, with Docent as the guided review UI around it.
+A direction for letting the reviewer's own coding agent (Claude Code, Codex,
+or anything that speaks MCP) do Docent's heavy lifting, with Docent as the
+guided review UI around it.
+
+Partly built. Review state lives in Docent's store, so agents can reach it;
+answers to the reviewer's questions can come from a headless `claude -p` or
+`codex exec` run with Docent's read tools; and the reviewer's own agent, or
+their own tooling as an external reviewer, can review a PR and submit
+findings over MCP. Not built: the agent preparing the review (step 1's
+slices and summaries) and building the feedback (step 3). Docent still does
+both with the chosen model.
 
 ## What
 
@@ -67,8 +75,8 @@ what they cover by file and line range rather than by hunk index, since an
 agent's own diff won't number hunks the way GitHub's patch does; Docent maps
 the ranges onto its hunks and reports any left uncovered.
 
-**Still to check.** The exact flags for passing an MCP config to
-`claude -p` and for structured output. MCP sampling, which would let Docent
-ask the agent's model for completions directly, isn't supported by Claude
-Code (its feature request, anthropics/claude-code#1785, is still open); Codex
-is unchecked.
+**Still to check.** MCP sampling, which would let Docent ask the agent's
+model for completions directly, isn't supported by Claude Code (its feature
+request, anthropics/claude-code#1785, was open when last checked); Codex is
+unchecked. Passing an MCP config to `claude -p` is settled: Docent uses
+`--mcp-config` with `--allowedTools` limited to its read tools.
