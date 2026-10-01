@@ -15,8 +15,9 @@ export default defineConfig({
 		})
 	],
 	server: {
-		// Agents are given this port for MCP, so it can't drift.
-		port: 5174,
+		// Agents are given this port for MCP, so it can't drift. Five digits and
+		// below the OS's range for outgoing ports, clear of other dev servers.
+		port: Number(process.env.DOCENT_PORT ?? 17321),
 		strictPort: true
 	}
 });

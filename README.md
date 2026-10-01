@@ -20,10 +20,10 @@ The app's **Getting started** page checks each of these for you, and the start p
 ## Running
 
 ```sh
-cd web && npm install && npm run dev    # http://localhost:5174
+cd web && npm install && npm run dev    # http://localhost:17321
 ```
 
-Open http://localhost:5174 and paste a GitHub PR URL. To run a built copy instead: `npm run build && npm start`, on the same port.
+Open http://localhost:17321 and paste a GitHub PR URL. To run a built copy instead: `npm run build && npm start`, on the same port. Set `DOCENT_PORT` to use another one.
 
 ## Reviewing a PR
 
@@ -46,11 +46,11 @@ An editor goes over what they find before it's shown: findings making the same p
 
 ## Bringing your own agent
 
-Docent serves an MCP server at `http://localhost:5174/mcp` (Streamable HTTP, local connections only). Add it once, for all your projects:
+Docent serves an MCP server at `http://localhost:17321/mcp` (Streamable HTTP, local connections only). Add it once, for all your projects:
 
 ```sh
-claude mcp add --scope user --transport http docent http://localhost:5174/mcp
-codex mcp add docent --url http://localhost:5174/mcp
+claude mcp add --scope user --transport http docent http://localhost:17321/mcp
+codex mcp add docent --url http://localhost:17321/mcp
 ```
 
 Then set a reviewer on the panel to **Connect via MCP** and start it. After your usual review, tell your agent the sentence the panel shows (it names the PR and the reviewer), and its findings are pinned on the code as you read. In Claude Code, `/mcp__docent__review owner/repo#123` asks it to review a PR, and `/mcp__docent__submit owner/repo#123` sends the findings of a review it has already done.
