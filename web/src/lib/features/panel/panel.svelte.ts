@@ -44,6 +44,8 @@ export interface ExternalReviewer {
 export interface PanelEntry {
 	runs: string;
 	persona?: string;
+	// Starts switched off on every new PR.
+	off?: boolean;
 }
 
 export { sessionId };
@@ -69,15 +71,21 @@ export function setupFrom(reviewer: AgentReviewer, defaultModel: string): Review
 export const setupValue = (setup: ReviewerSetup) =>
 	setup.mode === 'external' ? 'external' : setup.mode === 'session' ? `session:${setup.session}` : setup.model;
 
-const entryOf = (setup: ReviewerSetup): PanelEntry => ({
+const entryOf = (setup: ReviewerSetup, off?: boolean): PanelEntry => ({
 	runs: setupValue(setup),
-	...(setup.mode === 'builtin' && setup.persona ? { persona: setup.persona } : {})
+	...(setup.mode === 'builtin' && setup.persona ? { persona: setup.persona } : {}),
+	...(off ? { off: true } : {})
 });
 
 // A reviewer as the default panel gives it.
 const reviewerFrom = (entry: PanelEntry, id: AgentId): AgentReviewer => {
 	const session = sessionId(entry.runs);
-	return { id, planned: session ? `session:${session}` : entry.runs, ...(entry.persona ? { persona: entry.persona } : {}) };
+	return {
+		id,
+		planned: session ? `session:${session}` : entry.runs,
+		...(entry.persona ? { persona: entry.persona } : {}),
+		...(entry.off ? { off: true } : {})
+	};
 };
 
 // A model's name without where it runs: Claude Code's or Codex's prefix,
@@ -252,6 +260,15 @@ export class Panel {
 		}
 	}
 
+	// Switches a reviewer that hasn't run off or on, remembered with the PR.
+	setOff(id: AgentId, off: boolean) {
+		this.#session
+			.update((r) => {
+				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, off: off || undefined } : a));
+			})
+			.catch(() => {});
+	}
+
 	// What a reviewer runs with next, and for Docent's reviewer its persona.
 	plan(id: AgentId, setup: ReviewerSetup) {
 		const planned = setupValue(setup);
@@ -337,13 +354,13 @@ export class Panel {
 	}
 
 	async saveAsDefault(defaultModel: string) {
-		const panel = this.#chosen().map((r) => entryOf(setupFrom(r, defaultModel)));
+		const panel = this.#chosen().map((r) => entryOf(setupFrom(r, defaultModel), r.off));
 		this.defaultPanel = await setDefaultPanel(panel);
 	}
 
 	isDefault(defaultModel: string): boolean {
-		const panel = this.#chosen().map((r) => entryOf(setupFrom(r, defaultModel)));
-		const saved = this.defaultPanel?.map((e) => entryOf(setupOfValue(e.runs, e.persona, defaultModel)));
+		const panel = this.#chosen().map((r) => entryOf(setupFrom(r, defaultModel), r.off));
+		const saved = this.defaultPanel?.map((e) => entryOf(setupOfValue(e.runs, e.persona, defaultModel), e.off));
 		return !!saved && JSON.stringify(panel) === JSON.stringify(saved);
 	}
 

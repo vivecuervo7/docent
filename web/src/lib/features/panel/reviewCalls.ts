@@ -39,16 +39,18 @@ export async function dismissAgentReview(ref: PrRef, reviewer: string, force = f
 	await fetch(`${reviewUrl(ref, reviewer)}${force ? '&force=1' : ''}`, { method: 'DELETE' }).catch(() => {});
 }
 
-// The review panel a new PR starts with: a model or "external" per reviewer.
-export async function getDefaultPanel(): Promise<{ runs: string; persona?: string }[] | null> {
-	return (await readOk<{ panel: { runs: string; persona?: string }[] | null }>(await fetch('/api/panel/default'))).panel;
+// The review panel a new PR starts with: a model or "external" per reviewer,
+// and whether each starts switched off.
+type PanelEntry = { runs: string; persona?: string; off?: boolean };
+export async function getDefaultPanel(): Promise<PanelEntry[] | null> {
+	return (await readOk<{ panel: PanelEntry[] | null }>(await fetch('/api/panel/default'))).panel;
 }
 
-export async function setDefaultPanel(panel: { runs: string; persona?: string }[]): Promise<{ runs: string; persona?: string }[] | null> {
+export async function setDefaultPanel(panel: PanelEntry[]): Promise<PanelEntry[] | null> {
 	const res = await fetch('/api/panel/default', {
 		method: 'PUT',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ panel })
 	});
-	return (await readOk<{ panel: { runs: string; persona?: string }[] | null }>(res)).panel;
+	return (await readOk<{ panel: PanelEntry[] | null }>(res)).panel;
 }

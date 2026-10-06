@@ -28,9 +28,18 @@
 	let ticked = $state<Partial<Record<AgentId, boolean>>>({});
 
 	const setupOf = (r: AgentReviewer): ReviewerSetup => setupFrom(r, defaultModel);
-	// Reviewers that haven't run are ticked to start; rerunning one replaces
-	// its findings, so that's opted into.
-	const isTicked = (r: AgentReviewer) => ticked[r.id] ?? (!r.ranWith && panel.findings(r.id) === 0);
+	// Reviewers that haven't run are ticked to start, unless switched off;
+	// rerunning one replaces its findings, so that's opted into.
+	const isTicked = (r: AgentReviewer) => ticked[r.id] ?? (!r.off && !r.ranWith && panel.findings(r.id) === 0);
+	const hasRun = (r: AgentReviewer) => !!r.ranWith || panel.findings(r.id) > 0;
+
+	// Switching one that hasn't run is kept with the PR; for one that has,
+	// it's only whether to run it again now.
+	function toggle(r: AgentReviewer) {
+		const on = !isTicked(r);
+		ticked[r.id] = on;
+		if (!hasRun(r)) panel.setOff(r.id, !on);
+	}
 	const isRunning = (r: AgentReviewer) => panel.reviews[r.id]?.status === 'running';
 
 	const toStart = $derived(panel.reviewers.filter((r) => isTicked(r) && !isRunning(r)));
@@ -304,7 +313,7 @@
 							aria-checked={isTicked(r)}
 							aria-label="Start {nameOf(r, panel.reviewers)}"
 							title={isTicked(r) ? 'Runs when you start the panel' : 'Turn on to run it when you start the panel'}
-							onclick={() => (ticked[r.id] = !isTicked(r))}
+							onclick={() => toggle(r)}
 						>
 							<span></span>
 						</button>

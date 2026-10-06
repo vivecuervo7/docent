@@ -9,10 +9,22 @@ export const GET: RequestHandler = () => json({ panel: defaultPanel() });
 export const PUT: RequestHandler = async ({ request }) => {
 	const panel = (await bodyOf(request)).panel;
 	const valid = (e: unknown) => {
-		const { runs, persona } = (e ?? {}) as Record<string, unknown>;
-		return typeof runs === 'string' && !!runs.trim() && runs.length <= 200 && (persona === undefined || (typeof persona === 'string' && persona.length <= 40));
+		const { runs, persona, off } = (e ?? {}) as Record<string, unknown>;
+		return (
+			typeof runs === 'string' &&
+			!!runs.trim() &&
+			runs.length <= 200 &&
+			(persona === undefined || (typeof persona === 'string' && persona.length <= 40)) &&
+			(off === undefined || typeof off === 'boolean')
+		);
 	};
 	if (!Array.isArray(panel) || panel.length === 0 || panel.length > 10 || !panel.every(valid)) return badRequest('invalid panel');
-	setDefaultPanel(panel.map((e: { runs: string; persona?: string }) => ({ runs: e.runs.trim(), ...(e.persona ? { persona: e.persona } : {}) })));
+	setDefaultPanel(
+		panel.map((e: { runs: string; persona?: string; off?: boolean }) => ({
+			runs: e.runs.trim(),
+			...(e.persona ? { persona: e.persona } : {}),
+			...(e.off ? { off: true } : {})
+		}))
+	);
 	return json({ panel: defaultPanel() });
 };

@@ -177,6 +177,9 @@ export interface AgentReviewer {
 	planned?: string;
 	// For Docent's reviewer, the persona it takes; none is the default.
 	persona?: string;
+	// Switched off on the panel, so it isn't started with the others until
+	// it's switched back on. Kept, so reopening the PR remembers it.
+	off?: boolean;
 	// A reviewer "auto" added, with why the PR warranted its persona; "auto"
 	// replaces its picks each time it runs.
 	pickedBy?: AgentId;

@@ -50,10 +50,11 @@ export interface ExternalReviewer {
 
 // A reviewer in the default panel: what runs it (a model, "external" for
 // the reviewer's own agent, or "session:<id>"), and for Docent's reviewer
-// the persona it takes.
+// the persona it takes, and whether it starts switched off.
 export interface PanelEntry {
   runs: string;
   persona?: string;
+  off?: boolean;
 }
 
 interface Settings {
