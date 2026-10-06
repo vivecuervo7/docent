@@ -49,7 +49,7 @@
 			/>
 		{/if}
 		{#if !group.label || !page.collapsed.includes(key)}
-			<ul class:done-list={dim}>
+			<ul class:done-list={dim} class="indent-{group.label ? page.sort : 'none'}">
 				{#each group.items as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
 			</ul>
 		{/if}
@@ -146,6 +146,14 @@
 		display: flex;
 		justify-content: flex-end;
 		margin-bottom: -28px;
+	}
+	/* A group's rows start where its name does, after the repo's icon or the
+	   author's avatar, so the heading reads as a heading. */
+	.indent-repo {
+		padding-left: 21px;
+	}
+	.indent-author {
+		padding-left: 25px;
 	}
 	.done-list {
 		opacity: 0.7;
