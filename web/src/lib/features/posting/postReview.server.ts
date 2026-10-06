@@ -41,6 +41,16 @@ export interface PreparedComment {
   body: string;
 }
 
+// A candidate's point raised again somewhere else, because the reviewer
+// concluded it applies there too.
+export interface AlsoComment {
+  from: string;
+  path: string;
+  startLine: number;
+  endLine: number;
+  body: string;
+}
+
 export interface DroppedComment {
   from: string[];
   reason: string;
@@ -54,6 +64,7 @@ export interface PreparedReview {
   body: string;
   // The candidates written into the body.
   inBody: string[];
+  also: AlsoComment[];
   // How to submit it, and why, as recommended.
   event?: ReviewEvent;
   eventReason?: string;
@@ -87,6 +98,21 @@ const REPORT_REVIEW_TOOL = {
           required: ["from", "reason"],
         },
       },
+      also: {
+        type: "array",
+        description: "A candidate's point raised again at another place, where the reviewer's conclusion says it applies too.",
+        items: {
+          type: "object",
+          properties: {
+            from: { type: "string", description: "The id of the candidate whose point it is." },
+            path: { type: "string" },
+            start_line: { type: "integer", description: "New-file line number." },
+            end_line: { type: "integer", description: "New-file line number." },
+            body: { type: "string" },
+          },
+          required: ["from", "path", "start_line", "end_line", "body"],
+        },
+      },
       body: { type: "string" },
       in_body: {
         type: "array",
@@ -115,7 +141,9 @@ shows what the reviewer asked about the candidate and what they learned: word th
 of what it settled, and if it showed the point is wrong or already resolved, drop it with that as \
 the reason. Where the discussion ends with the reviewer's conclusion, follow it: it decides \
 whether the point is raised and how, and if it says not to raise it, drop it with that as the \
-reason.
+reason. Where it concludes that the point applies somewhere else as well, also add it to "also" \
+for each such place, with the file and new-file lines the discussion names: a short comment worded \
+for that place, pointing back to the main one.
 A candidate marked "as written" is the reviewer's own words: it keeps a comment of its own, \
 worded exactly as written, even with no lines or when the point is already on the PR. Merge \
 another candidate into it only on the same lines, adding that point briefly after the reviewer's \
@@ -208,6 +236,15 @@ function settle(candidates: Candidate[], raw: Record<string, unknown>): Prepared
     const ids = take(from);
     if (ids.length > 0) dropped.push({ from: ids, reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Left out." });
   }
+  // Each names a candidate it repeats and a place; the page checks the
+  // place against the diff.
+  const also: AlsoComment[] = (Array.isArray(raw.also) ? raw.also : []).flatMap((entry): AlsoComment[] => {
+    const { from, path, start_line, end_line, body } = (entry ?? {}) as Record<string, unknown>;
+    if (typeof from !== "string" || !known.has(from) || typeof path !== "string" || !path.trim()) return [];
+    if (!Number.isInteger(start_line) || !Number.isInteger(end_line) || typeof body !== "string" || !body.trim()) return [];
+    const [a, b] = [start_line as number, end_line as number].sort((x, y) => x - y);
+    return [{ from, path: path.trim(), startLine: a, endLine: b, body: body.trim() }];
+  });
   let body = typeof raw.body === "string" ? raw.body.trim() : "";
   for (const candidate of candidates) {
     if (used.has(candidate.id)) continue;
@@ -221,7 +258,7 @@ function settle(candidates: Candidate[], raw: Record<string, unknown>): Prepared
   }
   const event = raw.event === "APPROVE" || raw.event === "REQUEST_CHANGES" || raw.event === "COMMENT" ? raw.event : undefined;
   const eventReason = typeof raw.event_reason === "string" && raw.event_reason.trim() ? raw.event_reason.trim() : undefined;
-  return { comments, dropped, body, inBody, ...(event ? { event } : {}), ...(eventReason ? { eventReason } : {}) };
+  return { comments, dropped, body, inBody, also, ...(event ? { event } : {}), ...(eventReason ? { eventReason } : {}) };
 }
 
 export async function fetchViewer(): Promise<string> {

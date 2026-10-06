@@ -15,6 +15,8 @@ export interface ThreadForFeedback {
 export interface DraftedComment {
   // Indices of the threads it draws on, which place it on their lines.
   threads: number[];
+  // Somewhere else instead, when a conclusion says the point applies there.
+  at?: { path: string; startLine: number; endLine: number };
   body: string;
   rationale?: string;
 }
@@ -37,6 +39,9 @@ const REPORT_FEEDBACK_TOOL = {
             },
             body: { type: "string" },
             rationale: { type: "string" },
+            path: { type: "string", description: "Only for a comment placed away from its threads' lines." },
+            start_line: { type: "integer", description: "New-file line number, with path." },
+            end_line: { type: "integer", description: "New-file line number, with path." },
           },
           required: ["threads", "body", "rationale"],
         },
@@ -51,7 +56,9 @@ comments for its author. Each numbered thread is about some lines of the diff: t
 about them, an assistant replied, and the reviewer closed the thread with a conclusion.
 The conclusion is the reviewer's decision, and it decides what you write. Draft the comment it \
 calls for, in the reviewer's voice and close to what they concluded, taking the detail from the \
-rest of the thread. When it settles that nothing needs raising, write no comment for that thread.
+rest of the thread. When it settles that nothing needs raising, write no comment for that thread. \
+When it says the point applies somewhere else as well, write a further comment for each such place, \
+worded for it, with its path and new-file start_line and end_line as the thread names them.
 Comments don't map one-to-one to threads: combine threads that raise the same point into one \
 comment, and split a thread that raises several points into several comments.
 Each comment is addressed to the author, written as the reviewer, specific to the lines, and \
@@ -93,18 +100,23 @@ export function draftYourFeedback(
     const raw = (call.arguments as { comments?: unknown }).comments;
     if (!Array.isArray(raw)) return [];
     return raw.flatMap((entry): DraftedComment[] => {
-      const { threads: refs, body, rationale } = (entry ?? {}) as { threads?: unknown; body?: unknown; rationale?: unknown };
+      const { threads: refs, body, rationale, path, start_line, end_line } = (entry ?? {}) as Record<string, unknown>;
       if (typeof body !== "string" || !body.trim()) return [];
       const indices = Array.isArray(refs)
         ? [...new Set(refs.filter((n): n is number => Number.isInteger(n)).map((n) => n - 1))].filter(
             (i) => i >= 0 && i < threads.length,
           )
         : [];
+      const placed =
+        typeof path === "string" && path.trim() && Number.isInteger(start_line) && Number.isInteger(end_line)
+          ? { path: path.trim(), startLine: Math.min(start_line as number, end_line as number), endLine: Math.max(start_line as number, end_line as number) }
+          : undefined;
       return [
         {
           threads: indices,
           body: body.trim(),
           rationale: typeof rationale === "string" && rationale.trim() ? rationale.trim() : undefined,
+          ...(placed ? { at: placed } : {}),
         },
       ];
     });

@@ -110,6 +110,7 @@ export class ReviewPost {
 				body: string;
 				event?: ReviewEvent;
 				eventReason?: string;
+				also?: { from: string; path: string; startLine: number; endLine: number; body: string }[];
 			}>(res);
 			// The suggestion, where GitHub allows it: not approving or requesting
 			// changes on your own PR.
@@ -137,13 +138,26 @@ export class ReviewPost {
 				const words = written.every((i) => body.includes(i.body)) ? body : written.map((i) => i.body).join('\n\n');
 				return [{ id: crypto.randomUUID(), body: words, included: true, from: kept.map((i) => i.id), ...place(own) }, ...apart.map(alone)];
 			});
+			// A point concluded to apply elsewhere too, raised there as well, in a
+			// file the PR changes.
+			const also = (prepared.also ?? [])
+				.filter((a) => this.#session.files.some((f) => f.filename === a.path))
+				.map((a) => ({
+					id: crypto.randomUUID(),
+					body: a.body,
+					included: true,
+					from: [a.from],
+					path: a.path,
+					start: { side: 'new' as const, line: a.startLine },
+					end: { side: 'new' as const, line: a.endLine }
+				}));
 			// Comments you wrote are never left out, however already said.
 			const placed = new Set(comments.flatMap((c) => c.from));
 			const missed = candidates.filter((c) => c.item.asWritten && !placed.has(c.item.id)).map((c) => c.item);
 			await this.#save({
 				preparedAt: Date.now(),
 				basedOn: candidates.map((c) => c.item.id),
-				comments: [...comments, ...missed.map(alone)],
+				comments: [...comments, ...missed.map(alone), ...also],
 				dropped: prepared.dropped
 					.map((d) => ({ ...d, from: d.from.filter((id) => !missed.some((i) => i.id === id)) }))
 					.filter((d) => d.from.length),

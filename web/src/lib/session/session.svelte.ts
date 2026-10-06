@@ -407,14 +407,24 @@ export class PrSession {
 				}))
 			})
 		});
-		const { comments } = await readHeld<{ comments: { threads: number[]; body: string; rationale?: string }[] }>(res);
-		return comments.map(({ threads: indices, body, rationale }) => ({
-			id: crypto.randomUUID(),
-			body,
-			rationale,
-			included: true,
-			...placeFromThreads(indices.map((i) => threads[i]).filter(Boolean))
-		}));
+		const { comments } = await readHeld<{
+			comments: { threads: number[]; body: string; rationale?: string; at?: { path: string; startLine: number; endLine: number } }[];
+		}>(res);
+		return comments.map(({ threads: indices, body, rationale, at }) => {
+			const sources = indices.map((i) => threads[i]).filter(Boolean);
+			// Placed where a conclusion said the point applies too, in a file
+			// the PR changes; otherwise on its threads' lines.
+			const elsewhere =
+				at && this.files.some((f) => f.filename === at.path)
+					? {
+							path: at.path,
+							start: { side: 'new' as const, line: at.startLine },
+							end: { side: 'new' as const, line: at.endLine },
+							noteIds: sources.map((n) => n.id)
+						}
+					: undefined;
+			return { id: crypto.randomUUID(), body, rationale, included: true, ...(elsewhere ?? placeFromThreads(sources)) };
+		});
 	}
 
 	setYourIncluded(id: string, included: boolean) {
