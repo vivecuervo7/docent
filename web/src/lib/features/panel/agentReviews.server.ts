@@ -124,7 +124,8 @@ export function resolveReviewer(owner: string, repo: string, number: string, rev
       `Several reviewers are waiting for findings on this PR (${waiting.map(label).join(", ")}). Ask the user which one this review is for, and pass it as \`reviewer\`.`,
     );
   }
-  return DEFAULT_REVIEWER;
+  // Else the panel's first reviewer, whichever that is now any can be removed.
+  return saved[0].id;
 }
 
 export function getAgentReview(owner: string, repo: string, number: string, reviewer = DEFAULT_REVIEWER): AgentReview | null {

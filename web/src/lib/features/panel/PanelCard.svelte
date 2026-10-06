@@ -4,7 +4,7 @@
 	import { listModels } from '../../api/client';
 	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, setupValue, type ReviewerSetup } from '$lib/features/panel/panel.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
-	import { FIRST_AGENT, type AgentId, type AgentReviewer, type ModelOption } from '$lib/types';
+	import type { AgentId, AgentReviewer, ModelOption } from '$lib/types';
 	import Menu from '$lib/ui/Menu.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 
@@ -152,8 +152,13 @@
 			Before you start reading
 		</span>
 	{/if}
-	<h2>{anyRan ? 'Your review panel' : 'Start your review panel'}</h2>
-	<p class="lede">They review while you read. What they find is pinned on the code, beside your own notes.</p>
+	{#if panel.reviewers.length}
+		<h2>{anyRan ? 'Your review panel' : 'Start your review panel'}</h2>
+		<p class="lede">They review while you read. What they find is pinned on the code, beside your own notes.</p>
+	{:else}
+		<h2>No review panel</h2>
+		<p class="lede">Reviewers read the PR while you do, and what they find is pinned on the code. Add one, or review it on your own.</p>
+	{/if}
 
 	<ul>
 		{#each panel.reviewers as r (r.id)}
@@ -318,23 +323,30 @@
 							<span></span>
 						</button>
 					{/if}
-					{#if r.id !== FIRST_AGENT}
-						<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" title="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
-							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
-						</button>
-					{:else}
-						<span class="remove" aria-hidden="true"></span>
-					{/if}
+					<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" title="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+					</button>
 				</div>
 			</li>
 		{/each}
 	</ul>
 
-	<div class="add-row">
-		<button class="add" onclick={add}>
-			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+	{#if !panel.reviewers.length}
+		<!-- No reviewers is a fine way to review; adding one stays one click away. -->
+		<button class="add-first" onclick={add}>
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
 			Add a reviewer
+			<span class="faint">or just read it yourself</span>
 		</button>
+	{/if}
+
+	<div class="add-row" class:empty={!panel.reviewers.length}>
+		{#if panel.reviewers.length}
+			<button class="add" onclick={add}>
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+				Add a reviewer
+			</button>
+		{/if}
 		{#if defaultModel && !panel.isDefault(defaultModel)}
 			<span class="defaults">
 				{#if panel.canUseDefault(defaultModel)}
@@ -607,6 +619,40 @@
 	}
 	.add:hover {
 		color: var(--text);
+	}
+
+	.add-first {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		margin: 4px 0 2px;
+		padding: 22px 16px;
+		border: 1px dashed #3a3226;
+		border-radius: 14px;
+		background: none;
+		color: var(--agent-text);
+		font: inherit;
+		font-size: 14px;
+		cursor: pointer;
+	}
+
+	.add-first svg {
+		color: var(--agent);
+	}
+
+	.add-first .faint {
+		font-size: 13px;
+	}
+
+	.add-first:hover {
+		border-color: var(--agent);
+		background: #221e17;
+	}
+
+	.add-row.empty {
+		justify-content: flex-end;
+		border-top: 0;
 	}
 	.actions {
 		display: flex;

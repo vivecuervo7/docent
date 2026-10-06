@@ -18,7 +18,8 @@ export const PUT: RequestHandler = async ({ request }) => {
 			(off === undefined || typeof off === 'boolean')
 		);
 	};
-	if (!Array.isArray(panel) || panel.length === 0 || panel.length > 10 || !panel.every(valid)) return badRequest('invalid panel');
+	// An empty panel is a default too: reviewing without reviewers.
+	if (!Array.isArray(panel) || panel.length > 10 || !panel.every(valid)) return badRequest('invalid panel');
 	setDefaultPanel(
 		panel.map((e: { runs: string; persona?: string; off?: boolean }) => ({
 			runs: e.runs.trim(),

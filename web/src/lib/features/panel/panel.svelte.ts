@@ -204,7 +204,8 @@ export class Panel {
 			.update((r) => {
 				if (!this.#untouched(r)) return;
 				r.panelSettled = true;
-				if (saved?.length) r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, `agent-${i + 1}`));
+				// An empty default is a choice too: no reviewers.
+				if (saved) r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, `agent-${i + 1}`));
 				r.agentHighest = Math.max(r.agentHighest ?? 0, r.agentReviewers.length);
 				nameAll(r);
 			})
@@ -214,7 +215,7 @@ export class Panel {
 	// The default can replace a panel none of whose reviewers has run yet.
 	canUseDefault(defaultModel: string): boolean {
 		return (
-			!!this.defaultPanel?.length &&
+			!!this.defaultPanel &&
 			!this.isDefault(defaultModel) &&
 			this.reviewers.every((a) => !a.ranWith && !a.lastRun && !this.findings(a.id) && !this.reviews[a.id])
 		);
@@ -222,12 +223,13 @@ export class Panel {
 
 	async useDefault() {
 		const saved = this.defaultPanel;
-		if (!saved?.length) return;
+		if (!saved) return;
 		await this.#session.update((r) => {
 			const highest = Math.max(0, r.agentHighest ?? 0, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length))));
-			// Keeps the first reviewer's id; the rest get fresh numbers, never reused.
-			r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, i === 0 ? FIRST_AGENT : `agent-${highest + i}`));
-			r.agentHighest = highest + saved.length - 1;
+			// Fresh numbers, never reused, so a removed reviewer's late findings
+			// can't land on a new one.
+			r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, `agent-${highest + i + 1}`));
+			r.agentHighest = highest + saved.length;
 			r.panelSettled = true;
 			nameAll(r);
 		});
@@ -396,7 +398,6 @@ export class Panel {
 
 	// Removing "auto" removes what it picked too.
 	async remove(id: AgentId) {
-		if (id === FIRST_AGENT) return;
 		const gone = [id, ...this.reviewers.filter((a) => a.pickedBy === id).map((a) => a.id)];
 		for (const g of gone) {
 			this.#removed.add(g);

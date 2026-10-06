@@ -35,10 +35,8 @@ export function normalize(stored: Partial<PrRecord> | undefined): PrRecord {
 		record.feedback = { ...record.feedback, [FIRST_AGENT]: record.feedback[FIRST_AGENT] ?? legacy };
 		delete record.feedback.agent;
 	}
-	record.agentReviewers ??= [];
-	if (record.agentReviewers[0]?.id !== FIRST_AGENT) {
-		record.agentReviewers = [{ id: FIRST_AGENT }, ...record.agentReviewers.filter((r) => r.id !== FIRST_AGENT)];
-	}
+	// A panel can be emptied; only a record from before panels has none saved.
+	record.agentReviewers ??= [{ id: FIRST_AGENT }];
 	return record;
 }
 
