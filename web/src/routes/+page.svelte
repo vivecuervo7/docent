@@ -34,9 +34,11 @@
 	<SetupDialog {page} onclose={() => page.dismissSetup()} />
 {/if}
 
-{#snippet groups(list: Row[])}
+<!-- A list in its groups. Each section folds its groups on its own, and a
+     dimmed one dims its rows but not their headings. -->
+{#snippet groups(list: Row[], section: string, dim = false)}
 	{#each page.grouped(list) as group (group.label)}
-		{@const key = `${page.sort}:${group.label}`}
+		{@const key = `${section}:${page.sort}:${group.label}`}
 		{#if group.label}
 			<GroupHeading
 				label={group.label}
@@ -47,7 +49,7 @@
 			/>
 		{/if}
 		{#if !group.label || !page.collapsed.includes(key)}
-			<ul>
+			<ul class:done-list={dim}>
 				{#each group.items as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
 			</ul>
 		{/if}
@@ -83,7 +85,7 @@
 			{/if}
 		</form>
 
-		{#if page.active.length || page.mine.length}
+		{#if page.active.length || page.mine.length || page.complete.length || page.hiddenRows.length}
 			<!-- How every list below is grouped. -->
 			<div class="list-tools">
 				<div class="grouping">
@@ -106,36 +108,28 @@
 		{#if page.active.length}
 			<section aria-labelledby="saved-heading">
 				<h2 id="saved-heading" class="caps">Your reviews</h2>
-				{@render groups(page.active)}
+				{@render groups(page.active, 'reviews')}
 			</section>
 		{/if}
 
 		{#if page.mine.length}
 			<section aria-labelledby="mine-heading">
 				<h2 id="mine-heading" class="caps">My pull requests</h2>
-				{@render groups(page.mine)}
+				{@render groups(page.mine, 'mine')}
 			</section>
 		{/if}
 
 		{#if page.complete.length}
 			<section>
 				<Disclosure bind:open={showComplete} label="Complete" count={page.complete.length} />
-				{#if showComplete}
-					<ul class="done-list">
-						{#each page.complete as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
-					</ul>
-				{/if}
+				{#if showComplete}{@render groups(page.complete, 'complete', true)}{/if}
 			</section>
 		{/if}
 
 		{#if page.hiddenRows.length}
 			<section>
 				<Disclosure bind:open={showHidden} label="Hidden" count={page.hiddenRows.length} />
-				{#if showHidden}
-					<ul class="done-list">
-						{#each page.hiddenRows as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
-					</ul>
-				{/if}
+				{#if showHidden}{@render groups(page.hiddenRows, 'hidden', true)}{/if}
 			</section>
 		{/if}
 	</main>
