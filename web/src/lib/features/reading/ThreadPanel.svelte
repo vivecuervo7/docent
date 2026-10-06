@@ -1,21 +1,20 @@
 <script lang="ts">
 	import { ask } from '$lib/ui/confirm.svelte';
 	import { useSession } from '$lib/session/session.svelte';
-	import type { Note } from '$lib/types';
+	import { noteWhere, type Note } from '$lib/types';
 	import NoteText from '../../ui/NoteText.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 	import Composer, { type SendKind } from './Composer.svelte';
 
-	// A thread on selected lines: what the reviewer asked, the model's
+	// A thread on selected lines, a whole file or the PR: what the reviewer asked, the model's
 	// replies, the comments they mean to post as written, and room to follow
 	// up. Shown inside a Floating bubble.
-	let { note, onclose }: { note: Note; onclose: () => void } = $props();
+	// Without `onclose` it sits in the page rather than a bubble, with nothing to close.
+	let { note, onclose }: { note: Note; onclose?: () => void } = $props();
 
 	const session = useSession();
 	const status = $derived(session.noteStatus[note.id] ?? {});
-	const lines = $derived(
-		note.start.line === note.end.line ? `line ${note.start.line}` : `lines ${note.start.line}–${note.end.line}`
-	);
+	const where = $derived(noteWhere(note));
 	let draft = $state('');
 	// A thread begun with a comment takes more comments; one begun with a
 	// question is closed with a conclusion.
@@ -41,19 +40,21 @@
 	async function remove() {
 		if (!(await ask({ title: 'Delete this thread?', body: 'Its messages go with it.', action: 'Delete' }))) return;
 		session.removeNote(note.id);
-		onclose();
+		onclose?.();
 	}
 </script>
 
-<div class="thread" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose()}>
+<div class="thread" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose?.()}>
 	<header>
-		<span class="where">{note.path.split('/').pop()} · {lines}</span>
+		<span class="where">{note.path ? `${note.path.split('/').pop()} · ${where}` : 'The PR as a whole'}</span>
 		<button class="icon" aria-label="Delete thread" title="Delete thread" onclick={remove}>
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
 		</button>
-		<button class="icon" aria-label="Close" title="Close" onclick={onclose}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
-		</button>
+		{#if onclose}
+			<button class="icon" aria-label="Close" title="Close" onclick={onclose}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+			</button>
+		{/if}
 	</header>
 
 	<ol class="messages" bind:this={list}>

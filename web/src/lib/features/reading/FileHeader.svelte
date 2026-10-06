@@ -4,10 +4,12 @@
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import StateMark from '$lib/ui/StateMark.svelte';
 	import MarkPopover from '../panel/MarkPopover.svelte';
-	import { useSession } from '$lib/session/session.svelte';
-	import type { FileNote, PrFile } from '$lib/types';
+	import { isConcluded, useSession } from '$lib/session/session.svelte';
+	import { isUnread, type FileNote, type Note, type PrFile } from '$lib/types';
+	import Composer, { type SendKind } from './Composer.svelte';
 	import type { LooseMark, Mark } from './marks';
 	import Pin from './Pin.svelte';
+	import ThreadPanel from './ThreadPanel.svelte';
 
 	// A file's header in the diff: opening and closing it, its path, what its
 	// note says while it's closed, its changes, the slices holding the rest of
@@ -20,6 +22,7 @@
 		elsewhere,
 		summary,
 		wholeFile,
+		fileThreads,
 		openAnchor,
 		reviewed,
 		onreview
@@ -34,12 +37,33 @@
 		summary: { kind: 'finding' | 'note'; first: Mark | { id: string }; solid: boolean; unread: boolean; count: number } | null;
 		// Findings about the file as a whole, with no lines to sit on.
 		wholeFile: LooseMark[];
+		// Your threads on the file as a whole.
+		fileThreads: Note[];
 		openAnchor: HTMLElement | null;
 		reviewed: boolean;
 		onreview?: () => void;
 	} = $props();
 
 	const session = useSession();
+
+	// Starting a thread on the whole file, from the header's comment button.
+	let composing = $state(false);
+	let draft = $state('');
+	let commentButton = $state<HTMLElement | null>(null);
+	function startThread(text: string, kind: SendKind) {
+		const id = session.createNote({ path: file.filename }, text, { comment: kind === 'comment' });
+		composing = false;
+		collapsed = false;
+		session.openMark = id;
+	}
+	$effect(() => {
+		if (!composing) return;
+		const close = (e: PointerEvent) => {
+			if (!(e.target as Element).closest('.file-composer, .comment-file')) composing = false;
+		};
+		window.addEventListener('pointerdown', close);
+		return () => window.removeEventListener('pointerdown', close);
+	});
 </script>
 
 <header>
@@ -56,7 +80,35 @@
 				>{/each}</span
 		>
 	{/if}
-	{#if collapsed ? summary : wholeFile.length}
+	<button
+		class="icon comment-file"
+		class:shown={composing}
+		bind:this={commentButton}
+		aria-label="Ask about or comment on the whole file"
+		title="Ask about or comment on the whole file"
+		onclick={() => (composing = !composing)}
+	>
+		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+			><path d="M4 5h16v11H9l-5 4z" /><path d="M12 8.5v4M10 10.5h4" /></svg
+		>
+	</button>
+	{#if composing}
+		<Floating anchor={commentButton} placement="bottom-end" pointer={false} label="Ask about or comment on the whole file">
+			<div class="file-composer">
+				<span class="faint">{file.filename.split('/').pop()} · the whole file</span>
+				<Composer
+					bind:value={draft}
+					rows={2}
+					autofocus
+					actionsAlways
+					placeholder="Ask about this file, or write a comment on it…"
+					onsend={startThread}
+					onescape={() => (composing = false)}
+				/>
+			</div>
+		</Floating>
+	{/if}
+	{#if collapsed ? summary : wholeFile.length || fileThreads.length}
 		<!-- A closed file shows one marker while findings await confirming or
 		     anything is new to read; an open one shows the findings about the
 		     whole file, which have no lines to sit on. -->
@@ -90,6 +142,19 @@
 						onclick={() => (session.openMark = session.openMark === m.id ? null : m.id)}
 					/>
 				{/each}
+				{#each fileThreads as n (n.id)}
+					<Pin
+						kind="note"
+						id={n.id}
+						active={session.openMark === n.id}
+						settled={isConcluded(n)}
+						unread={isUnread(n)}
+						unreadLabel="New reply"
+						label="Your thread on the whole file"
+						title="Your thread on the whole file"
+						onclick={() => (session.openMark = session.openMark === n.id ? null : n.id)}
+					/>
+				{/each}
 			{/if}
 		</span>
 	{/if}
@@ -98,6 +163,13 @@
 		{#if session.openMark === m.id}
 			<Floating anchor={openAnchor} label="Finding" tone="agent">
 				<MarkPopover mark={m} onclose={() => (session.openMark = null)} />
+			</Floating>
+		{/if}
+	{/each}
+	{#each fileThreads as n (n.id)}
+		{#if session.openMark === n.id}
+			<Floating anchor={openAnchor} label="Thread">
+				<ThreadPanel note={n} onclose={() => (session.openMark = null)} />
 			</Floating>
 		{/if}
 	{/each}
@@ -188,6 +260,26 @@
 		transform: translateY(-50%);
 		display: flex;
 		gap: 4px;
+	}
+	/* Offered on hover, so a long list of files isn't a column of buttons. */
+	.comment-file {
+		flex-shrink: 0;
+		opacity: 0;
+	}
+	header:hover .comment-file,
+	.comment-file:focus-visible,
+	.comment-file.shown {
+		opacity: 1;
+	}
+	.file-composer {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		width: 380px;
+		padding: 12px 14px;
+		font-family: var(--sans);
+		font-size: 13px;
+		white-space: normal;
 	}
 	.review {
 		display: inline-flex;

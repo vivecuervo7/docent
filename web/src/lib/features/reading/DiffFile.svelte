@@ -71,7 +71,7 @@
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
 	// A finding belongs with the hunk holding its line, or the nearest one
 	// for a line outside the diff; only those in hunks shown here count here.
-	const homeOf = (m: Mark) => (m.note ? allHunks[m.note.hunk] : nearestHunk(allHunks, m.start));
+	const homeOf = (m: Mark) => (m.note?.hunk !== undefined ? allHunks[m.note.hunk] : nearestHunk(allHunks, m.start));
 	const findingMarks = $derived(marks.filter((m) => m.kind === 'finding' && shownIndices.has(homeOf(m)?.index ?? -1)));
 	const threadMarks = $derived(marks.filter((m) => m.kind === 'note' && shownIndices.has(homeOf(m)?.index ?? -1)));
 
@@ -236,6 +236,8 @@
 	// Findings about this file as a whole, with no lines to sit on: they sit
 	// on its header, open or closed.
 	const wholeFile = $derived(session.looseFindings.filter((f) => f.mark.path === file.filename).map((f) => f.mark));
+	// Your threads on the file as a whole, which sit on its header too.
+	const fileThreads = $derived(session.record.notes.filter((n) => n.path === file.filename && !n.start));
 
 	// In a slice, the lines this slice's hunks change, not the whole file's,
 	// and the other slices holding the rest of it.
@@ -261,7 +263,11 @@
 	const summary = $derived.by(() => {
 		const all = [...findingMarks, ...wholeFile];
 		const unconfirmed = all.filter((m) => !m.decided);
-		const unread = [...all.filter((m) => m.unread), ...threadMarks.filter((m) => m.note && isUnread(m.note))];
+		const unread = [
+			...all.filter((m) => m.unread),
+			...threadMarks.filter((m) => m.note && isUnread(m.note)),
+			...fileThreads.filter(isUnread).map((n) => ({ id: n.id, kind: 'note' as const, included: true }))
+		];
 		const kept = (m: { included?: boolean }) => m.included !== false;
 		if (unconfirmed.length) {
 			const solid = unconfirmed.some(kept) || all.some(kept);
@@ -350,7 +356,7 @@
 		const id = session.revealing;
 		if (!id) return;
 		untrack(() => {
-			if (wholeFile.some((m) => m.id === id)) {
+			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id)) {
 				session.revealing = null;
 				collapsed = false;
 				session.openMark = id;
@@ -544,6 +550,7 @@
 		{elsewhere}
 		{summary}
 		{wholeFile}
+		{fileThreads}
 		{openAnchor}
 		{reviewed}
 		onreview={onToggleReviewed ? toggleReviewed : undefined}

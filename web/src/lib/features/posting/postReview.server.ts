@@ -334,9 +334,10 @@ function describeLocation(comment: CommentToPost): string {
 }
 
 // Builds exactly what gets sent. Comments on lines in the diff go inline;
-// the rest - on expanded lines, a whole file, or the PR as a whole - go in
-// the review's text after the summary, since GitHub can only attach inline
-// comments to lines in the diff.
+// the rest go in the review's text, since GitHub can only attach inline
+// comments to lines in the diff: those on the PR as a whole lead it, being
+// the reviewer's own word on the PR, and those on expanded lines or a whole
+// file follow the summary.
 export async function buildReviewPayload(
   owner: string,
   repo: string,
@@ -347,6 +348,7 @@ export async function buildReviewPayload(
 ): Promise<ReviewPayload> {
   const files = await fetchPrFiles(owner, repo, number);
   const inline: InlineComment[] = [];
+  const lead: string[] = [];
   const inBody: string[] = [];
   for (const comment of comments) {
     const file = comment.path ? files.find((f) => f.filename === comment.path) : undefined;
@@ -365,9 +367,10 @@ export async function buildReviewPayload(
         continue;
       }
     }
-    inBody.push(`${describeLocation(comment)}${comment.body}`);
+    if (comment.path) inBody.push(`${describeLocation(comment)}${comment.body}`);
+    else lead.push(comment.body);
   }
-  const body = [summary.trim(), ...inBody].filter(Boolean).join("\n\n");
+  const body = [...lead, summary.trim(), ...inBody].filter(Boolean).join("\n\n");
   return { ...(event ? { event } : {}), body, comments: inline };
 }
 

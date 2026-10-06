@@ -10,7 +10,7 @@ import { ReviewPost } from '../features/posting/post.svelte';
 import { everythingElse, isSliceReviewed } from '../features/reading/progress';
 import { readPref, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
-import { isNewFinding, isUnread, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from '../types';
+import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -123,7 +123,8 @@ export class PrSession {
 
 	// With `comment`, the message is one to post as written, and asks for
 	// no reply.
-	createNote(anchor: { path: string; hunk: number; start: LineRef; end: LineRef; code: string }, text: string, { comment = false } = {}): string {
+	// Without lines, on a whole file; without a path too, on the PR as a whole.
+	createNote(anchor: { path: string; hunk?: number; start?: LineRef; end?: LineRef; code?: string }, text: string, { comment = false } = {}): string {
 		const now = Date.now();
 		const message: NoteMessage = { role: 'user', text, at: now, ...(comment ? { comment } : {}) };
 		const note: Note = { id: crypto.randomUUID(), ...anchor, messages: [message], createdAt: now, readAt: now };
@@ -164,12 +165,22 @@ export class PrSession {
 		}).catch(() => {});
 	}
 
+	// Every file's changes, as far as they fit, for a question about the PR.
+	#allChanges() {
+		return this.files
+			.map((f) => `--- ${f.filename}\n${f.patch ?? ''}`)
+			.join('\n\n')
+			.slice(0, 120_000);
+	}
+
 	async #requestReply(id: string) {
 		const note = this.record.notes.find((n) => n.id === id);
 		if (!note) return;
 		const file = this.files.find((f) => f.filename === note.path);
-		const slice = this.slices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
-		const lines = note.start.line === note.end.line ? `line ${note.start.line}` : `lines ${note.start.line}-${note.end.line}`;
+		const slice = note.hunk === undefined ? undefined : this.slices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
+		// A thread without lines is about its whole file, or with no path the PR.
+		const lines = note.start ? noteWhere(note) : '';
+		const code = note.code ?? '';
 		this.noteStatus[id] = { pending: true };
 		try {
 			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/notes/reply`, {
@@ -179,8 +190,8 @@ export class PrSession {
 					context: {
 						path: note.path,
 						lines,
-						code: note.code,
-						fileDiff: file?.patch ?? note.code,
+						code,
+						fileDiff: note.path ? (file?.patch ?? code) : this.#allChanges(),
 						prTitle: this.title,
 						prWhat: this.record.summary?.what,
 						sliceTitle: slice?.title,
@@ -258,12 +269,7 @@ export class PrSession {
 			.join('\n');
 		// A finding about the whole PR is answered from all of its changes, as
 		// far as they fit.
-		const everything = path
-			? ''
-			: this.files
-					.map((f) => `--- ${f.filename}\n${f.patch ?? ''}`)
-					.join('\n\n')
-					.slice(0, 120_000);
+		const everything = path ? '' : this.#allChanges();
 		const ranWith = this.record.agentReviewers.find((a) => a.id === reviewer)?.ranWith;
 		this.findingStatus[id] = { pending: true };
 		try {
@@ -335,7 +341,10 @@ export class PrSession {
 	readonly threads = $derived.by(() => {
 		const order = new Map(this.files.map((f, i) => [f.filename, i]));
 		return [...this.record.notes].sort(
-			(a, b) => (order.get(a.path) ?? 0) - (order.get(b.path) ?? 0) || a.hunk - b.hunk || a.start.line - b.start.line
+			(a, b) =>
+				(order.get(a.path) ?? -1) - (order.get(b.path) ?? -1) ||
+				(a.hunk ?? -1) - (b.hunk ?? -1) ||
+				(a.start?.line ?? 0) - (b.start?.line ?? 0)
 		);
 	});
 
@@ -401,8 +410,8 @@ export class PrSession {
 				prTitle: this.title,
 				threads: threads.map((n) => ({
 					path: n.path,
-					lines: n.start.line === n.end.line ? `line ${n.start.line}` : `lines ${n.start.line}-${n.end.line}`,
-					code: n.code,
+					lines: noteWhere(n),
+					code: n.code ?? '',
 					messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) }))
 				}))
 			})
@@ -653,11 +662,15 @@ function forModel(messages: NoteMessage[]): { role: NoteMessage['role']; text: s
 	return turns;
 }
 
+// A comment drawn from threads sits on their lines; on their file when one
+// has no lines; and on the PR when they span files or one has no path.
 function placeFromThreads(sources: Note[]) {
 	const noteIds = sources.map((n) => n.id);
-	if (new Set(sources.map((n) => n.path)).size !== 1) return { noteIds };
-	const first = [...sources].sort((a, b) => a.hunk - b.hunk || a.start.line - b.start.line)[0];
-	const last = [...sources].sort((a, b) => b.hunk - a.hunk || b.end.line - a.end.line)[0];
+	const paths = new Set(sources.map((n) => n.path));
+	if (paths.size !== 1 || !sources[0]?.path) return { noteIds };
+	if (sources.some((n) => !n.start || !n.end)) return { path: sources[0].path, noteIds };
+	const first = [...sources].sort((a, b) => (a.hunk ?? 0) - (b.hunk ?? 0) || a.start!.line - b.start!.line)[0];
+	const last = [...sources].sort((a, b) => (b.hunk ?? 0) - (a.hunk ?? 0) || b.end!.line - a.end!.line)[0];
 	return { path: first.path, start: first.start, end: last.end, noteIds };
 }
 

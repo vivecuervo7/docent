@@ -98,17 +98,15 @@ export function looseMarksFrom(record: PrRecord): LooseMark[] {
 
 export function marksFrom(record: PrRecord): Mark[] {
 	const findings = findingMarks(record).filter((m): m is Mark => !!m.path && !!m.start);
-	const notes = record.notes.map(
-		(note): Mark => ({
-			id: note.id,
-			kind: 'note',
-			path: note.path,
-			start: note.start,
-			end: note.end,
-			who: 'You',
-			body: note.messages[0]?.text ?? '',
-			note
-		})
+	const notes = record.notes.flatMap((note): Mark[] =>
+		note.start && note.end
+			? [{ id: note.id, kind: 'note', path: note.path, start: note.start, end: note.end, who: 'You', body: note.messages[0]?.text ?? '', note }]
+			: []
 	);
 	return [...notes, ...findings];
+}
+
+// Your threads without lines: on a whole file, or with no path on the PR.
+export function looseNotesFrom(record: PrRecord): Note[] {
+	return record.notes.filter((note) => !note.start);
 }

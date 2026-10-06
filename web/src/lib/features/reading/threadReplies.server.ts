@@ -35,9 +35,11 @@ export interface NoteContext {
 }
 
 const SYSTEM_PROMPT = `You are helping someone review a pull request. They have selected some \
-lines of the diff and written something about them. It is either a question or a remark.
-- A question: answer it directly and concisely, grounded in the code shown - the selected lines, and \
-the rest of the file's changes around them. Say so plainly when that isn't enough to be sure.
+lines of the diff, or a whole file, or the PR as a whole, and written something about it. It is \
+either a question or a remark.
+- A question: answer it directly and concisely, grounded in the code shown - the selected lines and \
+the rest of the file's changes around them, or the file's or the PR's changes. Say so plainly when \
+that isn't enough to be sure.
 - A remark meant as feedback for the PR's author, often terse ("typo", "could be null"): write \
 it up as a clear, specific review comment they could post to the author, written as the \
 reviewer, grounded in the selected lines. Reply with just the comment.
@@ -68,8 +70,10 @@ function contextMessage(context: NoteContext): string {
   }
   if (context.code) {
     parts.push(`${context.finding ? "The finding is on" : "Selected"} ${context.lines}:\n\`\`\`diff\n${context.code}\n\`\`\``);
-  } else if (context.finding) {
-    parts.push(`The finding is about ${context.path ? "the file as a whole" : "the PR as a whole"}.`);
+  } else {
+    // Without lines, a thread or finding is about a whole file, or the PR.
+    const about = context.path ? "the file as a whole" : "the PR as a whole";
+    parts.push(context.finding ? `The finding is about ${about}.` : `The reviewer is writing about ${about}, not selected lines.`);
   }
   if (context.finding) {
     const f = context.finding;

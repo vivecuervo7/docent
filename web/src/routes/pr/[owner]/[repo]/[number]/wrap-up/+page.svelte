@@ -34,8 +34,10 @@
 
 
 	// Opens a finding or a thread where it sits in the diff.
+	// To where it sits: a slice holding its lines or file, or for something
+	// about the PR as a whole, the Overview.
 	function show(id: string, path: string | undefined, start: FeedbackItem['start']) {
-		if (!path) return;
+		if (!path) return goto(base);
 		const slice = session.slicesOf(path, start)[0];
 		if (!slice) return;
 		session.revealing = id;

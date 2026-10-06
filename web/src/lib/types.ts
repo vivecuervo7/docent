@@ -140,19 +140,29 @@ export interface NoteMessage {
 	conclusion?: boolean;
 }
 
+// A thread on selected lines, or without lines on a whole file, or with no
+// path either on the PR as a whole.
 export interface Note {
 	id: string;
+	// Empty for a thread on the PR as a whole.
 	path: string;
 	// The hunk the selection starts in, for showing its lines again.
-	hunk: number;
-	start: LineRef;
-	end: LineRef;
+	hunk?: number;
+	start?: LineRef;
+	end?: LineRef;
 	// The selected lines as they read when the thread began, with +/- markers.
-	code: string;
+	code?: string;
 	messages: NoteMessage[];
 	createdAt: number;
 	// When the reviewer last had the thread open; a reply after this is unread.
 	readAt?: number;
+}
+
+// Where a thread sits, in words: its lines, its file, or the PR.
+export function noteWhere(note: Pick<Note, 'path' | 'start' | 'end'>): string {
+	if (!note.path) return 'the PR as a whole';
+	if (!note.start || !note.end) return 'the whole file';
+	return note.start.line === note.end.line ? `line ${note.start.line}` : `lines ${note.start.line}–${note.end.line}`;
 }
 
 // A thread, or a finding asked about, with a reply since it was last open.
