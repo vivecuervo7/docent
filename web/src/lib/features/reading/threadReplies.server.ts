@@ -8,6 +8,8 @@ import { inLane } from "../../models/lanes.server.js";
 export interface NoteMessage {
   role: "user" | "assistant";
   text: string;
+  // The reviewer's conclusion, closing the thread.
+  conclusion?: boolean;
 }
 
 export interface NoteContext {

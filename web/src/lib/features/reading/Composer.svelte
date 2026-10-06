@@ -1,34 +1,48 @@
+<script lang="ts" module>
+	export type SendKind = 'ask' | 'comment' | 'conclude';
+</script>
+
 <script lang="ts">
 	import { MOD } from '$lib/ui/keys';
 
-	// Where the reviewer writes on a thread: Ask sends it to Docent for a
-	// reply, Comment keeps it as a comment to post as written. Enter asks and
-	// Mod+Enter comments. The draft is bound, so it outlives the box closing.
+	// Where the reviewer writes in a conversation. Ask sends it to Docent
+	// for a reply. The second action depends on the conversation: Comment
+	// keeps it as a comment to post as written; Conclude closes it with the
+	// reviewer's decision, which isn't posted but is what drafting follows.
+	// Enter asks and Mod+Enter takes the second action. The draft is bound,
+	// so it outlives the box closing.
 	let {
 		value = $bindable(''),
 		placeholder,
+		second = 'comment',
 		rows = 1,
 		autofocus = false,
 		actionsAlways = false,
 		askDisabled = false,
+		tone = 'plain',
 		onsend,
 		onescape
 	}: {
 		value?: string;
 		placeholder: string;
+		second?: 'comment' | 'conclude';
 		rows?: number;
 		autofocus?: boolean;
 		// Shows the buttons before anything is written, not only once it is.
 		actionsAlways?: boolean;
 		askDisabled?: boolean;
-		onsend: (text: string, options: { comment: boolean }) => void;
+		// `agent` sits in a finding's amber bubble.
+		tone?: 'plain' | 'agent';
+		onsend: (text: string, kind: SendKind) => void;
 		onescape?: () => void;
 	} = $props();
 
-	function send(comment: boolean) {
+	const secondLabel = $derived(second === 'comment' ? 'Comment' : 'Conclude');
+
+	function send(kind: SendKind) {
 		const text = value.trim();
-		if (!text || (askDisabled && !comment)) return;
-		onsend(text, { comment });
+		if (!text || (askDisabled && kind === 'ask')) return;
+		onsend(text, kind);
 		value = '';
 	}
 
@@ -39,7 +53,7 @@
 	}
 </script>
 
-<div class="composer">
+<div class="composer {tone}">
 	<!-- Growing with its text ignores rows, so rows sets its least height. -->
 	<textarea
 		bind:value
@@ -47,19 +61,24 @@
 		style:min-height={rows > 1 ? `calc(${rows} * 1.5em + 18px)` : undefined}
 		use:focusNow
 		{placeholder}
-		aria-label="Ask or comment"
+		aria-label="Ask or {secondLabel.toLowerCase()}"
 		onkeydown={(e) => {
 			if (e.key === 'Enter' && !e.shiftKey) {
 				e.preventDefault();
-				send(e.metaKey || e.ctrlKey);
+				send(e.metaKey || e.ctrlKey ? second : 'ask');
 			} else if (e.key === 'Escape' && onescape) onescape();
 		}}
 	></textarea>
 	{#if actionsAlways || value.trim()}
 		<div class="foot">
-			<span class="faint">Enter to ask · {MOD}Enter to comment</span>
-			<button class="btn" disabled={!value.trim()} onclick={() => send(true)}>Comment</button>
-			<button class="btn primary" disabled={!value.trim() || askDisabled} onclick={() => send(false)}>Ask</button>
+			<span class="faint">Enter to ask · {MOD}Enter to {secondLabel.toLowerCase()}</span>
+			<button
+				class="btn"
+				disabled={!value.trim()}
+				title={second === 'comment' ? 'Post this to the PR as written' : 'Close this with your decision; it’s not posted, but drafting follows it'}
+				onclick={() => send(second)}>{secondLabel}</button
+			>
+			<button class="btn primary" disabled={!value.trim() || askDisabled} onclick={() => send('ask')}>Ask</button>
 		</div>
 	{/if}
 </div>
@@ -89,6 +108,13 @@
 	}
 	textarea:focus {
 		box-shadow: inset 0 0 0 1px var(--you);
+	}
+	.agent textarea {
+		background: color-mix(in srgb, var(--popover) 50%, var(--bg));
+		box-shadow: inset 0 0 0 1px var(--popover-line);
+	}
+	.agent textarea:focus {
+		box-shadow: inset 0 0 0 1px var(--agent);
 	}
 	.foot {
 		display: flex;

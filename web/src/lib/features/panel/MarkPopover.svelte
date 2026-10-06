@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Composer, { type SendKind } from '../reading/Composer.svelte';
 	import { raisedBy } from './findings';
 	import type { LooseMark, Mark } from '../reading/marks';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
@@ -63,11 +64,12 @@
 		list?.scrollTo({ top: list.scrollHeight });
 	});
 
-	function send() {
-		const text = draft.trim();
-		if (!text || status.pending || !mark.reviewer) return;
-		session.askAboutFinding(mark.reviewer, mark.id, text);
-		draft = '';
+	// A question for the reviewer that raised it, or the reviewer's
+	// conclusion about it, which Prepare follows.
+	function send(text: string, kind: SendKind) {
+		if (!mark.reviewer) return;
+		if (kind === 'conclude') session.concludeFinding(mark.reviewer, mark.id, text);
+		else session.askAboutFinding(mark.reviewer, mark.id, text);
 	}
 	// Quick questions, each offered until it's been asked.
 	const QUICK = [
@@ -155,7 +157,11 @@
 			<ol class="turns">
 				{#each messages as m, i (i)}
 					<li class={m.role}>
-						<span class="role">{m.role === 'user' ? 'You' : mark.who}</span>
+						<span class="role"
+							>{#if m.conclusion}Your conclusion <span class="faint">· not posted; Prepare follows it</span>{:else}{m.role === 'user'
+									? 'You'
+									: mark.who}{/if}</span
+						>
 						<div class="text"><NoteText text={m.text} /></div>
 					</li>
 				{/each}
@@ -180,18 +186,7 @@
 				{/each}
 			</div>
 		{/if}
-		<textarea
-			bind:value={draft}
-			rows="1"
-			placeholder="Ask about this…"
-			aria-label="Ask about this finding"
-			onkeydown={(e) => {
-				if (e.key === 'Enter' && !e.shiftKey) {
-					e.preventDefault();
-					send();
-				}
-			}}
-		></textarea>
+		<Composer bind:value={draft} placeholder="Ask about this, or conclude…" second="conclude" tone="agent" askDisabled={status.pending} onsend={send} />
 	</div>
 	<footer>
 		{#if item?.skipSuggested && !item.decided}<span class="suggested">Skip suggested: {item.skipSuggested}</span>{/if}
@@ -405,26 +400,6 @@
 	}
 	.ask {
 		padding: 0 12px 10px;
-	}
-	.ask textarea {
-		width: 100%;
-		box-sizing: border-box;
-		resize: none;
-		field-sizing: content;
-		max-height: 140px;
-		padding: 8px 12px;
-		border: 0;
-		border-radius: 10px;
-		background: color-mix(in srgb, var(--popover) 50%, var(--bg));
-		box-shadow: inset 0 0 0 1px var(--popover-line);
-		color: var(--text);
-		font: inherit;
-		font-size: 14px;
-		line-height: 1.5;
-		outline: none;
-	}
-	.ask textarea:focus {
-		box-shadow: inset 0 0 0 1px var(--agent);
 	}
 	footer {
 		display: flex;

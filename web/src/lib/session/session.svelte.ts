@@ -135,12 +135,13 @@ export class PrSession {
 		return note.id;
 	}
 
-	sendNote(id: string, text: string, { comment = false } = {}) {
-		const message: NoteMessage = { role: 'user', text, at: Date.now(), ...(comment ? { comment } : {}) };
+	// A comment or a conclusion asks for no reply.
+	sendNote(id: string, text: string, { comment = false, conclusion = false } = {}) {
+		const message: NoteMessage = { role: 'user', text, at: Date.now(), ...(comment ? { comment } : {}), ...(conclusion ? { conclusion } : {}) };
 		this.update((r) => {
 			r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, message] } : n));
 		})
-			.then(() => (comment ? undefined : this.#requestReply(id)))
+			.then(() => (comment || conclusion ? undefined : this.#requestReply(id)))
 			.catch((err) => (this.noteStatus[id] = { error: (err as Error).message }));
 	}
 
@@ -204,6 +205,13 @@ export class PrSession {
 	// picked model, for the reviewer's own agent). The conversation is saved
 	// on the finding, and goes with it into the prepared review.
 	findingStatus = $state<Record<string, { pending?: boolean; error?: string }>>({});
+
+	// The reviewer's conclusion about a finding: what Prepare follows when
+	// wording it, or leaving it out. It asks for no answer.
+	concludeFinding(reviewer: string, id: string, text: string) {
+		const message: NoteMessage = { role: 'user', text, at: Date.now(), conclusion: true };
+		this.#changeFinding(reviewer, id, (item) => ({ ...item, messages: [...(item.messages ?? []), message] })).catch(() => {});
+	}
 
 	askAboutFinding(reviewer: string, id: string, text: string, prompt?: string) {
 		const message = { role: 'user' as const, text, at: Date.now(), ...(prompt ? { prompt } : {}) };
@@ -294,7 +302,7 @@ export class PrSession {
 							}
 						}
 					},
-					messages: item.messages.map(({ role, text, prompt }) => ({ role, text: prompt ?? text })),
+					messages: forModel(item.messages),
 					model: this.#answeringModel(ranWith)
 				})
 			});
@@ -331,6 +339,10 @@ export class PrSession {
 		);
 	});
 
+	// Threads with only questions so far, which drafting leaves out until
+	// they're concluded.
+	readonly openThreads = $derived(this.threads.filter((n) => !n.messages.some((m) => m.comment) && !isConcluded(n)));
+
 	// Whether threads have been added, removed or replied to since the draft.
 	readonly threadsChanged = $derived.by(() => {
 		const basedOn = this.record.feedback.yours?.basedOn;
@@ -340,12 +352,14 @@ export class PrSession {
 	});
 
 	// A thread with comments of the reviewer's own is drafted as those
-	// comments, word for word and on its lines; the model drafts the rest.
+	// comments, word for word and on its lines. A concluded one is drafted by
+	// the model from its conclusion, which may be that nothing needs raising.
+	// One with only questions so far isn't drafted.
 	async draftYourComments() {
 		const threads = this.threads;
 		if (!threads.length) return;
 		const said = threads.filter((n) => n.messages.some((m) => m.comment));
-		const rest = threads.filter((n) => !said.includes(n));
+		const rest = threads.filter((n) => !said.includes(n) && isConcluded(n));
 		this.yourDraft = { pending: true };
 		try {
 			const asWritten: FeedbackItem[] = said.map((n) => ({
@@ -389,7 +403,7 @@ export class PrSession {
 					path: n.path,
 					lines: n.start.line === n.end.line ? `line ${n.start.line}` : `lines ${n.start.line}-${n.end.line}`,
 					code: n.code,
-					messages: n.messages.map(({ role, text }) => ({ role, text }))
+					messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) }))
 				}))
 			})
 		});
@@ -608,12 +622,20 @@ export class PrSession {
 
 // Where a comment drafted from threads sits: on their lines when they're all
 // in one file, else on the PR as a whole.
-// A thread as the model reads it: the reviewer's comments marked as such,
-// so they aren't answered as questions, and one turn per speaker.
+// Closed with the reviewer's conclusion, which drafting follows.
+export const isConcluded = (note: Note) => note.messages.some((m) => m.conclusion);
+
+// A thread as the model reads it: the reviewer's comments and conclusions
+// marked as such, so they aren't answered as questions, a quick question's
+// full prompt in place of its label, and one turn per speaker.
 function forModel(messages: NoteMessage[]): { role: NoteMessage['role']; text: string }[] {
 	const turns: { role: NoteMessage['role']; text: string }[] = [];
 	for (const m of messages) {
-		const text = m.comment ? `A comment I'm posting as written, not a question:\n${m.text}` : m.text;
+		const text = m.comment
+			? `A comment I'm posting as written, not a question:\n${m.text}`
+			: m.conclusion
+				? `My conclusion so far, not a question:\n${m.text}`
+				: (m.prompt ?? m.text);
 		const last = turns.at(-1);
 		if (last?.role === m.role) last.text += `\n\n${text}`;
 		else turns.push({ role: m.role, text });

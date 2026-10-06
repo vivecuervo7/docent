@@ -47,12 +47,11 @@ const REPORT_FEEDBACK_TOOL = {
 };
 
 const SYSTEM_PROMPT = `You are helping a reviewer turn their notes on a pull request into review \
-comments for its author. Each numbered thread is about some lines of the diff: the reviewer \
-either asked a question or jotted a remark, and an assistant replied.
-Write a review comment only where the thread points to something the author should act on or \
-answer: a bug, a risk, something unclear, a missed case, a naming or readability problem, a typo. \
-A question the reply answered with no problem found is not feedback - leave it out. A remark \
-the reviewer made is feedback, written up properly.
+comments for its author. Each numbered thread is about some lines of the diff: the reviewer asked \
+about them, an assistant replied, and the reviewer closed the thread with a conclusion.
+The conclusion is the reviewer's decision, and it decides what you write. Draft the comment it \
+calls for, in the reviewer's voice and close to what they concluded, taking the detail from the \
+rest of the thread. When it settles that nothing needs raising, write no comment for that thread.
 Comments don't map one-to-one to threads: combine threads that raise the same point into one \
 comment, and split a thread that raises several points into several comments.
 Each comment is addressed to the author, written as the reviewer, specific to the lines, and \
@@ -68,7 +67,7 @@ function threadText(thread: ThreadForFeedback, index: number): string {
     .map((line) => `    ${line}`)
     .join("\n");
   const messages = thread.messages
-    .map((m) => `${m.role === "user" ? "Reviewer" : "Assistant"}: ${m.text}`)
+    .map((m) => `${m.conclusion ? "Reviewer's conclusion" : m.role === "user" ? "Reviewer" : "Assistant"}: ${m.text}`)
     .join("\n");
   return `Thread ${index + 1}: ${thread.path}, ${thread.lines}\n${code}\n${messages}`;
 }

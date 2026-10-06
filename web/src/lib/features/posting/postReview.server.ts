@@ -113,7 +113,9 @@ say who made it. Only drop it if the point really is the same.
 Keep every other candidate exactly as written - unless the reviewer discussed it. A discussion \
 shows what the reviewer asked about the candidate and what they learned: word the comment in light \
 of what it settled, and if it showed the point is wrong or already resolved, drop it with that as \
-the reason.
+the reason. Where the discussion ends with the reviewer's conclusion, follow it: it decides \
+whether the point is raised and how, and if it says not to raise it, drop it with that as the \
+reason.
 A candidate marked "as written" is the reviewer's own words: it keeps a comment of its own, \
 worded exactly as written, even with no lines or when the point is already on the PR. Merge \
 another candidate into it only on the same lines, adding that point briefly after the reviewer's \

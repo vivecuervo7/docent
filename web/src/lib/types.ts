@@ -135,6 +135,9 @@ export interface NoteMessage {
 	prompt?: string;
 	// A comment the reviewer means to post as written, asking for no reply.
 	comment?: boolean;
+	// The reviewer's conclusion to a conversation, asking for no reply: not
+	// posted, but what drafting and Prepare follow.
+	conclusion?: boolean;
 }
 
 export interface Note {

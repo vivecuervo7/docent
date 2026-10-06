@@ -4,7 +4,7 @@
 	import type { Note } from '$lib/types';
 	import NoteText from '../../ui/NoteText.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
-	import Composer from './Composer.svelte';
+	import Composer, { type SendKind } from './Composer.svelte';
 
 	// A thread on selected lines: what the reviewer asked, the model's
 	// replies, the comments they mean to post as written, and room to follow
@@ -17,6 +17,13 @@
 		note.start.line === note.end.line ? `line ${note.start.line}` : `lines ${note.start.line}–${note.end.line}`
 	);
 	let draft = $state('');
+	// A thread begun with a comment takes more comments; one begun with a
+	// question is closed with a conclusion.
+	const second = $derived(note.messages[0]?.comment ? 'comment' : 'conclude');
+
+	function send(text: string, kind: SendKind) {
+		session.sendNote(note.id, text, { comment: kind === 'comment', conclusion: kind === 'conclude' });
+	}
 	let list = $state<HTMLOListElement | null>(null);
 
 	// Reading it here clears it from unread.
@@ -51,9 +58,10 @@
 
 	<ol class="messages" bind:this={list}>
 		{#each note.messages as m, i (i)}
-			<li class={m.role} class:comment={m.comment}>
+			<li class={m.role} class:comment={m.comment} class:conclusion={m.conclusion}>
 				<span class="role">
-					{#if m.comment}Your comment <span class="as-written">· posted as written</span>{:else}{m.role === 'user' ? 'You' : 'Docent'}{/if}
+					{#if m.comment}Your comment <span class="as-written">· posted as written</span>{:else if m.conclusion}Your conclusion
+						<span class="faint">· not posted; drafting follows it</span>{:else}{m.role === 'user' ? 'You' : 'Docent'}{/if}
 				</span>
 				<div class="text"><NoteText text={m.text} /></div>
 			</li>
@@ -73,9 +81,10 @@
 	<div class="reply">
 		<Composer
 			bind:value={draft}
-			placeholder="Ask, or comment…"
+			placeholder={second === 'comment' ? 'Ask, or comment…' : 'Ask, or conclude…'}
+			{second}
 			askDisabled={status.pending}
-			onsend={(text, { comment }) => session.sendNote(note.id, text, { comment })}
+			onsend={send}
 		/>
 	</div>
 </div>

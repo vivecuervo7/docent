@@ -161,7 +161,9 @@ export class ReviewPost {
 	// What was said about a finding: the reviewer's questions and the
 	// answers, and the other reviewers who raised the same point.
 	#discussionOf(source: string, item: FeedbackItem): { discussion?: string } {
-		const talk = (item.messages ?? []).map((m) => `${m.role === 'user' ? 'Reviewer' : 'Answer'}: ${m.text}`);
+		const talk = (item.messages ?? []).map(
+			(m) => `${m.conclusion ? "Reviewer's conclusion" : m.role === 'user' ? 'Reviewer' : 'Answer'}: ${m.text}`
+		);
 		const others = groupsOf(this.#session.record)
 			.membersOf(source, item.id)
 			.map((m) => `Another reviewer raised the same point: ${m.item.body}`);

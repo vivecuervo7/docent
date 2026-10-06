@@ -2,8 +2,9 @@
 	import MarkIcon from './MarkIcon.svelte';
 
 	// A mark's pin beside the code: a finding in amber, a thread in blue,
-	// outlined when the finding is skipped, with a dot while something in it
-	// is new to read. `id` lets the bubble it opens find it.
+	// outlined when the finding is skipped, dimmed when the thread is
+	// concluded, with a dot while something in it is new to read. `id` lets
+	// the bubble it opens find it.
 	let {
 		kind,
 		id,
@@ -11,6 +12,7 @@
 		title,
 		skipped = false,
 		active = false,
+		settled = false,
 		unread = false,
 		unreadLabel = 'New to read',
 		onclick,
@@ -23,6 +25,7 @@
 		title?: string;
 		skipped?: boolean;
 		active?: boolean;
+		settled?: boolean;
 		unread?: boolean;
 		unreadLabel?: string;
 		onclick: () => void;
@@ -35,6 +38,7 @@
 	class="pin {kind}"
 	class:skipped
 	class:active
+	class:settled
 	data-pin={id}
 	aria-label={label}
 	title={title ?? label}
@@ -71,9 +75,13 @@
 	.pin.note {
 		fill: var(--you);
 	}
+	.pin.settled {
+		opacity: 0.45;
+	}
 	.pin.active,
 	.pin:hover {
 		filter: brightness(1.3);
+		opacity: 1;
 	}
 	.unread {
 		position: absolute;

@@ -20,13 +20,13 @@
 		type Row
 	} from '$lib/features/reading/diff/parse';
 	import InlineText from '../../ui/InlineText.svelte';
-	import Composer from './Composer.svelte';
+	import Composer, { type SendKind } from './Composer.svelte';
 	import FileHeader from './FileHeader.svelte';
 	import FoldRow from './FoldRow.svelte';
 	import HiddenMarks from './HiddenMarks.svelte';
 	import Pin from './Pin.svelte';
 	import { quietPieces } from './quietFolds';
-	import { useSession } from '$lib/session/session.svelte';
+	import { isConcluded, useSession } from '$lib/session/session.svelte';
 	import { isUnread } from '$lib/types';
 	import type { ReferenceElement } from '@floating-ui/dom';
 	import Floating from '../../ui/Floating.svelte';
@@ -287,8 +287,9 @@
 	// A thread on the selected lines, kept with the hunk the selection starts
 	// in and the lines as they read now. It starts with a question for
 	// Docent, or with a comment to post as written.
-	function startThread(text: string, { comment }: { comment: boolean }) {
+	function startThread(text: string, kind: SendKind) {
 		if (!selection) return;
+		const comment = kind === 'comment';
 		const rows = shown.slice(selFrom, selTo + 1);
 		const ref = (r: Row): LineRef => (r.kind === 'del' ? { side: 'old', line: r.old! } : { side: 'new', line: r.new! });
 		const id = session.createNote(
@@ -455,6 +456,7 @@
 					skipped={p.mark.kind === 'finding' && p.mark.included === false}
 					active={session.openMark === p.mark.id}
 					unread={p.mark.kind === 'finding' ? !!p.mark.unread : !!p.mark.note && isUnread(p.mark.note)}
+					settled={!!p.mark.note && isConcluded(p.mark.note)}
 					unreadLabel={p.mark.kind === 'finding' ? 'New answer' : 'New reply'}
 					label="{p.mark.kind === 'finding' ? 'Finding' : 'Thread'} from {p.mark.who}"
 					onclick={() => (session.openMark = session.openMark === p.mark.id ? null : p.mark.id)}
