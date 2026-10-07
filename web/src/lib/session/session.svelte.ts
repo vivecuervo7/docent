@@ -348,10 +348,6 @@ export class PrSession {
 		);
 	});
 
-	// Threads with only questions so far, which drafting leaves out until
-	// they're concluded.
-	readonly openThreads = $derived(this.threads.filter((n) => !n.messages.some((m) => m.comment) && !isConcluded(n)));
-
 	// Whether threads have been added, removed or replied to since the draft.
 	readonly threadsChanged = $derived.by(() => {
 		const basedOn = this.record.feedback.yours?.basedOn;
@@ -361,14 +357,13 @@ export class PrSession {
 	});
 
 	// A thread with comments of the reviewer's own is drafted as those
-	// comments, word for word and on its lines. A concluded one is drafted by
-	// the model from its conclusion, which may be that nothing needs raising.
-	// One with only questions so far isn't drafted.
+	// comments, word for word and on its lines; the model drafts the rest,
+	// following a thread's conclusion where it has one.
 	async draftYourComments() {
 		const threads = this.threads;
 		if (!threads.length) return;
 		const said = threads.filter((n) => n.messages.some((m) => m.comment));
-		const rest = threads.filter((n) => !said.includes(n) && isConcluded(n));
+		const rest = threads.filter((n) => !said.includes(n));
 		this.yourDraft = { pending: true };
 		try {
 			const asWritten: FeedbackItem[] = said.map((n) => ({

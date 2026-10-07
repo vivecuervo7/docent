@@ -99,7 +99,7 @@
 			<h2>Your comments <span class="count">{yours.length}</span></h2>
 			{#if session.yourDraft.pending}
 				<span class="faint drafting"><Spinner size={13} /> Drafting…</span>
-			{:else if session.threads.length > session.openThreads.length && (!session.record.feedback.yours || session.threadsChanged)}
+			{:else if session.threads.length && (!session.record.feedback.yours || session.threadsChanged)}
 				<button class="btn" onclick={() => session.draftYourComments()}>
 					{session.record.feedback.yours ? 'Draft again from your threads' : 'Draft from your threads'}
 				</button>
@@ -110,14 +110,6 @@
 		{/if}
 		{#if session.record.feedback.yours && session.threadsChanged && !session.yourDraft.pending}
 			<p class="faint note">Your threads have changed since these were drafted.</p>
-		{/if}
-		{#if session.openThreads.length}
-			{@const open = session.openThreads}
-			<p class="faint note">
-				{open.length === 1 ? 'A thread has' : `${open.length} threads have`} only questions so far, so {open.length === 1 ? 'it isn’t' : 'they aren’t'}
-				drafted. Conclude {open.length === 1 ? 'it' : 'them'} to have Docent draft from your decision.
-				<button class="link" onclick={() => show(open[0].id, open[0].path, open[0].start)}>Show {open.length === 1 ? 'it' : 'the first'}</button>
-			</p>
 		{/if}
 		{#if yours.length}
 			<ul>
@@ -138,9 +130,8 @@
 			</ul>
 		{:else if !session.threads.length}
 			<p class="empty">No threads yet. Select lines while reading to ask or comment.</p>
-		{:else if !session.record.feedback.yours && session.threads.length > session.openThreads.length}
-			{@const ready = session.threads.length - session.openThreads.length}
-			<p class="empty">{ready} {ready === 1 ? 'thread' : 'threads'} to draft comments from.</p>
+		{:else if !session.record.feedback.yours}
+			<p class="empty">{session.threads.length} {session.threads.length === 1 ? 'thread' : 'threads'} to draft comments from.</p>
 		{:else if !session.yourDraft.pending}
 			<p class="empty">Nothing in your threads reads as a comment for the author.</p>
 		{/if}
@@ -227,16 +218,6 @@
 		padding: 0;
 	}
 	.empty,
-	.link {
-		border: 0;
-		background: none;
-		padding: 0;
-		color: var(--text);
-		font: inherit;
-		text-decoration: underline;
-		text-underline-offset: 3px;
-		cursor: pointer;
-	}
 	.note {
 		margin: 4px 0 0;
 		color: var(--faint);
