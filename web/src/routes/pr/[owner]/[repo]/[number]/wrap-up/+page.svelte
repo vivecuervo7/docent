@@ -99,7 +99,7 @@
 			<h2>Your comments <span class="count">{yours.length}</span></h2>
 			{#if session.yourDraft.pending}
 				<span class="faint drafting"><Spinner size={13} /> Drafting…</span>
-			{:else if session.threads.length && (!session.record.feedback.yours || session.threadsChanged)}
+			{:else if session.threads.length}
 				<button class="btn" onclick={() => session.draftYourComments()}>
 					{session.record.feedback.yours ? 'Draft again from your threads' : 'Draft from your threads'}
 				</button>
