@@ -86,7 +86,9 @@
 		{:else}
 			<div class="actions">
 				<button class="btn" onclick={() => session.stopPreparing()}>Stop</button>
-				<span class="faint">This keeps going if you leave.</span>
+				<span class="faint">
+					This keeps going if you leave.{#if session.record.reviewWhenPrepared}{' '}The panel starts once it’s prepared.{/if}
+				</span>
 			</div>
 		{/if}
 	</div>

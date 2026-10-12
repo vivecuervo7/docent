@@ -253,6 +253,8 @@ export interface PrRecord {
 	lastOpenedAt?: number;
 	// Earlier reviews of the PR, oldest first; the fields above are the latest.
 	rounds?: Round[];
+	// Asked for when it was begun: start the panel once it's prepared.
+	reviewWhenPrepared?: boolean;
 }
 
 export type Round = Partial<

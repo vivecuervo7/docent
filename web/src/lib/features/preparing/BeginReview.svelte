@@ -67,12 +67,13 @@
 	// Where commit i sits along the track, matching the knobs' centres.
 	const at = (i: number) => `calc(var(--knob) / 2 + (100% - var(--knob)) * ${last ? i / last : 0})`;
 
-	function begin() {
+	// With `review`, the panel starts as soon as it's prepared.
+	function begin(review: boolean) {
 		if (!commits) return;
 		starting = true;
 		const range = whole ? null : { after: commits[from].parent, to: commits[to].sha };
-		if (next) session.startRound(range);
-		else session.begin(range);
+		if (next) session.startRound(range, { review });
+		else session.begin(range, { review });
 	}
 </script>
 
@@ -141,7 +142,10 @@
 			</ol>
 
 			<div class="actions">
-				<button class="btn primary" disabled={starting} onclick={begin}>Prepare</button>
+				<button class="btn primary" disabled={starting} onclick={() => begin(true)} title="The panel starts reviewing as soon as it's prepared">
+					Prepare and review
+				</button>
+				<button class="btn" disabled={starting} onclick={() => begin(false)}>Just prepare</button>
 				{#if next}<button class="btn" disabled={starting} onclick={() => (session.choosingRound = false)}>Cancel</button>{/if}
 			</div>
 		{/if}

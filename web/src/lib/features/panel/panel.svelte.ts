@@ -1,4 +1,4 @@
-import { readHeld, readOk } from '../../api/client';
+import { listModels, readHeld, readOk } from '../../api/client';
 import { reviewerName as nameOnPanel } from './findings';
 import { dismissAgentReview, endAgentReview, getAgentReview, getDefaultPanel, setDefaultPanel, startAgentReview } from './reviewCalls';
 import { reviewerName } from './names';
@@ -182,6 +182,20 @@ export class Panel {
 
 	close() {
 		this.#stopPolling();
+	}
+
+	// Starts every reviewer switched on that hasn't run, as "Start the panel"
+	// does - but your own agent, whose command only you can run.
+	async startAll() {
+		if (this.#session.round !== null) return;
+		const model = await listModels()
+			.then((m) => m.selected)
+			.catch(() => this.#session.record.model ?? '');
+		for (const r of this.reviewers) {
+			if (r.off || r.ranWith || r.pickedBy || this.findings(r.id) || this.reviews[r.id]) continue;
+			const setup = setupFrom(r, model);
+			if (setup.mode !== 'external') this.start(r.id, setup);
+		}
 	}
 
 	// For a new round: lets the backend forget the last round's reviews, and

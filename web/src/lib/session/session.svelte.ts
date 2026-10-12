@@ -128,7 +128,8 @@ export class PrSession {
 			this.meta = pr.meta;
 			this.#show(record);
 			this.panel.load();
-			if (record.summary) this.panel.applyDefault();
+			// A review asked for while it was preparing, which finished while away.
+			if (record.summary) this.panel.applyDefault().then(() => this.#reviewIfAsked());
 			fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`)
 				.then((res) => readOk<GitHubComments>(res))
 				.then((comments) => !this.#closed && (this.github = comments))
@@ -621,6 +622,13 @@ export class PrSession {
 		if (!this.#closed) this.#show(saved);
 	}
 
+	// Starts the panel, once, when it was asked for as the review was begun.
+	async #reviewIfAsked() {
+		if (!this.record.reviewWhenPrepared || this.round !== null) return;
+		await this.update((r) => delete r.reviewWhenPrepared).catch(() => {});
+		this.panel.startAll();
+	}
+
 	#show(record: PrRecord) {
 		this.#stored = record;
 		this.record = this.round === null ? record : roundView(record, this.round);
@@ -641,19 +649,24 @@ export class PrSession {
 
 	// Keeps the latest round as it is and begins another, with the commits
 	// chosen or the whole PR. Its panel starts afresh, as a new PR's does.
-	async startRound(range: ReviewRange | null) {
+	async startRound(range: ReviewRange | null, { review = false } = {}) {
 		await this.viewRound(null);
 		this.panel.reset();
-		await this.update((r) => beginRound(r, range));
+		await this.update((r) => {
+			beginRound(r, range);
+			if (review) r.reviewWhenPrepared = true;
+		});
 		this.choosingRound = false;
 		await Promise.all([this.prepare(), fetchPr(this.ref).then(({ files }) => !this.#closed && (this.files = files))]);
 	}
 
-	// Begins the review with the commits chosen, or the whole PR.
-	async begin(range: ReviewRange | null) {
+	// Begins the review with the commits chosen, or the whole PR. With
+	// `review`, the panel starts as soon as it's prepared.
+	async begin(range: ReviewRange | null, { review = false } = {}) {
 		await this.update((r) => {
 			if (range) r.range = range;
 			else delete r.range;
+			if (review) r.reviewWhenPrepared = true;
 		});
 		await Promise.all([this.prepare(), fetchPr(this.ref).then(({ files }) => !this.#closed && (this.files = files))]);
 	}
@@ -719,7 +732,7 @@ export class PrSession {
 		if (conversation) save('conversation', (r) => (r.conversation = conversation));
 		if (summary && !done.has('summary')) {
 			save('summary', (r) => (r.summary = summary));
-			this.panel.applyDefault();
+			this.panel.applyDefault().then(() => this.#reviewIfAsked());
 		}
 		if (fileNotes) save('notes', (r) => (r.fileNotes = fileNotes));
 
