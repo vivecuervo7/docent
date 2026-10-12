@@ -59,9 +59,9 @@ export class PrSession {
 	record = $state<PrRecord>(emptyRecord());
 	// The whole record, every round in it.
 	#stored = $state.raw<PrRecord>(emptyRecord());
-	// An earlier round being looked at, by index; null for the latest. An
-	// earlier round reads as it was, and anything changed in it is kept in
-	// it, but reviewers run and reviews post only in the latest.
+	// An earlier round being looked at, by index; null for the latest. Any
+	// round can be read, changed, reviewed and posted; what's changed in it
+	// is kept in it.
 	round = $state<number | null>(null);
 	// What's been said on the PR on GitHub, fetched as it opens.
 	github = $state<GitHubComments | null>(null);
@@ -100,6 +100,15 @@ export class PrSession {
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
 	readonly roundCount = $derived((this.#stored.rounds?.length ?? 0) + 1);
+	// Where a round's pages are: the latest's have no round in their URL.
+	baseFor(index: number | null): string {
+		const { owner, repo, number } = this.ref;
+		return `/pr/${owner}/${repo}/${number}${index === null ? '' : `/round-${index + 1}`}`;
+	}
+	readonly base = $derived(this.baseFor(this.round));
+	// The round the URL asks for, by number from 1; the latest when it's
+	// none, or the latest's own number.
+	#wanted: number | null = null;
 	// Every round, oldest first, with the commits each covers; the latest
 	// covers none until it's begun.
 	readonly roundSpans = $derived(
@@ -166,6 +175,8 @@ export class PrSession {
 			this.files = pr.files;
 			this.meta = pr.meta;
 			this.#show(record);
+			const wanted = this.#roundIndex(this.#wanted);
+			if (wanted !== null) await this.viewRound(wanted);
 			this.panel.load();
 			// A review asked for while it was preparing, which finished while away.
 			if (record.summary) this.panel.applyDefault().then(() => this.#reviewIfAsked());
@@ -676,6 +687,17 @@ export class PrSession {
 		this.record = this.round === null ? record : roundView(record, this.round);
 	}
 
+	// Follows the URL to a round, by its number from 1, or null for the latest.
+	goToRound(number: number | null) {
+		this.#wanted = number;
+		if (!this.loading) this.viewRound(this.#roundIndex(number));
+	}
+
+	#roundIndex(number: number | null): number | null {
+		const earlier = this.#stored.rounds?.length ?? 0;
+		return number !== null && number >= 1 && number <= earlier ? number - 1 : null;
+	}
+
 	// Opens an earlier round, or the latest with null. Its files come first,
 	// so its slices never meet another round's.
 	async viewRound(index: number | null) {
@@ -686,7 +708,7 @@ export class PrSession {
 		this.round = index;
 		this.files = files;
 		this.#show(this.#stored);
-		if (index === null) this.panel.load();
+		this.panel.load();
 	}
 
 	// Keeps the latest round as it is and begins another, waiting, as a new

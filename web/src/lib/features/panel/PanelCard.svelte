@@ -47,7 +47,7 @@
 
 	const toStart = $derived(panel.reviewers.filter((r) => isTicked(r) && !isRunning(r)));
 	const anyRan = $derived(panel.reviewers.some((r) => r.ranWith || panel.findings(r.id) > 0 || panel.reviews[r.id]));
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const base = $derived(session.base);
 
 	// What runs a reviewer, as its menu shows it.
 	function runsWith(r: AgentReviewer): string {
@@ -366,8 +366,7 @@
 	</div>
 
 	{#if !beginning}<div class="actions">
-		<!-- Reviewers run only in the latest round. -->
-		{#if toStart.length && session.round === null}
+		{#if toStart.length}
 			<button class="btn primary big" onclick={startAndRead}>
 				<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z" fill="currentColor" /></svg>
 				Start {toStart.length === panel.reviewers.length && toStart.length > 1 ? 'the panel' : toStart.length === 1 ? 'reviewer' : `${toStart.length} reviewers`} and read

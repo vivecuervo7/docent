@@ -27,7 +27,7 @@
 	const general = $derived(session.githubShown?.general ?? []);
 	let showGeneral = $state(false);
 	const startThread = (text: string, kind: SendKind) => session.createNote({ path: '' }, text, { comment: kind === 'comment' });
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const base = $derived(session.base);
 	const summary = $derived(session.record.summary);
 	const githubUrl = $derived(
 		session.meta?.htmlUrl ?? `https://github.com/${session.ref.owner}/${session.ref.repo}/pull/${session.ref.number}`

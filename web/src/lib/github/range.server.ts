@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fetchPrBaseSha, fetchPrFiles, fetchPrHeadSha, type PrFile } from "./github.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
+import { roundRecord } from "../storage/rounds.server.js";
 import type { PrCommit, ReviewRange } from "../types.server.js";
 
 const execFileAsync = promisify(execFile);
@@ -50,8 +51,8 @@ export async function fetchReviewFiles(owner: string, repo: string, number: stri
 }
 
 // For a model reviewing a range, what its diff covers; empty for the whole PR.
-export function rangeNote(owner: string, repo: string, number: string): string {
-  const range = getRecord(keyFor(owner, repo, number)).record.range as ReviewRange | undefined;
+export function rangeNote(owner: string, repo: string, number: string, round?: number): string {
+  const range = roundRecord(owner, repo, number, round).range as ReviewRange | undefined;
   return range
     ? `This review covers only some of the PR's commits, ${range.after.slice(0, 7)}..${range.to.slice(0, 7)}. The diff is the PR as it stands after them, shown only where they changed it: review those changes, and read the rest of the PR only for context.`
     : "";

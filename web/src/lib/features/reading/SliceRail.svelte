@@ -6,7 +6,7 @@
 	let { current = null, allFiles = false }: { current?: string | null; allFiles?: boolean } = $props();
 
 	const session = useSession();
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const base = $derived(session.base);
 </script>
 
 <nav aria-label="Slices">

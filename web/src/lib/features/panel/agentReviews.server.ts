@@ -4,7 +4,7 @@ import { conversationText, fetchPrConversation, type PrFile } from "../../github
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../../github/prDiff.server.js";
-import { getRecord, keyFor } from "../../storage/store.server.js";
+import { allReviewers, prRef, roundOf } from "../../storage/rounds.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
 import { runSession } from "./externalSessions.server.js";
 import { emptyUsage, usageScope, type Usage } from "../../models/usage.server.js";
@@ -93,11 +93,11 @@ function reviewKey(owner: string, repo: string, number: string, reviewer: string
   return `${prKey(owner, repo, number)}#${reviewer}`;
 }
 
-// The PR's reviewers as saved in its record, where the browser gives each a
-// name ("Copper Eagle") alongside its id.
+// The PR's reviewers as saved in its record, in every round, where the
+// browser gives each a name ("Copper Eagle") alongside its id.
 function savedReviewers(owner: string, repo: string, number: string): { id: string; name?: string }[] {
-  const saved = getRecord(keyFor(owner, repo, number)).record.agentReviewers;
-  return Array.isArray(saved) && saved.length ? (saved as { id: string; name?: string }[]) : [{ id: DEFAULT_REVIEWER }];
+  const saved = allReviewers(owner, repo, number);
+  return saved.length ? saved : [{ id: DEFAULT_REVIEWER }];
 }
 
 const sameName = (a: string, b: string) => a.toLowerCase().replace(/[\s_-]+/g, " ").trim() === b.toLowerCase().replace(/[\s_-]+/g, " ").trim();
@@ -133,8 +133,9 @@ export function getAgentReview(owner: string, repo: string, number: string, revi
   return reviews.get(reviewKey(owner, repo, number, reviewer))?.review ?? null;
 }
 
-export function getReviewContext(owner: string, repo: string, number: string): ReviewContext {
-  return contexts.get(prKey(owner, repo, number)) ?? {};
+// Per round, as each has its own slices and summary.
+export function getReviewContext(owner: string, repo: string, number: string, round?: number): ReviewContext {
+  return contexts.get(prRef(owner, repo, number, round)) ?? {};
 }
 
 function begin(
@@ -148,7 +149,7 @@ function begin(
 ) {
   const key = reviewKey(owner, repo, number, reviewer);
   reviews.get(key)?.controller.abort();
-  if (context) contexts.set(prKey(owner, repo, number), context);
+  if (context) contexts.set(prRef(owner, repo, number, roundOf(owner, repo, number, reviewer)), context);
   const entry: Entry = {
     review: { id: randomUUID(), source, model, status: "running", findings: [], startedAt: Date.now() },
     controller: new AbortController(),
@@ -170,12 +171,13 @@ export function startSessionReview(
   reviewer = DEFAULT_REVIEWER,
 ) {
   const entry = begin(owner, repo, number, reviewer, "session", context, `session:${persona.id}`);
+  const round = roundOf(owner, repo, number, reviewer);
   void (async () => {
     const { review, controller } = entry;
     try {
       const [{ findings, verdict }, files] = await Promise.all([
-        runSession(persona, { owner, repo, number }, mcpUrl, controller.signal),
-        fetchReviewFiles(owner, repo, number),
+        runSession(persona, { owner, repo, number, round }, mcpUrl, controller.signal),
+        fetchReviewFiles(owner, repo, number, round),
       ]);
       if (verdict) review.verdict = verdict;
       for (const finding of findings) {
@@ -298,7 +300,10 @@ export async function submitFinding(
   reviewer = DEFAULT_REVIEWER,
   slice?: string,
 ): Promise<Finding> {
-  const recorded = { ...checkFinding(finding, files ?? (await fetchReviewFiles(owner, repo, number))), ...(slice ? { slice } : {}) };
+  const recorded = {
+    ...checkFinding(finding, files ?? (await fetchReviewFiles(owner, repo, number, roundOf(owner, repo, number, reviewer)))),
+    ...(slice ? { slice } : {}),
+  };
   openReview(owner, repo, number, reviewer).review.findings.push(recorded);
   return recorded;
 }
@@ -313,7 +318,7 @@ export async function submitReview(
   findings: SubmittedFinding[],
   reviewer: string,
 ): Promise<AgentReview> {
-  const files = await fetchReviewFiles(owner, repo, number);
+  const files = await fetchReviewFiles(owner, repo, number, roundOf(owner, repo, number, reviewer));
   const checked: Finding[] = [];
   const problems: string[] = [];
   findings.forEach((finding, i) => {
@@ -489,13 +494,14 @@ async function runBuiltin(
   const { review, controller } = entry;
   const system = focus ? SYSTEM_PROMPT + focusNote(focus) : SYSTEM_PROMPT;
   const { signal } = controller;
+  const round = roundOf(owner, repo, number, reviewer);
   try {
     const [files, conversation] = await Promise.all([
-      fetchReviewFiles(owner, repo, number),
+      fetchReviewFiles(owner, repo, number, round),
       fetchPrConversation(owner, repo, number).then(conversationText, () => ""),
     ]);
     // The code around the PR, looked up alongside the whole-PR pass.
-    const lookingUp = codeContext(owner, repo, number, mcpUrl);
+    const lookingUp = codeContext(owner, repo, number, mcpUrl, round);
     // What's been said on the PR already, so a point raised and settled
     // there isn't raised again.
     const said = conversation
@@ -519,7 +525,7 @@ async function runBuiltin(
     const about = [
       context.title && `PR: ${context.title}`,
       context.summary && `What it does: ${context.summary.what}\nWhy: ${context.summary.why}`,
-      rangeNote(owner, repo, number),
+      rangeNote(owner, repo, number, round),
     ]
       .filter(Boolean)
       .join("\n");

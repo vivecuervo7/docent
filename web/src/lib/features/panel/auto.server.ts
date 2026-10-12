@@ -1,7 +1,7 @@
 import { personas } from "../../storage/settings.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
-import { getRecord, keyFor } from "../../storage/store.server.js";
+import { roundRecord } from "../../storage/rounds.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 
@@ -46,11 +46,11 @@ export interface Pick {
   reason: string;
 }
 
-export async function pickPersonas(owner: string, repo: string, number: string, model: string | undefined, exclude: string[]): Promise<Pick[]> {
+export async function pickPersonas(owner: string, repo: string, number: string, model: string | undefined, exclude: string[], round?: number): Promise<Pick[]> {
   const candidates = personas.list().filter((p) => !exclude.includes(p.id));
   if (!candidates.length) return [];
-  const record = getRecord(keyFor(owner, repo, number)).record as { title?: string; summary?: PrSummary | null; slices?: Slice[] | null };
-  const files = await fetchReviewFiles(owner, repo, number);
+  const record = roundRecord(owner, repo, number, round) as { title?: string; summary?: PrSummary | null; slices?: Slice[] | null };
+  const files = await fetchReviewFiles(owner, repo, number, round);
   const about = [
     record.title && `PR: ${record.title}`,
     record.summary && `What it does: ${record.summary.what}\nWhy: ${record.summary.why}`,

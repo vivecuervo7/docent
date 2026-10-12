@@ -10,7 +10,6 @@
 	// Merge commits aren't shown: they bring in the base branch's work.
 
 	const session = useSession();
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
 	let open = $state(false);
 
 	const all = $derived(session.commits ?? []);
@@ -50,7 +49,8 @@
 		spans
 			.map((s) => {
 				const held = pips.flatMap((p, i) => (covers(s, p.k) ? [i] : []));
-				return held.length ? { from: held[0], to: held.at(-1)!, tone: s === viewed ? ('in' as const) : ('other' as const) } : null;
+				// From the commit before its first, so rounds side by side meet.
+				return held.length ? { from: Math.max(0, held[0] - 1), to: held.at(-1)!, tone: s === viewed ? ('in' as const) : ('other' as const) } : null;
 			})
 			.filter((f) => f !== null)
 			.sort((a, b) => (a.tone === 'in' ? 1 : 0) - (b.tone === 'in' ? 1 : 0))
@@ -58,15 +58,16 @@
 	const fresh = $derived(pips.filter((p) => p.state === 'new').length);
 	const earlier = $derived(session.round !== null);
 
+	// A round opens at its Overview, at its own URL.
 	function view(index: number | null) {
 		open = false;
-		session.viewRound(index);
+		goto(session.baseFor(index));
 	}
 
 	async function reviewNew() {
 		open = false;
+		await goto(session.baseFor(null));
 		await session.nextRound();
-		goto(base);
 	}
 
 	$effect(() => {
@@ -92,7 +93,6 @@
 			class:earlier
 			aria-haspopup="dialog"
 			aria-expanded={open}
-			title={earlier ? 'An earlier round: reviewers run, and reviews post, only in the latest' : undefined}
 			onclick={() => (open = !open)}
 		>
 			<span>Round {numberOf(viewed)}</span>
@@ -133,13 +133,17 @@
 						</li>
 					{/each}
 				</ul>
-				{#if fresh}
+				<!-- Another round is for new commits, or for splitting a PR's commits up. -->
+				{#if latest.to >= 0}
 					<div class="next">
-						<span class="faint">{fresh} {fresh === 1 ? 'commit' : 'commits'} since round {spans.length}</span>
-						<button class="btn" onclick={reviewNew}>Review {fresh === 1 ? 'it' : 'them'} as round {spans.length + 1}</button>
+						{#if fresh}
+							<span class="faint">{fresh} {fresh === 1 ? 'commit' : 'commits'} since round {spans.length}</span>
+							<button class="btn" onclick={reviewNew}>Review {fresh === 1 ? 'it' : 'them'} as round {spans.length + 1}</button>
+						{:else}
+							<button class="btn" onclick={reviewNew}>Start round {spans.length + 1}</button>
+						{/if}
 					</div>
 				{/if}
-				{#if earlier}<p class="note faint">Reviewers run, and reviews post, only in the latest round.</p>{/if}
 			</div>
 		{/if}
 	</div>
@@ -251,11 +255,5 @@
 		padding: 12px 16px 14px;
 		border-top: 1px solid var(--line);
 		font-size: 13px;
-	}
-	.note {
-		margin: 0;
-		padding: 10px 16px 14px;
-		border-top: 1px solid var(--line);
-		font-size: 12.5px;
 	}
 </style>

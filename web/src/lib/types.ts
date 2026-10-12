@@ -269,7 +269,6 @@ export type Round = Partial<
 		| 'notes'
 		| 'feedback'
 		| 'agentReviewers'
-		| 'agentHighest'
 		| 'panelSettled'
 		| 'review'
 		| 'preparedHead'

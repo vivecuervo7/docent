@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codexSession } from "../../models/codex.server.js";
 import type { ExternalReviewer } from "../../storage/settings.server.js";
+import { prRef } from "../../storage/rounds.server.js";
 
 // An external reviewer: the reviewer's own tooling - a skill, a command, a
 // prompt - run as an unattended Claude Code session. It reads the PR through
@@ -85,7 +86,7 @@ function verdictOf(out: unknown): SessionResult["verdict"] {
   return event ? { event, ...(typeof verdict_reason === "string" && verdict_reason.trim() ? { reason: verdict_reason.trim() } : {}) } : undefined;
 }
 
-export function fillCommand(command: string, pr: { owner: string; repo: string; number: string }): string {
+export function fillCommand(command: string, pr: { owner: string; repo: string; number: string; round?: number }): string {
   const url = `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`;
   return command
     .replaceAll("{pr_url}", url)
@@ -94,10 +95,10 @@ export function fillCommand(command: string, pr: { owner: string; repo: string; 
     .replaceAll("{number}", pr.number);
 }
 
-function handback(owner: string, repo: string, number: string): string {
+function handback(owner: string, repo: string, number: string, round?: number): string {
   return `This runs unattended inside Docent, a pull request review tool. There's no shell or local \
 checkout: read the pull request through Docent's tools (get_review_context, get_diff, read_file, \
-list_files, search_code, get_existing_comments), passing it as ${owner}/${repo}#${number}. When the review is complete, \
+list_files, search_code, get_existing_comments), passing it as ${prRef(owner, repo, number, round)}. When the review is complete, \
 report every finding in the structured output: its file path and new-file lines, the comment for \
 the author, and why it was raised - and, if the review ends with an overall recommendation \
 (approve, request changes, or just comment), that too, with why. If the review set findings aside - pushed back on them, or \
@@ -109,7 +110,7 @@ anything to GitHub.`;
 
 export function runClaudeSession(
   persona: ExternalReviewer,
-  pr: { owner: string; repo: string; number: string },
+  pr: { owner: string; repo: string; number: string; round?: number },
   mcpUrl: string,
   signal: AbortSignal,
 ): Promise<SessionResult> {
@@ -126,7 +127,7 @@ export function runClaudeSession(
     "--mcp-config",
     JSON.stringify({ mcpServers: { docent: { type: "http", url: mcpUrl } } }),
     "--append-system-prompt",
-    handback(pr.owner, pr.repo, pr.number),
+    handback(pr.owner, pr.repo, pr.number, pr.round),
     "--allowedTools",
     ...ALWAYS_ALLOWED,
     ...extra,
@@ -203,11 +204,11 @@ function toFindings(raw: unknown[]): SessionFinding[] {
 // rest switched off.
 async function runCodexSession(
   reviewer: ExternalReviewer,
-  pr: { owner: string; repo: string; number: string },
+  pr: { owner: string; repo: string; number: string; round?: number },
   mcpUrl: string,
   signal: AbortSignal,
 ): Promise<SessionResult> {
-  const prompt = `${fillCommand(reviewer.command, pr)}\n\n---\n\n${handback(pr.owner, pr.repo, pr.number)}`;
+  const prompt = `${fillCommand(reviewer.command, pr)}\n\n---\n\n${handback(pr.owner, pr.repo, pr.number, pr.round)}`;
   const tools = ALWAYS_ALLOWED.filter((t) => t.startsWith("mcp__docent__")).map((t) => t.slice("mcp__docent__".length));
   const answer = (await codexSession(reviewer.model, prompt, FINDINGS_SCHEMA, { url: mcpUrl, tools }, signal)) as { findings?: unknown };
   if (!Array.isArray(answer?.findings)) throw new Error("It finished without handing its findings back.");
@@ -216,7 +217,7 @@ async function runCodexSession(
 
 export function runSession(
   reviewer: ExternalReviewer,
-  pr: { owner: string; repo: string; number: string },
+  pr: { owner: string; repo: string; number: string; round?: number },
   mcpUrl: string,
   signal: AbortSignal,
 ): Promise<SessionResult> {

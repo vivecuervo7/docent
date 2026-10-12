@@ -11,7 +11,8 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 		return badRequest('invalid request');
 	}
 	try {
-		return json({ picks: await pickPersonas(owner, repo, number, reviewModel(body), exclude) });
+		const round = Number.isInteger(body.round) ? (body.round as number) : undefined;
+		return json({ picks: await pickPersonas(owner, repo, number, reviewModel(body), exclude, round) });
 	} catch (err) {
 		return failed(err);
 	}

@@ -297,12 +297,8 @@
 					{#if postError && !confirming}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
 					<div class="actions">
 						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
-						{#if session.round === null}
-							<button class="btn big" title="Only you see it until you submit it on GitHub" onclick={() => review(true)}>Leave pending</button>
-							<button class="btn primary big" onclick={() => review()}>Post review</button>
-						{:else}
-							<span class="faint">Reviews post from the latest round.</span>
-						{/if}
+						<button class="btn big" title="Only you see it until you submit it on GitHub" onclick={() => review(true)}>Leave pending</button>
+						<button class="btn primary big" onclick={() => review()}>Post review</button>
 					</div>
 			</section>
 		{/if}

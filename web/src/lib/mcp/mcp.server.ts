@@ -18,15 +18,16 @@ import { fetchReviewFiles, rangeNote } from "../github/range.server.js";
 // page. Stateless: each request gets a fresh server, and review state lives
 // in features/panel/agentReviews.server.ts.
 
-const PR_REF_RE = /^(?:https:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#|\/)(\d+)\/?$/;
+// "@round1" after the number names an earlier round of Docent's review.
+const PR_REF_RE = /^(?:https:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#|\/)(\d+)(?:@round(\d+))?\/?$/;
 
-function parsePr(pr: string): { owner: string; repo: string; number: string } {
+function parsePr(pr: string): { owner: string; repo: string; number: string; round?: number } {
   const match = pr.trim().match(PR_REF_RE);
   if (!match) throw new Error(`Couldn't read "${pr}" as a PR. Use owner/repo#123 or its GitHub URL.`);
-  return { owner: match[1], repo: match[2], number: match[3] };
+  return { owner: match[1], repo: match[2], number: match[3], ...(match[4] ? { round: Number(match[4]) - 1 } : {}) };
 }
 
-const prArg = z.string().describe("The pull request, as owner/repo#123 or its GitHub URL.");
+const prArg = z.string().describe("The pull request, as owner/repo#123 or its GitHub URL - with any @round suffix you were given.");
 
 const reviewerArg = z
   .string()
@@ -84,11 +85,11 @@ export function buildServer(): McpServer {
     },
     async ({ pr }) => {
       try {
-        const { owner, repo, number } = parsePr(pr);
-        const [meta, files] = await Promise.all([fetchPrMeta(owner, repo, number), fetchReviewFiles(owner, repo, number)]);
-        const context = getReviewContext(owner, repo, number);
+        const { owner, repo, number, round } = parsePr(pr);
+        const [meta, files] = await Promise.all([fetchPrMeta(owner, repo, number), fetchReviewFiles(owner, repo, number, round)]);
+        const context = getReviewContext(owner, repo, number, round);
         const parts = [`# ${meta.title}`, meta.htmlUrl, meta.body ? `## Description\n${meta.body}` : ""];
-        const range = rangeNote(owner, repo, number);
+        const range = rangeNote(owner, repo, number, round);
         if (range) parts.push(`## Under review\n${range}`);
         if (context.summary) {
           parts.push(
@@ -121,10 +122,10 @@ export function buildServer(): McpServer {
     },
     async ({ pr, slice_id, path }) => {
       try {
-        const { owner, repo, number } = parsePr(pr);
-        const files = await fetchReviewFiles(owner, repo, number);
+        const { owner, repo, number, round } = parsePr(pr);
+        const files = await fetchReviewFiles(owner, repo, number, round);
         if (slice_id) {
-          const slice = getReviewContext(owner, repo, number).slices?.find((s) => s.id === slice_id);
+          const slice = getReviewContext(owner, repo, number, round).slices?.find((s) => s.id === slice_id);
           if (!slice) throw new Error(`No slice ${slice_id}. Slices come from get_review_context.`);
           const byFile = new Map<string, number[]>();
           for (const ref of slice.hunks) {

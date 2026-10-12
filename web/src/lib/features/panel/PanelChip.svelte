@@ -11,7 +11,7 @@
 	// staying as "done" once they've finished, that opens to where each one is.
 	const session = useSession();
 	const panel = session.panel;
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const base = $derived(session.base);
 
 	let open = $state(false);
 	let showFacts = $state(false);

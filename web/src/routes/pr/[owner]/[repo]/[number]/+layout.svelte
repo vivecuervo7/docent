@@ -15,6 +15,11 @@
 		session.open();
 		return () => session.close();
 	});
+	// The round in the URL, "round-2"; none is the latest.
+	$effect(() => {
+		const round = page.params.round;
+		session.goToRound(round ? Number(round.slice('round-'.length)) : null);
+	});
 </script>
 
 <svelte:head><title>{session.title} · Docent</title></svelte:head>

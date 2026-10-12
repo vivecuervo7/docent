@@ -13,7 +13,7 @@
 	// own comments, drafted from your threads; what you've decided sits folded
 	// away.
 	const session = useSession();
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const base = $derived(session.base);
 
 	const findings = $derived(
 		Object.entries(session.record.feedback)

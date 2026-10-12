@@ -20,7 +20,7 @@
 	const slices = $derived(session.slices);
 	const index = $derived(slices.findIndex((s) => s.id === sliceId));
 	const slice = $derived(slices[index]);
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const base = $derived(session.base);
 	const done = $derived(slice ? isSliceReviewed(slice, session.reviewed) : false);
 
 	// Files in this slice, and how many are reviewed.

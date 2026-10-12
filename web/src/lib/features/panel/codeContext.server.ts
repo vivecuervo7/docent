@@ -4,7 +4,7 @@ import { inLane } from "../../models/lanes.server.js";
 import { numberedFileDiff } from "../../github/prDiff.server.js";
 import { prHead } from "../../github/repoCache.server.js";
 import { persistent } from "../../storage/persistent.server.js";
-import { getRecord, keyFor } from "../../storage/store.server.js";
+import { prRef, roundRecord } from "../../storage/rounds.server.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 
 // What the code around a PR shows, looked up once and shared by every one of
@@ -63,24 +63,25 @@ const passes = persistent("code-context.passes", () => new Map<string, Promise<s
 // The latest lookup for each PR, by owner/repo#number.
 const latest = persistent("code-context.latest", () => new Map<string, Lookup>());
 
-export function getLookup(owner: string, repo: string, number: string): Lookup | null {
-  return latest.get(`${owner}/${repo}#${number}`) ?? null;
+export function getLookup(owner: string, repo: string, number: string, round?: number): Lookup | null {
+  return latest.get(prRef(owner, repo, number, round)) ?? null;
 }
 
 // The facts, as a block for the reviewers' prompt; empty when the editor's
 // model can't look, or the lookup failed.
-export async function codeContext(owner: string, repo: string, number: string, mcpUrl: string): Promise<string> {
+export async function codeContext(owner: string, repo: string, number: string, mcpUrl: string, round?: number): Promise<string> {
   try {
     const model = await editorModel();
     if (!canReadCode(model)) return "";
     // A round of some of the PR's commits looks up around those.
-    const range = getRecord(keyFor(owner, repo, number)).record.range as { after: string } | undefined;
-    const key = `${owner}/${repo}#${number}@${await prHead(owner, repo, number)}${range ? `:${range.after}` : ""}`;
+    const reviewed = roundRecord(owner, repo, number, round) as { range?: { after: string; to: string }; preparedHead?: string };
+    const end = reviewed.range?.to ?? (round === undefined ? await prHead(owner, repo, number) : reviewed.preparedHead);
+    const key = `${prRef(owner, repo, number, round)}@${end}${reviewed.range ? `:${reviewed.range.after}` : ""}`;
     let pass = passes.get(key);
     if (!pass) {
       const lookup: Lookup = { status: "running", steps: [], facts: [], startedAt: Date.now() };
-      latest.set(`${owner}/${repo}#${number}`, lookup);
-      pass = lookUp(owner, repo, number, model, mcpUrl, lookup).then(
+      latest.set(prRef(owner, repo, number, round), lookup);
+      pass = lookUp(owner, repo, number, model, mcpUrl, lookup, round).then(
         (facts) => {
           lookup.status = "done";
           lookup.endedAt = Date.now();
@@ -103,15 +104,15 @@ export async function codeContext(owner: string, repo: string, number: string, m
   }
 }
 
-async function lookUp(owner: string, repo: string, number: string, model: string, mcpUrl: string, lookup: Lookup): Promise<string> {
-  const files = await fetchReviewFiles(owner, repo, number);
+async function lookUp(owner: string, repo: string, number: string, model: string, mcpUrl: string, lookup: Lookup, round?: number): Promise<string> {
+  const files = await fetchReviewFiles(owner, repo, number, round);
   const diff = files.map((f) => numberedFileDiff(f)).join("\n\n");
   const shown = diff.length <= 120_000 ? `The diff:\n\n${diff}` : `The files it changes (read their diffs with get_diff):\n${files.map((f) => f.filename).join("\n")}`;
   const call = await inLane(
     () =>
       chatWithTool(
         [
-          { role: "system", content: PROMPT(`${owner}/${repo}#${number}`) },
+          { role: "system", content: PROMPT(prRef(owner, repo, number, round)) },
           { role: "user", content: shown },
         ],
         REPORT_CONTEXT_TOOL,

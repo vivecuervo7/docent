@@ -20,13 +20,13 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 				(f.severity === undefined || text(f.severity, 20)) &&
 				(f.setAside === undefined || text(f.setAside, 2000))
 		);
-	const { slice, fresh, shown, filter } = await bodyOf(request);
+	const { slice, fresh, shown, filter, round } = await bodyOf(request);
 	if (!validParams(owner, repo, number) || !valid(fresh) || !valid(shown) || (slice !== undefined && !text(slice, 100))) {
 		return badRequest('invalid findings');
 	}
 	return heldOpen(async (signal) => {
 		if (!fresh.length) return { edits: {} };
-		const edits = await editFindings(owner, repo, number, { slice, fresh, shown, filter: filter === true, mcpUrl: mcpUrl(url) }, signal);
+		const edits = await editFindings(owner, repo, number, { slice, fresh, shown, filter: filter === true, mcpUrl: mcpUrl(url), round: Number.isInteger(round) ? round : undefined }, signal);
 		return { edits: Object.fromEntries(edits) };
 	});
 };

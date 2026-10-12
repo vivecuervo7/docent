@@ -9,7 +9,7 @@
 	// The review's stages.
 
 	const session = useSession();
-	const base = $derived(`/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}`);
+	const base = $derived(session.base);
 	const onSlice = $derived(page.url.pathname.startsWith(`${base}/slices/`) || page.url.pathname === `${base}/files`);
 	const onOverview = $derived(page.url.pathname === base);
 	const onWrapUp = $derived(page.url.pathname === `${base}/wrap-up`);

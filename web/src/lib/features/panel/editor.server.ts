@@ -4,7 +4,7 @@ import { conversationText, fetchPrConversation } from "../../github/github.serve
 import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js";
 import { inNamedLane } from "../../models/lanes.server.js";
 import { hunkIndicesByFile, numberedFileDiff } from "../../github/prDiff.server.js";
-import { getRecord, keyFor } from "../../storage/store.server.js";
+import { prRef, roundRecord } from "../../storage/rounds.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 
@@ -196,7 +196,7 @@ export async function editFindings(
   owner: string,
   repo: string,
   number: string,
-  args: { slice?: string; fresh: Editable[]; shown: Editable[]; filter: boolean; mcpUrl: string },
+  args: { slice?: string; fresh: Editable[]; shown: Editable[]; filter: boolean; mcpUrl: string; round?: number },
   signal: AbortSignal,
 ): Promise<Map<string, Edit>> {
   const model = await editorModel();
@@ -205,9 +205,9 @@ export async function editFindings(
   // a judgement call.
   const looks = canReadCode(model);
   const conversation = conversationText(await fetchPrConversation(owner, repo, number));
-  const record = getRecord(keyFor(owner, repo, number)).record as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
+  const record = roundRecord(owner, repo, number, args.round) as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
   const slice = args.slice ? record.slices?.find((s) => s.id === args.slice) : undefined;
-  const files = slice ? await fetchReviewFiles(owner, repo, number) : [];
+  const files = slice ? await fetchReviewFiles(owner, repo, number, args.round) : [];
   const diff = slice
     ? [...hunkIndicesByFile(slice)]
         .map(([path, indices]) => {
@@ -241,7 +241,7 @@ export async function editFindings(
     signal.throwIfAborted();
     const call = await chatWithTool(
       [
-        { role: "system", content: BASE_PROMPT + (looks ? LOOK_PROMPT(`${owner}/${repo}#${number}`) : "") },
+        { role: "system", content: BASE_PROMPT + (looks ? LOOK_PROMPT(prRef(owner, repo, number, args.round)) : "") },
         {
           role: "user",
           content: [

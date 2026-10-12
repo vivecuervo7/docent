@@ -102,7 +102,8 @@ export const nameOf = (reviewer: AgentReviewer, reviewers: AgentReviewer[]) => r
 // findings here. It names the reviewer, so two agents can't be mixed up.
 export function agentInstruction(session: PrSession, reviewer: AgentReviewer): string {
 	const { owner, repo, number } = session.ref;
-	return `Send these review findings to Docent for ${owner}/${repo}#${number} as ${reviewer.name ?? reviewer.id}.`;
+	const round = session.round === null ? '' : `@round${session.round + 1}`;
+	return `Send these review findings to Docent for ${owner}/${repo}#${number}${round} as ${reviewer.name ?? reviewer.id}.`;
 }
 
 function nameAll(record: { agentReviewers: AgentReviewer[]; agentNamesUsed?: string[] }) {
@@ -187,7 +188,6 @@ export class Panel {
 	// Starts every reviewer switched on that hasn't run, as "Start the panel"
 	// does - but your own agent, whose command only you can run.
 	async startAll() {
-		if (this.#session.round !== null) return;
 		const model = await listModels()
 			.then((m) => m.selected)
 			.catch(() => this.#session.record.model ?? '');
@@ -232,8 +232,10 @@ export class Panel {
 				if (!this.#untouched(r)) return;
 				r.panelSettled = true;
 				// An empty default is a choice too: no reviewers.
-				if (saved) r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, `agent-${i + 1}`));
-				r.agentHighest = Math.max(r.agentHighest ?? 0, r.agentReviewers.length);
+				// Ids carry on from the PR's earlier rounds, never reused.
+				const highest = r.agentHighest ?? 0;
+				if (saved) r.agentReviewers = saved.map((entry, i) => reviewerFrom(entry, `agent-${highest + i + 1}`));
+				r.agentHighest = Math.max(highest, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length)) || 0));
 				nameAll(r);
 			})
 			.catch(() => {});
@@ -267,7 +269,6 @@ export class Panel {
 	}
 
 	async start(id: AgentId, setup: ReviewerSetup) {
-		if (this.#session.round !== null) return;
 		if (setup.mode === 'builtin' && setup.persona === AUTO_PERSONA) return this.#startAuto(id, setup.model);
 		const session = this.#session;
 		this.errors[id] = undefined;
@@ -326,7 +327,7 @@ export class Panel {
 			const res = await fetch(`/api/pr/${owner}/${repo}/${number}/panel/pick`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ exclude: chosen, model })
+				body: JSON.stringify({ exclude: chosen, model, ...(session.round !== null ? { round: session.round } : {}) })
 			});
 			const { picks } = await readOk<{ picks: { persona: string; reason: string }[] }>(res);
 			const general = !this.hasGeneral;
@@ -443,8 +444,7 @@ export class Panel {
 	// keeping any already unticked, and lets the backend forget the review
 	// once it's over.
 	#collect(id: AgentId, review: AgentReview) {
-		// Reviews belong to the latest round, never to an earlier one open.
-		if (this.#removed.has(id) || this.#session.round !== null) return;
+		if (this.#removed.has(id)) return;
 		this.reviews[id] = review;
 		const seen = this.#seen[id];
 		if (seen?.id !== review.id || seen.count !== review.findings.length) {
@@ -575,7 +575,6 @@ export class Panel {
 	#tried = new Set<string>();
 
 	#edit() {
-		if (this.#session.round !== null) return this.#editing;
 		this.#editing = this.#editing.then(() => this.#editNext()).catch(() => {});
 		return this.#editing;
 	}
@@ -630,7 +629,8 @@ export class Panel {
 					...(first.docents && first.slices[0] ? { slice: first.slices[0] } : {}),
 					fresh: batch.map(describe),
 					shown: shown.map(describe),
-					filter: first.docents
+					filter: first.docents,
+					...(session.round !== null ? { round: session.round } : {})
 				})
 			});
 			edits = (await readHeld<{ edits: typeof edits }>(res)).edits;
@@ -716,7 +716,8 @@ export class Panel {
 
 	#checkLookup() {
 		const { owner, repo, number } = this.#session.ref;
-		fetch(`/api/pr/${owner}/${repo}/${number}/code-context`)
+		const round = this.#session.round;
+		fetch(`/api/pr/${owner}/${repo}/${number}/code-context${round === null ? '' : `?round=${round}`}`)
 			.then((res) => readOk<{ lookup: Panel['lookup'] }>(res))
 			.then((r) => (this.lookup = r.lookup))
 			.catch(() => {});

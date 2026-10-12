@@ -79,7 +79,7 @@
 	{#if elsewhere.length}
 		<span class="rest faint"
 			>rest in {elsewhere.length === 1 ? 'slice' : 'slices'}
-			{#each elsewhere as e, i (e.id)}{i ? ', ' : ''}<a href="/pr/{session.ref.owner}/{session.ref.repo}/{session.ref.number}/slices/{e.id}">{e.n}</a
+			{#each elsewhere as e, i (e.id)}{i ? ', ' : ''}<a href="{session.base}/slices/{e.id}">{e.n}</a
 				>{/each}</span
 		>
 	{/if}

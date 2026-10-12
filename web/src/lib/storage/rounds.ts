@@ -16,7 +16,6 @@ export const ROUND_FIELDS = [
 	'notes',
 	'feedback',
 	'agentReviewers',
-	'agentHighest',
 	'panelSettled',
 	'review',
 	'preparedHead',
@@ -65,6 +64,10 @@ export function dropRound(record: PrRecord): void {
 export function beginRound(record: PrRecord, range: PrRecord['range'] | null): void {
 	record.rounds = [...(record.rounds ?? []), pick(record)];
 	const fresh = emptyRecord();
+	// Reviewer ids aren't reused across rounds, so each is known by its own.
+	const ids = [record, ...record.rounds].flatMap((r) => r.agentReviewers ?? []).map((a) => Number(a.id.slice('agent-'.length)) || 0);
+	const highest = Math.max(record.agentHighest ?? 0, ...ids) + 1;
+	record.agentHighest = highest;
 	for (const field of ROUND_FIELDS) delete record[field];
 	Object.assign(record, {
 		reviewed: fresh.reviewed,
@@ -74,7 +77,7 @@ export function beginRound(record: PrRecord, range: PrRecord['range'] | null): v
 		fileNotes: fresh.fileNotes,
 		notes: fresh.notes,
 		feedback: fresh.feedback,
-		agentReviewers: fresh.agentReviewers,
+		agentReviewers: [{ id: `agent-${highest}` }],
 		...(range ? { range } : {})
 	});
 }
