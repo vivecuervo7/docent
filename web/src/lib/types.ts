@@ -21,6 +21,8 @@ export interface PrFile {
 
 export interface PrMeta {
 	title: string;
+	// The PR's latest commit.
+	head?: string;
 	author?: string;
 	htmlUrl?: string;
 	body?: string;
@@ -247,7 +249,29 @@ export interface PrRecord {
 	// Set once the reviewer marks the review complete, after posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
+	// Earlier reviews of the PR, oldest first; the fields above are the latest.
+	rounds?: Round[];
 }
+
+export type Round = Partial<
+	Pick<
+		PrRecord,
+		| 'range'
+		| 'reviewed'
+		| 'slices'
+		| 'summary'
+		| 'conversation'
+		| 'fileNotes'
+		| 'notes'
+		| 'feedback'
+		| 'agentReviewers'
+		| 'agentHighest'
+		| 'panelSettled'
+		| 'review'
+		| 'preparedHead'
+		| 'completedAt'
+	>
+>;
 
 export interface SavedPr extends PrRef {
 	record: PrRecord;

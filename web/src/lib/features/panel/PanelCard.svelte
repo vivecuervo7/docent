@@ -359,7 +359,8 @@
 	</div>
 
 	<div class="actions">
-		{#if toStart.length}
+		<!-- Reviewers run only in the latest round. -->
+		{#if toStart.length && session.round === null}
 			<button class="btn primary big" onclick={startAndRead}>
 				<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z" fill="currentColor" /></svg>
 				Start {toStart.length === panel.reviewers.length && toStart.length > 1 ? 'the panel' : toStart.length === 1 ? 'reviewer' : `${toStart.length} reviewers`} and read

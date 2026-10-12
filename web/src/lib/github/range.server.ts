@@ -33,16 +33,20 @@ export async function fetchPrCommits(owner: string, repo: string, number: string
 
 // The files under review: the whole PR, or the range the review was begun
 // with. Each file of a range marks the hunks the range touched, and only
-// files it touched are listed.
-export async function fetchReviewFiles(owner: string, repo: string, number: string): Promise<PrFile[]> {
-  const range = getRecord(keyFor(owner, repo, number)).record.range as ReviewRange | undefined;
-  if (!range) return fetchPrFiles(owner, repo, number);
+// files it touched are listed. An earlier round's are as they were at the
+// commit it was prepared at, which its slices refer to.
+export async function fetchReviewFiles(owner: string, repo: string, number: string, round?: number): Promise<PrFile[]> {
+  const record = getRecord(keyFor(owner, repo, number)).record as { range?: ReviewRange; rounds?: { range?: ReviewRange; preparedHead?: string }[] };
+  const earlier = round === undefined ? undefined : record.rounds?.[round];
+  if (round !== undefined && !earlier) throw new Error(`No round ${round + 1}`);
+  const range = earlier ? earlier.range : record.range;
   const head = await fetchPrHeadSha(owner, repo, number);
-  const [prFiles, rangeFiles] = await Promise.all([
-    range.to === head ? fetchPrFiles(owner, repo, number) : fetchPrBaseSha(owner, repo, number).then((base) => compareFiles(owner, repo, base, range.to)),
-    compareFiles(owner, repo, range.after, range.to),
-  ]);
-  return scopeToRange(prFiles, rangeFiles);
+  const to = range?.to ?? earlier?.preparedHead ?? head;
+  const prFiles =
+    to === head ? fetchPrFiles(owner, repo, number) : fetchPrBaseSha(owner, repo, number).then((base) => compareFiles(owner, repo, base, to));
+  if (!range) return prFiles;
+  const [pr, changed] = await Promise.all([prFiles, compareFiles(owner, repo, range.after, range.to)]);
+  return scopeToRange(pr, changed);
 }
 
 // For a model reviewing a range, what its diff covers; empty for the whole PR.

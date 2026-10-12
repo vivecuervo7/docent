@@ -184,6 +184,19 @@ export class Panel {
 		this.#stopPolling();
 	}
 
+	// For a new round: lets the backend forget the last round's reviews, and
+	// forgets them here, so none of their findings land in the new one.
+	reset() {
+		this.#stopPolling();
+		for (const { id } of this.reviewers) dismissAgentReview(this.#session.ref, id, true);
+		this.reviews = {};
+		this.errors = {};
+		this.picking = {};
+		this.lookup = null;
+		this.#seen = {};
+		this.#removed = new Set();
+	}
+
 	// Whether the panel is as a new PR starts it: one reviewer, never run or
 	// changed.
 	#untouched(r: { panelSettled?: boolean; agentReviewers: AgentReviewer[]; feedback: Record<string, FeedbackDraft | undefined> }) {
@@ -240,6 +253,7 @@ export class Panel {
 	}
 
 	async start(id: AgentId, setup: ReviewerSetup) {
+		if (this.#session.round !== null) return;
 		if (setup.mode === 'builtin' && setup.persona === AUTO_PERSONA) return this.#startAuto(id, setup.model);
 		const session = this.#session;
 		this.errors[id] = undefined;
@@ -415,7 +429,8 @@ export class Panel {
 	// keeping any already unticked, and lets the backend forget the review
 	// once it's over.
 	#collect(id: AgentId, review: AgentReview) {
-		if (this.#removed.has(id)) return;
+		// Reviews belong to the latest round, never to an earlier one open.
+		if (this.#removed.has(id) || this.#session.round !== null) return;
 		this.reviews[id] = review;
 		const seen = this.#seen[id];
 		if (seen?.id !== review.id || seen.count !== review.findings.length) {
@@ -546,6 +561,7 @@ export class Panel {
 	#tried = new Set<string>();
 
 	#edit() {
+		if (this.#session.round !== null) return this.#editing;
 		this.#editing = this.#editing.then(() => this.#editNext()).catch(() => {});
 		return this.#editing;
 	}

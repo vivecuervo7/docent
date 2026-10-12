@@ -28,6 +28,12 @@
 		<a class="btn" href="/">Back to your reviews</a>
 	</div>
 {:else}
+	{#if session.round !== null}
+		<p class="earlier">
+			Round {session.round + 1}, an earlier review: reviewers run, and reviews post, only in the latest.
+			<button onclick={() => session.viewRound(null)}>Back to round {session.roundCount}</button>
+		</p>
+	{/if}
 	{@render children()}
 {/if}
 
@@ -40,5 +46,25 @@
 	}
 	.status .btn {
 		text-decoration: none;
+	}
+	.earlier {
+		margin: 0;
+		padding: 8px 24px;
+		border-bottom: 1px solid var(--line);
+		background: var(--surface);
+		color: var(--faint);
+		font-size: 13px;
+		text-align: center;
+	}
+	.earlier button {
+		border: 0;
+		background: none;
+		padding: 0;
+		margin-left: 6px;
+		color: var(--text);
+		font: inherit;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		cursor: pointer;
 	}
 </style>

@@ -91,6 +91,7 @@ function pathIn(header: string[], marker: "+++ b/" | "--- a/"): string | undefin
 
 export interface PrMeta {
   title: string;
+  head?: string;
   body: string | null;
   htmlUrl: string;
   author?: string;
@@ -101,7 +102,7 @@ export async function fetchPrMeta(owner: string, repo: string, number: string): 
     "api",
     `repos/${owner}/${repo}/pulls/${number}`,
     "--jq",
-    "{title: .title, body: .body, htmlUrl: .html_url, author: .user.login}",
+    "{title: .title, body: .body, htmlUrl: .html_url, author: .user.login, head: .head.sha}",
   ]);
 
   return JSON.parse(stdout) as PrMeta;

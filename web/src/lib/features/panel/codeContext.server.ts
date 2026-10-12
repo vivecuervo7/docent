@@ -4,6 +4,7 @@ import { inLane } from "../../models/lanes.server.js";
 import { numberedFileDiff } from "../../github/prDiff.server.js";
 import { prHead } from "../../github/repoCache.server.js";
 import { persistent } from "../../storage/persistent.server.js";
+import { getRecord, keyFor } from "../../storage/store.server.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 
 // What the code around a PR shows, looked up once and shared by every one of
@@ -72,7 +73,9 @@ export async function codeContext(owner: string, repo: string, number: string, m
   try {
     const model = await editorModel();
     if (!canReadCode(model)) return "";
-    const key = `${owner}/${repo}#${number}@${await prHead(owner, repo, number)}`;
+    // A round of some of the PR's commits looks up around those.
+    const range = getRecord(keyFor(owner, repo, number)).record.range as { after: string } | undefined;
+    const key = `${owner}/${repo}#${number}@${await prHead(owner, repo, number)}${range ? `:${range.after}` : ""}`;
     let pass = passes.get(key);
     if (!pass) {
       const lookup: Lookup = { status: "running", steps: [], facts: [], startedAt: Date.now() };

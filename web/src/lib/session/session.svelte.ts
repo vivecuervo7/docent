@@ -10,6 +10,7 @@ import { ReviewPost } from '../features/posting/post.svelte';
 import { everythingElse, isSliceReviewed } from '../features/reading/progress';
 import { readPref, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
+import { beginRound, keepRound, roundView } from '../storage/rounds';
 import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
@@ -28,7 +29,17 @@ export class PrSession {
 	readonly ref: PrRef;
 	files = $state<PrFile[]>([]);
 	meta = $state<PrMeta | null>(null);
+	// The round of the review being looked at: the latest, unless an earlier
+	// one is opened.
 	record = $state<PrRecord>(emptyRecord());
+	// The whole record, every round in it.
+	#stored = $state.raw<PrRecord>(emptyRecord());
+	// An earlier round being looked at, by index; null for the latest. An
+	// earlier round reads as it was, and anything changed in it is kept in
+	// it, but reviewers run and reviews post only in the latest.
+	round = $state<number | null>(null);
+	// Choosing the commits for the next round.
+	choosingRound = $state(false);
 	generation = $state<Generation | null>(null);
 	loading = $state(true);
 	error = $state<string | null>(null);
@@ -61,6 +72,12 @@ export class PrSession {
 	readonly reviewedSlices = $derived(this.slices.filter((s) => isSliceReviewed(s, this.reviewed)).length);
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
+	readonly roundCount = $derived((this.#stored.rounds?.length ?? 0) + 1);
+	// Commits pushed since the latest round was prepared.
+	readonly newCommits = $derived(
+		this.round === null && !!this.meta?.head && !!this.record.preparedHead && this.meta.head !== this.record.preparedHead
+	);
+
 	readonly panel: Panel = new Panel(this);
 	readonly post: ReviewPost = new ReviewPost(this);
 
@@ -82,7 +99,7 @@ export class PrSession {
 			if (this.#closed) return;
 			this.files = pr.files;
 			this.meta = pr.meta;
-			this.record = record;
+			this.#show(record);
 			this.panel.load();
 			if (record.summary) this.panel.applyDefault();
 			this.update((r) => {
@@ -541,9 +558,47 @@ export class PrSession {
 
 	// Saves a change to the review, and shows the record as saved.
 	async update(change: (record: PrRecord) => void): Promise<void> {
+		const round = this.round;
 		change(this.record);
-		const saved = await updateRecord(this.ref, change);
-		if (!this.#closed) this.record = saved;
+		const saved = await updateRecord(
+			this.ref,
+			round === null
+				? change
+				: (full) => {
+						const view = roundView(full, round);
+						change(view);
+						keepRound(full, view, round);
+					}
+		);
+		if (!this.#closed) this.#show(saved);
+	}
+
+	#show(record: PrRecord) {
+		this.#stored = record;
+		this.record = this.round === null ? record : roundView(record, this.round);
+	}
+
+	// Opens an earlier round, or the latest with null. Its files come first,
+	// so its slices never meet another round's.
+	async viewRound(index: number | null) {
+		if (index === this.round) return;
+		const { files } = await fetchPr(this.ref, index ?? undefined);
+		if (this.#closed) return;
+		this.panel.close();
+		this.round = index;
+		this.files = files;
+		this.#show(this.#stored);
+		if (index === null) this.panel.load();
+	}
+
+	// Keeps the latest round as it is and begins another, with the commits
+	// chosen or the whole PR. Its panel starts afresh, as a new PR's does.
+	async startRound(range: ReviewRange | null) {
+		await this.viewRound(null);
+		this.panel.reset();
+		await this.update((r) => beginRound(r, range));
+		this.choosingRound = false;
+		await Promise.all([this.prepare(), fetchPr(this.ref).then(({ files }) => !this.#closed && (this.files = files))]);
 	}
 
 	// Begins the review with the commits chosen, or the whole PR.

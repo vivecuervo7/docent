@@ -33,6 +33,8 @@
 	<PreparingView />
 {:else if session.unprepared && !session.loading}
 	<BeginReview />
+{:else if session.choosingRound}
+	<BeginReview next />
 {:else}
 	<main>
 		<section class="about">
@@ -43,6 +45,23 @@
 					· <ReviewModel /> ·
 					<a href={githubUrl} target="_blank" rel="noreferrer">View on GitHub ↗</a>
 				</p>
+				{#if session.roundCount > 1}
+					<p class="rounds faint">
+						{#each { length: session.roundCount } as _, i (i)}
+							{@const latest = i === session.roundCount - 1}
+							{@const current = latest ? session.round === null : session.round === i}
+							{#if i > 0}<span aria-hidden="true">·</span>{/if}
+							{#if current}<span class="current">Round {i + 1}</span>
+							{:else}<button class="link" onclick={() => session.viewRound(latest ? null : i)}>Round {i + 1}</button>{/if}
+						{/each}
+					</p>
+				{/if}
+				{#if session.newCommits}
+					<p class="new-commits">
+						New commits since this round was prepared.
+						<button class="link" onclick={() => (session.choosingRound = true)}>Review them as round {session.roundCount + 1}</button>
+					</p>
+				{/if}
 			</div>
 
 			{#if summary}
@@ -127,6 +146,30 @@
 		text-underline-offset: 3px;
 	}
 	.byline a:hover {
+		color: var(--text);
+	}
+	.rounds,
+	.new-commits {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin: 0;
+		font-size: 13.5px;
+	}
+	.rounds .current {
+		color: var(--text);
+	}
+	.link {
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--muted);
+		font: inherit;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		cursor: pointer;
+	}
+	.link:hover {
 		color: var(--text);
 	}
 	.summary {

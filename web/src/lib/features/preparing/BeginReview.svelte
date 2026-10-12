@@ -9,6 +9,9 @@
 	// Before anything's prepared: which of the PR's commits to review. Both
 	// ends of the range snap to commits; a day is labelled at its first.
 	// Merge commits are left out, as they bring in the base branch's work.
+	// For the next round it starts from the first commit since the last.
+
+	let { next = false }: { next?: boolean } = $props();
 
 	const session = useSession();
 
@@ -23,6 +26,10 @@
 			(all) => {
 				commits = all.filter((c) => !c.merge);
 				to = commits.length - 1;
+				// The last round may have ended on a merge, which isn't listed.
+				const ended = all.findIndex((c) => c.sha === session.record.preparedHead);
+				const since = next && ended >= 0 ? all.slice(ended + 1).find((c) => !c.merge) : undefined;
+				if (since) from = commits.findIndex((c) => c.sha === since.sha);
 			},
 			(err) => (error = (err as Error).message)
 		);
@@ -40,8 +47,22 @@
 		if (day.toDateString() === yesterday.toDateString()) return 'Yesterday';
 		return day.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 	}
-	// Each day's first commit, where its label sits.
-	const days = $derived((commits ?? []).flatMap((c, i, all) => (i === 0 || dayOf(all[i - 1].date) !== dayOf(c.date) ? [{ i, label: dayLabel(c.date) }] : [])));
+	// Each day's first commit, where its label sits. Where two would run
+	// into each other the later day keeps its label: recent work is what's
+	// usually picked out.
+	const LABEL_ROOM = 52;
+	let width = $state(0);
+	const days = $derived.by(() => {
+		const out: { i: number; label: string }[] = [];
+		const px = (i: number) => (last ? (i / last) * width : 0);
+		(commits ?? []).forEach((c, i, all) => {
+			if (i > 0 && dayOf(all[i - 1].date) === dayOf(c.date)) return;
+			const before = out.at(-1);
+			if (before && px(i) - px(before.i) < LABEL_ROOM) out.pop();
+			out.push({ i, label: dayLabel(c.date) });
+		});
+		return out;
+	});
 
 	// Where commit i sits along the track, matching the knobs' centres.
 	const at = (i: number) => `calc(var(--knob) / 2 + (100% - var(--knob)) * ${last ? i / last : 0})`;
@@ -49,13 +70,15 @@
 	function begin() {
 		if (!commits) return;
 		starting = true;
-		session.begin(whole ? null : { after: commits[from].parent, to: commits[to].sha });
+		const range = whole ? null : { after: commits[from].parent, to: commits[to].sha };
+		if (next) session.startRound(range);
+		else session.begin(range);
 	}
 </script>
 
 <div class="wrap">
 	<div class="card">
-		<span class="caps">Begin the review</span>
+		<span class="caps">{next ? `Begin round ${session.roundCount + 1}` : 'Begin the review'}</span>
 		<h1><InlineText text={session.title} /></h1>
 		<span class="faint mono">{session.ref.owner}/{session.ref.repo} #{session.ref.number} · <ReviewModel /></span>
 
@@ -103,7 +126,7 @@
 						onchange={(e) => (e.currentTarget.value = String(to))}
 					/>
 				</div>
-				<div class="days" style:--knob="16px">
+				<div class="days" style:--knob="16px" bind:clientWidth={width}>
 					{#each days as d (d.i)}<span style:left={at(d.i)}>{d.label}</span>{/each}
 				</div>
 			{/if}
@@ -119,6 +142,7 @@
 
 			<div class="actions">
 				<button class="btn primary" disabled={starting} onclick={begin}>Prepare</button>
+				{#if next}<button class="btn" disabled={starting} onclick={() => (session.choosingRound = false)}>Cancel</button>{/if}
 			</div>
 		{/if}
 	</div>
@@ -294,6 +318,8 @@
 		white-space: nowrap;
 	}
 	.actions {
+		display: flex;
+		gap: 8px;
 		margin-top: 18px;
 	}
 </style>
