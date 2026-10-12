@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { useSession } from '$lib/session/session.svelte';
 	import CommitTrack from './CommitTrack.svelte';
+	import { ask } from '$lib/ui/confirm.svelte';
 
 	// The commits this review covers, from any page: a quiet chip with the
 	// round and how many of the PR's commits it spans, a pip for each, that
@@ -62,6 +63,16 @@
 	function view(index: number | null) {
 		open = false;
 		goto(session.baseFor(index));
+	}
+
+	// Only the latest round can go, so no other round's number, or link, changes.
+	async function deleteLatest() {
+		open = false;
+		const n = spans.length;
+		if (!(await ask({ title: `Delete round ${n}?`, body: 'Its threads, findings and review go with it. The commits it covered can go into a new round.', action: 'Delete' })))
+			return;
+		await session.dropRound();
+		goto(session.baseFor(null));
 	}
 
 	// The new round becomes the latest, so its URL follows it.
@@ -143,6 +154,11 @@
 						{:else}
 							<button class="btn" onclick={reviewNew}>Start round {spans.length + 1}</button>
 						{/if}
+					</div>
+				{/if}
+				{#if spans.length > 1}
+					<div class="delete">
+						<button class="link danger" onclick={deleteLatest}>Delete round {spans.length}</button>
 					</div>
 				{/if}
 			</div>
@@ -247,6 +263,14 @@
 	}
 	.link:hover {
 		color: var(--text);
+	}
+	.delete {
+		padding: 10px 16px 12px;
+		border-top: 1px solid var(--line);
+		font-size: 12.5px;
+	}
+	.link.danger:hover {
+		color: var(--danger);
 	}
 	.next {
 		display: flex;

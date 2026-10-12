@@ -4,6 +4,8 @@ import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
 import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
 import { ask } from '$lib/ui/confirm.svelte';
 import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '$lib/types';
+import { roundView } from '$lib/storage/rounds';
+import { coverage } from '$lib/features/rounds/coverage';
 
 // The start page's lists: saved reviews, and open PRs you're part of on
 // GitHub, with where each stands. Created once per visit to the page; its
@@ -28,6 +30,21 @@ interface PrStatus extends PrRef {
 	updatedAt?: string;
 	author?: string;
 	state: 'OPEN' | 'CLOSED' | 'MERGED';
+	// Its latest hundred commits, oldest first.
+	commits?: { sha: string; merge: boolean }[];
+}
+
+// A row's summary: the round it opens, where that stands, a line beside it,
+// and its rounds along the commits.
+export interface RowView {
+	status: string;
+	tone: Tone;
+	note?: string;
+	// The note is about commits to review.
+	noteCommits?: boolean;
+	// Each shown commit, in the tone of the round covering it; `fresh` after
+	// every round, `out` in none before that.
+	track: (Tone | 'fresh' | 'out')[];
 }
 
 // A row on the page: a saved review, or a PR you're part of that Docent
@@ -66,7 +83,11 @@ function lastAnswer(messages: NoteMessage[] | undefined): NoteMessage[] | undefi
 	return answer ? [{ ...answer, text: '' }] : undefined;
 }
 
-// Only what the rows need is kept, not each review's slices and notes.
+// Whether any part of a round has been prepared.
+const begun = (r: Partial<PrRecord>) => !!(r.slices || r.summary || r.conversation || r.fileNotes);
+
+// Only what the rows need is kept, not each review's slices and notes; of
+// earlier rounds, only where each stands.
 function trimmed(pr: SavedPr): SavedPr {
 	const r = pr.record;
 	return {
@@ -79,6 +100,16 @@ function trimmed(pr: SavedPr): SavedPr {
 			author: r.author,
 			completedAt: r.completedAt,
 			preparedHead: r.preparedHead,
+			range: r.range,
+			rounds: r.rounds?.map((round) => ({
+				range: round.range,
+				preparedHead: round.preparedHead,
+				completedAt: round.completedAt,
+				summary: round.summary ? { what: '', why: '' } : null,
+				slices: round.slices?.map((sl) => ({ ...sl, title: '', summary: '' })) ?? null,
+				reviewed: round.reviewed,
+				review: round.review?.posted ? ({ posted: round.review.posted } as PrRecord['review']) : undefined
+			})),
 			lastOpenedAt: r.lastOpenedAt,
 			summary: r.summary ? { what: '', why: '' } : null,
 			slices: r.slices?.map((sl) => ({ ...sl, title: '', summary: '' })) ?? null,
@@ -328,19 +359,62 @@ export class StartPage {
 		return Date.parse(this.statuses[keyOf(pr)]?.createdAt ?? this.involvedOf(pr)?.createdAt ?? '') || 0;
 	}
 
-	// New commits since the slices were made.
-	updatedSince(pr: SavedPr) {
-		const head = this.statuses[keyOf(pr)]?.head;
-		return !!pr.record.preparedHead && !!head && head !== pr.record.preparedHead;
-	}
-
 	reviewState(r: InvolvedPr): string {
 		const draft = r.isDraft ? 'Draft · ' : '';
 		if (r.decision === 'APPROVED') return `${draft}Approved`;
 		if (r.decision === 'CHANGES_REQUESTED') return `${draft}Changes requested`;
 		const by = [...new Set(r.reviews.map((v) => v.author).filter(Boolean))];
 		if (!by.length) return `${draft}No reviews yet`;
-		return `${draft}Reviewed by ${by.slice(0, 2).join(', ')}${by.length > 2 ? ` and ${by.length - 2} more` : ''}`;
+		return `${draft}Reviewed by ${by[0]}${by.length > 1 ? ` +${by.length - 1}` : ''}`;
+	}
+
+	// A review's rounds, oldest first, each read like a record.
+	roundsOf(pr: Row): PrRecord[] {
+		return [...(pr.record.rounds ?? []).map((_, i) => roundView(pr.record, i)), pr.record];
+	}
+
+	// What a row shows. It opens the latest round; one begun but not yet
+	// prepared is a draft, so the round before it speaks for the PR.
+	rowOf(pr: Row): RowView {
+		const rounds = this.roundsOf(pr);
+		const generation = this.generationFor(pr);
+		const draft = rounds.length > 1 && !begun(pr.record) && !generation;
+		const shown = draft ? rounds.length - 2 : rounds.length - 1;
+		const states = rounds.map((r, i) => this.#stateOfRound(pr, r, i === rounds.length - 1));
+		const status = this.statuses[keyOf(pr)];
+		const covered = status?.commits
+			? coverage(
+					status.commits,
+					rounds.map((r, i) => {
+						const latest = i === rounds.length - 1;
+						return { range: r.range, end: begun(r) || (latest && generation) ? (r.preparedHead ?? (latest ? status.head : undefined)) : undefined };
+					})
+				)
+			: null;
+		const fresh = covered?.fresh ?? 0;
+		const prepared = begun(rounds[shown]);
+		const state = states[shown];
+		const numbered = prepared && (rounds.length > 1 || fresh > 0);
+		const commits = (n: number) => `${n} ${n === 1 ? 'commit' : 'commits'}`;
+		let note: string | undefined;
+		let noteCommits = false;
+		if (draft) {
+			note = `Round ${rounds.length} not started${fresh ? ` · ${commits(fresh)}` : ''}`;
+			noteCommits = true;
+		} else if (fresh && prepared) {
+			note = state.tone === 'done' ? `${fresh} new ${fresh === 1 ? 'commit' : 'commits'} to review` : `+${fresh} new ${fresh === 1 ? 'commit' : 'commits'}`;
+			noteCommits = true;
+		} else {
+			const involved = this.involvedOf(pr);
+			const findings = this.panelFor(pr)?.findings;
+			if (involved && (pr.unsaved || !pr.record.review?.posted)) note = this.reviewState(involved);
+			else if (findings) note = `${findings} ${findings === 1 ? 'finding' : 'findings'}`;
+		}
+		const track =
+			covered && rounds.some((r) => begun(r))
+				? covered.commits.map((c) => (c.round !== null ? states[c.round].tone : c.fresh ? ('fresh' as const) : ('out' as const)))
+				: [];
+		return { status: numbered ? `Round ${shown + 1} · ${state.label}` : state.label, tone: state.tone, note, noteCommits, track };
 	}
 
 	// What's happened since you last opened a PR: activity on GitHub, a
@@ -358,22 +432,24 @@ export class StartPage {
 		].filter(Boolean);
 	}
 
-	// Where a review stands, as one of a few states.
-	stateOf(pr: Row): { label: string; tone: Tone } {
+	// Where a round stands, as one of a few states. Preparing and the panel
+	// are the latest round's.
+	#stateOfRound(pr: Row, r: PrRecord, latest: boolean): { label: string; tone: Tone } {
 		if (pr.unsaved) return { label: 'New', tone: 'new' };
-		const generation = this.generationFor(pr);
+		const generation = latest ? this.generationFor(pr) : undefined;
 		if (generation?.status === 'queued') return { label: 'Queued', tone: 'quiet' };
 		if (isGenerating(generation) && generation?.steps.summary.status !== 'done') return { label: 'Preparing', tone: 'working' };
 		if (generation?.status === 'failed') return { label: 'Preparing failed', tone: 'bad' };
-		if (generation?.status === 'stopped' && !pr.record.summary) return { label: 'Stopped', tone: 'quiet' };
-		if (pr.record.completedAt) return { label: 'Complete', tone: 'done' };
-		if (pr.record.review?.posted?.pending) return { label: 'Pending on GitHub', tone: 'going' };
-		if (pr.record.review?.posted) return { label: 'Posted', tone: 'done' };
-		if (this.panelFor(pr)?.running) return { label: 'Reviewing', tone: 'working' };
-		const { done, total } = this.progress(pr);
-		if (total && done === total) return { label: 'Read', tone: 'read' };
+		if (generation?.status === 'stopped' && !r.summary) return { label: 'Stopped', tone: 'quiet' };
+		if (r.completedAt) return { label: 'Complete', tone: 'done' };
+		if (r.review?.posted?.pending) return { label: 'Pending on GitHub', tone: 'going' };
+		if (r.review?.posted) return { label: 'Posted', tone: 'done' };
+		if (latest && this.panelFor(pr)?.running) return { label: 'Reviewing', tone: 'working' };
+		const slices = r.slices ?? generation?.results.slices ?? [];
+		const done = slices.filter((s) => isSliceReviewed(s, r.reviewed)).length;
+		if (slices.length && done === slices.length) return { label: 'Read', tone: 'read' };
 		if (done > 0) return { label: 'In progress', tone: 'going' };
-		if (pr.record.summary || total) return { label: 'Ready', tone: 'ready' };
+		if (r.summary || slices.length) return { label: 'Ready', tone: 'ready' };
 		return { label: 'Not prepared', tone: 'quiet' };
 	}
 
@@ -391,14 +467,6 @@ export class StartPage {
 
 	generationFor(pr: SavedPr): Generation | undefined {
 		return this.generations.find((g) => keyOf(g) === keyOf(pr))?.generation;
-	}
-
-	// A run still going can already have its slices; they count as soon as
-	// they exist.
-	progress(pr: SavedPr) {
-		const slices = pr.record.slices ?? this.generationFor(pr)?.results.slices ?? [];
-		const done = slices.filter((s) => isSliceReviewed(s, pr.record.reviewed)).length;
-		return { done, total: slices.length };
 	}
 
 	async remove(pr: SavedPr) {

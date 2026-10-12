@@ -379,6 +379,8 @@ export interface PrStatus {
   updatedAt: string;
   author?: string;
   state: "OPEN" | "CLOSED" | "MERGED";
+  // Its latest hundred commits, oldest first.
+  commits: { sha: string; merge: boolean }[];
 }
 
 // Where several PRs stand on GitHub now, in one query: for the start page,
@@ -388,7 +390,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
   const fields = prs
     .map(
       (pr, i) =>
-        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } } }`,
+        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid parents { totalCount } } } } } }`,
     )
     .join("\n");
   const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
@@ -400,13 +402,30 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
   const data = (JSON.parse(stdout).data ?? {}) as Record<
     string,
     {
-      pullRequest: { headRefOid: string; createdAt: string; updatedAt: string; state: PrStatus["state"]; author: { login: string } | null } | null;
+      pullRequest: {
+        headRefOid: string;
+        createdAt: string;
+        updatedAt: string;
+        state: PrStatus["state"];
+        author: { login: string } | null;
+        commits: { nodes: { commit: { oid: string; parents: { totalCount: number } } }[] };
+      } | null;
     } | null
   >;
   return prs.flatMap((pr, i) => {
     const found = data[`p${i}`]?.pullRequest;
     return found
-      ? [{ ...pr, head: found.headRefOid, createdAt: found.createdAt, updatedAt: found.updatedAt, author: found.author?.login, state: found.state }]
+      ? [
+          {
+            ...pr,
+            head: found.headRefOid,
+            createdAt: found.createdAt,
+            updatedAt: found.updatedAt,
+            author: found.author?.login,
+            state: found.state,
+            commits: found.commits.nodes.map(({ commit }) => ({ sha: commit.oid, merge: commit.parents.totalCount > 1 })),
+          },
+        ]
       : [];
   });
 }

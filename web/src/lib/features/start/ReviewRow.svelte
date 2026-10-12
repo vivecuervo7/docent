@@ -4,14 +4,13 @@
 	import { timeAgo } from '$lib/ui/format';
 	import type { Row, StartPage } from './startPage.svelte';
 
-	// One PR on the start page: its title and where it's from, where the
-	// review stands, and hiding or deleting it from beside the row.
+	// One PR on the start page: a dot when something's new since you last
+	// opened it, its title and where it's from; then where the round it opens
+	// stands, a line on what's next, and its rounds along its commits.
 	let { pr, page }: { pr: Row; page: StartPage } = $props();
 
-	const standing = $derived(page.stateOf(pr));
+	const view = $derived(page.rowOf(pr));
 	const changes = $derived(page.changesSince(pr));
-	const involved = $derived(page.involvedOf(pr));
-	const panel = $derived(page.panelFor(pr));
 	const author = $derived(page.authorOf(pr));
 	const raised = $derived(page.raisedAt(pr));
 	const hidden = $derived(page.isHidden(pr));
@@ -19,25 +18,25 @@
 
 <li>
 	<a href="/pr/{pr.owner}/{pr.repo}/{pr.number}">
+		<span class="unread">
+			{#if changes.length}<span class="dot" role="img" aria-label="Since you last opened it: {changes.join(', ')}" title="Since you last opened it: {changes.join(', ')}"></span>{/if}
+		</span>
 		<span class="text">
 			<span class="title"><InlineText text={pr.record.title ?? `#${pr.number}`} /></span>
-			<span class="faint meta">
-				{pr.owner}/{pr.repo} #{pr.number}{author ? ` · by ${author}` : ''}{raised ? ` · raised ${timeAgo(raised, page.now)}` : ''}
-				{#if involved && (pr.unsaved || !pr.record.review?.posted)}· {page.reviewState(involved)}{/if}
-				{#if panel?.findings && !panel.running}
-					· {panel.findings} {panel.findings === 1 ? 'finding' : 'findings'}
-				{/if}
-			</span>
+			<span class="faint meta">{pr.owner}/{pr.repo} #{pr.number}{author ? ` · ${author}` : ''}{raised ? ` · ${timeAgo(raised, page.now)}` : ''}</span>
 		</span>
 		<span class="state">
-			{#if page.updatedSince(pr)}<span class="updated" title="The PR has new commits since Docent prepared it">Updated since</span>{/if}
-			<span class="status-label {standing.tone}" title={changes.length ? `Since you last opened it: ${changes.join(', ')}` : undefined}>
-				{#if standing.tone === 'working'}<Spinner size={11} />{:else if changes.length}<span
-						class="dot"
-						aria-label="Since you last opened it: {changes.join(', ')}"
-					></span>{/if}
-				{standing.label}
-			</span>
+			<span class="status {view.tone}">{#if view.tone === 'working'}<Spinner size={11} />{/if}{view.status}</span>
+			{#if view.note || view.track.length}
+				<span class="under">
+					{#if view.note}<span class="note" class:commits={view.noteCommits}>{view.note}</span>{/if}
+					{#if view.track.length}
+						<span class="track" class:dense={view.track.length > 18} aria-hidden="true">
+							{#each view.track as tone, i (i)}<span class="cell {tone}"><i></i></span>{/each}
+						</span>
+					{/if}
+				</span>
+			{/if}
 		</span>
 	</a>
 	<span class="row-actions">
@@ -68,22 +67,37 @@
 		min-width: 0;
 		display: flex;
 		align-items: center;
-		gap: 20px;
-		padding: 16px 4px;
+		gap: 14px;
+		padding: 20px 6px 20px 2px;
 		text-decoration: none;
 	}
 	li a:hover .title {
 		color: #fff;
+	}
+	/* Before the title, so titles line up with or without it. */
+	.unread {
+		flex: none;
+		align-self: flex-start;
+		display: flex;
+		justify-content: center;
+		width: 8px;
+		padding-top: 7px;
+	}
+	.dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--you);
 	}
 	.text {
 		flex-grow: 1;
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 5px;
 	}
 	.title {
-		font-size: 15.5px;
+		font-size: 15px;
 		font-weight: 500;
 		white-space: nowrap;
 		overflow: hidden;
@@ -91,69 +105,121 @@
 	}
 	.meta {
 		font-size: 13px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.state {
+		flex: 0 0 auto;
+		max-width: 260px;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 8px;
+	}
+	.status {
+		--tone: var(--muted);
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		font-size: 13px;
-		white-space: nowrap;
-	}
-	.updated {
-		padding: 2px 8px;
-		border-radius: 999px;
-		background: var(--agent-chip);
-		color: var(--agent-text);
-		font-size: 12px;
-		white-space: nowrap;
-	}
-	/* The state as a badge, tinted in its colour. */
-	.status-label {
-		--tone: var(--muted);
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 3px 10px;
-		border-radius: 999px;
-		background: color-mix(in srgb, var(--tone) 16%, transparent);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
+		gap: 7px;
 		color: var(--tone);
-		font-size: 12.5px;
+		font-size: 13px;
 		font-weight: 500;
 		white-space: nowrap;
 	}
-	/* Something new since you last opened it. */
-	.status-label .dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: currentColor;
-	}
-	.status-label.new {
+	.new {
 		--tone: #c8a8ff;
 	}
 	/* Docent busy with it: the spinner says so, so the colour stays quiet. */
-	.status-label.working {
+	.working {
 		--tone: #e8e2d6;
 	}
-	.status-label.ready {
+	.ready {
 		--tone: #8ab4ff;
 	}
 	/* You're partway through it: the one to spot. */
-	.status-label.going {
+	.going {
 		--tone: #ffb85c;
 	}
-	.status-label.read {
+	.read {
 		--tone: var(--muted);
 	}
-	.status-label.done {
+	.done {
 		--tone: #7fd89b;
 	}
-	.status-label.bad {
+	.bad {
 		--tone: #ff8a7a;
 	}
-	.status-label.quiet {
+	.quiet {
 		--tone: var(--faint);
+	}
+	.under {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+	.note {
+		font-size: 12.5px;
+		color: var(--faint);
+		white-space: nowrap;
+	}
+	.note.commits {
+		color: var(--you-text);
+	}
+	/* Its rounds along its commits: each round's in its state's colour, a
+	   pip per commit, and those no round covers yet hollow. */
+	.track {
+		display: flex;
+		align-items: center;
+		width: 112px;
+		height: 10px;
+	}
+	.cell {
+		flex: 1 1 0;
+		display: flex;
+		align-items: center;
+		height: 100%;
+	}
+	.cell::before {
+		content: '';
+		flex: 1 1 0;
+		height: 2px;
+		background: var(--tone);
+	}
+	.cell:first-child::before {
+		background: none;
+	}
+	.cell i {
+		flex: none;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--tone);
+	}
+	.cell.working {
+		--tone: #6b6d73;
+	}
+	.cell.out {
+		--tone: var(--line-2);
+	}
+	.cell.fresh::before {
+		background: var(--line-2);
+	}
+	.cell.fresh i {
+		box-sizing: border-box;
+		background: none;
+		border: 1.5px solid var(--you);
+	}
+	/* Too many commits for a pip each: just the line. */
+	.track.dense .cell i {
+		width: 0;
+		border: 0;
+	}
+	.track.dense .cell::before {
+		height: 2px;
+	}
+	.track.dense .cell.fresh::before {
+		background: color-mix(in srgb, var(--you) 45%, transparent);
 	}
 	/* Float just outside the row, so the states line up at its edge. */
 	.row-actions {

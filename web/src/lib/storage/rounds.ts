@@ -54,6 +54,8 @@ export function dropRound(record: PrRecord): void {
 	const last = record.rounds?.at(-1);
 	if (!last) return;
 	for (const field of ROUND_FIELDS) delete record[field];
+	// Asked of the round taken back, not of the one before it.
+	delete record.reviewWhenPrepared;
 	Object.assign(record, emptyRecord(), last);
 	record.rounds = record.rounds!.slice(0, -1);
 	if (!record.rounds.length) delete record.rounds;
@@ -69,6 +71,7 @@ export function beginRound(record: PrRecord, range: PrRecord['range'] | null): v
 	const highest = Math.max(record.agentHighest ?? 0, ...ids) + 1;
 	record.agentHighest = highest;
 	for (const field of ROUND_FIELDS) delete record[field];
+	delete record.reviewWhenPrepared;
 	Object.assign(record, {
 		reviewed: fresh.reviewed,
 		slices: fresh.slices,

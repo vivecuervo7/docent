@@ -735,9 +735,16 @@ export class PrSession {
 		await this.update((r) => beginRound(r, null));
 	}
 
-	// Takes back a round not yet begun, for the one before it.
+	// Takes back the latest round, begun or not, for the one before it: its
+	// threads, findings and review go with it.
 	async dropRound() {
-		if (begun(this.record) || this.roundCount < 2) return;
+		if (this.roundCount < 2) return;
+		if (this.round !== null) await this.viewRound(null);
+		if (isGenerating(this.generation)) await this.stopPreparing();
+		if (this.generation) {
+			await dismissGeneration(this.ref).catch(() => {});
+			this.generation = null;
+		}
 		this.panel.reset();
 		await this.update(dropRound);
 		const { files } = await fetchPr(this.ref);
