@@ -52,7 +52,8 @@
 
 	function showThread(item: FeedbackItem) {
 		const note = session.record.notes.find((n) => n.id === item.noteIds?.[0]);
-		if (note) show(note.id, note.path, note.start);
+		// A thread about something said on GitHub opens from that thread.
+		if (note) show(note.github ?? note.id, note.path, note.start);
 	}
 </script>
 

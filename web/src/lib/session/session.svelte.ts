@@ -22,6 +22,31 @@ export function isGenerating(generation: Generation | null | undefined): boolean
 
 export { isSliceReviewed };
 
+// A hunk's lines from start to end, with +/- markers.
+function codeIn(hunk: Hunk, start: LineRef, end: LineRef): string {
+	const within = (r: Hunk['rows'][number]) => {
+		const n = start.side === 'new' ? (r.kind !== 'del' ? r.new : undefined) : r.kind !== 'add' ? r.old : undefined;
+		return n !== undefined && n >= start.line && n <= end.line;
+	};
+	return hunk.rows
+		.filter(within)
+		.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`)
+		.join('\n');
+}
+
+// Line numbers as ranges: "3-5, 9".
+function describeLines(lines: number[]): string {
+	const sorted = [...new Set(lines)].sort((a, b) => a - b);
+	const ranges: string[] = [];
+	for (let i = 0; i < sorted.length; i++) {
+		let j = i;
+		while (sorted[j + 1] === sorted[j] + 1) j++;
+		ranges.push(i === j ? `${sorted[i]}` : `${sorted[i]}-${sorted[j]}`);
+		i = j;
+	}
+	return ranges.join(', ');
+}
+
 // Whether any part of a PR has been prepared.
 const begun = (r: PrRecord) => !!(r.slices || r.conversation || r.summary || r.fileNotes);
 
@@ -158,9 +183,14 @@ export class PrSession {
 	// With `comment`, the message is one to post as written, and asks for
 	// no reply.
 	// Without lines, on a whole file; without a path too, on the PR as a whole.
-	createNote(anchor: { path: string; hunk?: number; start?: LineRef; end?: LineRef; code?: string }, text: string, { comment = false } = {}): string {
+	// With `prompt`, a quick question: the text is its label, the prompt what's asked.
+	createNote(
+		anchor: { path: string; hunk?: number; start?: LineRef; end?: LineRef; code?: string; github?: string },
+		text: string,
+		{ comment = false, prompt }: { comment?: boolean; prompt?: string } = {}
+	): string {
 		const now = Date.now();
-		const message: NoteMessage = { role: 'user', text, at: now, ...(comment ? { comment } : {}) };
+		const message: NoteMessage = { role: 'user', text, at: now, ...(comment ? { comment } : {}), ...(prompt ? { prompt } : {}) };
 		const note: Note = { id: crypto.randomUUID(), ...anchor, messages: [message], createdAt: now, readAt: now };
 		this.update((r) => {
 			r.notes = [...r.notes, note];
@@ -178,6 +208,23 @@ export class PrSession {
 		})
 			.then(() => (comment || conclusion ? undefined : this.#requestReply(id)))
 			.catch((err) => (this.noteStatus[id] = { error: (err as Error).message }));
+	}
+
+	// Begins a thread about something said on GitHub, on the same lines or
+	// file, so its reply reads that code beside what was said.
+	askAboutGitHub(id: string, text: string, options: { comment?: boolean; prompt?: string } = {}): string | undefined {
+		const thread = this.github?.threads.find((t) => t.id === id);
+		if (!thread) return this.github?.general.some((c) => c.id === id) ? this.createNote({ path: '', github: id }, text, options) : undefined;
+		const { path, start, end } = thread;
+		const hunk = start ? nearestHunk(this.hunks.get(path) ?? [], start) : undefined;
+		const anchor = start && end && hunk ? { path, start, end, hunk: hunk.index, code: codeIn(hunk, start, end), github: id } : { path, github: id };
+		return this.createNote(anchor, text, options);
+	}
+
+	// What was said on GitHub that a thread asks about, as text.
+	#githubText(id: string): string | undefined {
+		const entries = this.github?.threads.find((t) => t.id === id)?.entries ?? this.github?.general.filter((c) => c.id === id);
+		return entries?.length ? entries.map((e) => `${e.author}: ${e.body}`).join('\n\n') : undefined;
 	}
 
 	retryNote(id: string) {
@@ -229,7 +276,9 @@ export class PrSession {
 						prTitle: this.title,
 						prWhat: this.record.summary?.what,
 						sliceTitle: slice?.title,
-						sliceSummary: slice?.summary
+						sliceSummary: slice?.summary,
+						...(file?.rangeLines ? { roundLines: describeLines(file.rangeLines.new) } : {}),
+						...(note.github ? { github: this.#githubText(note.github) } : {})
 					},
 					messages: forModel(note.messages),
 					model: this.record.model
@@ -292,15 +341,7 @@ export class PrSession {
 		const file = path ? this.files.find((f) => f.filename === path) : undefined;
 		const hunk = path && start ? nearestHunk(this.hunks.get(path) ?? [], start) : undefined;
 		const slice = hunk ? this.slices.find((s) => s.hunks.includes(`${path}#${hunk.index}`)) : undefined;
-		const within = (r: { kind: string; new?: number; old?: number }) => {
-			if (!start || !end) return false;
-			const n = start.side === 'new' ? (r.kind !== 'del' ? r.new : undefined) : r.kind !== 'add' ? r.old : undefined;
-			return n !== undefined && n >= start.line && n <= end.line;
-		};
-		const code = (hunk?.rows ?? [])
-			.filter(within)
-			.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`)
-			.join('\n');
+		const code = hunk && start && end ? codeIn(hunk, start, end) : '';
 		// A finding about the whole PR is answered from all of its changes, as
 		// far as they fit.
 		const everything = path ? '' : this.#allChanges();
@@ -441,7 +482,8 @@ export class PrSession {
 					path: n.path,
 					lines: noteWhere(n),
 					code: n.code ?? '',
-					messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) }))
+					messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
+					...(n.github ? { github: this.#githubText(n.github) } : {})
 				}))
 			})
 		});

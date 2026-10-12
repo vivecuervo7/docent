@@ -98,7 +98,7 @@
 				{#if general.length}
 					<Disclosure bind:open={showGeneral} label="Said on GitHub" count={general.length} />
 					{#if showGeneral}
-						{#each general as c (c.id)}<div class="pr-thread"><GitHubThreadPanel entries={[c]} /></div>{/each}
+						{#each general as c (c.id)}<div class="pr-thread"><GitHubThreadPanel comment={c} /></div>{/each}
 					{/if}
 				{/if}
 				<Composer bind:value={draft} placeholder="Ask about the PR, or write a comment for the review…" onsend={startThread} />

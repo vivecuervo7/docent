@@ -162,6 +162,8 @@ export interface Note {
 	createdAt: number;
 	// When the reviewer last had the thread open; a reply after this is unread.
 	readAt?: number;
+	// What it asks about, when that's something said on GitHub: its id.
+	github?: string;
 }
 
 // Where a thread sits, in words: its lines, its file, or the PR.

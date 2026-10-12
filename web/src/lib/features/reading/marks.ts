@@ -101,19 +101,35 @@ export function looseMarksFrom(record: PrRecord): LooseMark[] {
 
 export function marksFrom(record: PrRecord): Mark[] {
 	const findings = findingMarks(record).filter((m): m is Mark => !!m.path && !!m.start);
+	// A thread about something said on GitHub opens from that thread's pin.
 	const notes = record.notes.flatMap((note): Mark[] =>
-		note.start && note.end
+		note.start && note.end && !note.github
 			? [{ id: note.id, kind: 'note', path: note.path, start: note.start, end: note.end, who: 'You', body: note.messages[0]?.text ?? '', note }]
 			: []
 	);
 	return [...notes, ...findings];
 }
 
-// GitHub's threads that sit on lines at the PR's head.
-export function githubMarksFrom(comments: GitHubComments | null): Mark[] {
-	return (comments?.threads ?? []).flatMap((t): Mark[] =>
-		t.start && t.end ? [{ id: t.id, kind: 'github', path: t.path, start: t.start, end: t.end, who: t.entries[0]?.author ?? '', body: t.entries[0]?.body ?? '', github: t }] : []
-	);
+// GitHub's threads that sit on lines at the PR's head, each with your
+// thread about it, if you've begun one.
+export function githubMarksFrom(comments: GitHubComments | null, record: PrRecord): Mark[] {
+	return (comments?.threads ?? []).flatMap((t): Mark[] => {
+		if (!t.start || !t.end) return [];
+		const note = record.notes.find((n) => n.github === t.id);
+		return [
+			{
+				id: t.id,
+				kind: 'github',
+				path: t.path,
+				start: t.start,
+				end: t.end,
+				who: t.entries[0]?.author ?? '',
+				body: t.entries[0]?.body ?? '',
+				github: t,
+				...(note ? { note, unread: isUnread(note) } : {})
+			}
+		];
+	});
 }
 
 // GitHub's threads on a file without lines to sit on: outdated, or about
@@ -124,5 +140,5 @@ export function looseGitHubThreads(comments: GitHubComments | null, path: string
 
 // Your threads without lines: on a whole file, or with no path on the PR.
 export function looseNotesFrom(record: PrRecord): Note[] {
-	return record.notes.filter((note) => !note.start);
+	return record.notes.filter((note) => !note.start && !note.github);
 }

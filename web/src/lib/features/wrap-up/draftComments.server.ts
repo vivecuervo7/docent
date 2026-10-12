@@ -10,6 +10,8 @@ export interface ThreadForFeedback {
   lines: string;
   code: string;
   messages: NoteMessage[];
+  // The comment on GitHub it asks about, as text.
+  github?: string;
 }
 
 export interface DraftedComment {
@@ -81,7 +83,8 @@ function threadText(thread: ThreadForFeedback, index: number): string {
   const messages = thread.messages
     .map((m) => `${m.conclusion ? "Reviewer's conclusion" : m.role === "user" ? "Reviewer" : "Assistant"}: ${m.text}`)
     .join("\n");
-  return `Thread ${index + 1}: ${thread.path}, ${thread.lines}\n${code}\n${messages}`;
+  const about = thread.github ? `About this comment someone left on GitHub:\n${thread.github}\n` : "";
+  return `Thread ${index + 1}: ${thread.path}, ${thread.lines}\n${code}\n${about}${messages}`;
 }
 
 export function draftYourFeedback(

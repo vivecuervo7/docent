@@ -21,6 +21,10 @@ export interface NoteContext {
   prWhat?: string;
   sliceTitle?: string;
   sliceSummary?: string;
+  // Reviewing some of the PR's commits: the lines in this file they changed.
+  roundLines?: string;
+  // Set when the thread is about something said on GitHub: that thread, as text.
+  github?: string;
   // Set when the question is about a finding a reviewer on the panel raised:
   // with the other reviewers' versions of the same point, and what the
   // panel's editor found.
@@ -40,6 +44,9 @@ either a question or a remark.
 - A question: answer it directly and concisely, grounded in the code shown - the selected lines and \
 the rest of the file's changes around them, or the file's or the PR's changes. Say so plainly when \
 that isn't enough to be sure.
+- About a comment someone left on GitHub, shown to you: answer about that comment. Asked whether \
+it has been addressed, judge from the changes shown whether they address it - say what does, or \
+what's still left, by line - and say so when the changes shown can't settle it.
 - A remark meant as feedback for the PR's author, often terse ("typo", "could be null"): write \
 it up as a clear, specific review comment they could post to the author, written as the \
 reviewer, grounded in the selected lines. Reply with just the comment.
@@ -68,6 +75,10 @@ function contextMessage(context: NoteContext): string {
   } else {
     parts.push(`All of this PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
   }
+  if (context.roundLines) {
+    parts.push(`This review covers only some of the PR's commits. In this file they changed lines ${context.roundLines}; the rest of its changes came before.`);
+  }
+  if (context.github) parts.push(`The comment on GitHub the reviewer is asking about:\n${context.github}`);
   if (context.code) {
     parts.push(`${context.finding ? "The finding is on" : "Selected"} ${context.lines}:\n\`\`\`diff\n${context.code}\n\`\`\``);
   } else {

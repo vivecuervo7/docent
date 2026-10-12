@@ -160,10 +160,13 @@
 				{/each}
 				{#each githubThreads as t (t.id)}
 					{@const what = t.outdated ? 'outdated GitHub thread' : 'GitHub thread on the whole file'}
+					{@const yours = session.record.notes.find((n) => n.github === t.id)}
 					<Pin
 						kind="github"
 						id={t.id}
 						active={session.openMark === t.id}
+						unread={!!yours && isUnread(yours)}
+						unreadLabel="New reply"
 						label="{t.entries[0]?.author ?? 'Someone'}'s {what}"
 						title="{t.entries[0]?.author ?? 'Someone'}'s {what}"
 						onclick={() => (session.openMark = session.openMark === t.id ? null : t.id)}

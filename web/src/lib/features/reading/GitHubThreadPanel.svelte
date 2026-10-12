@@ -1,20 +1,35 @@
 <script lang="ts">
-	import type { GitHubEntry, GitHubThread } from '$lib/types';
+	import type { GitHubComments, GitHubThread } from '$lib/types';
+	import { useSession } from '$lib/session/session.svelte';
 	import { timeAgo } from '$lib/ui/format';
 	import NoteText from '../../ui/NoteText.svelte';
+	import Composer, { type SendKind } from './Composer.svelte';
+	import ThreadPanel from './ThreadPanel.svelte';
 
 	// What someone said on GitHub: an inline thread, or a comment on the PR
 	// as a whole. Read here as it is there; it's theirs, not the review's.
+	// Below it, your own thread about it, begun by asking - or by asking
+	// whether the changes under review have addressed it.
 	// Without `onclose` it sits in the page rather than a bubble.
 	let {
 		thread,
-		entries = thread?.entries ?? [],
+		comment,
 		onclose
 	}: {
 		thread?: GitHubThread;
-		entries?: GitHubEntry[];
+		comment?: GitHubComments['general'][number];
 		onclose?: () => void;
 	} = $props();
+
+	const session = useSession();
+	const id = $derived(thread?.id ?? comment?.id ?? '');
+	const entries = $derived(thread?.entries ?? (comment ? [comment] : []));
+	const yours = $derived(session.record.notes.find((n) => n.github === id));
+	let draft = $state('');
+
+	const ADDRESSED =
+		'Have the changes under review addressed this comment? Say what in them addresses it, or what is still left, by line.';
+	const ask = (text: string, kind: SendKind) => session.askAboutGitHub(id, text, { comment: kind === 'comment' });
 
 	const where = $derived.by(() => {
 		if (!thread) return 'On GitHub';
@@ -46,6 +61,14 @@
 			</li>
 		{/each}
 	</ol>
+	{#if yours}
+		<div class="yours"><ThreadPanel note={yours} title="Your thread about it" /></div>
+	{:else}
+		<div class="ask">
+			<button class="chip" onclick={() => session.askAboutGitHub(id, 'Has this been addressed?', { prompt: ADDRESSED })}>Has this been addressed?</button>
+			<Composer bind:value={draft} placeholder="Ask about this comment, or write a reply for the review…" onsend={ask} />
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -94,6 +117,35 @@
 	.role {
 		font-size: 12px;
 		color: var(--muted);
+	}
+	.yours {
+		display: flex;
+		flex-direction: column;
+		border-top: 1px solid var(--line-2);
+	}
+	.ask {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 12px;
+		border-top: 1px solid var(--line-2);
+	}
+	.ask :global(.composer) {
+		align-self: stretch;
+	}
+	.chip {
+		padding: 4px 10px;
+		border: 0;
+		border-radius: 999px;
+		background: var(--you-chip);
+		color: var(--you-text);
+		font: inherit;
+		font-size: 12.5px;
+		cursor: pointer;
+	}
+	.chip:hover {
+		filter: brightness(1.2);
 	}
 	.text {
 		display: flex;

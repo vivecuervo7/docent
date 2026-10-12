@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import type { Mark } from './marks';
+	import { looseGitHubThreads, type Mark } from './marks';
 	import type { FileNote, LineRef, PrFile, PrRef } from '$lib/types';
 	import { highlightHunks, segments, type Token } from '$lib/features/reading/diff/highlight';
 	import {
@@ -363,7 +363,7 @@
 		const id = session.revealing;
 		if (!id) return;
 		untrack(() => {
-			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id)) {
+			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id) || looseGitHubThreads(session.github, file.filename).some((t) => t.id === id)) {
 				session.revealing = null;
 				collapsed = false;
 				session.openMark = id;
@@ -481,11 +481,11 @@
 		</span>
 		{#each pins ?? [] as p (p.mark.id)}
 			{#if session.openMark === p.mark.id}
-				<Floating anchor={openAnchor} label={p.mark.note ? 'Thread' : p.mark.github ? 'GitHub thread' : 'Finding'} tone={p.mark.kind === 'finding' ? 'agent' : 'plain'}>
-					{#if p.mark.note}
-						<ThreadPanel note={p.mark.note} onclose={() => (session.openMark = null)} />
-					{:else if p.mark.github}
+				<Floating anchor={openAnchor} label={p.mark.github ? 'GitHub thread' : p.mark.note ? 'Thread' : 'Finding'} tone={p.mark.kind === 'finding' ? 'agent' : 'plain'}>
+					{#if p.mark.github}
 						<GitHubThreadPanel thread={p.mark.github} onclose={() => (session.openMark = null)} />
+					{:else if p.mark.note}
+						<ThreadPanel note={p.mark.note} onclose={() => (session.openMark = null)} />
 					{:else}
 						<MarkPopover mark={p.mark} onclose={() => (session.openMark = null)} />
 					{/if}
