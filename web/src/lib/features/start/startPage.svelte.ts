@@ -42,9 +42,10 @@ export interface RowView {
 	note?: string;
 	// The note is about commits to review.
 	noteCommits?: boolean;
-	// Each shown commit, in the tone of the round covering it; `fresh` after
-	// every round, `out` in none before that.
-	track: (Tone | 'fresh' | 'out')[];
+	// Its rounds along its commits, as stretches: each round's in its
+	// state's tone, `fresh` after every round, `out` in none before that.
+	// Empty when there's nothing a track would add.
+	track: { tone: Tone | 'fresh' | 'out'; count: number }[];
 }
 
 // A row on the page: a saved review, or a PR you're part of that Docent
@@ -391,16 +392,22 @@ export class StartPage {
 					})
 				)
 			: null;
-		const fresh = covered?.fresh ?? 0;
-		const prepared = begun(rounds[shown]);
 		const state = states[shown];
-		const numbered = prepared && (rounds.length > 1 || fresh > 0);
+		// A review that's finished, or a PR that's closed, isn't asking for
+		// more: commits pushed since don't count.
+		const settled = state.tone === 'done' && !!rounds[shown].completedAt;
+		const closed = !!status && status.state !== 'OPEN';
+		const fresh = settled || closed ? 0 : (covered?.fresh ?? 0);
+		const prepared = begun(rounds[shown]);
+		const numbered = prepared && rounds.length > 1;
 		const commits = (n: number) => `${n} ${n === 1 ? 'commit' : 'commits'}`;
 		let note: string | undefined;
 		let noteCommits = false;
 		if (draft) {
 			note = `Round ${rounds.length} not started${fresh ? ` · ${commits(fresh)}` : ''}`;
 			noteCommits = true;
+		} else if (settled && rounds.length > 1) {
+			note = `${rounds.length} rounds`;
 		} else if (fresh && prepared) {
 			note = state.tone === 'done' ? `${fresh} new ${fresh === 1 ? 'commit' : 'commits'} to review` : `+${fresh} new ${fresh === 1 ? 'commit' : 'commits'}`;
 			noteCommits = true;
@@ -410,19 +417,28 @@ export class StartPage {
 			if (involved && (pr.unsaved || !pr.record.review?.posted)) note = this.reviewState(involved);
 			else if (findings) note = `${findings} ${findings === 1 ? 'finding' : 'findings'}`;
 		}
-		const track =
-			covered && rounds.some((r) => begun(r))
-				? covered.commits.map((c) => (c.round !== null ? states[c.round].tone : c.fresh ? ('fresh' as const) : ('out' as const)))
-				: [];
+		const track: RowView['track'] = [];
+		if (covered && prepared && !settled && (rounds.length > 1 || fresh > 0)) {
+			for (const c of covered.commits) {
+				const tone = c.round !== null ? states[c.round].tone : c.fresh ? ('fresh' as const) : ('out' as const);
+				const last = track.at(-1);
+				if (last?.tone === tone) last.count++;
+				else track.push({ tone, count: 1 });
+			}
+		}
 		return { status: numbered ? `Round ${shown + 1} · ${state.label}` : state.label, tone: state.tone, note, noteCommits, track };
 	}
 
 	// What's happened since you last opened a PR: activity on GitHub, a
-	// reviewer finishing, an answer you haven't read. None for one never opened.
+	// reviewer finishing, an answer you haven't read. None for one never
+	// opened; GitHub's activity doesn't count once the review's complete or
+	// the PR's closed.
 	changesSince(pr: Row): string[] {
 		const opened = pr.record.lastOpenedAt;
 		if (pr.unsaved || !opened) return [];
-		const updated = Date.parse(this.statuses[keyOf(pr)]?.updatedAt ?? this.involvedOf(pr)?.updatedAt ?? '') || 0;
+		const status = this.statuses[keyOf(pr)];
+		const quiet = !!pr.record.completedAt || (!!status && status.state !== 'OPEN');
+		const updated = quiet ? 0 : Date.parse(status?.updatedAt ?? this.involvedOf(pr)?.updatedAt ?? '') || 0;
 		const finished = pr.record.agentReviewers.filter((a) => (a.lastRun?.endedAt ?? 0) > opened).length;
 		const answers = [...Object.values(pr.record.feedback).flatMap((d) => d?.items ?? []), ...pr.record.notes].filter(isUnread).length;
 		return [

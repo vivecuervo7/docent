@@ -31,8 +31,8 @@
 				<span class="under">
 					{#if view.note}<span class="note" class:commits={view.noteCommits}>{view.note}</span>{/if}
 					{#if view.track.length}
-						<span class="track" class:dense={view.track.length > 18} aria-hidden="true">
-							{#each view.track as tone, i (i)}<span class="cell {tone}"><i></i></span>{/each}
+						<span class="track" aria-hidden="true">
+							{#each view.track as stretch, i (i)}<span class="stretch {stretch.tone}" style:flex-grow={stretch.count}></span>{/each}
 						</span>
 					{/if}
 				</span>
@@ -166,60 +166,29 @@
 	.note.commits {
 		color: var(--you-text);
 	}
-	/* Its rounds along its commits: each round's in its state's colour, a
-	   pip per commit, and those no round covers yet hollow. */
+	/* Its rounds along its commits: a stretch per round in its state's
+	   colour, new commits an outlined tail. */
 	.track {
 		display: flex;
-		align-items: center;
-		width: 112px;
-		height: 10px;
+		gap: 2px;
+		width: 72px;
+		height: 4px;
 	}
-	.cell {
+	.stretch {
 		flex: 1 1 0;
-		display: flex;
-		align-items: center;
-		height: 100%;
-	}
-	.cell::before {
-		content: '';
-		flex: 1 1 0;
-		height: 2px;
+		min-width: 3px;
+		border-radius: 2px;
 		background: var(--tone);
 	}
-	.cell:first-child::before {
-		background: none;
-	}
-	.cell i {
-		flex: none;
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: var(--tone);
-	}
-	.cell.working {
+	.stretch.working {
 		--tone: #6b6d73;
 	}
-	.cell.out {
+	.stretch.out {
 		--tone: var(--line-2);
 	}
-	.cell.fresh::before {
-		background: var(--line-2);
-	}
-	.cell.fresh i {
-		box-sizing: border-box;
+	.stretch.fresh {
 		background: none;
-		border: 1.5px solid var(--you);
-	}
-	/* Too many commits for a pip each: just the line. */
-	.track.dense .cell i {
-		width: 0;
-		border: 0;
-	}
-	.track.dense .cell::before {
-		height: 2px;
-	}
-	.track.dense .cell.fresh::before {
-		background: color-mix(in srgb, var(--you) 45%, transparent);
+		box-shadow: inset 0 0 0 1px var(--you);
 	}
 	/* Float just outside the row, so the states line up at its edge. */
 	.row-actions {
