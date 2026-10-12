@@ -383,3 +383,27 @@ export interface PrCommit {
 	message: string;
 	merge: boolean;
 }
+
+// Said on the PR on GitHub, by its reviewers or its author: inline threads
+// where they sit, and what was said on the PR as a whole.
+export interface GitHubEntry {
+	author: string;
+	body: string;
+	createdAt: string;
+}
+
+export interface GitHubThread {
+	id: string;
+	path: string;
+	// Where it sits at the PR's head; none when it's outdated or on a whole file.
+	start?: LineRef;
+	end?: LineRef;
+	outdated: boolean;
+	originalLine?: number;
+	entries: GitHubEntry[];
+}
+
+export interface GitHubComments {
+	threads: GitHubThread[];
+	general: (GitHubEntry & { id: string; state?: string })[];
+}

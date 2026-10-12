@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
-	import { marksFrom } from './marks';
+	import { githubMarksFrom, marksFrom } from './marks';
 	import { useSession } from '$lib/session/session.svelte';
 	import type { FileNote } from '$lib/types';
 	import DiffFile from './DiffFile.svelte';
@@ -35,7 +35,7 @@
 		const subject = path.replace(/(^|\/)(__tests__|tests?)\//, '$1').replace(/\.(test|spec)(\.[^/.]+)$/, '$2');
 		return `${subject}\u0000${isTest ? 1 : 0}`;
 	}
-	const marks = $derived(marksFrom(session.record));
+	const marks = $derived([...marksFrom(session.record), ...githubMarksFrom(session.github)]);
 
 	const files = $derived.by(() => {
 		const byFile = new Map<string, number[]>();

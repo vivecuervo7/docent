@@ -33,6 +33,7 @@
 	import MarkPopover from '../panel/MarkPopover.svelte';
 	import { testTitleLines } from '$lib/features/reading/testTitles';
 	import ThreadPanel from './ThreadPanel.svelte';
+	import GitHubThreadPanel from './GitHubThreadPanel.svelte';
 	import NoteText from '../../ui/NoteText.svelte';
 
 	let {
@@ -281,7 +282,7 @@
 		}
 		if (!unread.length) return null;
 		const first = unread[0];
-		return { kind: first.kind, first, solid: kept(first), unread: true, count: 0 };
+		return { kind: first.kind === 'finding' ? ('finding' as const) : ('note' as const), first, solid: kept(first), unread: true, count: 0 };
 	});
 	const elsewhere = $derived.by(() => {
 		if (!hunkIndices) return [];
@@ -471,7 +472,7 @@
 					unread={p.mark.kind === 'finding' ? !!p.mark.unread : !!p.mark.note && isUnread(p.mark.note)}
 					settled={!!p.mark.note && isConcluded(p.mark.note)}
 					unreadLabel={p.mark.kind === 'finding' ? 'New answer' : 'New reply'}
-					label="{p.mark.kind === 'finding' ? 'Finding' : 'Thread'} from {p.mark.who}"
+					label="{p.mark.kind === 'finding' ? 'Finding' : p.mark.kind === 'github' ? 'GitHub thread' : 'Thread'} from {p.mark.who}"
 					onclick={() => (session.openMark = session.openMark === p.mark.id ? null : p.mark.id)}
 					onpointerenter={() => (hovered = p.mark.id)}
 					onpointerleave={() => (hovered = null)}
@@ -480,9 +481,11 @@
 		</span>
 		{#each pins ?? [] as p (p.mark.id)}
 			{#if session.openMark === p.mark.id}
-				<Floating anchor={openAnchor} label={p.mark.note ? 'Thread' : 'Finding'} tone={p.mark.note ? 'plain' : 'agent'}>
+				<Floating anchor={openAnchor} label={p.mark.note ? 'Thread' : p.mark.github ? 'GitHub thread' : 'Finding'} tone={p.mark.kind === 'finding' ? 'agent' : 'plain'}>
 					{#if p.mark.note}
 						<ThreadPanel note={p.mark.note} onclose={() => (session.openMark = null)} />
+					{:else if p.mark.github}
+						<GitHubThreadPanel thread={p.mark.github} onclose={() => (session.openMark = null)} />
 					{:else}
 						<MarkPopover mark={p.mark} onclose={() => (session.openMark = null)} />
 					{/if}
@@ -689,6 +692,12 @@
 	}
 	.row.tint-note .code {
 		background-image: linear-gradient(var(--you-tint), var(--you-tint));
+	}
+	.row.tint-github .code {
+		background-image: linear-gradient(rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.035));
+	}
+	.row.tint-github.tint-active .code {
+		box-shadow: inset 2px 0 0 var(--muted);
 	}
 	.row.tint-active .code {
 		box-shadow: inset 2px 0 0 var(--agent);

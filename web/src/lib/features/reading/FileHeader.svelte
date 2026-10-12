@@ -7,7 +7,8 @@
 	import { isConcluded, useSession } from '$lib/session/session.svelte';
 	import { isUnread, type FileNote, type Note, type PrFile } from '$lib/types';
 	import Composer, { type SendKind } from './Composer.svelte';
-	import type { LooseMark, Mark } from './marks';
+	import { looseGitHubThreads, type LooseMark, type Mark } from './marks';
+	import GitHubThreadPanel from './GitHubThreadPanel.svelte';
 	import Pin from './Pin.svelte';
 	import ThreadPanel from './ThreadPanel.svelte';
 
@@ -45,6 +46,8 @@
 	} = $props();
 
 	const session = useSession();
+	// GitHub threads on the file with no lines here: outdated, or on the whole file.
+	const githubThreads = $derived(looseGitHubThreads(session.github, file.filename));
 
 	// Starting a thread on the whole file, from the header's comment button.
 	let composing = $state(false);
@@ -108,7 +111,7 @@
 			</div>
 		</Floating>
 	{/if}
-	{#if collapsed ? summary : wholeFile.length || fileThreads.length}
+	{#if collapsed ? summary : wholeFile.length || fileThreads.length || githubThreads.length}
 		<!-- A closed file shows one marker while findings await confirming or
 		     anything is new to read; an open one shows the findings about the
 		     whole file, which have no lines to sit on. -->
@@ -155,6 +158,17 @@
 						onclick={() => (session.openMark = session.openMark === n.id ? null : n.id)}
 					/>
 				{/each}
+				{#each githubThreads as t (t.id)}
+					{@const what = t.outdated ? 'outdated GitHub thread' : 'GitHub thread on the whole file'}
+					<Pin
+						kind="github"
+						id={t.id}
+						active={session.openMark === t.id}
+						label="{t.entries[0]?.author ?? 'Someone'}'s {what}"
+						title="{t.entries[0]?.author ?? 'Someone'}'s {what}"
+						onclick={() => (session.openMark = session.openMark === t.id ? null : t.id)}
+					/>
+				{/each}
 			{/if}
 		</span>
 	{/if}
@@ -170,6 +184,13 @@
 		{#if session.openMark === n.id}
 			<Floating anchor={openAnchor} label="Thread">
 				<ThreadPanel note={n} onclose={() => (session.openMark = null)} />
+			</Floating>
+		{/if}
+	{/each}
+	{#each githubThreads as t (t.id)}
+		{#if session.openMark === t.id}
+			<Floating anchor={openAnchor} label="GitHub thread">
+				<GitHubThreadPanel thread={t} onclose={() => (session.openMark = null)} />
 			</Floating>
 		{/if}
 	{/each}

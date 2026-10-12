@@ -1,10 +1,11 @@
 import { groupsOf, isShown, reviewerName } from '../panel/findings';
-import { isNewFinding, isUnread, type LineRef, type Note, type PrRecord, type Severity } from '../../types';
+import { isNewFinding, isUnread, type GitHubComments, type GitHubThread, type LineRef, type Note, type PrRecord, type Severity } from '../../types';
 
-// Anything with a pin on the diff: a reviewer's thread, or an agent's finding.
+// Anything with a pin on the diff: a reviewer's thread, an agent's finding,
+// or a thread someone left on GitHub.
 export interface Mark {
 	id: string;
-	kind: 'note' | 'finding';
+	kind: 'note' | 'finding' | 'github';
 	path: string;
 	start: LineRef;
 	end: LineRef;
@@ -14,6 +15,8 @@ export interface Mark {
 	included?: boolean;
 	// A thread's own record, for its messages and hunk.
 	note?: Note;
+	// A GitHub thread, as GitHub has it.
+	github?: GitHubThread;
 	// The agent reviewer a finding came from.
 	reviewer?: string;
 	// Whether the reviewer has kept or skipped the finding yet.
@@ -104,6 +107,19 @@ export function marksFrom(record: PrRecord): Mark[] {
 			: []
 	);
 	return [...notes, ...findings];
+}
+
+// GitHub's threads that sit on lines at the PR's head.
+export function githubMarksFrom(comments: GitHubComments | null): Mark[] {
+	return (comments?.threads ?? []).flatMap((t): Mark[] =>
+		t.start && t.end ? [{ id: t.id, kind: 'github', path: t.path, start: t.start, end: t.end, who: t.entries[0]?.author ?? '', body: t.entries[0]?.body ?? '', github: t }] : []
+	);
+}
+
+// GitHub's threads on a file without lines to sit on: outdated, or about
+// the whole file.
+export function looseGitHubThreads(comments: GitHubComments | null, path: string): GitHubThread[] {
+	return (comments?.threads ?? []).filter((t) => t.path === path && !t.start);
 }
 
 // Your threads without lines: on a whole file, or with no path on the PR.

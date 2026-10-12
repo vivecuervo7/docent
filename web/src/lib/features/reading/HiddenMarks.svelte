@@ -10,7 +10,7 @@
 {#if marks.length}
 	<span class="hidden-marks">
 		{#each marks as m (m.id)}
-			<span class="mark {m.kind}" class:skipped={m.kind === 'finding' && m.included === false} title="{m.kind === 'finding' ? 'A finding' : 'A thread'} is inside">
+			<span class="mark {m.kind}" class:skipped={m.kind === 'finding' && m.included === false} title="{m.kind === 'finding' ? 'A finding' : m.kind === 'github' ? 'A GitHub thread' : 'A thread'} is inside">
 				<MarkIcon kind={m.kind} small />
 			</span>
 		{/each}
@@ -40,6 +40,11 @@
 	}
 	.mark.note {
 		fill: var(--you);
+	}
+	.mark.github {
+		fill: none;
+		stroke: var(--muted);
+		stroke-width: 1.8;
 	}
 	.mark.finding.skipped {
 		fill: none;

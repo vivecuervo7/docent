@@ -19,7 +19,7 @@
 		onpointerenter,
 		onpointerleave
 	}: {
-		kind: 'finding' | 'note';
+		kind: 'finding' | 'note' | 'github';
 		id?: string;
 		label: string;
 		title?: string;
@@ -74,6 +74,13 @@
 	}
 	.pin.note {
 		fill: var(--you);
+	}
+	/* Someone else's, on GitHub: the bubble outlined, in neither the panel's
+	   colour nor yours. */
+	.pin.github {
+		fill: none;
+		stroke: var(--muted);
+		stroke-width: 1.8;
 	}
 	.pin.settled {
 		opacity: 0.45;

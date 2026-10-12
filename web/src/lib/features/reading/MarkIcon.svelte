@@ -1,7 +1,8 @@
 <script lang="ts">
-	// A mark's shape: a finding's diamond, or a thread's speech bubble. It
-	// takes its fill from where it sits.
-	let { kind, small = false }: { kind: 'finding' | 'note'; small?: boolean } = $props();
+	// A mark's shape: a finding's diamond, or a thread's speech bubble - a
+	// GitHub thread's the same bubble, which its pin draws outlined. It takes
+	// its fill from where it sits.
+	let { kind, small = false }: { kind: 'finding' | 'note' | 'github'; small?: boolean } = $props();
 </script>
 
 {#if kind === 'finding'}
