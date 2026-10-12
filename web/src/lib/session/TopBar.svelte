@@ -41,7 +41,7 @@
 		<span class="joint"></span>
 		{#if readTarget}
 			<a href="{base}/slices/{readTarget}" class="stage" class:current={onSlice} aria-current={onSlice ? 'page' : undefined}>
-				<StateMark state={onSlice ? 'now' : allRead ? 'done' : 'todo'} />Read {session.reviewedSlices} of {total}
+				<StateMark state={onSlice ? 'now' : allRead ? 'done' : 'todo'} />Read{#if !session.switchingRound}{` ${session.reviewedSlices} of ${total}`}{/if}
 			</a>
 		{:else}
 			<span class="stage off"><StateMark state="todo" />Read</span>

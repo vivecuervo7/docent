@@ -32,6 +32,8 @@
 		<p>Couldn't open this PR: {session.error}</p>
 		<a class="btn" href="/">Back to your reviews</a>
 	</div>
+{:else if session.switchingRound}
+	<p class="status faint">Loading round {(session.round ?? session.roundCount - 1) + 1}…</p>
 {:else}
 	{@render children()}
 {/if}

@@ -64,10 +64,11 @@
 		goto(session.baseFor(index));
 	}
 
+	// The new round becomes the latest, so its URL follows it.
 	async function reviewNew() {
 		open = false;
-		await goto(session.baseFor(null));
 		await session.nextRound();
+		goto(session.baseFor(null));
 	}
 
 	$effect(() => {

@@ -100,10 +100,13 @@ export class PrSession {
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
 	readonly roundCount = $derived((this.#stored.rounds?.length ?? 0) + 1);
-	// Where a round's pages are: the latest's have no round in their URL.
+	// Where a round's pages are. Once a PR has rounds, each is linked by its
+	// number, so a link keeps to its round after another begins; a URL
+	// without one is the latest.
 	baseFor(index: number | null): string {
 		const { owner, repo, number } = this.ref;
-		return `/pr/${owner}/${repo}/${number}${index === null ? '' : `/round-${index + 1}`}`;
+		const n = index === null ? (this.roundCount > 1 ? this.roundCount : null) : index + 1;
+		return `/pr/${owner}/${repo}/${number}${n === null ? '' : `/round-${n}`}`;
 	}
 	readonly base = $derived(this.baseFor(this.round));
 	// The round the URL asks for, by number from 1; the latest when it's
@@ -698,17 +701,29 @@ export class PrSession {
 		return number !== null && number >= 1 && number <= earlier ? number - 1 : null;
 	}
 
-	// Opens an earlier round, or the latest with null. Its files come first,
-	// so its slices never meet another round's.
+	// Opens an earlier round, or the latest with null: at once, so the top
+	// bar and its links are right straight away, while the pages wait for its
+	// files, so its slices never meet another round's. The last one asked
+	// for wins.
+	switchingRound = $state(false);
+	#switch = 0;
 	async viewRound(index: number | null) {
 		if (index === this.round) return;
-		const { files } = await fetchPr(this.ref, index ?? undefined);
-		if (this.#closed) return;
+		const turn = ++this.#switch;
 		this.panel.close();
 		this.round = index;
-		this.files = files;
+		this.switchingRound = true;
 		this.#show(this.#stored);
-		this.panel.load();
+		try {
+			const { files } = await fetchPr(this.ref, index ?? undefined);
+			if (this.#closed || turn !== this.#switch) return;
+			this.files = files;
+			this.panel.load();
+		} catch (err) {
+			if (turn === this.#switch) this.error = (err as Error).message;
+		} finally {
+			if (turn === this.#switch) this.switchingRound = false;
+		}
 	}
 
 	// Keeps the latest round as it is and begins another, waiting, as a new

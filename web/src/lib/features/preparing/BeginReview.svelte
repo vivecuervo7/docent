@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import InlineText from '../../ui/InlineText.svelte';
 	import ReviewModel from './ReviewModel.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
@@ -125,7 +126,7 @@
 					Prepare and review
 				</button>
 				<button class="btn" disabled={starting} onclick={() => begin(false)}>Just prepare</button>
-				{#if next}<button class="btn" disabled={starting} onclick={() => session.dropRound()}>Cancel</button>{/if}
+				{#if next}<button class="btn" disabled={starting} onclick={() => session.dropRound().then(() => goto(session.base))}>Cancel</button>{/if}
 			</div>
 		{/if}
 	</div>
