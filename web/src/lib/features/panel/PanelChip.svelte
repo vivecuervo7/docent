@@ -192,6 +192,9 @@
 	.pill[aria-expanded='true'] {
 		background: #262118;
 	}
+	.pill > span {
+		white-space: nowrap;
+	}
 	.popover {
 		position: absolute;
 		z-index: 40;

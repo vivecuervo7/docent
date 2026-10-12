@@ -363,7 +363,7 @@
 		const id = session.revealing;
 		if (!id) return;
 		untrack(() => {
-			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id) || looseGitHubThreads(session.github, file.filename).some((t) => t.id === id)) {
+			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id) || looseGitHubThreads(session.githubShown, file.filename).some((t) => t.id === id)) {
 				session.revealing = null;
 				collapsed = false;
 				session.openMark = id;

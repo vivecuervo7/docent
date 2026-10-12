@@ -403,7 +403,10 @@ export interface GitHubThread {
 	start?: LineRef;
 	end?: LineRef;
 	outdated: boolean;
+	originalStartLine?: number;
 	originalLine?: number;
+	// The commit it was left on.
+	commit?: string;
 	entries: GitHubEntry[];
 }
 

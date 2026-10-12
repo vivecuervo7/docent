@@ -22,8 +22,10 @@ export interface GitHubThread {
   start?: { side: "old" | "new"; line: number };
   end?: { side: "old" | "new"; line: number };
   outdated: boolean;
-  // The line it was left on, as the code was then.
+  // The lines it was left on, as the code was then, and the commit it was.
+  originalStartLine?: number;
   originalLine?: number;
+  commit?: string;
   entries: GitHubEntry[];
 }
 
@@ -45,6 +47,8 @@ interface RawInline {
   side: "LEFT" | "RIGHT" | null;
   start_side: "LEFT" | "RIGHT" | null;
   original_line: number | null;
+  original_start_line?: number | null;
+  original_commit_id?: string;
   subject_type?: "line" | "file";
 }
 
@@ -76,6 +80,8 @@ export async function fetchGitHubComments(owner: string, repo: string, number: s
         path: c.path,
         outdated: c.line === null && c.subject_type !== "file",
         ...(c.original_line !== null ? { originalLine: c.original_line } : {}),
+        ...(c.original_start_line ? { originalStartLine: c.original_start_line } : {}),
+        ...(c.original_commit_id ? { commit: c.original_commit_id } : {}),
         ...(placed
           ? {
               start: { side: side(c.start_side ?? c.side), line: c.start_line ?? c.line! },

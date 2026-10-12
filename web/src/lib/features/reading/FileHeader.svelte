@@ -47,7 +47,7 @@
 
 	const session = useSession();
 	// GitHub threads on the file with no lines here: outdated, or on the whole file.
-	const githubThreads = $derived(looseGitHubThreads(session.github, file.filename));
+	const githubThreads = $derived(looseGitHubThreads(session.githubShown, file.filename));
 
 	// Starting a thread on the whole file, from the header's comment button.
 	let composing = $state(false);

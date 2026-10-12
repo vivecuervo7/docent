@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import PanelChip from '../features/panel/PanelChip.svelte';
+	import RoundChip from '../features/rounds/RoundChip.svelte';
 	import StateMark from '../ui/StateMark.svelte';
 
 	// The review's stages.
@@ -55,6 +56,7 @@
 		</a>
 	</nav>
 	<div class="right">
+		<RoundChip />
 		<PanelChip />
 	</div>
 </header>
@@ -119,6 +121,7 @@
 	.right {
 		display: flex;
 		justify-content: flex-end;
+		gap: 8px;
 	}
 	.joint {
 		width: 28px;

@@ -1,6 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
-import { fetchPr, listModels, readHeld, readOk } from '../api/client';
+import { fetchCommits, fetchPr, listModels, readHeld, readOk } from '../api/client';
 import { groupsOf, reviewerName } from '../features/panel/findings';
 import { dismissGeneration, getGeneration, startGeneration, stopGeneration } from '../features/preparing/generations';
 import { type LooseMark, type Mark, looseMarksFrom, marksFrom } from '../features/reading/marks';
@@ -11,7 +11,7 @@ import { everythingElse, isSliceReviewed } from '../features/reading/progress';
 import { readPref, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
 import { beginRound, dropRound, keepRound, roundView } from '../storage/rounds';
-import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type GitHubComments, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
+import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type GitHubComments, type GitHubThread, type PrCommit, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -65,6 +65,8 @@ export class PrSession {
 	round = $state<number | null>(null);
 	// What's been said on the PR on GitHub, fetched as it opens.
 	github = $state<GitHubComments | null>(null);
+	// The PR's commits, oldest first, merges included.
+	commits = $state<PrCommit[] | null>(null);
 	generation = $state<Generation | null>(null);
 	loading = $state(true);
 	error = $state<string | null>(null);
@@ -98,12 +100,49 @@ export class PrSession {
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
 	readonly roundCount = $derived((this.#stored.rounds?.length ?? 0) + 1);
-	// The commit the round before the latest was prepared at.
-	readonly previousHead = $derived(this.#stored.rounds?.at(-1)?.preparedHead);
-	// Commits pushed since the latest round was prepared.
-	readonly newCommits = $derived(
-		this.round === null && !!this.meta?.head && !!this.record.preparedHead && this.meta.head !== this.record.preparedHead
+	// Every round, oldest first, with the commits each covers; the latest
+	// covers none until it's begun.
+	readonly roundSpans = $derived(
+		[...(this.#stored.rounds ?? []), this.#stored].map((r, i, all) => {
+			const latest = i === all.length - 1;
+			return { index: latest ? null : i, range: r.range, end: latest && !begun(r as PrRecord) ? undefined : (r.range?.to ?? r.preparedHead ?? this.meta?.head) };
+		})
 	);
+	// The commit the round being looked at reads up to.
+	readonly roundEnd = $derived(this.record.range?.to ?? this.record.preparedHead ?? this.meta?.head);
+
+	// What's been said on GitHub about the round being looked at: on its
+	// files, and by its last commit. One on lines sits on them in a round read
+	// at the PR's head, where GitHub places it, or at the commit it was left
+	// on; otherwise its lines may have moved, so it sits on its file.
+	readonly githubShown = $derived.by((): GitHubComments | null => {
+		if (!this.github) return null;
+		const files = new Set(this.files.map((f) => f.filename));
+		const atHead = !this.roundEnd || this.roundEnd === this.meta?.head;
+		const all = this.commits ?? [];
+		const endAt = all.findIndex((c) => c.sha === this.roundEnd);
+		const endDate = endAt >= 0 ? Date.parse(all[endAt].date) : Infinity;
+		const leftBy = (createdAt: string, commit?: string) => {
+			if (atHead) return true;
+			const at = commit ? all.findIndex((c) => c.sha === commit) : -1;
+			return at >= 0 && endAt >= 0 ? at <= endAt : Date.parse(createdAt) <= endDate;
+		};
+		return {
+			threads: this.github.threads
+				.filter((t) => files.has(t.path) && leftBy(t.entries[0]?.createdAt ?? '', t.commit))
+				.map((t): GitHubThread => {
+					if (atHead || (!t.start && !t.outdated)) return t;
+					if (t.commit === this.roundEnd && t.originalLine) {
+						const side = t.end?.side ?? 'new';
+						return { ...t, outdated: false, start: { side, line: t.originalStartLine ?? t.originalLine }, end: { side, line: t.originalLine } };
+					}
+					return { ...t, start: undefined, end: undefined, outdated: true };
+				}),
+			general: this.github.general.filter((c) => leftBy(c.createdAt))
+		};
+	});
+	// The commit the round before the latest read up to.
+	readonly previousHead = $derived(this.#stored.rounds?.at(-1)?.range?.to ?? this.#stored.rounds?.at(-1)?.preparedHead);
 
 	readonly panel: Panel = new Panel(this);
 	readonly post: ReviewPost = new ReviewPost(this);
@@ -130,6 +169,9 @@ export class PrSession {
 			this.panel.load();
 			// A review asked for while it was preparing, which finished while away.
 			if (record.summary) this.panel.applyDefault().then(() => this.#reviewIfAsked());
+			fetchCommits(this.ref)
+				.then((commits) => !this.#closed && (this.commits = commits))
+				.catch(() => {});
 			fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`)
 				.then((res) => readOk<GitHubComments>(res))
 				.then((comments) => !this.#closed && (this.github = comments))
