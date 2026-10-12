@@ -75,13 +75,16 @@
 			<div class="block whole-pr">
 				<h2>About the PR as a whole</h2>
 				{#each wholePr as mark (mark.id)}<FindingCard {mark} />{/each}
-				{#each prThreads as note (note.id)}<div class="pr-thread"><ThreadPanel {note} /></div>{/each}
 				{#if general.length}
-					<Disclosure bind:open={showGeneral} label="Said on GitHub" count={general.length} />
-					{#if showGeneral}
-						{#each general as c (c.id)}<div class="pr-thread"><GitHubThreadPanel comment={c} /></div>{/each}
-					{/if}
+					<div class="said">
+						<Disclosure bind:open={showGeneral} label="Said on GitHub" count={general.length} />
+						{#if showGeneral}
+							{#each general as c (c.id)}<div class="pr-thread"><GitHubThreadPanel comment={c} /></div>{/each}
+						{/if}
+					</div>
 				{/if}
+				<!-- Your threads sit by the box they're asked from, so a new one appears where you asked it. -->
+				{#each prThreads as note (note.id)}<div class="pr-thread"><ThreadPanel {note} /></div>{/each}
 				<Composer bind:value={draft} placeholder="Ask about the PR, or write a comment for the review…" onsend={startThread} />
 			</div>
 		</section>
@@ -161,7 +164,11 @@
 	}
 	.whole-pr {
 		display: grid;
-		gap: 12px;
+		gap: 20px;
+	}
+	.said {
+		display: grid;
+		gap: 14px;
 	}
 	.whole-pr h2 {
 		margin: 0;

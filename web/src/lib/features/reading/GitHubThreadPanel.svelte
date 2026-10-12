@@ -127,8 +127,8 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 8px;
-		padding: 12px;
+		gap: 12px;
+		padding: 14px 16px 16px;
 		border-top: 1px solid var(--line-2);
 	}
 	.ask :global(.composer) {

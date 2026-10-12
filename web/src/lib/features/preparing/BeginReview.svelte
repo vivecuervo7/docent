@@ -3,6 +3,7 @@
 	import ReviewModel from './ReviewModel.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 	import PanelCard from '../panel/PanelCard.svelte';
+	import CommitTrack from '../rounds/CommitTrack.svelte';
 	import { fetchCommits } from '$lib/api/client';
 	import { useSession } from '$lib/session/session.svelte';
 	import type { PrCommit } from '$lib/types';
@@ -44,34 +45,6 @@
 	const last = $derived((commits?.length ?? 1) - 1);
 	const whole = $derived(from === 0 && to === last);
 
-	const dayOf = (iso: string) => new Date(iso).toDateString();
-	function dayLabel(iso: string): string {
-		const day = new Date(iso);
-		const today = new Date();
-		const yesterday = new Date(today.getTime() - 86_400_000);
-		if (day.toDateString() === today.toDateString()) return 'Today';
-		if (day.toDateString() === yesterday.toDateString()) return 'Yesterday';
-		return day.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-	}
-	// Each day's first commit, where its label sits. Where two would run
-	// into each other the later day keeps its label: recent work is what's
-	// usually picked out.
-	const LABEL_ROOM = 52;
-	let width = $state(0);
-	const days = $derived.by(() => {
-		const out: { i: number; label: string }[] = [];
-		const px = (i: number) => (last ? (i / last) * width : 0);
-		(commits ?? []).forEach((c, i, all) => {
-			if (i > 0 && dayOf(all[i - 1].date) === dayOf(c.date)) return;
-			const before = out.at(-1);
-			if (before && px(i) - px(before.i) < LABEL_ROOM) out.pop();
-			out.push({ i, label: dayLabel(c.date) });
-		});
-		return out;
-	});
-
-	// Where commit i sits along the track, matching the knobs' centres.
-	const at = (i: number) => `calc(var(--knob) / 2 + (100% - var(--knob)) * ${last ? i / last : 0})`;
 
 	// With `review`, the panel starts as soon as it's prepared.
 	function begin(review: boolean) {
@@ -104,12 +77,12 @@
 			</p>
 
 			{#if commits.length > 1}
-				<div class="slider" style:--knob="16px">
-					<div class="track"></div>
-					<div class="fill" style:left={at(from)} style:right="calc(100% - {at(to)})"></div>
-					{#each commits as c, i (c.sha)}
-						<span class="pip" class:on={i >= from && i <= to} style:left={at(i)}></span>
-					{/each}
+				<div class="slider">
+					<CommitTrack
+						dates={commits.map((c) => c.date)}
+						fills={[{ from, to, tone: 'in' }]}
+						tones={commits.map((_, i) => (i >= from && i <= to ? 'in' : 'out'))}
+					>
 					<input
 						type="range"
 						min="0"
@@ -131,9 +104,7 @@
 						oninput={(e) => (to = Math.max(Number(e.currentTarget.value), from))}
 						onchange={(e) => (e.currentTarget.value = String(to))}
 					/>
-				</div>
-				<div class="days" style:--knob="16px" bind:clientWidth={width}>
-					{#each days as d (d.i)}<span style:left={at(d.i)}>{d.label}</span>{/each}
+					</CommitTrack>
 				</div>
 			{/if}
 
@@ -226,38 +197,9 @@
 		color: var(--danger);
 	}
 
-	/* Two native range inputs over one track; only their knobs take the pointer. */
+	/* Two native range inputs over the track; only their knobs take the pointer. */
 	.slider {
-		position: relative;
-		height: 24px;
 		margin-top: 6px;
-	}
-	.track,
-	.fill {
-		position: absolute;
-		top: 11px;
-		height: 2px;
-		border-radius: 1px;
-	}
-	.track {
-		left: 0;
-		right: 0;
-		background: var(--line-2);
-	}
-	.fill {
-		background: var(--you);
-	}
-	.pip {
-		position: absolute;
-		top: 9px;
-		width: 6px;
-		height: 6px;
-		margin-left: -3px;
-		border-radius: 50%;
-		background: var(--line-2);
-	}
-	.pip.on {
-		background: var(--you);
 	}
 	input[type='range'] {
 		position: absolute;
@@ -302,21 +244,6 @@
 	input[type='range']:focus-visible::-webkit-slider-thumb {
 		outline: 2px solid var(--you);
 		outline-offset: 2px;
-	}
-	.days {
-		position: relative;
-		height: 18px;
-		font-size: 12px;
-		color: var(--faint);
-	}
-	.days span {
-		position: absolute;
-		transform: translateX(-50%);
-		white-space: nowrap;
-	}
-	.days span:first-child {
-		transform: none;
-		margin-left: calc(var(--knob) / -2);
 	}
 
 	.commits {

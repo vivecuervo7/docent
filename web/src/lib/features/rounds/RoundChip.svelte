@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { useSession } from '$lib/session/session.svelte';
+	import CommitTrack from './CommitTrack.svelte';
 
 	// The commits this review covers, from any page: a quiet chip with the
 	// round and how many of the PR's commits it spans, a pip for each, that
@@ -31,7 +32,7 @@
 		all.flatMap((c, k) => {
 			if (c.merge) return [];
 			const fresh = latest.to >= 0 && k > Math.max(...spans.map((s) => s.to));
-			const state = covers(viewed, k) ? 'in' : fresh ? 'new' : spans.some((s) => covers(s, k)) ? 'other' : 'out';
+			const state: 'in' | 'new' | 'other' | 'out' = covers(viewed, k) ? 'in' : fresh ? 'new' : spans.some((s) => covers(s, k)) ? 'other' : 'out';
 			// The latest round holding it, to open from it.
 			const holder = [...spans].reverse().find((s) => covers(s, k));
 			return [{ c, k, state, holder }];
@@ -44,6 +45,16 @@
 	const firstIn = $derived(pips.findIndex((p) => p.state === 'in'));
 	const lastIn = $derived(pips.findLastIndex((p) => p.state === 'in'));
 	const firstNew = $derived(pips.findIndex((p) => p.state === 'new'));
+	// Each round's stretch of the line, the one open drawn last, over the rest.
+	const fills = $derived(
+		spans
+			.map((s) => {
+				const held = pips.flatMap((p, i) => (covers(s, p.k) ? [i] : []));
+				return held.length ? { from: held[0], to: held.at(-1)!, tone: s === viewed ? ('in' as const) : ('other' as const) } : null;
+			})
+			.filter((f) => f !== null)
+			.sort((a, b) => (a.tone === 'in' ? 1 : 0) - (b.tone === 'in' ? 1 : 0))
+	);
 	const fresh = $derived(pips.filter((p) => p.state === 'new').length);
 	const earlier = $derived(session.round !== null);
 
@@ -95,18 +106,20 @@
 		{#if open}
 			<div class="popover" role="dialog" aria-label="Rounds of this review">
 				<div class="strip">
-					{#each pips as p (p.c.sha)}
-						<button
-							class="pip {p.state}"
-							disabled={!p.holder}
-							title="{p.c.sha.slice(0, 7)} · {date(p.c.date)} · {p.c.message}{p.holder ? ` · round ${numberOf(p.holder)}` : ' · not yet reviewed'}"
-							aria-label="{p.c.message}{p.holder ? `, in round ${numberOf(p.holder)}` : ', not yet reviewed'}"
-							onclick={() => p.holder && view(p.holder.index)}
-						></button>
-					{/each}
+					<CommitTrack
+						knob={10}
+						dates={pips.map((p) => p.c.date)}
+						{fills}
+						tones={pips.map((p) => p.state)}
+						titles={pips.map(
+							(p) =>
+								`${p.c.sha.slice(0, 7)} · ${date(p.c.date)} · ${p.c.message}${p.holder ? ` · round ${numberOf(p.holder)}` : ' · not yet reviewed'}`
+						)}
+						onpip={(i) => pips[i].holder && view(pips[i].holder.index)}
+					/>
 				</div>
 				<ul>
-					{#each [...spans].reverse() as s (s.index ?? 'latest')}
+					{#each spans as s (s.index ?? 'latest')}
 						{@const count = pips.filter((p) => covers(s, p.k)).length}
 						<li>
 							{#if s === viewed}
@@ -198,37 +211,7 @@
 			0 30px 70px -20px rgba(0, 0, 0, 0.7);
 	}
 	.strip {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 5px;
-		padding: 0 16px 12px;
-	}
-	.pip {
-		width: 10px;
-		height: 10px;
-		padding: 0;
-		border: 0;
-		border-radius: 50%;
-		background: var(--line-2);
-		cursor: pointer;
-	}
-	.pip:disabled {
-		cursor: default;
-	}
-	.pip.in {
-		background: var(--you);
-	}
-	.pip.other {
-		background: var(--faint);
-		opacity: 0.6;
-	}
-	.pip.new {
-		background: none;
-		box-shadow: inset 0 0 0 1.5px var(--you);
-	}
-	.pip:not(:disabled):hover {
-		filter: brightness(1.3);
-		opacity: 1;
+		padding: 0 18px 10px;
 	}
 	ul {
 		list-style: none;
