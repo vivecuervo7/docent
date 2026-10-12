@@ -24,7 +24,8 @@ export function numberedHunk(hunk: string): string {
   return out.join("\n");
 }
 
-export function numberedFileDiff(file: PrFile, hunkIndices?: number[]): string {
+// For a range of commits, only the hunks it touched, unless asked for others.
+export function numberedFileDiff(file: PrFile, hunkIndices = file.inRange): string {
   if (!file.patch) return `${file.filename} (${file.status}, no text diff)`;
   const hunks = splitPatchIntoHunks(file.patch);
   const shown = hunkIndices ? hunkIndices.map((i) => hunks[i]).filter(Boolean) : hunks;

@@ -2,6 +2,7 @@
 	import FindingCard from '$lib/features/panel/FindingCard.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import PanelCard from '$lib/features/panel/PanelCard.svelte';
+	import BeginReview from '$lib/features/preparing/BeginReview.svelte';
 	import PreparingView from '$lib/features/preparing/PreparingView.svelte';
 	import ReviewModel from '$lib/features/preparing/ReviewModel.svelte';
 	import StateMark from '$lib/ui/StateMark.svelte';
@@ -30,6 +31,8 @@
 
 {#if session.preparing}
 	<PreparingView />
+{:else if session.unprepared && !session.loading}
+	<BeginReview />
 {:else}
 	<main>
 		<section class="about">

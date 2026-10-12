@@ -1,10 +1,11 @@
-import { fetchPrConversation, fetchPrFiles, fetchPrHeadSha, fetchPrMeta } from "../../github/github.server.js";
+import { fetchPrConversation, fetchPrMeta } from "../../github/github.server.js";
 import { maxConcurrentGenerations } from "../../storage/settings.server.js";
 import { generateConversationSummary, generateSummary } from "./overview.server.js";
 import { generateFileNotes } from "./fileNotes.server.js";
 import { generateSlices } from "./slices.server.js";
 import type { ConversationSummary, FileNote, PrSummary, Slice } from "../../types.server.js";
 import { persistent } from "../../storage/persistent.server.js";
+import { fetchReviewFiles, fetchReviewHead } from "../../github/range.server.js";
 
 // Preparing a PR's review runs here rather than in the browser, so it keeps
 // going when the tab closes and can be checked in on or stopped. Jobs live in
@@ -163,7 +164,7 @@ async function run(job: Job) {
     const [slices, conversation] = await Promise.all([
       reuse.slices ??
         step("slices", async () => {
-          const [files, head] = await Promise.all([fetchPrFiles(owner, repo, number), fetchPrHeadSha(owner, repo, number)]);
+          const [files, head] = await Promise.all([fetchReviewFiles(owner, repo, number), fetchReviewHead(owner, repo, number)]);
           const slices = await generateSlices(files, signal, model);
           generation.results.head = head;
           generation.results.slices = slices;
@@ -187,7 +188,7 @@ async function run(job: Job) {
       reuse.slices && reuse.fileNotes
         ? undefined
         : step("notes", async () => {
-            generation.results.fileNotes = await generateFileNotes(await fetchPrFiles(owner, repo, number), slices, signal, model);
+            generation.results.fileNotes = await generateFileNotes(await fetchReviewFiles(owner, repo, number), slices, signal, model);
           }),
     ]);
     generation.status = "done";

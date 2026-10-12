@@ -1,10 +1,10 @@
-import { fetchPrFiles } from "../../github/github.server.js";
 import { editorModel } from "./editor.server.js";
 import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { numberedFileDiff } from "../../github/prDiff.server.js";
 import { prHead } from "../../github/repoCache.server.js";
 import { persistent } from "../../storage/persistent.server.js";
+import { fetchReviewFiles } from "../../github/range.server.js";
 
 // What the code around a PR shows, looked up once and shared by every one of
 // Docent's reviewers. They review from the diff alone, and guess at what it
@@ -101,7 +101,7 @@ export async function codeContext(owner: string, repo: string, number: string, m
 }
 
 async function lookUp(owner: string, repo: string, number: string, model: string, mcpUrl: string, lookup: Lookup): Promise<string> {
-  const files = await fetchPrFiles(owner, repo, number);
+  const files = await fetchReviewFiles(owner, repo, number);
   const diff = files.map((f) => numberedFileDiff(f)).join("\n\n");
   const shown = diff.length <= 120_000 ? `The diff:\n\n${diff}` : `The files it changes (read their diffs with get_diff):\n${files.map((f) => f.filename).join("\n")}`;
   const call = await inLane(

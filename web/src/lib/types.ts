@@ -13,6 +13,10 @@ export interface PrFile {
 	deletions: number;
 	patch?: string;
 	previous_filename?: string;
+	// Reviewing a range of commits: the hunks it touched, and its lines in
+	// them. Without these, the whole PR is under review.
+	inRange?: number[];
+	rangeLines?: { old: number[]; new: number[] };
 }
 
 export interface PrMeta {
@@ -238,6 +242,8 @@ export interface PrRecord {
 	// The PR's head commit when its slices were made, to tell when it's had
 	// new commits since.
 	preparedHead?: string;
+	// The commits under review, when it isn't the whole PR.
+	range?: ReviewRange;
 	// Set once the reviewer marks the review complete, after posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
@@ -336,4 +342,20 @@ export interface ReviewPayload {
 	event?: ReviewEvent;
 	body: string;
 	comments: { path: string; line: number; start_line?: number; body: string }[];
+}
+
+// Some of a PR's commits: those after `after`, up to and including `to`.
+export interface ReviewRange {
+	after: string;
+	to: string;
+}
+
+export interface PrCommit {
+	sha: string;
+	// The commit before it: where a range starting at it begins.
+	parent: string;
+	date: string;
+	// Its first line.
+	message: string;
+	merge: boolean;
 }

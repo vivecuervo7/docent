@@ -1,11 +1,12 @@
 import { claudeCodeAvailable } from "../../models/claudeCode.server.js";
 import { modelName, resolveModel, savedEditorModel } from "../../storage/settings.server.js";
-import { conversationText, fetchPrConversation, fetchPrFiles } from "../../github/github.server.js";
+import { conversationText, fetchPrConversation } from "../../github/github.server.js";
 import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js";
 import { inNamedLane } from "../../models/lanes.server.js";
 import { hunkIndicesByFile, numberedFileDiff } from "../../github/prDiff.server.js";
 import { getRecord, keyFor } from "../../storage/store.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
+import { fetchReviewFiles } from "../../github/range.server.js";
 
 // The panel's editor: with several reviewers on a PR, the same point is
 // often raised more than once, and reviewers seeing only the diff raise
@@ -206,7 +207,7 @@ export async function editFindings(
   const conversation = conversationText(await fetchPrConversation(owner, repo, number));
   const record = getRecord(keyFor(owner, repo, number)).record as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
   const slice = args.slice ? record.slices?.find((s) => s.id === args.slice) : undefined;
-  const files = slice ? await fetchPrFiles(owner, repo, number) : [];
+  const files = slice ? await fetchReviewFiles(owner, repo, number) : [];
   const diff = slice
     ? [...hunkIndicesByFile(slice)]
         .map(([path, indices]) => {

@@ -6,12 +6,12 @@ import {
   fetchFileContentAtRef,
   fetchPrBaseSha,
   fetchPrConversation,
-  fetchPrFiles,
   fetchPrMeta,
   searchRepoCode,
 } from "../github/github.server.js";
 import { listFiles, prHead, readFile, searchCode } from "../github/repoCache.server.js";
 import { numberedFileDiff } from "../github/prDiff.server.js";
+import { fetchReviewFiles, rangeNote } from "../github/range.server.js";
 
 // Docent over MCP, so a reviewer can run their own agent - any model, any
 // harness - against a PR and have its findings land on the Agent feedback
@@ -85,9 +85,11 @@ export function buildServer(): McpServer {
     async ({ pr }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
-        const [meta, files] = await Promise.all([fetchPrMeta(owner, repo, number), fetchPrFiles(owner, repo, number)]);
+        const [meta, files] = await Promise.all([fetchPrMeta(owner, repo, number), fetchReviewFiles(owner, repo, number)]);
         const context = getReviewContext(owner, repo, number);
         const parts = [`# ${meta.title}`, meta.htmlUrl, meta.body ? `## Description\n${meta.body}` : ""];
+        const range = rangeNote(owner, repo, number);
+        if (range) parts.push(`## Under review\n${range}`);
         if (context.summary) {
           parts.push(
             `## Summary\nWhat: ${context.summary.what}\nWhy: ${context.summary.why}${context.summary.how ? `\nHow: ${context.summary.how}` : ""}`,
@@ -120,7 +122,7 @@ export function buildServer(): McpServer {
     async ({ pr, slice_id, path }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
-        const files = await fetchPrFiles(owner, repo, number);
+        const files = await fetchReviewFiles(owner, repo, number);
         if (slice_id) {
           const slice = getReviewContext(owner, repo, number).slices?.find((s) => s.id === slice_id);
           if (!slice) throw new Error(`No slice ${slice_id}. Slices come from get_review_context.`);
@@ -211,7 +213,7 @@ export function buildServer(): McpServer {
         // GitHub's index covers the default branch only, so files this PR adds
         // or changes are matched by name first.
         const words = pattern.toLowerCase().split(/\s+/).filter(Boolean);
-        const changed = (await fetchPrFiles(owner, repo, number))
+        const changed = (await fetchReviewFiles(owner, repo, number))
           .map((f) => f.filename)
           .filter((name) => words.some((w) => name.toLowerCase().includes(w)));
         const files = await searchRepoCode(owner, repo, pattern).catch(() => []);

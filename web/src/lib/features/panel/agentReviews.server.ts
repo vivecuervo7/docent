@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { codeContext } from "./codeContext.server.js";
-import { conversationText, fetchPrConversation, fetchPrFiles, type PrFile } from "../../github/github.server.js";
+import { conversationText, fetchPrConversation, type PrFile } from "../../github/github.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../../github/prDiff.server.js";
@@ -10,6 +10,7 @@ import { runSession } from "./externalSessions.server.js";
 import { emptyUsage, usageScope, type Usage } from "../../models/usage.server.js";
 import type { ExternalReviewer } from "../../storage/settings.server.js";
 import { persistent } from "../../storage/persistent.server.js";
+import { fetchReviewFiles, rangeNote } from "../../github/range.server.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
 // the reviewer's own agent, which submits them over MCP (see mcp/mcp.server.ts). Both
@@ -174,7 +175,7 @@ export function startSessionReview(
     try {
       const [{ findings, verdict }, files] = await Promise.all([
         runSession(persona, { owner, repo, number }, mcpUrl, controller.signal),
-        fetchPrFiles(owner, repo, number),
+        fetchReviewFiles(owner, repo, number),
       ]);
       if (verdict) review.verdict = verdict;
       for (const finding of findings) {
@@ -297,7 +298,7 @@ export async function submitFinding(
   reviewer = DEFAULT_REVIEWER,
   slice?: string,
 ): Promise<Finding> {
-  const recorded = { ...checkFinding(finding, files ?? (await fetchPrFiles(owner, repo, number))), ...(slice ? { slice } : {}) };
+  const recorded = { ...checkFinding(finding, files ?? (await fetchReviewFiles(owner, repo, number))), ...(slice ? { slice } : {}) };
   openReview(owner, repo, number, reviewer).review.findings.push(recorded);
   return recorded;
 }
@@ -312,7 +313,7 @@ export async function submitReview(
   findings: SubmittedFinding[],
   reviewer: string,
 ): Promise<AgentReview> {
-  const files = await fetchPrFiles(owner, repo, number);
+  const files = await fetchReviewFiles(owner, repo, number);
   const checked: Finding[] = [];
   const problems: string[] = [];
   findings.forEach((finding, i) => {
@@ -490,7 +491,7 @@ async function runBuiltin(
   const { signal } = controller;
   try {
     const [files, conversation] = await Promise.all([
-      fetchPrFiles(owner, repo, number),
+      fetchReviewFiles(owner, repo, number),
       fetchPrConversation(owner, repo, number).then(conversationText, () => ""),
     ]);
     // The code around the PR, looked up alongside the whole-PR pass.
@@ -518,6 +519,7 @@ async function runBuiltin(
     const about = [
       context.title && `PR: ${context.title}`,
       context.summary && `What it does: ${context.summary.what}\nWhy: ${context.summary.why}`,
+      rangeNote(owner, repo, number),
     ]
       .filter(Boolean)
       .join("\n");

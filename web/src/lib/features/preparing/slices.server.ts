@@ -28,6 +28,7 @@ function buildHunkRefs(files: PrFile[]): Map<string, string> {
   for (const file of files) {
     if (!file.patch) continue;
     splitPatchIntoHunks(file.patch).forEach((hunkText, i) => {
+      if (file.inRange && !file.inRange.includes(i)) return;
       refs.set(`${file.filename}#${i}`, hunkText);
     });
   }

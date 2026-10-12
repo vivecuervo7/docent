@@ -10,7 +10,7 @@ import { ReviewPost } from '../features/posting/post.svelte';
 import { everythingElse, isSliceReviewed } from '../features/reading/progress';
 import { readPref, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
-import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type Slice, type StepName } from '../types';
+import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -20,6 +20,9 @@ export function isGenerating(generation: Generation | null | undefined): boolean
 }
 
 export { isSliceReviewed };
+
+// Whether any part of a PR has been prepared.
+const begun = (r: PrRecord) => !!(r.slices || r.conversation || r.summary || r.fileNotes);
 
 export class PrSession {
 	readonly ref: PrRef;
@@ -33,13 +36,21 @@ export class PrSession {
 	// The first preparation of a PR takes over the Overview; a rerun of one
 	// that already has a summary happens quietly behind it.
 	readonly preparing = $derived(!this.record.summary && this.generation !== null);
+	// Nothing's been prepared, or asked for: it waits for the commits to
+	// review to be chosen.
+	readonly unprepared = $derived(!begun(this.record) && this.generation === null);
 	// Viewing preferences, kept in this browser.
 	hideWhitespace = $state(readPref('docent.hideWhitespace', true));
 	foldTests = $state(readPref('docent.foldTests', true));
 
 	// Each file's hunks, parsed once.
 	readonly hunks = $derived(new Map<string, Hunk[]>(this.files.map((f) => [f.filename, parseFilePatch(f.patch ?? '')])));
-	readonly hunkKeys = $derived([...this.hunks].flatMap(([path, hunks]) => hunks.map((h) => `${path}#${h.index}`)));
+	// The hunks under review: for a range of commits, those it touched.
+	readonly hunkKeys = $derived(
+		this.files.flatMap((f) =>
+			(this.hunks.get(f.filename) ?? []).filter((h) => !f.inRange || f.inRange.includes(h.index)).map((h) => `${f.filename}#${h.index}`)
+		)
+	);
 	// The prepared slices, then anything they left out.
 	readonly slices = $derived.by(() => {
 		const prepared = this.record.slices ?? [];
@@ -84,7 +95,7 @@ export class PrSession {
 				// Picks up what an earlier visit's run finished meanwhile. A stopped
 				// or failed run stays that way until it's resumed.
 				this.#collect(existing);
-			} else if (!record.slices || !record.conversation || !record.summary || !record.fileNotes) {
+			} else if (begun(record) && (!record.slices || !record.conversation || !record.summary || !record.fileNotes)) {
 				this.prepare();
 			}
 		} catch (err) {
@@ -533,6 +544,15 @@ export class PrSession {
 		change(this.record);
 		const saved = await updateRecord(this.ref, change);
 		if (!this.#closed) this.record = saved;
+	}
+
+	// Begins the review with the commits chosen, or the whole PR.
+	async begin(range: ReviewRange | null) {
+		await this.update((r) => {
+			if (range) r.range = range;
+			else delete r.range;
+		});
+		await Promise.all([this.prepare(), fetchPr(this.ref).then(({ files }) => !this.#closed && (this.files = files))]);
 	}
 
 	// Starts preparing, or attaches to a run already going. Parts already

@@ -1,4 +1,4 @@
-import type { ModelOption, PrFile, PrMeta, PrRef } from '../types';
+import type { ModelOption, PrCommit, PrFile, PrMeta, PrRef } from '../types';
 // Calls to Docent's backend, the API routes under routes/api.
 
 export async function readOk<T>(res: Response): Promise<T> {
@@ -20,6 +20,10 @@ export const prUrl = (ref: PrRef) => `/api/pr/${ref.owner}/${ref.repo}/${ref.num
 export async function fetchPr(ref: PrRef): Promise<{ files: PrFile[]; meta: PrMeta | null }> {
 	const { files, meta } = await readOk<{ files: PrFile[]; meta?: PrMeta }>(await fetch(prUrl(ref)));
 	return { files, meta: meta ?? null };
+}
+
+export async function fetchCommits(ref: PrRef): Promise<PrCommit[]> {
+	return (await readOk<{ commits: PrCommit[] }>(await fetch(`${prUrl(ref)}/commits`))).commits;
 }
 
 export async function listModels(): Promise<{ options: ModelOption[]; selected: string }> {

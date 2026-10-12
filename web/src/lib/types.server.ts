@@ -47,3 +47,19 @@ export interface FileNote {
   // with what changed inside. New-file lines.
   quietRanges?: { kind: "imports" | "setup"; startLine: number; endLine: number }[];
 }
+
+// Some of a PR's commits: those after `after`, up to and including `to`.
+export interface ReviewRange {
+  after: string;
+  to: string;
+}
+
+export interface PrCommit {
+  sha: string;
+  // The commit before it: where a range starting at it begins.
+  parent: string;
+  date: string;
+  // Its first line.
+  message: string;
+  merge: boolean;
+}

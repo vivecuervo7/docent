@@ -32,6 +32,9 @@ export interface PrFile {
   additions: number;
   deletions: number;
   patch?: string;
+  // Set for a range of commits; see range.server.
+  inRange?: number[];
+  rangeLines?: { old: number[]; new: number[] };
 }
 
 export async function fetchPrFiles(

@@ -1,9 +1,9 @@
 import { personas } from "../../storage/settings.server.js";
-import { fetchPrFiles } from "../../github/github.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { getRecord, keyFor } from "../../storage/store.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
+import { fetchReviewFiles } from "../../github/range.server.js";
 
 // "Auto" on the panel: which of the reviewer's personas this PR warrants.
 // A persona earns a place when its area is a real part of the change, not
@@ -50,7 +50,7 @@ export async function pickPersonas(owner: string, repo: string, number: string, 
   const candidates = personas.list().filter((p) => !exclude.includes(p.id));
   if (!candidates.length) return [];
   const record = getRecord(keyFor(owner, repo, number)).record as { title?: string; summary?: PrSummary | null; slices?: Slice[] | null };
-  const files = await fetchPrFiles(owner, repo, number);
+  const files = await fetchReviewFiles(owner, repo, number);
   const about = [
     record.title && `PR: ${record.title}`,
     record.summary && `What it does: ${record.summary.what}\nWhy: ${record.summary.why}`,

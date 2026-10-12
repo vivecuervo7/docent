@@ -69,6 +69,12 @@
 	} = $props();
 
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
+	// Reviewing a range of commits, the PR's other changes are shown dimmed,
+	// as the context the range's changes sit in.
+	const rangeNew = $derived(file.rangeLines && new Set(file.rangeLines.new));
+	const rangeOld = $derived(file.rangeLines && new Set(file.rangeLines.old));
+	const earlier = (r: Row) =>
+		!!rangeNew && !!rangeOld && ((r.kind === 'add' && !rangeNew.has(r.new!)) || (r.kind === 'del' && !rangeOld.has(r.old!)));
 	// A finding belongs with the hunk holding its line, or the nearest one
 	// for a line outside the diff; only those in hunks shown here count here.
 	const homeOf = (m: Mark) => (m.note?.hunk !== undefined ? allHunks[m.note.hunk] : nearestHunk(allHunks, m.start));
@@ -443,6 +449,7 @@
 		class="row {r.kind} {tint(pos)}"
 		data-pos={pos}
 		class:selected={pos >= selFrom && pos <= selTo}
+		class:earlier={earlier(r)}
 		role="presentation"
 		onpointerenter={() => dragging && selection && (selection = { ...selection, head: pos })}
 	>
@@ -673,6 +680,9 @@
 	}
 	.row.del {
 		background: var(--del-bg);
+	}
+	.row.earlier > :not(.gutter) {
+		opacity: 0.45;
 	}
 	.row.tint-finding .code {
 		background-image: linear-gradient(var(--agent-tint), var(--agent-tint));
