@@ -2,18 +2,24 @@
 	import InlineText from '../../ui/InlineText.svelte';
 	import ReviewModel from './ReviewModel.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
+	import PanelCard from '../panel/PanelCard.svelte';
 	import { fetchCommits } from '$lib/api/client';
 	import { useSession } from '$lib/session/session.svelte';
 	import type { PrCommit } from '$lib/types';
 
-	// Before anything's prepared: which of the PR's commits to review. Both
-	// ends of the range snap to commits; a day is labelled at its first.
-	// Merge commits are left out, as they bring in the base branch's work.
-	// For the next round it starts from the first commit since the last.
-
-	let { next = false }: { next?: boolean } = $props();
+	// Before anything's prepared: which of the PR's commits to review, and
+	// the panel to review them. Both ends of the range snap to commits; a day
+	// is labelled at its first. Merge commits are left out, as they bring in
+	// the base branch's work. A later round starts from the first commit
+	// since the round before, and can be taken back for that round.
 
 	const session = useSession();
+	const next = $derived(session.roundCount > 1);
+
+	// The panel starts as the default one, here to be changed before it runs.
+	$effect(() => {
+		session.panel.applyDefault();
+	});
 
 	let commits = $state<PrCommit[] | null>(null);
 	let error = $state<string | null>(null);
@@ -27,7 +33,7 @@
 				commits = all.filter((c) => !c.merge);
 				to = commits.length - 1;
 				// The last round may have ended on a merge, which isn't listed.
-				const ended = all.findIndex((c) => c.sha === session.record.preparedHead);
+				const ended = all.findIndex((c) => c.sha === session.previousHead);
 				const since = next && ended >= 0 ? all.slice(ended + 1).find((c) => !c.merge) : undefined;
 				if (since) from = commits.findIndex((c) => c.sha === since.sha);
 			},
@@ -72,14 +78,13 @@
 		if (!commits) return;
 		starting = true;
 		const range = whole ? null : { after: commits[from].parent, to: commits[to].sha };
-		if (next) session.startRound(range, { review });
-		else session.begin(range, { review });
+		session.begin(range, { review });
 	}
 </script>
 
 <div class="wrap">
 	<div class="card">
-		<span class="caps">{next ? `Begin round ${session.roundCount + 1}` : 'Begin the review'}</span>
+		<span class="caps">{next ? `Begin round ${session.roundCount}` : 'Begin the review'}</span>
 		<h1><InlineText text={session.title} /></h1>
 		<span class="faint mono">{session.ref.owner}/{session.ref.repo} #{session.ref.number} · <ReviewModel /></span>
 
@@ -132,13 +137,16 @@
 				</div>
 			{/if}
 
+			<!-- The commits chosen; those either side are only counted. -->
 			<ol class="commits">
-				{#each commits as c, i (c.sha)}
-					<li class:out={i < from || i > to}>
+				{#if from > 0}<li class="out">{from} earlier {from === 1 ? 'commit' : 'commits'}</li>{/if}
+				{#each commits.slice(from, to + 1) as c (c.sha)}
+					<li>
 						<span class="mono sha">{c.sha.slice(0, 7)}</span>
 						<span class="message"><InlineText text={c.message} /></span>
 					</li>
 				{/each}
+				{#if to < last}<li class="out">{last - to} later {last - to === 1 ? 'commit' : 'commits'}</li>{/if}
 			</ol>
 
 			<div class="actions">
@@ -146,23 +154,40 @@
 					Prepare and review
 				</button>
 				<button class="btn" disabled={starting} onclick={() => begin(false)}>Just prepare</button>
-				{#if next}<button class="btn" disabled={starting} onclick={() => (session.choosingRound = false)}>Cancel</button>{/if}
+				{#if next}<button class="btn" disabled={starting} onclick={() => session.dropRound()}>Cancel</button>{/if}
 			</div>
 		{/if}
 	</div>
+	<aside><PanelCard beginning /></aside>
 </div>
 
 <style>
 	.wrap {
 		min-height: calc(100vh - 64px);
+		max-width: 1120px;
+		margin: 0 auto;
 		display: grid;
-		place-items: center;
+		grid-template-columns: minmax(0, 540px) 440px;
+		justify-content: center;
+		align-items: start;
+		gap: 72px;
 		padding: 40px 24px;
 		box-sizing: border-box;
 	}
+	@media (max-width: 1100px) {
+		.wrap {
+			grid-template-columns: minmax(0, 540px);
+			gap: 40px;
+		}
+	}
+	aside {
+		position: sticky;
+		top: 96px;
+		margin-top: 8vh;
+	}
 	.card {
+		margin-top: 8vh;
 		width: 100%;
-		max-width: 540px;
 		display: flex;
 		flex-direction: column;
 		gap: 10px;

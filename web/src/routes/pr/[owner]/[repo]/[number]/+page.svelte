@@ -38,8 +38,6 @@
 	<PreparingView />
 {:else if session.unprepared && !session.loading}
 	<BeginReview />
-{:else if session.choosingRound}
-	<BeginReview next />
 {:else}
 	<main>
 		<section class="about">
@@ -64,7 +62,7 @@
 				{#if session.newCommits}
 					<p class="new-commits">
 						New commits since this round was prepared.
-						<button class="link" onclick={() => (session.choosingRound = true)}>Review them as round {session.roundCount + 1}</button>
+						<button class="link" onclick={() => session.nextRound()}>Review them as round {session.roundCount + 1}</button>
 					</p>
 				{/if}
 			</div>

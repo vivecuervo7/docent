@@ -49,6 +49,17 @@ export function keepRound(record: PrRecord, view: PrRecord, index: number): void
 	record.rounds = rounds.map((r, i) => (i === index ? round : r));
 }
 
+// Takes back a round begun but not yet prepared: the one before it is the
+// latest again.
+export function dropRound(record: PrRecord): void {
+	const last = record.rounds?.at(-1);
+	if (!last) return;
+	for (const field of ROUND_FIELDS) delete record[field];
+	Object.assign(record, emptyRecord(), last);
+	record.rounds = record.rounds!.slice(0, -1);
+	if (!record.rounds.length) delete record.rounds;
+}
+
 // Moves the latest round into the earlier ones and begins another, with
 // the commits given or the whole PR.
 export function beginRound(record: PrRecord, range: PrRecord['range'] | null): void {

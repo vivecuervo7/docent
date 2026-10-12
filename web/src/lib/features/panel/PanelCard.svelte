@@ -10,6 +10,9 @@
 
 	// Mockup A's "Start your review panel": the PR's agent reviewers, what
 	// each runs with, and one button to start them and begin reading.
+	// `beginning`, before the PR's prepared: the panel to set up, which
+	// starts with it or later from here, so there's nothing to start yet.
+	let { beginning = false }: { beginning?: boolean } = $props();
 
 	const session = useSession();
 	const panel = session.panel;
@@ -146,15 +149,19 @@
 </script>
 
 <div class="card">
-	{#if !anyRan}
+	{#if !anyRan && !beginning}
 		<span class="kicker">
 			<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor" /></svg>
 			Before you start reading
 		</span>
 	{/if}
 	{#if panel.reviewers.length}
-		<h2>{anyRan ? 'Your review panel' : 'Start your review panel'}</h2>
-		<p class="lede">They review while you read. What they find is pinned on the code, beside your own notes.</p>
+		<h2>{anyRan || beginning ? 'Your review panel' : 'Start your review panel'}</h2>
+		<p class="lede">
+			{beginning
+				? 'Who reviews it: those switched on start once it’s prepared, with Prepare and review.'
+				: 'They review while you read. What they find is pinned on the code, beside your own notes.'}
+		</p>
 	{:else}
 		<h2>No review panel</h2>
 		<p class="lede">Reviewers read the PR while you do, and what they find is pinned on the code. Add one, or review it on your own.</p>
@@ -358,7 +365,7 @@
 		{/if}
 	</div>
 
-	<div class="actions">
+	{#if !beginning}<div class="actions">
 		<!-- Reviewers run only in the latest round. -->
 		{#if toStart.length && session.round === null}
 			<button class="btn primary big" onclick={startAndRead}>
@@ -369,7 +376,7 @@
 		{:else}
 			<button class="btn primary big" onclick={read}>{session.reviewedSlices ? 'Continue reading' : 'Start reading'}</button>
 		{/if}
-	</div>
+	</div>{/if}
 </div>
 
 <style>

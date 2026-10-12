@@ -10,7 +10,7 @@ import { ReviewPost } from '../features/posting/post.svelte';
 import { everythingElse, isSliceReviewed } from '../features/reading/progress';
 import { readPref, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
-import { beginRound, keepRound, roundView } from '../storage/rounds';
+import { beginRound, dropRound, keepRound, roundView } from '../storage/rounds';
 import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type GitHubComments, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
@@ -63,8 +63,6 @@ export class PrSession {
 	// earlier round reads as it was, and anything changed in it is kept in
 	// it, but reviewers run and reviews post only in the latest.
 	round = $state<number | null>(null);
-	// Choosing the commits for the next round.
-	choosingRound = $state(false);
 	// What's been said on the PR on GitHub, fetched as it opens.
 	github = $state<GitHubComments | null>(null);
 	generation = $state<Generation | null>(null);
@@ -100,6 +98,8 @@ export class PrSession {
 	readonly title = $derived.by(() => this.meta?.title ?? this.record.title ?? `#${this.ref.number}`);
 
 	readonly roundCount = $derived((this.#stored.rounds?.length ?? 0) + 1);
+	// The commit the round before the latest was prepared at.
+	readonly previousHead = $derived(this.#stored.rounds?.at(-1)?.preparedHead);
 	// Commits pushed since the latest round was prepared.
 	readonly newCommits = $derived(
 		this.round === null && !!this.meta?.head && !!this.record.preparedHead && this.meta.head !== this.record.preparedHead
@@ -647,17 +647,24 @@ export class PrSession {
 		if (index === null) this.panel.load();
 	}
 
-	// Keeps the latest round as it is and begins another, with the commits
-	// chosen or the whole PR. Its panel starts afresh, as a new PR's does.
-	async startRound(range: ReviewRange | null, { review = false } = {}) {
+	// Keeps the latest round as it is and begins another, waiting, as a new
+	// PR does, for its commits and panel to be chosen and for it to be
+	// begun. Its panel starts afresh.
+	async nextRound() {
 		await this.viewRound(null);
 		this.panel.reset();
-		await this.update((r) => {
-			beginRound(r, range);
-			if (review) r.reviewWhenPrepared = true;
-		});
-		this.choosingRound = false;
-		await Promise.all([this.prepare(), fetchPr(this.ref).then(({ files }) => !this.#closed && (this.files = files))]);
+		await this.update((r) => beginRound(r, null));
+	}
+
+	// Takes back a round not yet begun, for the one before it.
+	async dropRound() {
+		if (begun(this.record) || this.roundCount < 2) return;
+		this.panel.reset();
+		await this.update(dropRound);
+		const { files } = await fetchPr(this.ref);
+		if (this.#closed) return;
+		this.files = files;
+		this.panel.load();
 	}
 
 	// Begins the review with the commits chosen, or the whole PR. With
