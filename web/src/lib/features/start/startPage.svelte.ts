@@ -4,7 +4,8 @@ import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
 import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
 import { ask } from '$lib/ui/confirm.svelte';
 import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '$lib/types';
-import { roundView } from '$lib/storage/rounds';
+import { beginRound, dropRound, roundView } from '$lib/storage/rounds';
+import { dismissAgentReview } from '$lib/features/panel/reviewCalls';
 import { coverage } from '$lib/features/rounds/coverage';
 
 // The start page's lists: saved reviews, and open PRs you're part of on
@@ -31,21 +32,32 @@ interface PrStatus extends PrRef {
 	author?: string;
 	state: 'OPEN' | 'CLOSED' | 'MERGED';
 	// Its latest hundred commits, oldest first.
-	commits?: { sha: string; merge: boolean }[];
+	commits?: { sha: string; date: string; merge: boolean }[];
 }
 
-// A row's summary: the round it opens, where that stands, a line beside it,
-// and its rounds along the commits.
-export interface RowView {
-	status: string;
+// A round on a row: where it stands, as a bauble that links to it, and
+// what its card says on hover.
+export interface RoundBauble {
+	n: number;
+	label: string;
 	tone: Tone;
+	// Begun but not prepared yet.
+	draft: boolean;
+	href: string;
+	commits?: number;
+	dates?: string;
+	progress?: { done: number; total: number };
+	findings?: number;
+	// Only the latest round can go, so no other round's link changes.
+	deletable: boolean;
+}
+
+export interface RowView {
+	rounds: RoundBauble[];
+	// Commits pushed since the latest round, to review as the next.
+	fresh: number;
+	// For a PR not opened yet: where it stands on GitHub.
 	note?: string;
-	// The note is about commits to review.
-	noteCommits?: boolean;
-	// Its rounds along its commits, as stretches: each round's in its
-	// state's tone, `fresh` after every round, `out` in none before that.
-	// Empty when there's nothing a track would add.
-	track: { tone: Tone | 'fresh' | 'out'; count: number }[];
 }
 
 // A row on the page: a saved review, or a PR you're part of that Docent
@@ -374,59 +386,66 @@ export class StartPage {
 		return [...(pr.record.rounds ?? []).map((_, i) => roundView(pr.record, i)), pr.record];
 	}
 
-	// What a row shows. It opens the latest round; one begun but not yet
-	// prepared is a draft, so the round before it speaks for the PR.
+	// What a row shows: a bauble per round, each opening its round, and the
+	// commits pushed since, to review as the next. A round begun but not
+	// prepared is a draft. A complete review, or a closed PR, counts no new
+	// commits: it isn't asking for more.
 	rowOf(pr: Row): RowView {
+		const involved = this.involvedOf(pr);
+		if (pr.unsaved) return { rounds: [], fresh: 0, note: involved ? this.reviewState(involved) : undefined };
 		const rounds = this.roundsOf(pr);
 		const generation = this.generationFor(pr);
-		const draft = rounds.length > 1 && !begun(pr.record) && !generation;
-		const shown = draft ? rounds.length - 2 : rounds.length - 1;
-		const states = rounds.map((r, i) => this.#stateOfRound(pr, r, i === rounds.length - 1));
 		const status = this.statuses[keyOf(pr)];
-		const covered = status?.commits
-			? coverage(
-					status.commits,
-					rounds.map((r, i) => {
-						const latest = i === rounds.length - 1;
-						return { range: r.range, end: begun(r) || (latest && generation) ? (r.preparedHead ?? (latest ? status.head : undefined)) : undefined };
-					})
-				)
-			: null;
-		const state = states[shown];
-		// A review that's finished, or a PR that's closed, isn't asking for
-		// more: commits pushed since don't count.
-		const settled = state.tone === 'done' && !!rounds[shown].completedAt;
+		const ends = rounds.map((r, i) => {
+			const latest = i === rounds.length - 1;
+			return { range: r.range, end: begun(r) || (latest && generation) ? (r.preparedHead ?? (latest ? status?.head : undefined)) : undefined };
+		});
+		const covered = status?.commits ? coverage(status.commits, ends) : null;
+		const base = `/pr/${pr.owner}/${pr.repo}/${pr.number}`;
+		const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+		const baubles = rounds.map((r, i): RoundBauble => {
+			const latest = i === rounds.length - 1;
+			const state = this.#stateOfRound(pr, r, latest);
+			const span = covered?.spans[i];
+			const held = span && status?.commits ? status.commits.filter((c, k) => !c.merge && k > span.from && k <= span.to) : [];
+			const slices = r.slices ?? (latest ? generation?.results.slices : undefined) ?? [];
+			const findings = latest ? this.panelFor(pr)?.findings : undefined;
+			return {
+				n: i + 1,
+				label: state.label,
+				tone: state.tone,
+				draft: rounds.length > 1 && latest && !begun(r) && !generation,
+				href: rounds.length > 1 ? `${base}/round-${i + 1}` : base,
+				...(held.length ? { commits: held.length, dates: day(held[0].date) === day(held.at(-1)!.date) ? day(held[0].date) : `${day(held[0].date)} – ${day(held.at(-1)!.date)}` } : {}),
+				...(slices.length ? { progress: { done: slices.filter((sl) => isSliceReviewed(sl, r.reviewed)).length, total: slices.length } } : {}),
+				...(findings ? { findings } : {}),
+				deletable: latest && rounds.length > 1
+			};
+		});
 		const closed = !!status && status.state !== 'OPEN';
-		const fresh = settled || closed ? 0 : (covered?.fresh ?? 0);
-		const prepared = begun(rounds[shown]);
-		const numbered = prepared && rounds.length > 1;
-		const commits = (n: number) => `${n} ${n === 1 ? 'commit' : 'commits'}`;
-		let note: string | undefined;
-		let noteCommits = false;
-		if (draft) {
-			note = `Round ${rounds.length} not started${fresh ? ` · ${commits(fresh)}` : ''}`;
-			noteCommits = true;
-		} else if (settled && rounds.length > 1) {
-			note = `${rounds.length} rounds`;
-		} else if (fresh && prepared) {
-			note = state.tone === 'done' ? `${fresh} new ${fresh === 1 ? 'commit' : 'commits'} to review` : `+${fresh} new ${fresh === 1 ? 'commit' : 'commits'}`;
-			noteCommits = true;
-		} else {
-			const involved = this.involvedOf(pr);
-			const findings = this.panelFor(pr)?.findings;
-			if (involved && (pr.unsaved || !pr.record.review?.posted)) note = this.reviewState(involved);
-			else if (findings) note = `${findings} ${findings === 1 ? 'finding' : 'findings'}`;
-		}
-		const track: RowView['track'] = [];
-		if (covered && prepared && !settled && (rounds.length > 1 || fresh > 0)) {
-			for (const c of covered.commits) {
-				const tone = c.round !== null ? states[c.round].tone : c.fresh ? ('fresh' as const) : ('out' as const);
-				const last = track.at(-1);
-				if (last?.tone === tone) last.count++;
-				else track.push({ tone, count: 1 });
-			}
-		}
-		return { status: numbered ? `Round ${shown + 1} · ${state.label}` : state.label, tone: state.tone, note, noteCommits, track };
+		const fresh = pr.record.completedAt || closed || !rounds.some((r) => begun(r)) ? 0 : (covered?.fresh ?? 0);
+		return { rounds: baubles, fresh };
+	}
+
+	// Begins the next round from the list, for its commits to be chosen.
+	async startRound(pr: Row): Promise<string> {
+		const n = this.roundsOf(pr).length + 1;
+		await updateRecord(pr, (r) => beginRound(r, null));
+		return `/pr/${pr.owner}/${pr.repo}/${pr.number}/round-${n}`;
+	}
+
+	// Takes back the latest round, its threads, findings and review with it.
+	async deleteRound(pr: Row) {
+		const rounds = this.roundsOf(pr);
+		const n = rounds.length;
+		if (n < 2) return;
+		if (!(await ask({ title: `Delete round ${n}?`, body: 'Its threads, findings and review go with it. The commits it covered can go into a new round.', action: 'Delete' }))) return;
+		const generation = this.generationFor(pr);
+		if (isGenerating(generation)) await stopGeneration(pr).catch(() => {});
+		if (generation) await dismissGeneration(pr).catch(() => {});
+		for (const { id } of pr.record.agentReviewers) await dismissAgentReview(pr, id, true);
+		await updateRecord(pr, dropRound).catch(() => {});
+		await this.refresh();
 	}
 
 	// What's happened since you last opened a PR: activity on GitHub, a

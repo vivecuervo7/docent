@@ -380,7 +380,7 @@ export interface PrStatus {
   author?: string;
   state: "OPEN" | "CLOSED" | "MERGED";
   // Its latest hundred commits, oldest first.
-  commits: { sha: string; merge: boolean }[];
+  commits: { sha: string; date: string; merge: boolean }[];
 }
 
 // Where several PRs stand on GitHub now, in one query: for the start page,
@@ -390,7 +390,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
   const fields = prs
     .map(
       (pr, i) =>
-        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid parents { totalCount } } } } } }`,
+        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid authoredDate parents { totalCount } } } } } }`,
     )
     .join("\n");
   const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
@@ -408,7 +408,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
         updatedAt: string;
         state: PrStatus["state"];
         author: { login: string } | null;
-        commits: { nodes: { commit: { oid: string; parents: { totalCount: number } } }[] };
+        commits: { nodes: { commit: { oid: string; authoredDate: string; parents: { totalCount: number } } }[] };
       } | null;
     } | null
   >;
@@ -423,7 +423,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
             updatedAt: found.updatedAt,
             author: found.author?.login,
             state: found.state,
-            commits: found.commits.nodes.map(({ commit }) => ({ sha: commit.oid, merge: commit.parents.totalCount > 1 })),
+            commits: found.commits.nodes.map(({ commit }) => ({ sha: commit.oid, date: commit.authoredDate, merge: commit.parents.totalCount > 1 })),
           },
         ]
       : [];
