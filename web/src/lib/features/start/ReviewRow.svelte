@@ -33,7 +33,7 @@
 	</a>
 	{#snippet card(r: Round, name: string)}
 		<span class="card" role="tooltip">
-			<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{r.draft ? 'Not started' : r.label}</strong>
+			<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{r.draft ? 'Not prepared' : r.label}</strong>
 			{#if r.commits}<span class="faint">{plural(r.commits, 'commit')}{r.dates ? ` · ${r.dates}` : ''}</span>{/if}
 			{#if r.progress || r.findings}
 				<span class="faint">
@@ -78,16 +78,18 @@
 					</span>
 				{/each}
 				{#if hasNext}
-					{@const commits = view.fresh ? plural(view.fresh, 'new commit') : ''}
+					{@const commits = view.fresh ? plural(view.fresh, 'commit') : ''}
 					{@const open = async () => goto(draft ? draft.href : await page.startRound(pr))}
 					<span class="round">
 						{#if nextFirst}
-							<button class="badge next" onclick={open}>{commits || 'Not started'}</button>
+							<button class="badge next" aria-label="Round {next}: {draft ? 'not prepared' : `${commits} to review`}" onclick={open}
+								>{draft ? 'Not prepared' : `+${commits}`}</button
+							>
 						{:else}
 							<button class="fresh" aria-label="{commits}: review as round {next}" onclick={open}>+{view.fresh}</button>
 						{/if}
 						<span class="card" role="tooltip">
-							<strong><span class="mark ready"></span>Round {next} · {draft ? 'Not started' : 'To review'}</strong>
+							<strong><span class="mark ready"></span>Round {next} · {draft ? 'Not prepared' : 'To review'}</strong>
 							{#if commits}<span class="faint">{commits} since round {next - 1}</span>{/if}
 							{#if draft}<button class="delete" onclick={() => page.deleteRound(pr)}>Delete round {draft.n}</button>{/if}
 						</span>
