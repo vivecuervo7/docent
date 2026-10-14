@@ -3,7 +3,8 @@
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import { timeAgo } from '$lib/ui/format';
 	import RoundBauble from './RoundBauble.svelte';
-	import type { Row, StartPage } from './startPage.svelte';
+	import Spinner from '$lib/ui/Spinner.svelte';
+	import type { RoundBauble as Round, Row, StartPage } from './startPage.svelte';
 
 	// One PR on the start page: a dot when something's new since you last
 	// opened it, its title and where it's from, and a bauble per round - each
@@ -30,33 +31,32 @@
 			<span class="faint meta">{pr.owner}/{pr.repo} #{pr.number}{author ? ` · ${author}` : ''}{raised ? ` · ${timeAgo(raised, page.now)}` : ''}</span>
 		</span>
 	</a>
-	<span class="baubles">
-		{#if pr.unsaved}
-			<span class="round">
-				<a class="hit" {href} aria-label="Not opened in Docent yet{view.note ? `. ${view.note}` : ''}"><RoundBauble /></a>
-				<span class="card" role="tooltip">
-					<strong><span class="mark new"></span>Not opened in Docent yet</strong>
-					{#if view.note}<span class="faint">{view.note}</span>{/if}
+	{#snippet card(r: Round, name: string)}
+		<span class="card" role="tooltip">
+			<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{r.draft ? 'Not started' : r.label}</strong>
+			{#if r.commits}<span class="faint">{plural(r.commits, 'commit')}{r.dates ? ` · ${r.dates}` : ''}</span>{/if}
+			{#if r.progress || r.findings}
+				<span class="faint">
+					{r.progress ? `${r.progress.done} of ${r.progress.total} slices read` : ''}{r.progress && r.findings ? ' · ' : ''}{r.findings ? plural(r.findings, 'finding') : ''}
 				</span>
+			{/if}
+			{#if r.deletable}<button class="delete" onclick={() => page.deleteRound(pr)}>Delete round {r.n}</button>{/if}
+		</span>
+	{/snippet}
+	<span class="state">
+		<!-- With several rounds, a mark for each, joined, before the badge. -->
+		{#if view.rounds.length > 1}
+			<span class="chain">
+				{#each view.rounds as r (r.n)}
+					<span class="round">
+						<a class="hit" href={r.href} aria-label="Round {r.n} · {r.draft ? 'Not started' : r.label}"
+							><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a
+						>
+						{@render card(r, `Round ${r.n} · `)}
+					</span>
+				{/each}
 			</span>
 		{/if}
-		{#each view.rounds as r (r.n)}
-			{@const name = view.rounds.length > 1 ? `Round ${r.n} · ` : ''}
-			{@const label = r.draft ? 'Not started' : r.label}
-			<span class="round">
-				<a class="hit" href={r.href} aria-label="{name}{label}"><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a>
-				<span class="card" role="tooltip">
-					<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{label}</strong>
-					{#if r.commits}<span class="faint">{plural(r.commits, 'commit')}{r.dates ? ` · ${r.dates}` : ''}</span>{/if}
-					{#if r.progress || r.findings}
-						<span class="faint">
-							{r.progress ? `${r.progress.done} of ${r.progress.total} slices read` : ''}{r.progress && r.findings ? ' · ' : ''}{r.findings ? plural(r.findings, 'finding') : ''}
-						</span>
-					{/if}
-					{#if r.deletable}<button class="delete" onclick={() => page.deleteRound(pr)}>Delete round {r.n}</button>{/if}
-				</span>
-			</span>
-		{/each}
 		{#if view.fresh}
 			<!-- Into the round being set up, if there is one, else a new one. -->
 			{@const draft = view.rounds.at(-1)?.draft ? view.rounds.at(-1) : undefined}
@@ -64,7 +64,7 @@
 			{@const since = draft ? draft.n - 1 : view.rounds.length}
 			<span class="round">
 				<button
-					class="hit fresh"
+					class="fresh"
 					aria-label="{plural(view.fresh, 'new commit')}: review as round {next}"
 					onclick={async () => goto(draft ? draft.href : await page.startRound(pr))}
 				>
@@ -74,6 +74,22 @@
 					<strong>{plural(view.fresh, 'new commit')}</strong>
 					<span class="faint">Since round {since}. Review {view.fresh === 1 ? 'it' : 'them'} as round {next}.</span>
 				</span>
+			</span>
+		{/if}
+		<!-- The round the row opens; a round still being set up leaves it to the one before. -->
+		{#if pr.unsaved}
+			<span class="round">
+				<a class="badge new" {href}>New</a>
+				<span class="card" role="tooltip">
+					<strong><span class="mark new"></span>Not opened in Docent yet</strong>
+					{#if view.note}<span class="faint">{view.note}</span>{/if}
+				</span>
+			</span>
+		{:else if view.rounds.length}
+			{@const shown = view.rounds.at(-1)?.draft ? view.rounds.at(-2)! : view.rounds.at(-1)!}
+			<span class="round">
+				<a class="badge {shown.tone}" href={shown.href}>{#if shown.tone === 'working'}<Spinner size={11} />{/if}{shown.label}</a>
+				{@render card(shown, view.rounds.length > 1 ? `Round ${shown.n} · ` : '')}
 			</span>
 		{/if}
 	</span>
@@ -148,28 +164,35 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.baubles {
+	.state {
 		flex: none;
 		display: flex;
 		align-items: center;
-		gap: 2px;
+		gap: 10px;
 		padding-right: 4px;
 	}
 	.round {
 		position: relative;
 		display: flex;
+		align-items: center;
 	}
-	/* A bigger target than the mark itself. */
+	/* Rounds joined like commits on a track: close, with a line between. */
+	.chain {
+		display: flex;
+		align-items: center;
+	}
+	.chain .round + .round::before {
+		content: '';
+		width: 6px;
+		height: 1.5px;
+		background: var(--line-2);
+	}
 	.hit {
 		display: grid;
 		place-items: center;
-		min-width: 26px;
-		height: 26px;
-		padding: 0;
-		border: 0;
-		border-radius: 13px;
-		background: none;
-		cursor: pointer;
+		width: 18px;
+		height: 18px;
+		border-radius: 9px;
 		text-decoration: none;
 	}
 	.hit:hover,
@@ -178,19 +201,64 @@
 	}
 	.fresh {
 		height: 18px;
-		min-width: 0;
-		margin-left: 4px;
 		padding: 0 6px;
+		border: 0;
 		border-radius: 9px;
+		background: none;
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--you) 70%, transparent);
 		color: var(--you-text);
 		font: inherit;
 		font-size: 11.5px;
 		font-weight: 500;
+		cursor: pointer;
 	}
 	.fresh:hover,
 	.fresh:focus-visible {
 		background: var(--you-chip);
+	}
+	/* The round the row opens, as a badge tinted in its state's colour. */
+	.badge {
+		--tone: var(--faint);
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 3px 10px;
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--tone) 16%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
+		color: var(--tone);
+		font-size: 12.5px;
+		font-weight: 500;
+		white-space: nowrap;
+		text-decoration: none;
+	}
+	.badge.new,
+	.mark.new {
+		--tone: #c8a8ff;
+	}
+	.badge.working,
+	.mark.working {
+		--tone: #e8e2d6;
+	}
+	.badge.ready,
+	.mark.ready {
+		--tone: #8ab4ff;
+	}
+	.badge.going,
+	.mark.going {
+		--tone: #ffb85c;
+	}
+	.badge.read,
+	.mark.read {
+		--tone: var(--muted);
+	}
+	.badge.done,
+	.mark.done {
+		--tone: #7fd89b;
+	}
+	.badge.bad,
+	.mark.bad {
+		--tone: #ff8a7a;
 	}
 	/* What a round holds, on hover or focus, below and to the right. */
 	.card {
@@ -238,27 +306,6 @@
 		height: 7px;
 		border-radius: 50%;
 		background: var(--tone);
-	}
-	.mark.new {
-		--tone: #c8a8ff;
-	}
-	.mark.working {
-		--tone: #e8e2d6;
-	}
-	.mark.ready {
-		--tone: #8ab4ff;
-	}
-	.mark.going {
-		--tone: #ffb85c;
-	}
-	.mark.read {
-		--tone: var(--muted);
-	}
-	.mark.done {
-		--tone: #7fd89b;
-	}
-	.mark.bad {
-		--tone: #ff8a7a;
 	}
 	.delete {
 		align-self: flex-start;

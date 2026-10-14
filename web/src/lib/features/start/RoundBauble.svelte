@@ -9,13 +9,13 @@
 
 <span class="bauble" class:done aria-hidden="true">
 	{#if working}
-		<Spinner size={13} />
+		<Spinner size={10} />
 	{:else}
-		<svg width="14" height="14" viewBox="0 0 14 14">
+		<svg width="10" height="10" viewBox="0 0 10 10">
 			{#if done}
-				<circle cx="7" cy="7" r="5.5" fill="currentColor" />
+				<circle cx="5" cy="5" r="4" fill="currentColor" />
 			{:else}
-				<circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
+				<circle cx="5" cy="5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.4" />
 			{/if}
 		</svg>
 	{/if}
@@ -25,11 +25,12 @@
 	.bauble {
 		display: grid;
 		place-items: center;
-		width: 14px;
-		height: 14px;
+		width: 10px;
+		height: 10px;
 		color: var(--you);
 	}
+	/* The same green as a complete badge. */
 	.done {
-		color: var(--done);
+		color: #7fd89b;
 	}
 </style>
