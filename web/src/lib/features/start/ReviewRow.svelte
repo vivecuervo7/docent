@@ -44,19 +44,6 @@
 		</span>
 	{/snippet}
 	<span class="state">
-		<!-- With several rounds, a mark for each, joined, before the badge. -->
-		{#if view.rounds.length > 1}
-			<span class="chain">
-				{#each view.rounds as r (r.n)}
-					<span class="round">
-						<a class="hit" href={r.href} aria-label="Round {r.n} · {r.draft ? 'Not started' : r.label}"
-							><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a
-						>
-						{@render card(r, `Round ${r.n} · `)}
-					</span>
-				{/each}
-			</span>
-		{/if}
 		{#if view.fresh}
 			<!-- Into the round being set up, if there is one, else a new one. -->
 			{@const draft = view.rounds.at(-1)?.draft ? view.rounds.at(-1) : undefined}
@@ -76,7 +63,9 @@
 				</span>
 			</span>
 		{/if}
-		<!-- The round the row opens; a round still being set up leaves it to the one before. -->
+		<!-- Its rounds in order, joined: the one the row opens in full, as a
+		     badge, the rest as marks. A round still being set up leaves the badge
+		     to the one before it. -->
 		{#if pr.unsaved}
 			<span class="round">
 				<a class="badge new" {href}>New</a>
@@ -86,10 +75,21 @@
 				</span>
 			</span>
 		{:else if view.rounds.length}
-			{@const shown = view.rounds.at(-1)?.draft ? view.rounds.at(-2)! : view.rounds.at(-1)!}
-			<span class="round">
-				<a class="badge {shown.tone}" href={shown.href}>{#if shown.tone === 'working'}<Spinner size={11} />{/if}{shown.label}</a>
-				{@render card(shown, view.rounds.length > 1 ? `Round ${shown.n} · ` : '')}
+			{@const shown = view.rounds.at(-1)?.draft && view.rounds.length > 1 ? view.rounds.length - 2 : view.rounds.length - 1}
+			{@const several = view.rounds.length > 1}
+			<span class="chain">
+				{#each view.rounds as r, i (r.n)}
+					<span class="round">
+						{#if i === shown}
+							<a class="badge {r.tone}" href={r.href}>{#if r.tone === 'working'}<Spinner size={11} />{/if}{r.label}</a>
+						{:else}
+							<a class="hit" href={r.href} aria-label="Round {r.n} · {r.draft ? 'Not started' : r.label}"
+								><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} draft={r.draft} /></a
+							>
+						{/if}
+						{@render card(r, several ? `Round ${r.n} · ` : '')}
+					</span>
+				{/each}
 			</span>
 		{/if}
 	</span>
@@ -176,28 +176,33 @@
 		display: flex;
 		align-items: center;
 	}
-	/* Rounds joined like commits on a track: close, with a line between. */
+	/* Rounds joined like commits on a track, the line meeting each mark. */
 	.chain {
 		display: flex;
 		align-items: center;
 	}
 	.chain .round + .round::before {
 		content: '';
-		width: 6px;
+		width: 10px;
 		height: 1.5px;
-		background: var(--line-2);
+		background: color-mix(in srgb, var(--faint) 70%, transparent);
 	}
 	.hit {
+		position: relative;
 		display: grid;
 		place-items: center;
-		width: 18px;
-		height: 18px;
-		border-radius: 9px;
+		border-radius: 50%;
 		text-decoration: none;
+	}
+	/* A bigger target than the mark, without spacing the line off it. */
+	.hit::after {
+		content: '';
+		position: absolute;
+		inset: -6px -4px;
 	}
 	.hit:hover,
 	.hit:focus-visible {
-		background: var(--surface-2);
+		filter: brightness(1.3);
 	}
 	.fresh {
 		height: 18px;
