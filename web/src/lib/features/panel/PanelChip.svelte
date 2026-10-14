@@ -21,6 +21,8 @@
 	// once there's any of those.
 	const ran = $derived(panel.reviewers.filter((r) => panel.reviews[r.id] || r.lastRun || panel.picking[r.id] || panel.errors[r.id]));
 	const running = $derived(panel.running.length + Object.values(panel.picking).filter(Boolean).length);
+	// Reviewing goes on while the editor checks what the reviewers found.
+	const checking = $derived(panel.checking);
 
 	// Live times while anything's running and the list is open.
 	$effect(() => {
@@ -116,6 +118,9 @@
 			{#if running}
 				<Spinner size={15} />
 				<span>Panel · {running} reviewing</span>
+			{:else if checking}
+				<Spinner size={15} />
+				<span>Panel · checking {checking} {checking === 1 ? 'finding' : 'findings'}</span>
 			{:else}
 				<StateMark state="done" size={15} />
 				<span>Panel · done</span>

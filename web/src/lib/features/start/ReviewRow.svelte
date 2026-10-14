@@ -35,6 +35,7 @@
 					{r.progress ? `${r.progress.done} of ${r.progress.total} slices read` : ''}{r.progress && r.findings ? ' · ' : ''}{r.findings ? plural(r.findings, 'finding') : ''}
 				</span>
 			{/if}
+			{#if r.checking}<span class="faint">{plural(r.checking, 'finding')} to check · checked while the PR is open</span>{/if}
 			{#if r.unread}<span class="unread-answers">{plural(r.unread, 'unread answer')}</span>{/if}
 			{#if r.deletable}<button class="delete" onclick={() => page.deleteRound(pr)}>Delete round {r.n}</button>{/if}
 		</span>

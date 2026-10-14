@@ -50,6 +50,8 @@ export interface RoundBauble {
 	findings?: number;
 	// Answers to your questions you haven't read yet.
 	unread?: number;
+	// Findings the panel's editor hasn't checked yet.
+	checking?: number;
 	// Only the latest round can go, so no other round's link changes.
 	deletable: boolean;
 }
@@ -134,7 +136,20 @@ function trimmed(pr: SavedPr): SavedPr {
 			feedback: Object.fromEntries(
 				Object.entries(r.feedback).map(([k, d]) => [
 					k,
-					d ? { ...d, items: d.items.map((i) => ({ id: i.id, body: '', included: i.included, readAt: i.readAt, messages: lastAnswer(i.messages) })) } : d
+					d
+						? {
+								...d,
+								items: d.items.map((i) => ({
+									id: i.id,
+									body: '',
+									included: i.included,
+									readAt: i.readAt,
+									edited: i.edited,
+									editFailed: i.editFailed,
+									messages: lastAnswer(i.messages)
+								}))
+							}
+						: d
 				])
 			),
 			// Enough of each thread to tell whether its latest reply is unread.
@@ -424,6 +439,7 @@ export class StartPage {
 				...(slices.length ? { progress: { done: slices.filter((sl) => isSliceReviewed(sl, r.reviewed)).length, total: slices.length } } : {}),
 				...(findings ? { findings } : {}),
 				...(unread ? { unread } : {}),
+				...(latest && this.#checking(pr) ? { checking: this.#checking(pr) } : {}),
 				deletable: latest && rounds.length > 1
 			};
 		});
@@ -465,13 +481,24 @@ export class StartPage {
 		if (r.completedAt) return { label: 'Complete', tone: 'done' };
 		if (r.review?.posted?.pending) return { label: 'Pending on GitHub', tone: 'going' };
 		if (r.review?.posted) return { label: 'Posted', tone: 'done' };
-		if (latest && this.panelFor(pr)?.running) return { label: 'Reviewing', tone: 'working' };
+		// The editor checking what the reviewers found is part of reviewing.
+		if (latest && (this.panelFor(pr)?.running || this.#checking(pr))) return { label: 'Reviewing', tone: 'working' };
 		const slices = r.slices ?? generation?.results.slices ?? [];
 		const done = slices.filter((s) => isSliceReviewed(s, r.reviewed)).length;
 		if (slices.length && done === slices.length) return { label: 'Read', tone: 'read' };
 		if (done > 0) return { label: 'In progress', tone: 'going' };
 		if (r.summary || slices.length) return { label: 'Ready', tone: 'ready' };
 		return { label: 'Not prepared', tone: 'quiet' };
+	}
+
+	// Findings not yet through the panel's editor: those collected and not
+	// checked, and those of reviews finished but not yet collected.
+	#checking(pr: SavedPr): number {
+		const live = this.agentReviews.filter((r) => keyOf(r) === keyOf(pr) && r.status !== 'running');
+		const unchecked = Object.entries(pr.record.feedback)
+			.filter(([key]) => key.startsWith('agent-') && !live.some((r) => r.reviewer === key))
+			.reduce((n, [, d]) => n + (d?.items.filter((i) => !i.edited && !i.editFailed).length ?? 0), 0);
+		return unchecked + live.reduce((n, r) => n + r.findings, 0);
 	}
 
 	// Where a PR's panel is: reviewing, or done with its findings in.

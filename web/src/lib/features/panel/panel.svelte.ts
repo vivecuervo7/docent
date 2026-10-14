@@ -145,6 +145,11 @@ export class Panel {
 	readonly findingCount = $derived.by(() =>
 		this.reviewers.reduce((n, r) => n + (this.#session.record.feedback[r.id]?.items.length ?? 0), 0)
 	);
+	// Findings the editor hasn't been through yet: the panel's still
+	// reviewing until it has, and they show only once it has.
+	readonly checking = $derived.by(() =>
+		this.reviewers.reduce((n, r) => n + (this.#session.record.feedback[r.id]?.items.filter((i) => !i.edited && !i.editFailed).length ?? 0), 0)
+	);
 
 	// Findings already copied into the record, by review, so each lands once.
 	#seen: Partial<Record<AgentId, { id: string; count: number }>> = {};
