@@ -6,14 +6,12 @@
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import type { RoundBauble as Round, Row, StartPage } from './startPage.svelte';
 
-	// One PR on the start page: a dot when something's new since you last
-	// opened it, its title and where it's from, and a bauble per round - each
-	// opening its round, with what it holds on hover - then one for commits
-	// pushed since, to review as the next round.
+	// One PR on the start page: its title and where it's from, then its
+	// rounds - each opening its round, with what it holds on hover - and the
+	// next round when there are commits to review.
 	let { pr, page }: { pr: Row; page: StartPage } = $props();
 
 	const view = $derived(page.rowOf(pr));
-	const changes = $derived(page.changesSince(pr));
 	const author = $derived(page.authorOf(pr));
 	const raised = $derived(page.raisedAt(pr));
 	const hidden = $derived(page.isHidden(pr));
@@ -23,9 +21,6 @@
 
 <li>
 	<a class="main" {href}>
-		<span class="unread">
-			{#if changes.length}<span class="dot" role="img" aria-label="Since you last opened it: {changes.join(', ')}" title="Since you last opened it: {changes.join(', ')}"></span>{/if}
-		</span>
 		<span class="text">
 			<span class="title"><InlineText text={pr.record.title ?? `#${pr.number}`} /></span>
 			<span class="faint meta">{pr.owner}/{pr.repo} #{pr.number}{author ? ` · ${author}` : ''}{raised ? ` · ${timeAgo(raised, page.now)}` : ''}</span>
@@ -40,6 +35,7 @@
 					{r.progress ? `${r.progress.done} of ${r.progress.total} slices read` : ''}{r.progress && r.findings ? ' · ' : ''}{r.findings ? plural(r.findings, 'finding') : ''}
 				</span>
 			{/if}
+			{#if r.unread}<span class="unread-answers">{plural(r.unread, 'unread answer')}</span>{/if}
 			{#if r.deletable}<button class="delete" onclick={() => page.deleteRound(pr)}>Delete round {r.n}</button>{/if}
 		</span>
 	{/snippet}
@@ -133,21 +129,6 @@
 	}
 	.main:hover .title {
 		color: #fff;
-	}
-	/* Before the title, so titles line up with or without it. */
-	.unread {
-		flex: none;
-		align-self: flex-start;
-		display: flex;
-		justify-content: center;
-		width: 8px;
-		padding-top: 7px;
-	}
-	.dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: var(--you);
 	}
 	.text {
 		flex-grow: 1;
@@ -333,6 +314,9 @@
 		height: 7px;
 		border-radius: 50%;
 		background: var(--tone);
+	}
+	.unread-answers {
+		color: var(--you-text);
 	}
 	.delete {
 		align-self: flex-start;

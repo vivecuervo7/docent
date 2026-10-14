@@ -48,6 +48,8 @@ export interface RoundBauble {
 	dates?: string;
 	progress?: { done: number; total: number };
 	findings?: number;
+	// Answers to your questions you haven't read yet.
+	unread?: number;
 	// Only the latest round can go, so no other round's link changes.
 	deletable: boolean;
 }
@@ -410,6 +412,8 @@ export class StartPage {
 			const held = span && status?.commits ? status.commits.filter((c, k) => !c.merge && k > span.from && k <= span.to) : [];
 			const slices = r.slices ?? (latest ? generation?.results.slices : undefined) ?? [];
 			const findings = latest ? this.panelFor(pr)?.findings : undefined;
+			// Earlier rounds aren't kept here in enough detail to tell.
+			const unread = latest ? [...Object.values(r.feedback).flatMap((d) => d?.items ?? []), ...r.notes].filter(isUnread).length : 0;
 			return {
 				n: i + 1,
 				label: state.label,
@@ -419,6 +423,7 @@ export class StartPage {
 				...(held.length ? { commits: held.length, dates: day(held[0].date) === day(held.at(-1)!.date) ? day(held[0].date) : `${day(held[0].date)} – ${day(held.at(-1)!.date)}` } : {}),
 				...(slices.length ? { progress: { done: slices.filter((sl) => isSliceReviewed(sl, r.reviewed)).length, total: slices.length } } : {}),
 				...(findings ? { findings } : {}),
+				...(unread ? { unread } : {}),
 				deletable: latest && rounds.length > 1
 			};
 		});
@@ -446,25 +451,6 @@ export class StartPage {
 		for (const { id } of pr.record.agentReviewers) await dismissAgentReview(pr, id, true);
 		await updateRecord(pr, dropRound).catch(() => {});
 		await this.refresh();
-	}
-
-	// What's happened since you last opened a PR: activity on GitHub, a
-	// reviewer finishing, an answer you haven't read. None for one never
-	// opened; GitHub's activity doesn't count once the review's complete or
-	// the PR's closed.
-	changesSince(pr: Row): string[] {
-		const opened = pr.record.lastOpenedAt;
-		if (pr.unsaved || !opened) return [];
-		const status = this.statuses[keyOf(pr)];
-		const quiet = !!pr.record.completedAt || (!!status && status.state !== 'OPEN');
-		const updated = quiet ? 0 : Date.parse(status?.updatedAt ?? this.involvedOf(pr)?.updatedAt ?? '') || 0;
-		const finished = pr.record.agentReviewers.filter((a) => (a.lastRun?.endedAt ?? 0) > opened).length;
-		const answers = [...Object.values(pr.record.feedback).flatMap((d) => d?.items ?? []), ...pr.record.notes].filter(isUnread).length;
-		return [
-			updated > opened ? 'new activity on GitHub' : '',
-			finished ? `${finished} ${finished === 1 ? 'reviewer' : 'reviewers'} finished` : '',
-			answers ? `${answers} unread ${answers === 1 ? 'answer' : 'answers'}` : ''
-		].filter(Boolean);
 	}
 
 	// Where a round stands, as one of a few states. Preparing and the panel
