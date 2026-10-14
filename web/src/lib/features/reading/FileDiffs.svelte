@@ -70,7 +70,7 @@
 			onToggleReviewed={() => session.setReviewed(fileKeys, !reviewed)}
 			{fold}
 			foldTests={session.foldTests}
-			showRemoved={session.showRemoved}
+			showRemoved={session.commitView}
 			onopenchange={(isOpen) => (isOpen ? open.add(file.filename) : open.delete(file.filename))}
 		/>
 	{/each}

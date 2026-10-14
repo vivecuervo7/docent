@@ -80,7 +80,9 @@ export class PrSession {
 	// Viewing preferences, kept in this browser.
 	hideWhitespace = $state(readPref('docent.hideWhitespace', true));
 	foldTests = $state(readPref('docent.foldTests', true));
-	showRemoved = $state(readPref('docent.showRemoved', false));
+	// A round of some commits shown as the PR sees it, against the base
+	// branch, or as its commits made it, rework included.
+	commitView = $state(readPref('docent.commitView', false));
 
 	// Each file's hunks, parsed once.
 	readonly hunks = $derived(new Map<string, Hunk[]>(this.files.map((f) => [f.filename, parseFilePatch(f.patch ?? '')])));
@@ -229,9 +231,9 @@ export class PrSession {
 		writePref('docent.foldTests', value);
 	}
 
-	setShowRemoved(value: boolean) {
-		this.showRemoved = value;
-		writePref('docent.showRemoved', value);
+	setCommitView(value: boolean) {
+		this.commitView = value;
+		writePref('docent.commitView', value);
 	}
 
 	// Ticks or unticks hunks, by key (`path#index`).

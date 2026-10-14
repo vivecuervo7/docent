@@ -4,6 +4,8 @@
 	// How the diffs are shown. Kept in this browser.
 	const session = useSession();
 	let open = $state(false);
+	// Only a round of some of the PR's commits can be shown either way.
+	const inRound = $derived(session.files.some((f) => f.rangeLines));
 
 	$effect(() => {
 		if (!open) return;
@@ -37,13 +39,20 @@
 					<small class="faint">Imports, test setup and new test bodies fold, showing what changed inside.</small>
 				</span>
 			</label>
-			<label>
-				<input type="checkbox" checked={session.showRemoved} onchange={(e) => session.setShowRemoved(e.currentTarget.checked)} />
-				<span>
-					Show what a round removed
-					<small class="faint">Lines the round's commits took out of the PR's own changes, in red where they were.</small>
-				</span>
-			</label>
+			{#if inRound}
+				<div class="round-view">
+					<span class="label">Round shown as</span>
+					<div class="switch" role="radiogroup" aria-label="Round shown as">
+						<button role="radio" aria-checked={!session.commitView} onclick={() => session.setCommitView(false)}>PR view</button>
+						<button role="radio" aria-checked={session.commitView} onclick={() => session.setCommitView(true)}>Commit view</button>
+					</div>
+					<small class="faint">
+						{session.commitView
+							? 'Everything this round’s commits changed, its rework of lines the PR added earlier included.'
+							: 'This round’s changes against the base branch.'}
+					</small>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -91,5 +100,39 @@
 	small {
 		font-size: 12.5px;
 		line-height: 1.4;
+	}
+	.round-view {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-top: 4px;
+		padding: 10px 8px 6px;
+		border-top: 1px solid var(--line-2);
+	}
+	.label {
+		font-size: 14px;
+	}
+	.switch {
+		display: flex;
+		padding: 3px;
+		border-radius: 8px;
+		background: var(--bg);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	.switch button {
+		flex: 1;
+		padding: 5px 8px;
+		border: 0;
+		border-radius: 6px;
+		background: none;
+		color: var(--muted);
+		font: inherit;
+		font-size: 13px;
+		cursor: pointer;
+	}
+	.switch button[aria-checked='true'] {
+		background: var(--surface-2);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--text);
 	}
 </style>
