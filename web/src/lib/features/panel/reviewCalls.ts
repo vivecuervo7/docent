@@ -9,25 +9,6 @@ export async function getAgentReview(ref: PrRef, reviewer: string): Promise<Agen
 	return (await readOk<{ review: AgentReview | null }>(await fetch(reviewUrl(ref, reviewer)))).review;
 }
 
-export async function startAgentReview(
-	ref: PrRef,
-	reviewer: string,
-	body: {
-		mode: 'builtin' | 'external' | 'session';
-		model?: string;
-		persona?: string;
-		session?: string;
-		context: { title?: string; summary: PrSummary | null; slices: Slice[] };
-	}
-): Promise<AgentReview> {
-	const res = await fetch(reviewUrl(ref, reviewer), {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(body)
-	});
-	return (await readOk<{ review: AgentReview }>(res)).review;
-}
-
 export async function endAgentReview(ref: PrRef, reviewer: string, action: 'stop' | 'finish'): Promise<AgentReview | null> {
 	return (await readOk<{ review: AgentReview | null }>(await fetch(reviewUrl(ref, reviewer, action), { method: 'POST' })))
 		.review;

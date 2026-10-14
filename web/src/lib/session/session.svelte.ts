@@ -184,7 +184,7 @@ export class PrSession {
 			if (wanted !== null) await this.viewRound(wanted);
 			this.panel.load();
 			// A review asked for while it was preparing, which finished while away.
-			if (record.summary) this.panel.applyDefault().then(() => this.#reviewIfAsked());
+			if (record.summary) this.panel.applyDefault();
 			fetchCommits(this.ref)
 				.then((commits) => !this.#closed && (this.commits = commits))
 				.catch(() => {});
@@ -718,12 +718,7 @@ export class PrSession {
 		if (!this.#closed) this.#show(saved);
 	}
 
-	// Starts the panel, once, when it was asked for as the review was begun.
-	async #reviewIfAsked() {
-		if (!this.record.reviewWhenPrepared || this.round !== null) return;
-		await this.update((r) => delete r.reviewWhenPrepared).catch(() => {});
-		this.panel.startAll();
-	}
+
 
 	// Reads the review while the backend's making something for it - an
 	// answer, a draft, a prepared review - until nothing is.
@@ -734,7 +729,8 @@ export class PrSession {
 		this.#watching = setInterval(() => {
 			const r = this.record;
 			const awaited = [...r.notes, ...Object.values(r.feedback).flatMap((d) => d?.items ?? [])].some((x) => x.awaiting);
-			const working = Object.values(r.jobs ?? {}).some((job) => job?.status === 'running');
+			const working =
+				Object.values(r.jobs ?? {}).some((job) => job?.status === 'running') || r.agentReviewers.some((a) => a.picking);
 			if ((!awaited && !working) || this.#closed) {
 				clearInterval(this.#watching!);
 				this.#watching = null;
@@ -750,6 +746,7 @@ export class PrSession {
 		if (this.#closed) return;
 		this.#show(record);
 		this.#applyJobs();
+		this.panel.track();
 	}
 
 	// Makes the round's own what the backend finished while it looked, or
@@ -893,7 +890,7 @@ export class PrSession {
 			for (const step of finished) done.add(step);
 			await this.reload().catch(() => {});
 			if (this.#closed) return;
-			if (finished.includes('summary')) this.panel.applyDefault().then(() => this.#reviewIfAsked());
+			if (finished.includes('summary')) this.panel.applyDefault();
 		}
 
 		if (next.status === 'done') {

@@ -1,5 +1,5 @@
-import { listModels, readOk } from '../../api/client';
-import { dismissAgentReview, endAgentReview, getAgentReview, getDefaultPanel, setDefaultPanel, startAgentReview } from './reviewCalls';
+import { readOk } from '../../api/client';
+import { dismissAgentReview, endAgentReview, getAgentReview, getDefaultPanel, setDefaultPanel } from './reviewCalls';
 import { reviewerName } from './names';
 import { known, reviewerLabel, sessionId } from './reviewers.svelte';
 import type { PrSession } from '../../session/session.svelte';
@@ -77,7 +77,7 @@ const entryOf = (setup: ReviewerSetup, off?: boolean): PanelEntry => ({
 });
 
 // A reviewer as the default panel gives it.
-const reviewerFrom = (entry: PanelEntry, id: AgentId): AgentReviewer => {
+export const reviewerFrom = (entry: PanelEntry, id: AgentId): AgentReviewer => {
 	const session = sessionId(entry.runs);
 	return {
 		id,
@@ -105,7 +105,7 @@ export function agentInstruction(session: PrSession, reviewer: AgentReviewer): s
 	return `Send these review findings to Docent for ${owner}/${repo}#${number}${round} as ${reviewer.name ?? reviewer.id}.`;
 }
 
-function nameAll(record: { agentReviewers: AgentReviewer[]; agentNamesUsed?: string[] }) {
+export function nameAll(record: { agentReviewers: AgentReviewer[]; agentNamesUsed?: string[] }) {
 	const used = new Set([...(record.agentNamesUsed ?? []), ...record.agentReviewers.flatMap((r) => (r.name ? [r.name] : []))]);
 	record.agentReviewers = record.agentReviewers.map((r) => {
 		if (r.name) return r;
@@ -120,8 +120,6 @@ export class Panel {
 	#session: PrSession;
 	reviews = $state<Partial<Record<AgentId, AgentReview>>>({});
 	errors = $state<Partial<Record<AgentId, string>>>({});
-	// "auto" reviewers choosing their personas.
-	picking = $state<Partial<Record<AgentId, boolean>>>({});
 	// The lookup of the code around the PR its reviewers start from.
 	lookup = $state<{ status: 'running' | 'done' | 'failed'; steps: string[]; facts: { fact: string; where: string }[] } | null>(null);
 	defaultPanel = $state<PanelEntry[] | null>(null);
@@ -140,6 +138,8 @@ export class Panel {
 	}
 
 	readonly reviewers = $derived.by(() => this.#session.record.agentReviewers);
+	// "auto" reviewers choosing their personas, as the review says.
+	readonly picking = $derived(Object.fromEntries(this.reviewers.map((a) => [a.id, !!a.picking])) as Partial<Record<AgentId, boolean>>);
 	readonly running = $derived.by(() => this.reviewers.filter((r) => this.reviews[r.id]?.status === 'running'));
 	readonly findingCount = $derived.by(() =>
 		this.reviewers.reduce((n, r) => n + (this.#session.record.feedback[r.id]?.items.length ?? 0), 0)
@@ -188,18 +188,7 @@ export class Panel {
 		this.#stopPolling();
 	}
 
-	// Starts every reviewer switched on that hasn't run, as "Start the panel"
-	// does - but your own agent, whose command only you can run.
-	async startAll() {
-		const model = await listModels()
-			.then((m) => m.selected)
-			.catch(() => this.#session.record.model ?? '');
-		for (const r of this.reviewers) {
-			if (r.off || r.ranWith || r.pickedBy || this.findings(r.id) || this.reviews[r.id]) continue;
-			const setup = setupFrom(r, model);
-			if (setup.mode !== 'external') this.start(r.id, setup);
-		}
-	}
+
 
 	// For a new round: lets the backend forget the last round's reviews, and
 	// forgets them here, so none of their findings land in the new one.
@@ -208,7 +197,6 @@ export class Panel {
 		for (const { id } of this.reviewers) dismissAgentReview(this.#session.ref, id, true);
 		this.reviews = {};
 		this.errors = {};
-		this.picking = {};
 		this.lookup = null;
 		this.#seen = {};
 		this.#removed = new Set();
@@ -271,28 +259,40 @@ export class Panel {
 		return this.#session.record.feedback[id]?.items.length ?? 0;
 	}
 
+	// Starts a reviewer on the backend, which saves its review - and "auto"'s
+	// picks - into the review as they come; the page follows from there.
 	async start(id: AgentId, setup: ReviewerSetup) {
-		if (setup.mode === 'builtin' && setup.persona === AUTO_PERSONA) return this.#startAuto(id, setup.model);
 		const session = this.#session;
 		this.errors[id] = undefined;
 		try {
-			const review = await startAgentReview(session.ref, id, {
-				mode: setup.mode,
-				...(setup.mode === 'builtin' ? { model: setup.model, persona: setup.persona } : {}),
-				...(setup.mode === 'session' ? { session: setup.session } : {}),
-				context: { title: session.title, summary: session.record.summary, slices: session.slices }
+			const { owner, repo, number } = session.ref;
+			const res = await fetch(`/api/pr/${owner}/${repo}/${number}/panel/start?reviewer=${encodeURIComponent(id)}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ setup, ...(session.round !== null ? { round: session.round } : {}) })
 			});
+			await readOk(res);
 			delete this.#seen[id];
-			this.#collect(id, review);
-			const ranWith = setupValue(setup);
-			session.update((r) => {
-				r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, ranWith, planned: undefined } : a));
-				r.panelSettled = true;
-			});
+			delete this.reviews[id];
+			await session.reload();
+			session.watch();
 		} catch (err) {
 			this.errors[id] = (err as Error).message;
 		}
 	}
+
+	// Follows reviews the backend started that the page isn't yet: ones it
+	// started for "auto", or before the page opened.
+	track() {
+		for (const a of this.reviewers) {
+			if (this.#removed.has(a.id) || this.reviews[a.id]?.status === 'running') continue;
+			if (!a.ranWith || (a.lastRun && a.lastRun.status !== 'running')) continue;
+			getAgentReview(this.#session.ref, a.id)
+				.then((review) => review && this.#collect(a.id, review))
+				.catch(() => {});
+		}
+	}
+
 
 	// Switches a reviewer that hasn't run off or on, remembered with the PR.
 	setOff(id: AgentId, off: boolean) {
@@ -320,62 +320,7 @@ export class Panel {
 	// panel by choice, and runs them in place of its last picks. The general
 	// reviewer always goes in with them, unless one is on the panel by choice
 	// already.
-	async #startAuto(id: AgentId, model: string) {
-		const session = this.#session;
-		this.errors[id] = undefined;
-		this.picking[id] = true;
-		try {
-			const chosen = this.reviewers.flatMap((a) => (!a.pickedBy && isDocents(a) && a.persona && !isAuto(a) ? [a.persona] : []));
-			const { owner, repo, number } = session.ref;
-			const res = await fetch(`/api/pr/${owner}/${repo}/${number}/panel/pick`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ exclude: chosen, model, ...(session.round !== null ? { round: session.round } : {}) })
-			});
-			const { picks } = await readOk<{ picks: { persona: string; reason: string }[] }>(res);
-			const general = !this.hasGeneral;
-			const previous = this.reviewers.filter((a) => a.pickedBy === id).map((a) => a.id);
-			for (const old of previous) {
-				this.#removed.add(old);
-				delete this.reviews[old];
-				dismissAgentReview(session.ref, old, true);
-			}
-			const added: AgentId[] = [];
-			await session.update((r) => {
-				for (const old of previous) delete r.feedback[old];
-				const highest = Math.max(0, r.agentHighest ?? 0, ...r.agentReviewers.map((a) => Number(a.id.slice('agent-'.length))));
-				const wanted: { persona?: string; reason: string }[] = [
-					...(general ? [{ reason: 'The general reviewer reviews every PR.' }] : []),
-					...picks
-				];
-				const fresh = wanted.map((p, i): AgentReviewer => {
-					const pid: AgentId = `agent-${highest + i + 1}`;
-					added.push(pid);
-					return { id: pid, planned: model, ...(p.persona ? { persona: p.persona } : {}), pickedBy: id, pickReason: p.reason };
-				});
-				r.agentHighest = highest + fresh.length;
-				// Its picks sit just after it.
-				const kept = r.agentReviewers.filter((a) => a.pickedBy !== id);
-				const at = kept.findIndex((a) => a.id === id);
-				kept.splice(at + 1, 0, ...fresh);
-				r.agentReviewers = kept.map((a) =>
-					a.id === id ? { ...a, ranWith: model, planned: undefined, picks: { at: Date.now(), personas: picks.map((p) => p.persona), ...(general ? { general } : {}) } } : a
-				);
-				r.panelSettled = true;
-				nameAll(r);
-			});
-			await Promise.all(
-				added.map((pid) => {
-					const persona = this.reviewers.find((a) => a.id === pid)?.persona;
-					return this.start(pid, { mode: 'builtin', model, ...(persona ? { persona } : {}) });
-				})
-			);
-		} catch (err) {
-			this.errors[id] = (err as Error).message;
-		} finally {
-			this.picking[id] = false;
-		}
-	}
+
 
 	// A general reviewer - Docent's, without a persona - on the panel by choice.
 	get hasGeneral() {

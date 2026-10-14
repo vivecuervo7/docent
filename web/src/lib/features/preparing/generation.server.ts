@@ -7,6 +7,8 @@ import type { ConversationSummary, FileNote, PrSummary, Slice } from "../../type
 import { persistent } from "../../storage/persistent.server.js";
 import { fetchReviewFiles, fetchReviewHead } from "../../github/range.server.js";
 import { changeRecord, keyFor as recordKey } from "../../storage/store.server.js";
+import { applyDefaultPanel, startPanel } from "../panel/panelRuns.server.js";
+import { knownMcpUrl } from "../../api/mcpUrl.server.js";
 
 // Preparing a PR's review runs here rather than in the browser, so it keeps
 // going when the tab closes and can be checked in on or stopped. Each result
@@ -196,6 +198,17 @@ async function run(job: Job) {
         const summary = await generateSummary(meta, slices, conversation, signal, model);
         generation.results.summary = summary;
         save((r) => (r.summary = summary));
+        if (generation.status !== "running") return;
+        // Prepared enough for a panel: the default one, started now if that
+        // was asked for as the review was begun.
+        const ref = { owner, repo, number };
+        applyDefaultPanel(ref);
+        let asked = false;
+        changeRecord(recordKey(owner, repo, number), (r) => {
+          asked = !!r.reviewWhenPrepared;
+          delete r.reviewWhenPrepared;
+        });
+        if (asked) void startPanel(ref, knownMcpUrl());
       }),
       reuse.slices && reuse.fileNotes
         ? undefined

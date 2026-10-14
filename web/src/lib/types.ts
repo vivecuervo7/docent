@@ -213,6 +213,8 @@ export interface AgentReviewer {
 	// replaces its picks each time it runs.
 	pickedBy?: AgentId;
 	pickReason?: string;
+	// For "auto", while it's choosing the personas the PR warrants.
+	picking?: boolean;
 	// For "auto" ("auto:<model>"), the personas it last picked.
 	// `general` when the general reviewer went in with its picks, which it
 	// does unless one is on the panel by choice.
