@@ -35,6 +35,8 @@ export interface PrFile {
   // Set for a range of commits; see range.server.
   inRange?: number[];
   rangeLines?: { old: number[]; new: number[] };
+  // What the range removed of the PR's own lines, by the line each run sat before.
+  rangeRemoved?: { at: number; lines: string[] }[];
 }
 
 export async function fetchPrFiles(

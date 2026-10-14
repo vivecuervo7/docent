@@ -17,6 +17,9 @@ export interface PrFile {
 	// them. Without these, the whole PR is under review.
 	inRange?: number[];
 	rangeLines?: { old: number[]; new: number[] };
+	// What the range removed of the PR's own lines - in neither the PR's diff
+	// nor the base branch - by the new-file line each run sat before.
+	rangeRemoved?: { at: number; lines: string[] }[];
 }
 
 export interface PrMeta {

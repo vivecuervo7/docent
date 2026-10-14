@@ -7,6 +7,7 @@
 	import {
 		EXPAND_STEP,
 		expandHunk,
+		withRemoved,
 		expansionFor,
 		nearestHunk,
 		fileLines,
@@ -48,7 +49,8 @@
 		onToggleReviewed,
 		fold = null,
 		onopenchange,
-		foldTests = true
+		foldTests = true,
+		showRemoved = false
 	}: {
 		file: PrFile;
 		// Every hunk in the file, shown or not: expansion stops at its neighbours.
@@ -67,6 +69,8 @@
 		onopenchange?: (open: boolean) => void;
 		// Fold test code between the scenario lines the note marks.
 		foldTests?: boolean;
+		// Put back what a round removed of the PR's own lines.
+		showRemoved?: boolean;
 	} = $props();
 
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
@@ -75,7 +79,7 @@
 	const rangeNew = $derived(file.rangeLines && new Set(file.rangeLines.new));
 	const rangeOld = $derived(file.rangeLines && new Set(file.rangeLines.old));
 	const earlier = (r: Row) =>
-		!!rangeNew && !!rangeOld && ((r.kind === 'add' && !rangeNew.has(r.new!)) || (r.kind === 'del' && !rangeOld.has(r.old!)));
+		!r.removed && !!rangeNew && !!rangeOld && ((r.kind === 'add' && !rangeNew.has(r.new!)) || (r.kind === 'del' && !rangeOld.has(r.old!)));
 	// A finding belongs with the hunk holding its line, or the nearest one
 	// for a line outside the diff; only those in hunks shown here count here.
 	const homeOf = (m: Mark) => (m.note?.hunk !== undefined ? allHunks[m.note.hunk] : nearestHunk(allHunks, m.start));
@@ -160,6 +164,7 @@
 			.filter((h) => shownIndices.has(h.index))
 			.map((h) => (oldLines ? expandHunk(h, expansion[h.index], oldLines) : h))
 			.map((h) => (whitespace ? h : hideWhitespace(h)))
+			.map((h) => (showRemoved && file.rangeRemoved ? withRemoved(h, file.rangeRemoved) : h))
 	);
 	const expanded = new SvelteSet<string>();
 	const items = $derived(layout(hunks, expanded));
@@ -303,7 +308,8 @@
 	function startThread(text: string, kind: SendKind) {
 		if (!selection) return;
 		const comment = kind === 'comment';
-		const rows = shown.slice(selFrom, selTo + 1);
+		// Lines a round removed aren't in either file, so there's nothing to anchor to.
+		const rows = shown.slice(selFrom, selTo + 1).filter((r) => !r.removed);
 		const ref = (r: Row): LineRef => (r.kind === 'del' ? { side: 'old', line: r.old! } : { side: 'new', line: r.new! });
 		const id = session.createNote(
 			{
@@ -454,8 +460,13 @@
 		role="presentation"
 		onpointerenter={() => dragging && selection && (selection = { ...selection, head: pos })}
 	>
-		<span class="n" role="presentation" title={SELECT_HINT} onpointerdown={(e) => startSelect(e, pos)}>{r.old ?? ''}</span>
-		<span class="n" role="presentation" title={SELECT_HINT} onpointerdown={(e) => startSelect(e, pos)}>{r.new ?? ''}</span>
+		{#if r.removed}
+			<span class="n removed-n" title="Removed in this round, from the PR's own changes" aria-label="Removed in this round"></span>
+			<span class="n removed-n"></span>
+		{:else}
+			<span class="n" role="presentation" title={SELECT_HINT} onpointerdown={(e) => startSelect(e, pos)}>{r.old ?? ''}</span>
+			<span class="n" role="presentation" title={SELECT_HINT} onpointerdown={(e) => startSelect(e, pos)}>{r.new ?? ''}</span>
+		{/if}
 		<span class="code"
 			>{#each segments(r.text, tokens.get(r.key), edits.get(r.key)) as s, i (i)}<span
 					class:edit={s.edit}
@@ -692,6 +703,9 @@
 	}
 	.row.earlier .edit {
 		background: none;
+	}
+	.removed-n {
+		cursor: default;
 	}
 	.row.tint-finding .code {
 		background-image: linear-gradient(var(--agent-tint), var(--agent-tint));

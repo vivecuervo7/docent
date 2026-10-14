@@ -80,6 +80,7 @@ export class PrSession {
 	// Viewing preferences, kept in this browser.
 	hideWhitespace = $state(readPref('docent.hideWhitespace', true));
 	foldTests = $state(readPref('docent.foldTests', true));
+	showRemoved = $state(readPref('docent.showRemoved', false));
 
 	// Each file's hunks, parsed once.
 	readonly hunks = $derived(new Map<string, Hunk[]>(this.files.map((f) => [f.filename, parseFilePatch(f.patch ?? '')])));
@@ -226,6 +227,11 @@ export class PrSession {
 	setFoldTests(value: boolean) {
 		this.foldTests = value;
 		writePref('docent.foldTests', value);
+	}
+
+	setShowRemoved(value: boolean) {
+		this.showRemoved = value;
+		writePref('docent.showRemoved', value);
 	}
 
 	// Ticks or unticks hunks, by key (`path#index`).

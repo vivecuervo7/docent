@@ -37,6 +37,13 @@
 					<small class="faint">Imports, test setup and new test bodies fold, showing what changed inside.</small>
 				</span>
 			</label>
+			<label>
+				<input type="checkbox" checked={session.showRemoved} onchange={(e) => session.setShowRemoved(e.currentTarget.checked)} />
+				<span>
+					Show what a round removed
+					<small class="faint">Lines the round's commits took out of the PR's own changes, in red where they were.</small>
+				</span>
+			</label>
 		</div>
 	{/if}
 </div>

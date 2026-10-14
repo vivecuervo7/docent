@@ -13,6 +13,9 @@ export interface Row {
 	old?: number;
 	new?: number;
 	text: string;
+	// A line a round of commits removed that the PR had added itself: in
+	// neither file the diff compares, so it has no line number of its own.
+	removed?: boolean;
 }
 
 export interface Hunk {
@@ -130,6 +133,26 @@ export function layout(hunks: Hunk[], expanded: Set<string>): LayoutItem[] {
 		}
 	}
 	return items;
+}
+
+// A round's removals of the PR's own lines, put back where they were, each
+// run before the line it sat before, or after the hunk's last line.
+export function withRemoved(hunk: Hunk, runs: { at: number; lines: string[] }[]): Hunk {
+	const own = hunk.rows.filter((r) => r.kind !== 'del' && r.new !== undefined);
+	if (!own.length) return hunk;
+	const first = own[0].new!;
+	const last = own.at(-1)!.new!;
+	const here = runs.filter((run) => run.at >= first && run.at <= last + 1);
+	if (!here.length) return hunk;
+	const rows: Row[] = [];
+	const ghosts = (run: (typeof runs)[number]) =>
+		run.lines.map((text, i): Row => ({ key: `${hunk.index}r${run.at}-${i}`, kind: 'del', text, removed: true }));
+	for (const row of hunk.rows) {
+		if (row.kind !== 'del') for (const run of here) if (run.at === row.new) rows.push(...ghosts(run));
+		rows.push(row);
+	}
+	for (const run of here) if (run.at === last + 1) rows.push(...ghosts(run));
+	return { ...hunk, rows };
 }
 
 // Changes that only touch whitespace, shown as the unchanged lines they

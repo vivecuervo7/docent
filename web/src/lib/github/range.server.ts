@@ -74,15 +74,22 @@ async function compareFiles(owner: string, repo: string, from: string, to: strin
 // Both diffs number new lines as the range's last commit has them, so a PR
 // line the range added is one the range's diff added too. A PR deletion the
 // range made sits where the range's diff deleted lines.
+// What the range removed that the PR had added itself appears in neither
+// the PR's diff nor the base branch; it's kept apart, as `rangeRemoved`, by
+// the line it sat before, and the hunk around it counts as touched.
 export function scopeToRange(prFiles: PrFile[], rangeFiles: PrFile[]): PrFile[] {
   const byName = new Map(rangeFiles.map((f) => [f.filename, f]));
   return prFiles.flatMap((file) => {
     const changed = byName.get(file.filename);
     if (!file.patch || !changed?.patch) return [];
-    const { added, deletedAt } = rangeChanges(changed.patch);
+    const { added, deletedAt, removed } = rangeChanges(changed.patch);
     const lines = { old: [] as number[], new: [] as number[] };
     const inRange: number[] = [];
-    patchHunks(file.patch).forEach((hunk, index) => {
+    const hunks = patchHunks(file.patch);
+    // Where the PR's diff already shows a deletion: the base branch's lines.
+    const prDeletedAt = new Set(hunks.flat().flatMap((r) => (r.kind === "del" ? [r.new] : [])));
+    const rangeRemoved = removed.filter((run) => !prDeletedAt.has(run.at));
+    hunks.forEach((hunk, index) => {
       let touched = false;
       for (const row of hunk) {
         if (row.kind === "add" && added.has(row.new)) {
@@ -93,27 +100,40 @@ export function scopeToRange(prFiles: PrFile[], rangeFiles: PrFile[]): PrFile[] 
           touched = true;
         }
       }
+      // A run removed from inside the hunk's new lines, or just after them.
+      const first = hunk.find((r) => r.kind !== "del")?.new ?? 0;
+      const last = hunk.findLast((r) => r.kind !== "del")?.new ?? -1;
+      if (rangeRemoved.some((run) => run.at >= first && run.at <= last + 1)) touched = true;
       if (touched) inRange.push(index);
     });
-    return inRange.length ? [{ ...file, inRange, rangeLines: lines }] : [];
+    return inRange.length ? [{ ...file, inRange, rangeLines: lines, ...(rangeRemoved.length ? { rangeRemoved } : {}) }] : [];
   });
 }
 
-// New lines a diff added, and the new lines its deletions sit before.
-function rangeChanges(patch: string): { added: Set<number>; deletedAt: Set<number> } {
+// New lines a diff added, the new lines its deletions sit before, and each
+// run of deleted lines with its text.
+function rangeChanges(patch: string): { added: Set<number>; deletedAt: Set<number>; removed: { at: number; lines: string[] }[] } {
   const added = new Set<number>();
   const deletedAt = new Set<number>();
+  const removed: { at: number; end: number; lines: string[] }[] = [];
   for (const hunk of patchHunks(patch)) {
     for (const row of hunk) {
       if (row.kind === "add") added.add(row.new);
-      else if (row.kind === "del") deletedAt.add(row.new);
+      else if (row.kind === "del") {
+        deletedAt.add(row.new);
+        const run = removed.at(-1);
+        if (run?.at === row.new && run.end === row.old - 1) {
+          run.lines.push(row.text);
+          run.end = row.old;
+        } else removed.push({ at: row.new, end: row.old, lines: [row.text] });
+      }
     }
   }
-  return { added, deletedAt };
+  return { added, deletedAt, removed: removed.map(({ at, lines }) => ({ at, lines })) };
 }
 
 // Each hunk's rows. A deleted row's `new` is the new line it sits before.
-type PatchRow = { kind: "add" | "del" | "context"; old: number; new: number };
+type PatchRow = { kind: "add" | "del" | "context"; old: number; new: number; text: string };
 
 function patchHunks(patch: string): PatchRow[][] {
   const hunks: PatchRow[][] = [];
@@ -130,11 +150,11 @@ function patchHunks(patch: string): PatchRow[][] {
     } else if (!rows || line.startsWith("\\")) {
       continue;
     } else if (line.startsWith("+")) {
-      rows.push({ kind: "add", old: oldLine, new: newLine++ });
+      rows.push({ kind: "add", old: oldLine, new: newLine++, text: line.slice(1) });
     } else if (line.startsWith("-")) {
-      rows.push({ kind: "del", old: oldLine++, new: newLine });
+      rows.push({ kind: "del", old: oldLine++, new: newLine, text: line.slice(1) });
     } else {
-      rows.push({ kind: "context", old: oldLine++, new: newLine++ });
+      rows.push({ kind: "context", old: oldLine++, new: newLine++, text: line.slice(1) });
     }
   }
   return hunks;
