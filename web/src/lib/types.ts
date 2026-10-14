@@ -73,6 +73,10 @@ export interface FeedbackItem {
 	id: string;
 	body: string;
 	included: boolean;
+	// Asked about, and waiting on the answer the backend's making; or why it
+	// couldn't make one.
+	awaiting?: boolean;
+	replyError?: string;
 	path?: string;
 	start?: LineRef;
 	end?: LineRef;
@@ -164,6 +168,10 @@ export interface Note {
 	readAt?: number;
 	// What it asks about, when that's something said on GitHub: its id.
 	github?: string;
+	// Asked, and waiting on the answer the backend's making; or why it
+	// couldn't make one.
+	awaiting?: boolean;
+	replyError?: string;
 }
 
 // Where a thread sits, in words: its lines, its file, or the PR.

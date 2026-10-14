@@ -178,6 +178,8 @@ export class PrSession {
 			this.files = pr.files;
 			this.meta = pr.meta;
 			this.#show(record);
+			// Answers still being made, from before a refresh.
+			this.#watchAnswers();
 			const wanted = this.#roundIndex(this.#wanted);
 			if (wanted !== null) await this.viewRound(wanted);
 			this.panel.load();
@@ -235,7 +237,14 @@ export class PrSession {
 
 	// Threads: asking about or remarking on selected lines, and the model's
 	// replies. Replies in flight, or failed, are kept here, not saved.
-	noteStatus = $state<Record<string, { pending?: boolean; error?: string }>>({});
+	// Answers are made on the backend and saved into the review, which says
+	// what's awaiting one; this covers the moment before it does, and asking
+	// that failed outright.
+	#asked = $state<Record<string, { pending?: boolean; error?: string }>>({});
+	#statusOf(id: string, saved: { awaiting?: boolean; replyError?: string }) {
+		return saved.awaiting ? { pending: true } : saved.replyError ? { error: saved.replyError } : (this.#asked[id] ?? {});
+	}
+	readonly noteStatus = $derived(Object.fromEntries(this.record.notes.map((n) => [n.id, this.#statusOf(n.id, n)])));
 
 	// With `comment`, the message is one to post as written, and asks for
 	// no reply.
@@ -253,7 +262,7 @@ export class PrSession {
 			r.notes = [...r.notes, note];
 		})
 			.then(() => (comment ? undefined : this.#requestReply(note.id)))
-			.catch((err) => (this.noteStatus[note.id] = { error: (err as Error).message }));
+			.catch((err) => (this.#asked[note.id] = { error: (err as Error).message }));
 		return note.id;
 	}
 
@@ -264,7 +273,7 @@ export class PrSession {
 			r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, message] } : n));
 		})
 			.then(() => (comment || conclusion ? undefined : this.#requestReply(id)))
-			.catch((err) => (this.noteStatus[id] = { error: (err as Error).message }));
+			.catch((err) => (this.#asked[id] = { error: (err as Error).message }));
 	}
 
 	// Begins a thread about something said on GitHub, on the same lines or
@@ -319,7 +328,7 @@ export class PrSession {
 		// A thread without lines is about its whole file, or with no path the PR.
 		const lines = note.start ? noteWhere(note) : '';
 		const code = note.code ?? '';
-		this.noteStatus[id] = { pending: true };
+		this.#asked[id] = { pending: true };
 		try {
 			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/notes/reply`, {
 				method: 'POST',
@@ -338,24 +347,30 @@ export class PrSession {
 						...(note.github ? { github: this.#githubText(note.github) } : {})
 					},
 					messages: forModel(note.messages),
-					model: this.record.model
+					model: this.record.model,
+					target: { note: id },
+					...(this.round !== null ? { round: this.round } : {})
 				})
 			});
-			const { text } = await readHeld<{ text: string }>(res);
-			// The thread may have been deleted while the reply was on its way.
-			await this.update((r) => {
-				r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, { role: 'assistant', text, at: Date.now() }] } : n));
-			});
-			this.noteStatus[id] = {};
+			await readOk(res);
+			await this.reload();
+			this.#asked[id] = {};
+			this.#watchAnswers();
 		} catch (err) {
-			this.noteStatus[id] = { error: (err as Error).message };
+			this.#asked[id] = { error: (err as Error).message };
 		}
 	}
 
 	// Questions about a finding, answered by the model that raised it (or the
 	// picked model, for the reviewer's own agent). The conversation is saved
 	// on the finding, and goes with it into the prepared review.
-	findingStatus = $state<Record<string, { pending?: boolean; error?: string }>>({});
+	readonly findingStatus = $derived(
+		Object.fromEntries(
+			Object.values(this.record.feedback)
+				.flatMap((d) => d?.items ?? [])
+				.map((i) => [i.id, this.#statusOf(i.id, i)])
+		)
+	);
 
 	// The reviewer's conclusion about a finding: what Prepare follows when
 	// wording it, or leaving it out. It asks for no answer.
@@ -368,7 +383,7 @@ export class PrSession {
 		const message = { role: 'user' as const, text, at: Date.now(), ...(prompt ? { prompt } : {}) };
 		this.#changeFinding(reviewer, id, (item) => ({ ...item, messages: [...(item.messages ?? []), message] }))
 			.then(() => this.#answerFinding(reviewer, id))
-			.catch((err) => (this.findingStatus[id] = { error: (err as Error).message }));
+			.catch((err) => (this.#asked[id] = { error: (err as Error).message }));
 	}
 
 	// Seeing a finding - or a new answer about it - clears it from unread.
@@ -403,7 +418,7 @@ export class PrSession {
 		// far as they fit.
 		const everything = path ? '' : this.#allChanges();
 		const ranWith = this.record.agentReviewers.find((a) => a.id === reviewer)?.ranWith;
-		this.findingStatus[id] = { pending: true };
+		this.#asked[id] = { pending: true };
 		try {
 			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/notes/reply`, {
 				method: 'POST',
@@ -441,14 +456,17 @@ export class PrSession {
 						}
 					},
 					messages: forModel(item.messages),
-					model: this.#answeringModel(ranWith)
+					model: this.#answeringModel(ranWith),
+					target: { finding: { reviewer, id } },
+					...(this.round !== null ? { round: this.round } : {})
 				})
 			});
-			const { text } = await readHeld<{ text: string }>(res);
-			await this.#changeFinding(reviewer, id, (i) => ({ ...i, messages: [...(i.messages ?? []), { role: 'assistant', text, at: Date.now() }] }));
-			this.findingStatus[id] = {};
+			await readOk(res);
+			await this.reload();
+			this.#asked[id] = {};
+			this.#watchAnswers();
 		} catch (err) {
-			this.findingStatus[id] = { error: (err as Error).message };
+			this.#asked[id] = { error: (err as Error).message };
 		}
 	}
 
@@ -683,6 +701,21 @@ export class PrSession {
 		if (!this.record.reviewWhenPrepared || this.round !== null) return;
 		await this.update((r) => delete r.reviewWhenPrepared).catch(() => {});
 		this.panel.startAll();
+	}
+
+	// Reads the review while answers are being made, until none is awaited.
+	#answers: ReturnType<typeof setInterval> | null = null;
+	#watchAnswers() {
+		if (this.#answers) return;
+		this.#answers = setInterval(() => {
+			const awaited = [...this.record.notes, ...Object.values(this.record.feedback).flatMap((d) => d?.items ?? [])].some((x) => x.awaiting);
+			if (!awaited || this.#closed) {
+				clearInterval(this.#answers!);
+				this.#answers = null;
+				return;
+			}
+			this.reload().catch(() => {});
+		}, 2000);
 	}
 
 	// The review as the backend has it now, for what it saved itself.
