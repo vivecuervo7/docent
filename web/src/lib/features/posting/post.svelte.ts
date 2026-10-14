@@ -293,7 +293,8 @@ export class ReviewPost {
 		}
 	}
 
-	// A posted review marked complete moves out of the way on the start page.
+	// A review marked complete, posted or not, moves out of the way on the
+	// start page.
 	setComplete(complete: boolean) {
 		this.#session
 			.update((r) => {

@@ -131,6 +131,15 @@
 		<p class="bad">Couldn’t prepare the review: {post.prepareStatus.error}</p>
 	{/if}
 
+	<!-- A review can be finished with nothing posted: your own PR, say, with
+	     nothing left to raise. -->
+	{#if session.record.completedAt && !draft?.posted}
+		<div class="posted" role="status">
+			<span class="grow">Marked complete without posting.</span>
+			<button class="btn" onclick={() => post.setComplete(false)}>Reopen</button>
+		</div>
+	{/if}
+
 	{#if !draft}
 		<section class="prompt">
 			<p>
@@ -147,6 +156,11 @@
 					<span class="faint pending"><Spinner size={13} /> Preparing…</span>
 				{:else}
 					<button class="btn primary big" onclick={() => post.prepare()}>Prepare the review</button>
+					{#if !session.record.completedAt}
+						<button class="btn big" title="Finish this review without posting anything to GitHub" onclick={() => post.setComplete(true)}
+							>Complete without posting</button
+						>
+					{/if}
 				{/if}
 			</div>
 		</section>
@@ -297,6 +311,11 @@
 					{#if postError && !confirming}<p class="bad">Couldn’t post the review: {postError}</p>{/if}
 					<div class="actions">
 						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
+						{#if !session.record.completedAt}
+							<button class="link" title="Finish this review without posting anything to GitHub" onclick={() => post.setComplete(true)}
+								>Complete without posting</button
+							>
+						{/if}
 						<button class="btn big" title="Only you see it until you submit it on GitHub" onclick={() => review(true)}>Leave pending</button>
 						<button class="btn primary big" onclick={() => review()}>Post review</button>
 					</div>
@@ -365,6 +384,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
+	}
+	.prompt > div {
+		display: flex;
+		align-items: center;
+		gap: 10px;
 	}
 	.pending {
 		display: flex;
