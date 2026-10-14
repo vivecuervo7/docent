@@ -14,7 +14,14 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 	}
 	try {
 		const summary = typeof body.summary === 'string' ? body.summary : '';
-		const payload = await buildReviewPayload(owner, repo, number, body.pending === true ? undefined : event, summary, comments);
+		const replies = (Array.isArray(body.replies) ? body.replies : []).filter(
+			(r: unknown): r is { thread: string; body: string } =>
+				!!r && typeof (r as { thread: unknown }).thread === 'string' && typeof (r as { body: unknown }).body === 'string' && !!(r as { body: string }).body.trim()
+		);
+		const payload = {
+			...(await buildReviewPayload(owner, repo, number, body.pending === true ? undefined : event, summary, comments)),
+			...(replies.length ? { replies } : {})
+		};
 		if (body.dryRun) return json({ payload });
 		return json({ payload, ...(await postReviewPayload(owner, repo, number, payload)) });
 	} catch (err) {

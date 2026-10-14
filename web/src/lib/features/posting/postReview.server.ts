@@ -321,6 +321,9 @@ export interface ReviewPayload {
   event?: ReviewEvent;
   body: string;
   comments: InlineComment[];
+  // Replies to threads already on the PR, by GitHub's id for the thread,
+  // sent as part of the review.
+  replies?: { thread: string; body: string }[];
 }
 
 const githubSide = (side: "old" | "new") => (side === "old" ? "LEFT" : "RIGHT");
@@ -374,29 +377,44 @@ export async function buildReviewPayload(
   return { ...(event ? { event } : {}), body, comments: inline };
 }
 
-export async function postReviewPayload(
-  owner: string,
-  repo: string,
-  number: string,
-  payload: ReviewPayload,
-): Promise<{ url: string }> {
-  const output = await new Promise<string>((resolve, reject) => {
-    const child = spawn("gh", [
-      "api",
-      "--method",
-      "POST",
-      `repos/${owner}/${repo}/pulls/${number}/reviews`,
-      "--input",
-      "-",
-    ]);
+// `gh api` with a JSON body on stdin.
+function ghWithInput(args: string[], input: unknown): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn("gh", ["api", ...args, "--input", "-"]);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
     child.on("error", reject);
     child.on("close", (code) => (code === 0 ? resolve(stdout) : reject(new Error(stderr.trim() || stdout.trim() || `gh exited with ${code}`))));
-    child.stdin.end(JSON.stringify(payload));
+    child.stdin.end(JSON.stringify(input));
   });
-  const { html_url } = JSON.parse(output) as { html_url?: string };
-  return { url: html_url ?? `https://github.com/${owner}/${repo}/pull/${number}` };
+}
+
+// Posts the review. One with replies to threads already on the PR goes in
+// three steps, as GitHub only takes those replies into a review still
+// pending: the review is made pending, the replies added to it, and then it's
+// submitted - unless it's to be left pending anyway.
+export async function postReviewPayload(
+  owner: string,
+  repo: string,
+  number: string,
+  payload: ReviewPayload,
+): Promise<{ url: string }> {
+  const { replies = [], event, ...review } = payload;
+  const reviews = `repos/${owner}/${repo}/pulls/${number}/reviews`;
+  const created = JSON.parse(
+    await ghWithInput(["--method", "POST", reviews], replies.length ? review : { ...review, ...(event ? { event } : {}) }),
+  ) as { id: number; node_id: string; html_url?: string };
+  if (replies.length) {
+    for (const reply of replies) {
+      await ghWithInput(["graphql"], {
+        query:
+          "mutation($review: ID!, $thread: ID!, $body: String!) { addPullRequestReviewThreadReply(input: { pullRequestReviewId: $review, pullRequestReviewThreadId: $thread, body: $body }) { comment { id } } }",
+        variables: { review: created.node_id, thread: reply.thread, body: reply.body },
+      });
+    }
+    if (event) await ghWithInput(["--method", "POST", `${reviews}/${created.id}/events`], { event });
+  }
+  return { url: created.html_url ?? `https://github.com/${owner}/${repo}/pull/${number}` };
 }

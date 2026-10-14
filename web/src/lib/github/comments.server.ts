@@ -86,13 +86,28 @@ async function threadStates(owner: string, repo: string, number: string): Promis
 
 // Resolves or reopens inline threads on GitHub, by their GitHub ids. Each
 // is tried on its own, so one GitHub refuses doesn't stop the rest.
-export async function setThreadsResolved(changes: { node: string; resolved: boolean }[]): Promise<{ node: string; error?: string }[]> {
+// One with a reply has it posted to the thread first, by the id of the
+// thread's first comment.
+export async function setThreadsResolved(
+  ref: { owner: string; repo: string; number: string },
+  changes: { node: string; resolved: boolean; reply?: { comment: number; body: string } }[],
+): Promise<{ node: string; error?: string }[]> {
   return Promise.all(
-    changes.map(async ({ node, resolved }) => {
+    changes.map(async ({ node, resolved, reply }) => {
       const mutation = resolved
         ? "mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }"
         : "mutation($id: ID!) { unresolveReviewThread(input: { threadId: $id }) { thread { id } } }";
       try {
+        if (reply) {
+          await execFileAsync("gh", [
+            "api",
+            "--method",
+            "POST",
+            `repos/${ref.owner}/${ref.repo}/pulls/${ref.number}/comments/${reply.comment}/replies`,
+            "-f",
+            `body=${reply.body}`,
+          ]);
+        }
         await execFileAsync("gh", ["api", "graphql", "-f", `query=${mutation}`, "-F", `id=${node}`]);
         return { node };
       } catch (err) {

@@ -247,7 +247,11 @@ export class ReviewPost {
 				pending,
 				event: draft.event,
 				summary: draft.summaryLeftOut ? '' : draft.summary,
-				comments: draft.comments.filter((c) => c.included && c.body.trim()).map(({ body, path, start, end }) => ({ body, path, start, end }))
+				comments: draft.comments.filter((c) => c.included && c.body.trim()).map(({ body, path, start, end }) => ({ body, path, start, end })),
+				// What reopened threads are told why, as part of the review.
+				replies: Object.values(this.#session.record.threadChanges ?? {}).flatMap((c) =>
+					!c.resolve && c.reply?.trim() ? [{ thread: c.node, body: c.reply.trim() }] : []
+				)
 			})
 		});
 	}
@@ -291,21 +295,28 @@ export class ReviewPost {
 			if (!found) throw err;
 			await this.#save({ ...draft, posted: { at: Date.now(), url: found, ...(pending ? { pending } : {}) } });
 		}
-		// With the review out, the threads it marked.
-		await this.applyThreadChanges();
+		// With the review out, the threads it marked; their replies went with it.
+		await this.applyThreadChanges({ repliesSent: true });
 	}
 
 	// Resolves or reopens the GitHub threads the round marked, as its review
 	// goes out. Each that GitHub takes loses its mark; one it refuses keeps
-	// it, and the refusal is thrown.
-	async applyThreadChanges() {
+	// it, and the refusal is thrown. A reopening's reply went with a posted
+	// review; without one, it's posted to its thread here.
+	async applyThreadChanges({ repliesSent = false } = {}) {
 		const marked = Object.entries(this.#session.record.threadChanges ?? {});
 		if (!marked.length) return;
 		const { owner, repo, number } = this.#session.ref;
 		const res = await fetch(`/api/pr/${owner}/${repo}/${number}/github-threads`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ changes: marked.map(([, c]) => ({ node: c.node, resolved: c.resolve })) })
+			body: JSON.stringify({
+				changes: marked.map(([id, c]) => ({
+					node: c.node,
+					resolved: c.resolve,
+					...(!repliesSent && !c.resolve && c.reply?.trim() ? { reply: { comment: Number(id.slice(1)), body: c.reply.trim() } } : {})
+				}))
+			})
 		});
 		const { results } = await readOk<{ results: { node: string; error?: string }[] }>(res);
 		const done = new Set(results.filter((r) => !r.error).map((r) => r.node));

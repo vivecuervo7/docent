@@ -60,6 +60,15 @@
 			{#if marked}
 				<span class="faint">{marked.resolve ? 'Resolving' : 'Reopening'} when you post this round’s review</span>
 				<button class="link" onclick={() => thread && session.markThread(thread, null)}>Undo</button>
+				{#if !marked.resolve}
+					<textarea
+						class="why"
+						rows="2"
+						placeholder="Reply with why it isn’t resolved (optional)"
+						value={marked.reply ?? ''}
+						onchange={(e) => thread && session.setThreadReply(thread.id, e.currentTarget.value)}
+					></textarea>
+				{/if}
 			{:else}
 				<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
 				<button class="link" onclick={() => thread && session.markThread(thread, !thread.resolved)}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
@@ -116,6 +125,30 @@
 		padding: 8px 16px;
 		border-bottom: 1px solid var(--line);
 		font-size: 12.5px;
+	}
+	.state {
+		flex-wrap: wrap;
+	}
+	.why {
+		flex-basis: 100%;
+		box-sizing: border-box;
+		resize: none;
+		field-sizing: content;
+		min-height: 3.2em;
+		max-height: 140px;
+		padding: 8px 10px;
+		border: 0;
+		border-radius: 8px;
+		background: var(--bg);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--text);
+		font: inherit;
+		font-size: 13.5px;
+		line-height: 1.5;
+		outline: none;
+	}
+	.why:focus {
+		box-shadow: inset 0 0 0 1px var(--you);
 	}
 	.state .link {
 		margin-left: auto;

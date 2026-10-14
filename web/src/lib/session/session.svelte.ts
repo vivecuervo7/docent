@@ -308,6 +308,15 @@ export class PrSession {
 		}).catch(() => {});
 	}
 
+	// The reply a thread marked to reopen goes with.
+	setThreadReply(id: string, reply: string) {
+		this.update((r) => {
+			const change = r.threadChanges?.[id];
+			if (!change || change.resolve) return;
+			r.threadChanges = { ...r.threadChanges, [id]: { ...change, ...(reply.trim() ? { reply } : { reply: undefined }) } };
+		}).catch(() => {});
+	}
+
 	// What's been said on GitHub again, after changing it.
 	async refreshGitHub() {
 		const comments = await readOk<GitHubComments>(await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`));

@@ -161,6 +161,7 @@
 						<span class="which">
 							<span class="faint mono">{m.thread?.path.split('/').pop() ?? 'A thread'}{m.thread?.end ? ` · line ${m.thread.end.line}` : ''}</span>
 							<span class="gist">{m.thread?.entries[0]?.body.split('\n')[0] ?? ''}</span>
+							{#if !m.change.resolve && m.change.reply?.trim()}<span class="reply">Your reply: {m.change.reply.trim()}</span>{/if}
 						</span>
 						<button class="link" onclick={() => m.thread && session.markThread(m.thread, null)}>Leave as it is</button>
 					</li>
@@ -376,6 +377,12 @@
 				It’s visible to everyone on the PR.
 			{/if}
 		</p>
+		{#if confirming.replies?.length}
+			<p class="confirm-text">
+				And {confirming.replies.length === 1 ? 'a reply' : `${confirming.replies.length} replies`} to {confirming.replies.length === 1 ? 'a thread' : 'threads'}
+				you're reopening, as part of the review.
+			</p>
+		{/if}
 		{#if post.stale}
 			<p class="confirm-stale">This review is out of date: since it was prepared, {staleChange}. It will post as it is now.</p>
 		{/if}
@@ -477,6 +484,10 @@
 	.which .mono {
 		font-family: var(--mono);
 		font-size: 12px;
+	}
+	.reply {
+		color: var(--muted);
+		font-size: 13px;
 	}
 	.gist {
 		white-space: nowrap;
