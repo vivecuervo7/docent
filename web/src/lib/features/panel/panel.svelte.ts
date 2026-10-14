@@ -151,8 +151,8 @@ export class Panel {
 		this.reviewers.reduce((n, r) => n + (this.#session.record.feedback[r.id]?.items.filter((i) => !i.edited && !i.editFailed).length ?? 0), 0)
 	);
 
-	// Findings already copied into the record, by review, so each lands once.
-	#seen: Partial<Record<AgentId, { id: string; count: number }>> = {};
+	// Each review as last read from the record, so a change is read once.
+	#seen: Partial<Record<AgentId, { id: string; count: number; status: string }>> = {};
 	// Removed while a check-in was in flight: their findings mustn't return.
 	#removed = new Set<AgentId>();
 	#poll: ReturnType<typeof setInterval> | null = null;
@@ -451,57 +451,16 @@ export class Panel {
 	#collect(id: AgentId, review: AgentReview) {
 		if (this.#removed.has(id)) return;
 		this.reviews[id] = review;
+		// The backend saves its findings and how it went into the review; the
+		// page reads them from there, then lets the editor go through them.
 		const seen = this.#seen[id];
-		if (seen?.id !== review.id || seen.count !== review.findings.length) {
-			this.#seen[id] = { id: review.id, count: review.findings.length };
+		if (seen?.id !== review.id || seen.count !== review.findings.length || seen.status !== review.status) {
+			this.#seen[id] = { id: review.id, count: review.findings.length, status: review.status };
 			this.#session
-				.update((r) => {
-					// A finding already here keeps what's been done with it - decided,
-					// asked about, read, grouped - as its review goes on.
-					const before = new Map((r.feedback[id]?.items ?? []).map((i) => [i.id, i]));
-					const draft: FeedbackDraft = {
-						items: review.findings.map((f) => ({
-							included: true,
-							// The editor's correction, kept over the reviewer's.
-							...(f.severity ? { severity: f.severity } : {}),
-							...(f.setAside ? { setAside: f.setAside } : {}),
-							...before.get(f.id),
-							id: f.id,
-							body: f.body,
-							rationale: f.rationale,
-							path: f.path,
-							...(f.slice ? { slice: f.slice } : {}),
-							...(f.startLine
-								? {
-										start: { side: 'new' as const, line: f.startLine },
-										end: { side: 'new' as const, line: f.endLine ?? f.startLine }
-									}
-								: {})
-						})),
-						draftedAt: Date.now()
-					};
-					r.feedback[id] = draft;
-				})
+				.reload()
 				.then(() => this.#edit())
 				.catch(() => {});
 		} else this.#edit();
-		// The run itself, kept for after the backend lets it go.
-		const lastRun = {
-			startedAt: review.startedAt,
-			endedAt: review.endedAt,
-			status: review.status,
-			findings: review.findings.length,
-			...(review.error ? { error: review.error } : {}),
-			...(review.verdict ? { verdict: review.verdict } : {})
-		};
-		const saved = this.reviewers.find((a) => a.id === id)?.lastRun;
-		if (JSON.stringify(saved) !== JSON.stringify(lastRun)) {
-			this.#session
-				.update((r) => {
-					r.agentReviewers = r.agentReviewers.map((a) => (a.id === id ? { ...a, lastRun } : a));
-				})
-				.catch(() => {});
-		}
 		if (review.status === 'running') this.#startPolling();
 		else {
 			dismissAgentReview(this.#session.ref, id);

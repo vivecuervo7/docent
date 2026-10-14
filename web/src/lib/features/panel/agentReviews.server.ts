@@ -4,7 +4,7 @@ import { conversationText, fetchPrConversation, type PrFile } from "../../github
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../../github/prDiff.server.js";
-import { allReviewers, prRef, roundOf } from "../../storage/rounds.server.js";
+import { allReviewers, changeRound, prRef, roundOf } from "../../storage/rounds.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
 import { runSession } from "./externalSessions.server.js";
 import { emptyUsage, usageScope, type Usage } from "../../models/usage.server.js";
@@ -83,6 +83,8 @@ export const DEFAULT_REVIEWER = "agent-1";
 export const REVIEWER_RE = /^[a-z0-9-]{1,40}$/;
 
 const reviews = persistent("agent-reviews", () => new Map<string, Entry>());
+// How each review saves itself into the PR's record.
+const savers = persistent("agent-reviews.savers", () => new WeakMap<AgentReview, () => void>());
 const contexts = persistent("agent-review.contexts", () => new Map<string, ReviewContext>());
 
 function prKey(owner: string, repo: string, number: string): string {
@@ -155,7 +157,52 @@ function begin(
     controller: new AbortController(),
   };
   reviews.set(key, entry);
+  savers.set(entry.review, () => saveReview(owner, repo, number, reviewer, entry.review));
   return entry;
+}
+
+// Saves a review into its round of the PR's record as it goes - its
+// findings, keeping whatever's been done with one already there, and how the
+// run went - so they land whether or not a page is open. A reviewer taken
+// off the panel isn't put back.
+function saveReview(owner: string, repo: string, number: string, reviewer: string, review: AgentReview) {
+  try {
+    changeRound(owner, repo, number, roundOf(owner, repo, number, reviewer), (record) => {
+      // A record from before panels were saved has the one first reviewer.
+      const panel = (record.agentReviewers ?? [{ id: DEFAULT_REVIEWER }]) as { id: string; lastRun?: unknown }[];
+      if (!panel.some((a) => a.id === reviewer)) return;
+      const feedback = (record.feedback ?? {}) as Record<string, { items: Record<string, unknown>[]; draftedAt: number } | undefined>;
+      const before = new Map((feedback[reviewer]?.items ?? []).map((i) => [i.id, i]));
+      feedback[reviewer] = {
+        items: review.findings.map((f) => ({
+          included: true,
+          // The editor's correction, kept over the reviewer's.
+          ...(f.severity ? { severity: f.severity } : {}),
+          ...(f.setAside ? { setAside: f.setAside } : {}),
+          ...before.get(f.id),
+          id: f.id,
+          body: f.body,
+          rationale: f.rationale,
+          path: f.path,
+          ...(f.slice ? { slice: f.slice } : {}),
+          ...(f.startLine ? { start: { side: "new", line: f.startLine }, end: { side: "new", line: f.endLine ?? f.startLine } } : {}),
+        })),
+        draftedAt: Date.now(),
+      };
+      record.feedback = feedback;
+      const lastRun = {
+        startedAt: review.startedAt,
+        endedAt: review.endedAt,
+        status: review.status,
+        findings: review.findings.length,
+        ...(review.error ? { error: review.error } : {}),
+        ...(review.verdict ? { verdict: review.verdict } : {}),
+      };
+      record.agentReviewers = panel.map((a) => (a.id === reviewer ? { ...a, lastRun } : a));
+    });
+  } catch (err) {
+    console.error(`[agent-review] couldn't save ${owner}/${repo}#${number} ${reviewer}: ${(err as Error).message}`);
+  }
 }
 
 // Runs one of the reviewer's external reviewers: a session of their own
@@ -183,9 +230,11 @@ export function startSessionReview(
       for (const finding of findings) {
         try {
           review.findings.push(checkFinding(finding, files));
+          savers.get(review)?.();
         } catch {
           const onFile = finding.path && files.some((f) => f.filename === finding.path);
           review.findings.push(checkFinding({ ...finding, path: onFile ? finding.path : undefined, startLine: undefined, endLine: undefined }, files));
+          savers.get(review)?.();
         }
       }
       end(review, "done");
@@ -209,6 +258,7 @@ function end(review: AgentReview, status: "done" | "failed" | "stopped") {
   if (review.status !== "running") return;
   review.status = status;
   review.endedAt = Date.now();
+  savers.get(review)?.();
 }
 
 // Every review running or not yet collected, for the start page and the
@@ -304,7 +354,9 @@ export async function submitFinding(
     ...checkFinding(finding, files ?? (await fetchReviewFiles(owner, repo, number, roundOf(owner, repo, number, reviewer)))),
     ...(slice ? { slice } : {}),
   };
-  openReview(owner, repo, number, reviewer).review.findings.push(recorded);
+  const { review } = openReview(owner, repo, number, reviewer);
+  review.findings.push(recorded);
+  savers.get(review)?.();
   return recorded;
 }
 

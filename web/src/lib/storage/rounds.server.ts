@@ -1,5 +1,6 @@
-import { getRecord, keyFor } from "./store.server.js";
-import { ROUND_FIELDS } from "./rounds.js";
+import { changeRecord, getRecord, keyFor } from "./store.server.js";
+import { keepRound, roundView, ROUND_FIELDS } from "./rounds.js";
+import type { PrRecord } from "../types.js";
 
 // A PR's rounds, as the backend reads them: the record's own fields are the
 // latest, and each earlier round is read the same way through a view of it.
@@ -16,6 +17,18 @@ export function roundRecord(owner: string, repo: string, number: string, round?:
   const view: Stored = { ...record };
   for (const field of ROUND_FIELDS) delete view[field];
   return { ...view, ...earlier };
+}
+
+// Changes one round of a review: the latest with none, else an earlier one,
+// read and kept back the way the browser does.
+export function changeRound(owner: string, repo: string, number: string, round: number | undefined, change: (record: Stored) => void): void {
+  changeRecord(keyFor(owner, repo, number), (record) => {
+    if (round === undefined) return change(record);
+    const full = record as unknown as PrRecord;
+    const view = roundView(full, round);
+    change(view as unknown as Stored);
+    keepRound(full, view, round);
+  });
 }
 
 // The round a reviewer is on. Reviewer ids aren't reused across a PR's

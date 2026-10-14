@@ -475,14 +475,12 @@ export class StartPage {
 		return { label: 'Not prepared', tone: 'quiet' };
 	}
 
-	// Findings not yet through the panel's editor: those collected and not
-	// checked, and those of reviews finished but not yet collected.
+	// Findings not yet through the panel's editor. The backend saves them
+	// into the review as they come, so they're all in the record.
 	#checking(pr: SavedPr): number {
-		const live = this.agentReviews.filter((r) => keyOf(r) === keyOf(pr) && r.status !== 'running');
-		const unchecked = Object.entries(pr.record.feedback)
-			.filter(([key]) => key.startsWith('agent-') && !live.some((r) => r.reviewer === key))
+		return Object.entries(pr.record.feedback)
+			.filter(([key]) => key.startsWith('agent-'))
 			.reduce((n, [, d]) => n + (d?.items.filter((i) => !i.edited && !i.editFailed).length ?? 0), 0);
-		return unchecked + live.reduce((n, r) => n + r.findings, 0);
 	}
 
 	// Where a PR's panel is: reviewing, or done with its findings in.
@@ -491,10 +489,11 @@ export class StartPage {
 		const running = live.filter((r) => r.status === 'running').length;
 		const ran = live.length > 0 || pr.record.agentReviewers.some((a) => a.lastRun);
 		if (!ran) return null;
-		const collected = Object.entries(pr.record.feedback)
-			.filter(([key]) => key.startsWith('agent-') && !live.some((r) => r.reviewer === key))
+		// Saved into the review as they come, so the record has them all.
+		const findings = Object.entries(pr.record.feedback)
+			.filter(([key]) => key.startsWith('agent-'))
 			.reduce((n, [, d]) => n + (d?.items.length ?? 0), 0);
-		return { running, findings: collected + live.reduce((n, r) => n + r.findings, 0) };
+		return { running, findings };
 	}
 
 	generationFor(pr: SavedPr): Generation | undefined {

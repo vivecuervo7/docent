@@ -686,7 +686,7 @@ export class PrSession {
 	}
 
 	// The review as the backend has it now, for what it saved itself.
-	async #reload() {
+	async reload() {
 		const { record } = await getRecord(this.ref);
 		if (!this.#closed) this.#show(record);
 	}
@@ -822,7 +822,7 @@ export class PrSession {
 		const finished = (Object.keys(next.steps) as StepName[]).filter((step) => next.steps[step].status === 'done' && !done.has(step));
 		if (finished.length || next.status === 'done') {
 			for (const step of finished) done.add(step);
-			await this.#reload().catch(() => {});
+			await this.reload().catch(() => {});
 			if (this.#closed) return;
 			if (finished.includes('summary')) this.panel.applyDefault().then(() => this.#reviewIfAsked());
 		}
