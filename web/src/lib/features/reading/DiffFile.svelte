@@ -70,7 +70,7 @@
 	} = $props();
 
 	const shownIndices = $derived(new Set(hunkIndices ?? allHunks.map((h) => h.index)));
-	// Reviewing a range of commits, the PR's other changes are shown dimmed,
+	// Reviewing a range of commits, the PR's other changes are shown plainly,
 	// as the context the range's changes sit in.
 	const rangeNew = $derived(file.rangeLines && new Set(file.rangeLines.new));
 	const rangeOld = $derived(file.rangeLines && new Set(file.rangeLines.old));
@@ -684,8 +684,14 @@
 	.row.del {
 		background: var(--del-bg);
 	}
-	.row.earlier > :not(.gutter) {
-		opacity: 0.45;
+	/* The PR's earlier changes, there as context for the round's: read as
+	   plainly as unchanged lines, so only the round's own read as changes. */
+	.row.add.earlier,
+	.row.del.earlier {
+		background: none;
+	}
+	.row.earlier .edit {
+		background: none;
 	}
 	.row.tint-finding .code {
 		background-image: linear-gradient(var(--agent-tint), var(--agent-tint));
