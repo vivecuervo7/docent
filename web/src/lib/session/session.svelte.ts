@@ -1,6 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
-import { fetchCommits, fetchPr, listModels, readHeld, readOk } from '../api/client';
+import { fetchCommits, fetchPr, listModels, readOk } from '../api/client';
 import { groupsOf, reviewerName } from '../features/panel/findings';
 import { dismissGeneration, getGeneration, startGeneration, stopGeneration } from '../features/preparing/generations';
 import { type LooseMark, type Mark, looseMarksFrom, marksFrom } from '../features/reading/marks';
@@ -11,7 +11,7 @@ import { everythingElse, isSliceReviewed } from '../features/reading/progress';
 import { readPref, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
 import { beginRound, dropRound, keepRound, roundView } from '../storage/rounds';
-import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type GitHubComments, type GitHubThread, type PrCommit, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
+import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type GitHubComments, type GitHubThread, type Job, type PrCommit, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -179,7 +179,7 @@ export class PrSession {
 			this.meta = pr.meta;
 			this.#show(record);
 			// Answers still being made, from before a refresh.
-			this.#watchAnswers();
+			this.watch();
 			const wanted = this.#roundIndex(this.#wanted);
 			if (wanted !== null) await this.viewRound(wanted);
 			this.panel.load();
@@ -355,7 +355,7 @@ export class PrSession {
 			await readOk(res);
 			await this.reload();
 			this.#asked[id] = {};
-			this.#watchAnswers();
+			this.watch();
 		} catch (err) {
 			this.#asked[id] = { error: (err as Error).message };
 		}
@@ -464,7 +464,7 @@ export class PrSession {
 			await readOk(res);
 			await this.reload();
 			this.#asked[id] = {};
-			this.#watchAnswers();
+			this.watch();
 		} catch (err) {
 			this.#asked[id] = { error: (err as Error).message };
 		}
@@ -483,9 +483,6 @@ export class PrSession {
 		}
 		return ranWith;
 	}
-
-	// Your comments for the review, drafted from your threads.
-	yourDraft = $state<{ pending?: boolean; error?: string }>({});
 
 	// Threads in file order, as they're drafted from.
 	readonly threads = $derived.by(() => {
@@ -509,14 +506,81 @@ export class PrSession {
 	// A thread with comments of the reviewer's own is drafted as those
 	// comments, word for word and on its lines; the model drafts the rest,
 	// following a thread's conclusion where it has one.
+	// Drafting runs on the backend as a job on the round; this covers asking
+	// for it, before the job's there.
+	#drafting = $state<{ pending?: boolean; error?: string }>({});
+	readonly yourDraft = $derived.by((): { pending?: boolean; error?: string } => {
+		const job = this.record.jobs?.draft;
+		if (job?.status === 'running') return { pending: true };
+		if (job?.status === 'failed') return { error: job.error };
+		return this.#drafting;
+	});
+
 	async draftYourComments() {
 		const threads = this.threads;
 		if (!threads.length) return;
-		const said = threads.filter((n) => n.messages.some((m) => m.comment));
-		const rest = threads.filter((n) => !said.includes(n));
-		this.yourDraft = { pending: true };
+		const rest = threads.filter((n) => !n.messages.some((m) => m.comment));
+		const basedOn = Object.fromEntries(threads.map((n) => [n.id, n.messages.length]));
+		if (!rest.length) return this.#saveDraft([], basedOn);
+		this.#drafting = { pending: true };
 		try {
-			const asWritten: FeedbackItem[] = said.map((n) => ({
+			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/feedback/yours`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					model: this.record.model,
+					prTitle: this.title,
+					threads: rest.map((n) => ({
+						path: n.path,
+						lines: noteWhere(n),
+						code: n.code ?? '',
+						messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
+						...(n.github ? { github: this.#githubText(n.github) } : {})
+					})),
+					input: { threads: rest.map((n) => n.id), basedOn },
+					...(this.round !== null ? { round: this.round } : {})
+				})
+			});
+			await readOk(res);
+			await this.reload();
+			this.#drafting = {};
+			this.watch();
+		} catch (err) {
+			this.#drafting = { error: (err as Error).message };
+		}
+	}
+
+	// A draft the backend has finished, made the round's own: each comment on
+	// its threads' lines, or where a conclusion said it applies too.
+	async #applyDraft(job: Job) {
+		const { threads: ids = [], basedOn = {} } = (job.input ?? {}) as { threads?: string[]; basedOn?: Record<string, number> };
+		const { comments = [] } = (job.result ?? {}) as {
+			comments?: { threads: number[]; body: string; rationale?: string; at?: { path: string; startLine: number; endLine: number } }[];
+		};
+		const drafted = comments.map(({ threads: indices, body, rationale, at }): FeedbackItem => {
+			// Threads deleted since drop out.
+			const sources = indices.flatMap((i) => this.record.notes.filter((n) => n.id === ids[i]));
+			const elsewhere =
+				at && this.files.some((f) => f.filename === at.path)
+					? {
+							path: at.path,
+							start: { side: 'new' as const, line: at.startLine },
+							end: { side: 'new' as const, line: at.endLine },
+							noteIds: sources.map((n) => n.id)
+						}
+					: undefined;
+			return { id: crypto.randomUUID(), body, rationale, included: true, ...(elsewhere ?? placeFromThreads(sources)) };
+		});
+		await this.#saveDraft(drafted, basedOn, job.startedAt);
+	}
+
+	// Your comments: those you wrote, word for word on their threads' lines,
+	// with what was drafted, in the threads' order. From a job, once.
+	async #saveDraft(drafted: FeedbackItem[], basedOn: Record<string, number>, job?: number) {
+		const threads = this.threads;
+		const asWritten: FeedbackItem[] = threads
+			.filter((n) => n.messages.some((m) => m.comment))
+			.map((n) => ({
 				id: crypto.randomUUID(),
 				body: n.messages
 					.filter((m) => m.comment)
@@ -529,56 +593,14 @@ export class PrSession {
 				end: n.end,
 				noteIds: [n.id]
 			}));
-			const drafted = rest.length ? await this.#draftFromThreads(rest) : [];
-			// In the threads' order, so by file and line.
-			const at = (item: FeedbackItem) => threads.findIndex((n) => n.id === item.noteIds?.[0]);
-			const items = [...asWritten, ...drafted].sort((a, b) => at(a) - at(b));
-			await this.update((r) => {
-				r.feedback.yours = {
-					items,
-					draftedAt: Date.now(),
-					basedOn: Object.fromEntries(threads.map((n) => [n.id, n.messages.length]))
-				};
-			});
-			this.yourDraft = {};
-		} catch (err) {
-			this.yourDraft = { error: (err as Error).message };
-		}
-	}
-
-	async #draftFromThreads(threads: Note[]): Promise<FeedbackItem[]> {
-		const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/feedback/yours`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				model: this.record.model,
-				prTitle: this.title,
-				threads: threads.map((n) => ({
-					path: n.path,
-					lines: noteWhere(n),
-					code: n.code ?? '',
-					messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
-					...(n.github ? { github: this.#githubText(n.github) } : {})
-				}))
-			})
-		});
-		const { comments } = await readHeld<{
-			comments: { threads: number[]; body: string; rationale?: string; at?: { path: string; startLine: number; endLine: number } }[];
-		}>(res);
-		return comments.map(({ threads: indices, body, rationale, at }) => {
-			const sources = indices.map((i) => threads[i]).filter(Boolean);
-			// Placed where a conclusion said the point applies too, in a file
-			// the PR changes; otherwise on its threads' lines.
-			const elsewhere =
-				at && this.files.some((f) => f.filename === at.path)
-					? {
-							path: at.path,
-							start: { side: 'new' as const, line: at.startLine },
-							end: { side: 'new' as const, line: at.endLine },
-							noteIds: sources.map((n) => n.id)
-						}
-					: undefined;
-			return { id: crypto.randomUUID(), body, rationale, included: true, ...(elsewhere ?? placeFromThreads(sources)) };
+		const at = (item: FeedbackItem) => threads.findIndex((n) => n.id === item.noteIds?.[0]);
+		const items = [...asWritten, ...drafted].sort((a, b) => at(a) - at(b));
+		await this.update((r) => {
+			if (job !== undefined) {
+				if (r.jobs?.draft?.status !== 'done' || r.jobs.draft.startedAt !== job) return;
+				delete r.jobs.draft;
+			}
+			r.feedback.yours = { items, draftedAt: Date.now(), basedOn };
 		});
 	}
 
@@ -703,15 +725,19 @@ export class PrSession {
 		this.panel.startAll();
 	}
 
-	// Reads the review while answers are being made, until none is awaited.
-	#answers: ReturnType<typeof setInterval> | null = null;
-	#watchAnswers() {
-		if (this.#answers) return;
-		this.#answers = setInterval(() => {
-			const awaited = [...this.record.notes, ...Object.values(this.record.feedback).flatMap((d) => d?.items ?? [])].some((x) => x.awaiting);
-			if (!awaited || this.#closed) {
-				clearInterval(this.#answers!);
-				this.#answers = null;
+	// Reads the review while the backend's making something for it - an
+	// answer, a draft, a prepared review - until nothing is.
+	#watching: ReturnType<typeof setInterval> | null = null;
+	watch() {
+		this.#applyJobs();
+		if (this.#watching) return;
+		this.#watching = setInterval(() => {
+			const r = this.record;
+			const awaited = [...r.notes, ...Object.values(r.feedback).flatMap((d) => d?.items ?? [])].some((x) => x.awaiting);
+			const working = Object.values(r.jobs ?? {}).some((job) => job?.status === 'running');
+			if ((!awaited && !working) || this.#closed) {
+				clearInterval(this.#watching!);
+				this.#watching = null;
 				return;
 			}
 			this.reload().catch(() => {});
@@ -721,7 +747,17 @@ export class PrSession {
 	// The review as the backend has it now, for what it saved itself.
 	async reload() {
 		const { record } = await getRecord(this.ref);
-		if (!this.#closed) this.#show(record);
+		if (this.#closed) return;
+		this.#show(record);
+		this.#applyJobs();
+	}
+
+	// Makes the round's own what the backend finished while it looked, or
+	// while nobody did.
+	#applyJobs() {
+		const jobs = this.record.jobs;
+		if (jobs?.draft?.status === 'done') this.#applyDraft(jobs.draft).catch(() => {});
+		if (jobs?.prepare?.status === 'done') this.post.applyPrepared(jobs.prepare).catch(() => {});
 	}
 
 	#show(record: PrRecord) {

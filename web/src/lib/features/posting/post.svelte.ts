@@ -1,8 +1,8 @@
-import { readHeld, readOk } from '../../api/client';
+import { readOk } from '../../api/client';
 import { groupsOf, isShown, reviewerName } from '../panel/findings';
 import type { Hunk } from '../reading/diff/parse';
 import type { PrSession } from '../../session/session.svelte';
-import type { FeedbackItem, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from '../../types';
+import type { FeedbackItem, Job, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from '../../types';
 
 // Posting the review: preparing it from what's kept (comments making the same
 // point merged, anything already said on the PR set aside), wording it, and
@@ -13,7 +13,15 @@ const inHunks = (hunks: Hunk[], ref: LineRef) =>
 
 export class ReviewPost {
 	readonly #session: PrSession;
-	prepareStatus = $state<{ pending?: boolean; error?: string }>({});
+	// Preparing is a job on the backend, kept in the round: running, or
+	// failed. This covers asking for it, before the job's there.
+	#asking = $state<{ pending?: boolean; error?: string }>({});
+	readonly prepareStatus = $derived.by((): { pending?: boolean; error?: string } => {
+		const job = this.#session.record.jobs?.prepare;
+		if (job?.status === 'running') return { pending: true };
+		if (job?.status === 'failed') return { error: job.error };
+		return this.#asking;
+	});
 	// Who's reviewing and who wrote the PR: GitHub won't let you approve or
 	// request changes on your own PR.
 	people = $state<{ viewer: string; author: string } | null>(null);
@@ -77,7 +85,7 @@ export class ReviewPost {
 
 	async prepare() {
 		const candidates = this.candidates;
-		this.prepareStatus = { pending: true };
+		this.#asking = { pending: true };
 		try {
 			const res = await fetch(this.#url('prepare'), {
 				method: 'POST',
@@ -101,17 +109,33 @@ export class ReviewPost {
 					// External reviewers' own overall recommendations, to weigh.
 					verdicts: this.#session.record.agentReviewers.flatMap((a) =>
 						a.lastRun?.verdict ? [{ who: reviewerName(this.#session.record, a.id), ...a.lastRun.verdict }] : []
-					)
+					),
+					input: { candidates: candidates.map(({ item }) => item.id) },
+					...(this.#session.round !== null ? { round: this.#session.round } : {})
 				})
 			});
-			const prepared = await readHeld<{
+			await readOk(res);
+			await this.#session.reload();
+			this.#asking = {};
+			this.#session.watch();
+		} catch (err) {
+			this.#asking = { error: (err as Error).message };
+		}
+	}
+
+	// A prepared review the backend has finished, made the round's own: placed
+	// on the lines of the items it came from, and the job cleared.
+	async applyPrepared(job: Job) {
+		const ids = (job.input as { candidates?: string[] } | undefined)?.candidates ?? [];
+		const candidates = ids.flatMap((id) => this.candidates.filter((c) => c.item.id === id));
+		const prepared = job.result as {
 				comments: { from: string[]; body: string }[];
 				dropped: { from: string[]; reason: string }[];
 				body: string;
 				event?: ReviewEvent;
 				eventReason?: string;
 				also?: { from: string; path: string; startLine: number; endLine: number; body: string }[];
-			}>(res);
+			};
 			// The suggestion, where GitHub allows it: not approving or requesting
 			// changes on your own PR.
 			const own = !!this.people && this.people.viewer === this.people.author;
@@ -154,7 +178,7 @@ export class ReviewPost {
 			// Comments you wrote are never left out, however already said.
 			const placed = new Set(comments.flatMap((c) => c.from));
 			const missed = candidates.filter((c) => c.item.asWritten && !placed.has(c.item.id)).map((c) => c.item);
-			await this.#save({
+			const review: ReviewDraft = {
 				preparedAt: Date.now(),
 				basedOn: candidates.map((c) => c.item.id),
 				comments: [...comments, ...missed.map(alone), ...also],
@@ -165,11 +189,13 @@ export class ReviewPost {
 				event: suggested && !(own && suggested.event !== 'COMMENT') ? suggested.event : (this.draft?.event ?? 'COMMENT'),
 				...(suggested ? { suggested } : {}),
 				summaryLeftOut: this.draft?.summaryLeftOut
+			};
+			// Once: another page may have made it its own already.
+			await this.#session.update((r) => {
+				if (r.jobs?.prepare?.status !== 'done' || r.jobs.prepare.startedAt !== job.startedAt) return;
+				r.review = review;
+				delete r.jobs.prepare;
 			});
-			this.prepareStatus = {};
-		} catch (err) {
-			this.prepareStatus = { error: (err as Error).message };
-		}
 	}
 
 	// What was said about a finding: the reviewer's questions and the

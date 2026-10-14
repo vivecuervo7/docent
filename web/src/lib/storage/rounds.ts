@@ -19,7 +19,8 @@ export const ROUND_FIELDS = [
 	'panelSettled',
 	'review',
 	'preparedHead',
-	'completedAt'
+	'completedAt',
+	'jobs'
 ] as const satisfies readonly (keyof PrRecord)[];
 
 // Copied through JSON, as it may be the page's live state, which can't be

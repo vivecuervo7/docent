@@ -259,10 +259,22 @@ export interface PrRecord {
 	// Set once the reviewer marks the review complete, after posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
+	// Work on the round a model's still doing, or has done and the page hasn't
+	// made its own yet: drafting your comments, preparing the review.
+	jobs?: Partial<Record<'draft' | 'prepare', Job>>;
 	// Earlier reviews of the PR, oldest first; the fields above are the latest.
 	rounds?: Round[];
 	// Asked for when it was begun: start the panel once it's prepared.
 	reviewWhenPrepared?: boolean;
+}
+
+export interface Job {
+	status: 'running' | 'done' | 'failed';
+	startedAt: number;
+	// What the page needs to make the result its own, as it gave it.
+	input?: unknown;
+	result?: unknown;
+	error?: string;
 }
 
 export type Round = Partial<
@@ -281,6 +293,7 @@ export type Round = Partial<
 		| 'review'
 		| 'preparedHead'
 		| 'completedAt'
+		| 'jobs'
 	>
 >;
 
