@@ -211,12 +211,12 @@ export class StartPage {
 		}
 		return list;
 	});
-	readonly notComplete = $derived(this.rows.filter((pr) => !pr.record.completedAt && !this.isHidden(pr)));
+	readonly notComplete = $derived(this.rows.filter((pr) => !this.isComplete(pr) && !this.isHidden(pr)));
 	// PRs the reviewer wrote get a section of their own.
 	readonly active = $derived(this.notComplete.filter((pr) => !this.isMine(pr)));
 	readonly mine = $derived(this.notComplete.filter((pr) => this.isMine(pr)));
 	readonly hiddenRows = $derived(this.rows.filter((pr) => this.isHidden(pr)));
-	readonly complete = $derived((this.saved ?? []).filter((pr) => pr.record.completedAt && !this.isHidden(pr)));
+	readonly complete = $derived((this.saved ?? []).filter((pr) => this.isComplete(pr) && !this.isHidden(pr)));
 	readonly checked = $derived(this.gh !== null && this.modelSources !== null);
 	readonly ready = $derived(!!this.gh?.login && !!this.modelSources?.length);
 	readonly anyRunning = $derived(
@@ -382,6 +382,12 @@ export class StartPage {
 		return `${draft}Reviewed by ${by[0]}${by.length > 1 ? ` +${by.length - 1}` : ''}`;
 	}
 
+	// Marked complete, and not since given more to review: commits pushed to
+	// a PR still open bring it back.
+	isComplete(pr: Row): boolean {
+		return !!pr.record.completedAt && !this.rowOf(pr).fresh;
+	}
+
 	// A review's rounds, oldest first, each read like a record.
 	roundsOf(pr: Row): PrRecord[] {
 		return [...(pr.record.rounds ?? []).map((_, i) => roundView(pr.record, i)), pr.record];
@@ -428,7 +434,8 @@ export class StartPage {
 			};
 		});
 		const closed = !!status && status.state !== 'OPEN';
-		const fresh = pr.record.completedAt || closed || !rounds.some((r) => begun(r)) ? 0 : (covered?.fresh ?? 0);
+		// A closed PR isn't asking for more; an open one is, complete or not.
+		const fresh = closed || !rounds.some((r) => begun(r)) ? 0 : (covered?.fresh ?? 0);
 		return { rounds: baubles, fresh };
 	}
 
