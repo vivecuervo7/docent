@@ -33,9 +33,9 @@
 	<span class="baubles">
 		{#if pr.unsaved}
 			<span class="round">
-				<a class="hit" {href} aria-label="Not opened in Docent yet{view.note ? `. ${view.note}` : ''}"><RoundBauble tone="new" /></a>
+				<a class="hit" {href} aria-label="Not opened in Docent yet{view.note ? `. ${view.note}` : ''}"><RoundBauble /></a>
 				<span class="card" role="tooltip">
-					<strong>Not opened in Docent yet</strong>
+					<strong><span class="mark new"></span>Not opened in Docent yet</strong>
 					{#if view.note}<span class="faint">{view.note}</span>{/if}
 				</span>
 			</span>
@@ -44,9 +44,9 @@
 			{@const name = view.rounds.length > 1 ? `Round ${r.n} · ` : ''}
 			{@const label = r.draft ? 'Not started' : r.label}
 			<span class="round">
-				<a class="hit" href={r.href} aria-label="{name}{label}"><RoundBauble tone={r.tone} draft={r.draft} complete={r.label === 'Complete'} /></a>
+				<a class="hit" href={r.href} aria-label="{name}{label}"><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a>
 				<span class="card" role="tooltip">
-					<strong>{name}{label}</strong>
+					<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{label}</strong>
 					{#if r.commits}<span class="faint">{plural(r.commits, 'commit')}{r.dates ? ` · ${r.dates}` : ''}</span>{/if}
 					{#if r.progress || r.findings}
 						<span class="faint">
@@ -225,8 +225,40 @@
 		display: flex;
 	}
 	.card strong {
+		display: flex;
+		align-items: center;
+		gap: 7px;
 		font-weight: 500;
 		font-size: 13px;
+	}
+	/* The state, in its colour, where there's room to say it. */
+	.mark {
+		--tone: var(--faint);
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--tone);
+	}
+	.mark.new {
+		--tone: #c8a8ff;
+	}
+	.mark.working {
+		--tone: #e8e2d6;
+	}
+	.mark.ready {
+		--tone: #8ab4ff;
+	}
+	.mark.going {
+		--tone: #ffb85c;
+	}
+	.mark.read {
+		--tone: var(--muted);
+	}
+	.mark.done {
+		--tone: #7fd89b;
+	}
+	.mark.bad {
+		--tone: #ff8a7a;
 	}
 	.delete {
 		align-self: flex-start;
