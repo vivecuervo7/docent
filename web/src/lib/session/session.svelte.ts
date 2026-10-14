@@ -295,6 +295,25 @@ export class PrSession {
 		return this.createNote(anchor, text, options);
 	}
 
+	// Marks a GitHub thread to resolve, or reopen, as the review's posted;
+	// null takes the mark off.
+	markThread(thread: GitHubThread, resolve: boolean | null) {
+		if (!thread.node) return;
+		const node = thread.node;
+		this.update((r) => {
+			const changes = { ...r.threadChanges };
+			if (resolve === null || resolve === thread.resolved) delete changes[thread.id];
+			else changes[thread.id] = { node, resolve };
+			r.threadChanges = changes;
+		}).catch(() => {});
+	}
+
+	// What's been said on GitHub again, after changing it.
+	async refreshGitHub() {
+		const comments = await readOk<GitHubComments>(await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`));
+		if (!this.#closed) this.github = comments;
+	}
+
 	// What was said on GitHub that a thread asks about, as text.
 	#githubText(id: string): string | undefined {
 		const entries = this.github?.threads.find((t) => t.id === id)?.entries ?? this.github?.general.filter((c) => c.id === id);

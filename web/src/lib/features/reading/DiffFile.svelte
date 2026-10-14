@@ -488,7 +488,7 @@
 					skipped={p.mark.kind === 'finding' && p.mark.included === false}
 					active={session.openMark === p.mark.id}
 					unread={p.mark.kind === 'finding' ? !!p.mark.unread : !!p.mark.note && isUnread(p.mark.note)}
-					settled={!!p.mark.note && isConcluded(p.mark.note)}
+					settled={(!!p.mark.note && isConcluded(p.mark.note)) || !!p.mark.github?.resolved}
 					unreadLabel={p.mark.kind === 'finding' ? 'New answer' : 'New reply'}
 					label="{p.mark.kind === 'finding' ? 'Finding' : p.mark.kind === 'github' ? 'GitHub thread' : 'Thread'} from {p.mark.who}"
 					onclick={() => (session.openMark = session.openMark === p.mark.id ? null : p.mark.id)}

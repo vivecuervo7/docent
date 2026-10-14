@@ -25,6 +25,8 @@
 	const id = $derived(thread?.id ?? comment?.id ?? '');
 	const entries = $derived(thread?.entries ?? (comment ? [comment] : []));
 	const yours = $derived(session.record.notes.find((n) => n.github === id));
+	// Resolving or reopening it waits for the review to go out.
+	const marked = $derived(thread ? session.record.threadChanges?.[thread.id] : undefined);
 	let draft = $state('');
 
 	const ADDRESSED =
@@ -53,6 +55,17 @@
 			</button>
 		{/if}
 	</header>
+	{#if thread?.node}
+		<div class="state">
+			{#if marked}
+				<span class="faint">{marked.resolve ? 'Resolving' : 'Reopening'} when you post this round’s review</span>
+				<button class="link" onclick={() => thread && session.markThread(thread, null)}>Undo</button>
+			{:else}
+				<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
+				<button class="link" onclick={() => thread && session.markThread(thread, !thread.resolved)}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
+			{/if}
+		</div>
+	{/if}
 	<ol class="messages">
 		{#each entries as e, i (i)}
 			<li>
@@ -95,6 +108,25 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	.state {
+		display: flex;
+		align-items: baseline;
+		gap: 10px;
+		padding: 8px 16px;
+		border-bottom: 1px solid var(--line);
+		font-size: 12.5px;
+	}
+	.state .link {
+		margin-left: auto;
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--text);
+		font: inherit;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		cursor: pointer;
 	}
 	.messages {
 		list-style: none;

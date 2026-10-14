@@ -291,6 +291,30 @@ export class ReviewPost {
 			if (!found) throw err;
 			await this.#save({ ...draft, posted: { at: Date.now(), url: found, ...(pending ? { pending } : {}) } });
 		}
+		// With the review out, the threads it marked.
+		await this.applyThreadChanges();
+	}
+
+	// Resolves or reopens the GitHub threads the round marked, as its review
+	// goes out. Each that GitHub takes loses its mark; one it refuses keeps
+	// it, and the refusal is thrown.
+	async applyThreadChanges() {
+		const marked = Object.entries(this.#session.record.threadChanges ?? {});
+		if (!marked.length) return;
+		const { owner, repo, number } = this.#session.ref;
+		const res = await fetch(`/api/pr/${owner}/${repo}/${number}/github-threads`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ changes: marked.map(([, c]) => ({ node: c.node, resolved: c.resolve })) })
+		});
+		const { results } = await readOk<{ results: { node: string; error?: string }[] }>(res);
+		const done = new Set(results.filter((r) => !r.error).map((r) => r.node));
+		await this.#session.update((r) => {
+			r.threadChanges = Object.fromEntries(Object.entries(r.threadChanges ?? {}).filter(([, c]) => !done.has(c.node)));
+		});
+		this.#session.refreshGitHub().catch(() => {});
+		const refused = results.filter((r) => r.error);
+		if (refused.length) throw new Error(`GitHub didn't change ${refused.length === 1 ? 'a thread' : `${refused.length} threads`}: ${refused[0].error}`);
 	}
 
 	// A review marked complete, posted or not, moves out of the way on the

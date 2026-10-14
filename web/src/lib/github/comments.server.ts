@@ -27,6 +27,9 @@ export interface GitHubThread {
   originalLine?: number;
   commit?: string;
   entries: GitHubEntry[];
+  // GitHub's id for the thread, which resolving it takes, and whether it is.
+  node?: string;
+  resolved?: boolean;
 }
 
 export interface GitHubComments {
@@ -55,8 +58,53 @@ interface RawInline {
 const gh = async <T>(path: string): Promise<T> =>
   JSON.parse((await execFileAsync("gh", ["api", "--paginate", path], { maxBuffer: 64 * 1024 * 1024 })).stdout) as T;
 
+// Each inline thread's GitHub id and whether it's resolved, by the id of
+// its first comment: only GitHub's GraphQL API says.
+async function threadStates(owner: string, repo: string, number: string): Promise<Map<number, { node: string; resolved: boolean }>> {
+  const states = new Map<number, { node: string; resolved: boolean }>();
+  let after: string | null = null;
+  for (let page = 0; page < 10; page++) {
+    const query = `query($owner: String!, $repo: String!, $number: Int!, $after: String) {
+      repository(owner: $owner, name: $repo) { pullRequest(number: $number) {
+        reviewThreads(first: 100, after: $after) {
+          pageInfo { hasNextPage endCursor }
+          nodes { id isResolved comments(first: 1) { nodes { databaseId } } }
+        } } } }`;
+    const args = ["api", "graphql", "-f", `query=${query}`, "-F", `owner=${owner}`, "-F", `repo=${repo}`, "-F", `number=${number}`];
+    if (after) args.push("-F", `after=${after}`);
+    const { stdout } = await execFileAsync("gh", args, { maxBuffer: 16 * 1024 * 1024 });
+    const threads = JSON.parse(stdout).data?.repository?.pullRequest?.reviewThreads;
+    for (const t of threads?.nodes ?? []) {
+      const first = t.comments?.nodes?.[0]?.databaseId;
+      if (first) states.set(first, { node: t.id, resolved: t.isResolved });
+    }
+    if (!threads?.pageInfo?.hasNextPage) break;
+    after = threads.pageInfo.endCursor;
+  }
+  return states;
+}
+
+// Resolves or reopens inline threads on GitHub, by their GitHub ids. Each
+// is tried on its own, so one GitHub refuses doesn't stop the rest.
+export async function setThreadsResolved(changes: { node: string; resolved: boolean }[]): Promise<{ node: string; error?: string }[]> {
+  return Promise.all(
+    changes.map(async ({ node, resolved }) => {
+      const mutation = resolved
+        ? "mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }"
+        : "mutation($id: ID!) { unresolveReviewThread(input: { threadId: $id }) { thread { id } } }";
+      try {
+        await execFileAsync("gh", ["api", "graphql", "-f", `query=${mutation}`, "-F", `id=${node}`]);
+        return { node };
+      } catch (err) {
+        const out = (err as { stdout?: string; stderr?: string }).stdout || (err as { stderr?: string }).stderr || (err as Error).message;
+        return { node, error: String(out).trim().slice(0, 300) };
+      }
+    }),
+  );
+}
+
 export async function fetchGitHubComments(owner: string, repo: string, number: string): Promise<GitHubComments> {
-  const [inline, reviews, issueComments] = await Promise.all([
+  const [inline, reviews, issueComments, states] = await Promise.all([
     gh<RawInline[]>(`repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`),
     gh<{ id: number; user: { login?: string } | null; body: string | null; state: string; submitted_at: string | null }[]>(
       `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`,
@@ -64,6 +112,8 @@ export async function fetchGitHubComments(owner: string, repo: string, number: s
     gh<{ id: number; user: { login?: string } | null; body: string | null; created_at: string }[]>(
       `repos/${owner}/${repo}/issues/${number}/comments?per_page=100`,
     ),
+    // Without it, threads show without their state, and can't be resolved here.
+    threadStates(owner, repo, number).catch(() => new Map<number, { node: string; resolved: boolean }>()),
   ]);
   const login = (user: { login?: string } | null) => user?.login ?? "unknown";
   const side = (s: "LEFT" | "RIGHT" | null) => (s === "LEFT" ? ("old" as const) : ("new" as const));
@@ -89,6 +139,7 @@ export async function fetchGitHubComments(owner: string, repo: string, number: s
             }
           : {}),
         entries: [],
+        ...(states.get(root) ?? {}),
       };
       byRoot.set(root, thread);
     }

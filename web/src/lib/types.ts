@@ -264,6 +264,9 @@ export interface PrRecord {
 	// Set once the reviewer marks the review complete, after posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
+	// GitHub threads to resolve or reopen when the review's posted, or the
+	// round completed, by thread id.
+	threadChanges?: Record<string, { node: string; resolve: boolean }>;
 	// Work on the round a model's still doing, or has done and the page hasn't
 	// made its own yet: drafting your comments, preparing the review.
 	jobs?: Partial<Record<'draft' | 'prepare', Job>>;
@@ -299,6 +302,7 @@ export type Round = Partial<
 		| 'preparedHead'
 		| 'completedAt'
 		| 'jobs'
+		| 'threadChanges'
 	>
 >;
 
@@ -433,6 +437,9 @@ export interface GitHubThread {
 	// The commit it was left on.
 	commit?: string;
 	entries: GitHubEntry[];
+	// GitHub's id for the thread, which resolving it takes, and whether it is.
+	node?: string;
+	resolved?: boolean;
 }
 
 export interface GitHubComments {

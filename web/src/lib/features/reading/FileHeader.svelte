@@ -165,6 +165,7 @@
 						kind="github"
 						id={t.id}
 						active={session.openMark === t.id}
+						settled={!!t.resolved}
 						unread={!!yours && isUnread(yours)}
 						unreadLabel="New reply"
 						label="{t.entries[0]?.author ?? 'Someone'}'s {what}"
