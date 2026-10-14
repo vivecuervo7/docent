@@ -165,6 +165,9 @@
 			.map((h) => (oldLines ? expandHunk(h, expansion[h.index], oldLines) : h))
 			.map((h) => (whitespace ? h : hideWhitespace(h)))
 			.map((h) => (showRemoved && file.rangeRemoved ? withRemoved(h, file.rangeRemoved) : h))
+			// The PR's earlier deletions are neither in the file now nor this
+			// round's doing, so a round leaves them out.
+			.map((h) => (rangeOld ? { ...h, rows: h.rows.filter((r) => !(r.kind === 'del' && earlier(r))) } : h))
 	);
 	const expanded = new SvelteSet<string>();
 	const items = $derived(layout(hunks, expanded));
@@ -252,17 +255,21 @@
 	const fileThreads = $derived(session.record.notes.filter((n) => n.path === file.filename && !n.start));
 
 	// In a slice, the lines this slice's hunks change, not the whole file's,
-	// and the other slices holding the rest of it.
+	// and the other slices holding the rest of it. In a round of some commits,
+	// only the round's own changes count - what it removed of the PR's own
+	// lines too, shown or not - as GitHub counts that range.
 	const sliceCounts = $derived.by(() => {
-		if (!hunkIndices) return null;
+		if (!hunkIndices && !rangeNew) return null;
 		let added = 0;
 		let removed = 0;
 		for (const h of allHunks) {
 			if (!shownIndices.has(h.index)) continue;
 			for (const r of h.rows) {
+				if (rangeNew && rangeOld && earlier(r)) continue;
 				if (r.kind === 'add') added++;
 				else if (r.kind === 'del') removed++;
 			}
+			if (file.rangeRemoved) removed += withRemoved(h, file.rangeRemoved).rows.filter((r) => r.removed).length;
 		}
 		return { added, removed };
 	});
