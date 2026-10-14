@@ -5,6 +5,8 @@ import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../../github/prDiff.server.js";
 import { allReviewers, changeRound, prRef, roundOf } from "../../storage/rounds.server.js";
+import { editRound } from "./editorRuns.server.js";
+import { knownMcpUrl } from "../../api/mcpUrl.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
 import { runSession } from "./externalSessions.server.js";
 import { emptyUsage, usageScope, type Usage } from "../../models/usage.server.js";
@@ -166,8 +168,9 @@ function begin(
 // run went - so they land whether or not a page is open. A reviewer taken
 // off the panel isn't put back.
 function saveReview(owner: string, repo: string, number: string, reviewer: string, review: AgentReview) {
+  const round = roundOf(owner, repo, number, reviewer);
   try {
-    changeRound(owner, repo, number, roundOf(owner, repo, number, reviewer), (record) => {
+    changeRound(owner, repo, number, round, (record) => {
       // A record from before panels were saved has the one first reviewer.
       const panel = (record.agentReviewers ?? [{ id: DEFAULT_REVIEWER }]) as { id: string; lastRun?: unknown }[];
       if (!panel.some((a) => a.id === reviewer)) return;
@@ -202,7 +205,10 @@ function saveReview(owner: string, repo: string, number: string, reviewer: strin
     });
   } catch (err) {
     console.error(`[agent-review] couldn't save ${owner}/${repo}#${number} ${reviewer}: ${(err as Error).message}`);
+    return;
   }
+  // Then the editor, over whatever of the round's findings is ready for it.
+  void editRound(owner, repo, number, round, knownMcpUrl());
 }
 
 // Runs one of the reviewer's external reviewers: a session of their own

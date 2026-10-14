@@ -1,5 +1,4 @@
-import { listModels, readHeld, readOk } from '../../api/client';
-import { reviewerName as nameOnPanel } from './findings';
+import { listModels, readOk } from '../../api/client';
 import { dismissAgentReview, endAgentReview, getAgentReview, getDefaultPanel, setDefaultPanel, startAgentReview } from './reviewCalls';
 import { reviewerName } from './names';
 import { known, reviewerLabel, sessionId } from './reviewers.svelte';
@@ -180,9 +179,8 @@ export class Panel {
 				if (review) this.#collect(id, review);
 			})
 		);
-		// Catching up on findings the editor hasn't been through: from an
-		// earlier visit, or a try that failed.
-		this.#edit();
+		this.#nudgeEditor();
+		if (this.checking) this.#startPolling();
 		this.#checkLookup();
 	}
 
@@ -451,20 +449,18 @@ export class Panel {
 	#collect(id: AgentId, review: AgentReview) {
 		if (this.#removed.has(id)) return;
 		this.reviews[id] = review;
-		// The backend saves its findings and how it went into the review; the
-		// page reads them from there, then lets the editor go through them.
+		// The backend saves its findings and how it went into the review, and
+		// has the editor go through them; the page reads them from there.
 		const seen = this.#seen[id];
 		if (seen?.id !== review.id || seen.count !== review.findings.length || seen.status !== review.status) {
 			this.#seen[id] = { id: review.id, count: review.findings.length, status: review.status };
-			this.#session
-				.reload()
-				.then(() => this.#edit())
-				.catch(() => {});
-		} else this.#edit();
+			this.#session.reload().catch(() => {});
+		}
 		if (review.status === 'running') this.#startPolling();
 		else {
 			dismissAgentReview(this.#session.ref, id);
-			if (!this.running.length) this.#stopPolling();
+			if (this.checking) this.#startPolling();
+			else if (!this.running.length) this.#stopPolling();
 		}
 	}
 
@@ -489,27 +485,11 @@ export class Panel {
 		return item.path ? this.#session.slicesOf(item.path, item.start) : [];
 	}
 
-	// Findings waiting for the editor, and whether each is ready for it: a
-	// slice's once every Docent reviewer still running has finished it (one
-	// about the whole PR, once none is running); anyone else's once their
-	// review is over.
+	// Findings the editor hasn't been through yet, and the slices they're in.
 	#waiting() {
-		const running = this.#finishedByRunning();
 		return Object.entries(this.#session.record.feedback)
 			.filter(([key]) => key.startsWith('agent-'))
-			.flatMap(([key, draft]) => {
-				const reviewer = key as AgentId;
-				return (draft?.items ?? [])
-					.filter((item) => !item.edited && !this.#tried.has(item.id))
-					.map((item) => {
-						const docents = this.#isDocents(reviewer);
-						const slices = this.#slicesOf(item);
-						const ready = docents
-							? running.every((finished) => slices.length > 0 && slices.every((s) => finished.has(s)))
-							: this.reviews[reviewer]?.status !== 'running';
-						return { reviewer, item, docents, slices, ready };
-					});
-			});
+			.flatMap(([, draft]) => (draft?.items ?? []).filter((item) => !item.edited && !item.editFailed).map((item) => ({ slices: this.#slicesOf(item) })));
 	}
 
 	// Whether the panel is still at work on a slice, so its findings aren't
@@ -532,150 +512,16 @@ export class Panel {
 			);
 	}
 
-	// The editor's runs, one after another, so each sees what the last one
-	// grouped. Findings it failed on are shown as they are, and tried again
-	// on the next visit.
-	#editing: Promise<void> = Promise.resolve();
-	#tried = new Set<string>();
-
-	#edit() {
-		this.#editing = this.#editing.then(() => this.#editNext()).catch(() => {});
-		return this.#editing;
-	}
-
-	async #editNext(): Promise<void> {
-		const session = this.#session;
-		const ready = this.#waiting().filter((w) => w.ready);
-		if (!ready.length) return;
-		// A slice at a time, in order, for Docent's reviewers; everyone else's
-		// together, first.
-		const order = (w: (typeof ready)[number]) =>
-			!w.docents ? -1 : w.slices.length ? session.slices.findIndex((s) => s.id === w.slices[0]) : session.slices.length;
-		ready.sort((a, b) => order(a) - order(b));
-		const first = ready[0];
-		const batch = ready.filter((w) => w.docents === first.docents && (!w.docents || w.slices[0] === first.slices[0]));
-		const shown = Object.entries(session.record.feedback)
-			.filter(([key]) => key.startsWith('agent-'))
-			.flatMap(([reviewer, draft]) =>
-				(draft?.items ?? []).filter((i) => i.edited && !i.filtered && !i.joins).map((item) => ({ reviewer, item }))
-			);
-		const where = (i: FeedbackItem) => (i.path ? `${i.path}${i.start ? ` line ${i.start.line}` : ''}` : 'the PR as a whole');
-		const describe = ({ reviewer, item }: { reviewer: string; item: FeedbackItem }) => ({
-			id: item.id,
-			who: nameOnPanel(session.record, reviewer),
-			location: where(item),
-			body: item.body,
-			...(item.rationale ? { rationale: item.rationale } : {}),
-			...(item.severity ? { severity: item.severity } : {}),
-			...(item.setAside ? { setAside: item.setAside } : {})
-		});
-		let edits: Record<
-			string,
-			{
-				sameAs?: string;
-				filtered?: string;
-				checked?: string;
-				speculative?: string;
-				severity?: FeedbackItem['severity'];
-				disputed?: string;
-				onPr?: string;
-				impact?: string;
-				skip?: string;
-				impactLevel?: FeedbackItem['impactLevel'];
-				checkedVerdict?: FeedbackItem['checkedVerdict'];
-			}
-		>;
-		try {
-			const res = await fetch(`/api/pr/${session.ref.owner}/${session.ref.repo}/${session.ref.number}/findings/edit`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					...(first.docents && first.slices[0] ? { slice: first.slices[0] } : {}),
-					fresh: batch.map(describe),
-					shown: shown.map(describe),
-					filter: first.docents,
-					...(session.round !== null ? { round: session.round } : {})
-				})
-			});
-			edits = (await readHeld<{ edits: typeof edits }>(res)).edits;
-		} catch {
-			for (const w of batch) this.#tried.add(w.item.id);
-			await this.#settle(batch, () => ({ editFailed: true }));
-			return this.#editNext();
-		}
-
-		// Following each finding's "same as" to the one its group gathers
-		// round: one already shown, or else a new one.
-		const reviewerOf = new Map([...shown, ...batch].map(({ reviewer, item }) => [item.id, reviewer]));
-		const shownIds = new Set(shown.map(({ item }) => item.id));
-		const rootOf = (id: string) => {
-			const seen = new Set<string>();
-			let at = id;
-			while (!shownIds.has(at) && edits[at]?.sameAs && !seen.has(at)) {
-				seen.add(at);
-				at = edits[at].sameAs!;
-			}
-			return at;
-		};
-		const clusters = new Map<string, string[]>();
-		for (const { item } of batch) {
-			const root = rootOf(item.id);
-			clusters.set(root, [...(clusters.get(root) ?? []), item.id]);
-		}
-		// A group gathers round the finding its repeats point at: one already
-		// shown, else a new one. If that one is filtered out, its repeats make
-		// the same filtered point, and go with it.
-		const outcome = new Map<string, Partial<FeedbackItem>>();
-		for (const [root, members] of clusters) {
-			const rootFiltered = !shownIds.has(root) && edits[root]?.filtered;
-			for (const id of members) {
-				const checked = {
-					...(edits[id]?.checked ? { checked: edits[id].checked } : {}),
-					...(edits[id]?.speculative ? { speculative: edits[id].speculative } : {}),
-					...(edits[id]?.severity ? { severity: edits[id].severity } : {}),
-					...(edits[id]?.disputed ? { disputed: edits[id].disputed } : {}),
-					...(edits[id]?.onPr ? { onPr: edits[id].onPr } : {}),
-					...(edits[id]?.impact ? { impact: edits[id].impact } : {}),
-					...(edits[id]?.impactLevel ? { impactLevel: edits[id].impactLevel } : {}),
-					...(edits[id]?.checkedVerdict ? { checkedVerdict: edits[id].checkedVerdict } : {}),
-					...(edits[id]?.skip ? { skipSuggested: edits[id].skip } : {})
-				};
-				if (rootFiltered) outcome.set(id, { filtered: edits[id]?.filtered ?? rootFiltered });
-				else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root }, ...checked });
-				else outcome.set(id, checked);
-			}
-		}
-		await this.#settle(batch, (id) => ({ edited: true, ...outcome.get(id) }));
-		return this.#editNext();
-	}
-
-	// Saves what the editor made of a batch, over whatever grouping its
-	// findings had before.
-	async #settle(batch: { reviewer: string; item: FeedbackItem }[], change: (id: string) => Partial<FeedbackItem>) {
-		const ids = new Set(batch.map(({ item }) => item.id));
-		const reviewers = new Set(batch.map(({ reviewer }) => reviewer));
-		await this.#session.update((r) => {
-			for (const reviewer of reviewers) {
-				const draft = r.feedback[reviewer];
-				if (!draft) continue;
-				r.feedback[reviewer] = {
-					...draft,
-					items: draft.items.map((i) => {
-						if (!ids.has(i.id)) return i;
-						const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, impactLevel: _l, checkedVerdict: _v, skipSuggested, matched: _m, ...rest } =
-							i as FeedbackItem & { matched?: boolean };
-						const next = { ...rest, ...change(i.id) };
-						// A suggested skip applies until the reviewer decides, and lifts
-						// when a later edit no longer suggests it.
-						if (!i.decided) {
-							if (next.skipSuggested) next.included = false;
-							else if (skipSuggested) next.included = true;
-						}
-						return next;
-					})
-				};
-			}
-		});
+	// The editor runs on the backend as reviews save; this asks it to catch
+	// up on any findings left over, as from a run a restart cut short.
+	#nudgeEditor() {
+		const { owner, repo, number } = this.#session.ref;
+		const round = this.#session.round;
+		fetch(`/api/pr/${owner}/${repo}/${number}/findings/edit`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(round === null ? {} : { round })
+		}).catch(() => {});
 	}
 
 	#checkLookup() {
@@ -703,7 +549,9 @@ export class Panel {
 					})
 					.catch(() => {});
 			}
-			if (!this.running.length) this.#stopPolling();
+			// The editor's results land in the review as it goes.
+			if (this.checking) this.#session.reload().catch(() => {});
+			if (!this.running.length && !this.checking) this.#stopPolling();
 		}, 2000);
 	}
 

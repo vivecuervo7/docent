@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { DEFAULT_REVIEWER, REVIEWER_RE } from '../features/panel/agentReviews.server.js';
+import { rememberMcpUrl } from "./mcpUrl.server.js";
 
 // What Docent's API routes share: checking a PR's owner, repo and number,
 // reading a JSON body, and answering with an error.
@@ -68,4 +69,4 @@ export function reviewerParam(url: URL): string | null {
 }
 
 // Docent's MCP endpoint, as a session started from this request reaches it.
-export const mcpUrl = (url: URL) => `${url.origin}/mcp`;
+export const mcpUrl = (url: URL) => rememberMcpUrl(`${url.origin}/mcp`);
