@@ -44,28 +44,10 @@
 		</span>
 	{/snippet}
 	<span class="state">
-		{#if view.fresh}
-			<!-- Into the round being set up, if there is one, else a new one. -->
-			{@const draft = view.rounds.at(-1)?.draft ? view.rounds.at(-1) : undefined}
-			{@const next = draft ? draft.n : view.rounds.length + 1}
-			{@const since = draft ? draft.n - 1 : view.rounds.length}
-			<span class="round">
-				<button
-					class="fresh"
-					aria-label="{plural(view.fresh, 'new commit')}: review as round {next}"
-					onclick={async () => goto(draft ? draft.href : await page.startRound(pr))}
-				>
-					+{view.fresh}
-				</button>
-				<span class="card" role="tooltip">
-					<strong>{plural(view.fresh, 'new commit')}</strong>
-					<span class="faint">Since round {since}. Review {view.fresh === 1 ? 'it' : 'them'} as round {next}.</span>
-				</span>
-			</span>
-		{/if}
-		<!-- Its rounds in order, joined: the one the row opens in full, as a
-		     badge, the rest as marks. A round still being set up leaves the badge
-		     to the one before it. -->
+		<!-- Its rounds in order, joined, then the next round when there's one to
+		     review: new commits, or a round being set up for them. The row's
+		     badge is what it asks of you: the next round once the last is done,
+		     else the last round; the rest are marks. -->
 		{#if pr.unsaved}
 			<span class="round">
 				<a class="badge new" {href}>New</a>
@@ -75,21 +57,42 @@
 				</span>
 			</span>
 		{:else if view.rounds.length}
-			{@const shown = view.rounds.at(-1)?.draft && view.rounds.length > 1 ? view.rounds.length - 2 : view.rounds.length - 1}
-			{@const several = view.rounds.length > 1}
+			{@const draft = view.rounds.at(-1)?.draft ? view.rounds.at(-1) : undefined}
+			{@const rounds = draft ? view.rounds.slice(0, -1) : view.rounds}
+			{@const last = rounds.at(-1)}
+			{@const hasNext = !!draft || view.fresh > 0}
+			{@const nextFirst = hasNext && (!last || last.tone === 'done')}
+			{@const next = draft ? draft.n : view.rounds.length + 1}
+			{@const several = view.rounds.length > 1 || hasNext}
 			<span class="chain">
-				{#each view.rounds as r, i (r.n)}
+				{#each rounds as r, i (r.n)}
 					<span class="round">
-						{#if i === shown}
+						{#if !nextFirst && i === rounds.length - 1}
 							<a class="badge {r.tone}" href={r.href}>{#if r.tone === 'working'}<Spinner size={11} />{/if}{r.label}</a>
 						{:else}
-							<a class="hit" href={r.href} aria-label="Round {r.n} · {r.draft ? 'Not started' : r.label}"
-								><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} draft={r.draft} /></a
+							<a class="hit" href={r.href} aria-label="Round {r.n} · {r.label}"
+								><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a
 							>
 						{/if}
 						{@render card(r, several ? `Round ${r.n} · ` : '')}
 					</span>
 				{/each}
+				{#if hasNext}
+					{@const commits = view.fresh ? plural(view.fresh, 'new commit') : ''}
+					{@const open = async () => goto(draft ? draft.href : await page.startRound(pr))}
+					<span class="round">
+						{#if nextFirst}
+							<button class="badge next" onclick={open}>{commits || 'Not started'}</button>
+						{:else}
+							<button class="fresh" aria-label="{commits}: review as round {next}" onclick={open}>+{view.fresh}</button>
+						{/if}
+						<span class="card" role="tooltip">
+							<strong><span class="mark ready"></span>Round {next} · {draft ? 'Not started' : 'To review'}</strong>
+							{#if commits}<span class="faint">{commits} since round {next - 1}</span>{/if}
+							{#if draft}<button class="delete" onclick={() => page.deleteRound(pr)}>Delete round {draft.n}</button>{/if}
+						</span>
+					</span>
+				{/if}
 			</span>
 		{/if}
 	</span>
@@ -203,6 +206,23 @@
 	.hit:hover,
 	.hit:focus-visible {
 		filter: brightness(1.3);
+	}
+	/* The next round, to begin: dashed, as it isn't one yet. */
+	.badge.next {
+		--tone: #8ab4ff;
+		border: 0;
+		background: none;
+		box-shadow: none;
+		outline: 1px dashed color-mix(in srgb, var(--tone) 70%, transparent);
+		outline-offset: -1px;
+		font: inherit;
+		font-size: 12.5px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.badge.next:hover,
+	.badge.next:focus-visible {
+		background: color-mix(in srgb, var(--tone) 12%, transparent);
 	}
 	.fresh {
 		height: 18px;
