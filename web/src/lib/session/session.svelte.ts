@@ -685,6 +685,12 @@ export class PrSession {
 		this.panel.startAll();
 	}
 
+	// The review as the backend has it now, for what it saved itself.
+	async #reload() {
+		const { record } = await getRecord(this.ref);
+		if (!this.#closed) this.#show(record);
+	}
+
 	#show(record: PrRecord) {
 		this.#stored = record;
 		this.record = this.round === null ? record : roundView(record, this.round);
@@ -806,28 +812,20 @@ export class PrSession {
 	}
 
 	// Saves each result a run produces once, however often it's polled.
-	#collect(next: Generation) {
+	// The backend saves each result into the review as it's made; this reads
+	// the review again whenever a step has finished, before the run's let go,
+	// so the page never shows a step done and its result missing.
+	async #collect(next: Generation) {
 		if (this.#closed) return;
 		if (this.#collected?.id !== next.id) this.#collected = { id: next.id, steps: new Set() };
 		const done = this.#collected.steps;
-		const { slices, conversation, summary, fileNotes } = next.results;
-		const save = (step: StepName, change: (r: PrRecord) => void) => {
-			if (done.has(step)) return;
-			done.add(step);
-			this.update(change).catch(() => {});
-		};
-		const head = next.results.head;
-		if (slices)
-			save('slices', (r) => {
-				r.slices = slices;
-				if (head) r.preparedHead = head;
-			});
-		if (conversation) save('conversation', (r) => (r.conversation = conversation));
-		if (summary && !done.has('summary')) {
-			save('summary', (r) => (r.summary = summary));
-			this.panel.applyDefault().then(() => this.#reviewIfAsked());
+		const finished = (Object.keys(next.steps) as StepName[]).filter((step) => next.steps[step].status === 'done' && !done.has(step));
+		if (finished.length || next.status === 'done') {
+			for (const step of finished) done.add(step);
+			await this.#reload().catch(() => {});
+			if (this.#closed) return;
+			if (finished.includes('summary')) this.panel.applyDefault().then(() => this.#reviewIfAsked());
 		}
-		if (fileNotes) save('notes', (r) => (r.fileNotes = fileNotes));
 
 		if (next.status === 'done') {
 			this.generation = null;

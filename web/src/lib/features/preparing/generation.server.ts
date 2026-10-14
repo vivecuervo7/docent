@@ -6,12 +6,13 @@ import { generateSlices } from "./slices.server.js";
 import type { ConversationSummary, FileNote, PrSummary, Slice } from "../../types.server.js";
 import { persistent } from "../../storage/persistent.server.js";
 import { fetchReviewFiles, fetchReviewHead } from "../../github/range.server.js";
+import { changeRecord, keyFor as recordKey } from "../../storage/store.server.js";
 
 // Preparing a PR's review runs here rather than in the browser, so it keeps
-// going when the tab closes and can be checked in on or stopped. Jobs live in
-// memory: they survive as long as this process does. The browser copies each
-// result into the saved review as it appears, so nothing here needs to outlast
-// a restart.
+// going when the tab closes and can be checked in on or stopped. Each result
+// is saved into the review as it appears, open page or not. Jobs live in
+// memory: one under way when this process stops is lost, but what it had
+// saved stays.
 
 export type StepName = "slices" | "conversation" | "summary" | "notes";
 
@@ -159,6 +160,10 @@ async function run(job: Job) {
     generation.steps[name] = { status: "done" };
     return result;
   };
+  // Into the review, unless it was stopped meanwhile.
+  const save = (change: (record: Record<string, unknown>) => void) => {
+    if (generation.status === "running") changeRecord(recordKey(owner, repo, number), change);
+  };
 
   try {
     const [slices, conversation] = await Promise.all([
@@ -168,6 +173,10 @@ async function run(job: Job) {
           const slices = await generateSlices(files, signal, model);
           generation.results.head = head;
           generation.results.slices = slices;
+          save((r) => {
+            r.slices = slices;
+            r.preparedHead = head;
+          });
           return slices;
         }),
       reuse.conversation ??
@@ -175,6 +184,7 @@ async function run(job: Job) {
           const raw = await fetchPrConversation(owner, repo, number);
           const conversation = await generateConversationSummary(raw, signal, model);
           generation.results.conversation = conversation;
+          save((r) => (r.conversation = conversation));
           return conversation;
         }),
     ]);
@@ -183,12 +193,16 @@ async function run(job: Job) {
     await Promise.all([
       step("summary", async () => {
         const meta = await fetchPrMeta(owner, repo, number);
-        generation.results.summary = await generateSummary(meta, slices, conversation, signal, model);
+        const summary = await generateSummary(meta, slices, conversation, signal, model);
+        generation.results.summary = summary;
+        save((r) => (r.summary = summary));
       }),
       reuse.slices && reuse.fileNotes
         ? undefined
         : step("notes", async () => {
-            generation.results.fileNotes = await generateFileNotes(await fetchReviewFiles(owner, repo, number), slices, signal, model);
+            const fileNotes = await generateFileNotes(await fetchReviewFiles(owner, repo, number), slices, signal, model);
+            generation.results.fileNotes = fileNotes;
+            save((r) => (r.fileNotes = fileNotes));
           }),
     ]);
     generation.status = "done";

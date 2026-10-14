@@ -202,8 +202,6 @@ export class StartPage {
 	collapsed = $state<string[]>(readPref('docent.collapsedGroups', (v) => JSON.parse(v ?? '[]')));
 
 	#statusesAt = 0;
-	// Runs whose results are already saved, so each is written once.
-	#collected = new Set<string>();
 
 	readonly rows = $derived.by((): Row[] => {
 		const list: Row[] = [...(this.saved ?? [])];
@@ -303,29 +301,15 @@ export class StartPage {
 			.catch(() => {});
 	}
 
-	// Reads saved reviews and the backend's runs together. A run that ended
-	// while nobody was looking gets its results saved here; a finished one is
-	// then dropped from the backend.
+	// Reads saved reviews and the backend's runs together.
 	async refresh() {
 		fetch('/api/agent-reviews')
 			.then((res) => readOk<{ reviews: StartPage['agentReviews'] }>(res))
 			.then(({ reviews }) => (this.agentReviews = reviews))
 			.catch(() => {});
 		const listed = await listGenerations().catch(() => []);
+		// The backend saves what a run makes; a finished one is let go here.
 		for (const { generation, ...ref } of listed) {
-			const mark = `${generation.id}:${generation.status}`;
-			if (isGenerating(generation) || this.#collected.has(mark)) continue;
-			this.#collected.add(mark);
-			const { slices, conversation, summary, fileNotes, head } = generation.results;
-			if (slices || conversation || summary || fileNotes) {
-				await updateRecord(ref, (r) => {
-					if (slices) r.slices = slices;
-					if (slices && head) r.preparedHead = head;
-					if (conversation) r.conversation = conversation;
-					if (summary) r.summary = summary;
-					if (fileNotes) r.fileNotes = fileNotes;
-				}).catch(() => {});
-			}
 			if (generation.status === 'done') await dismissGeneration(ref);
 		}
 		const list = await listSaved().catch(() => [] as SavedPr[]);

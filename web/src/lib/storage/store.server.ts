@@ -64,6 +64,24 @@ export function putRecord(key: string, record: Record<string, unknown>, version:
   return next;
 }
 
+// Changes a record from the backend, the way the browser does: on the
+// latest version, made again on the newer one when something saved first.
+// Long-running work keeps its results this way, so they land whether or
+// not a page is open.
+export function changeRecord(key: string, change: (record: Record<string, unknown>) => void): Record<string, unknown> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { record, version } = getRecord(key);
+    change(record);
+    try {
+      putRecord(key, record, version);
+      return record;
+    } catch (err) {
+      if (!(err instanceof VersionConflict)) throw err;
+    }
+  }
+  throw new Error(`Couldn't save ${key}: it kept changing underneath.`);
+}
+
 export function listRecords(): { key: string; record: Record<string, unknown> }[] {
   const rows = db.prepare("SELECT key, record FROM prs").all() as { key: string; record: string }[];
   return rows.map((row) => ({ key: row.key, record: JSON.parse(row.record) }));
