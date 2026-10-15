@@ -6,26 +6,36 @@
 	// A run of quiet code folded to one row - imports, setup, a test's body -
 	// saying what's inside while it's closed: its changes, or how many
 	// unchanged lines, and any marks on them.
+	// In a round, the lines it left as they were: their changes are the PR's
+	// earlier ones, so they're counted as lines, not changes.
 	let {
 		rows,
 		label,
+		round = false,
 		open,
 		hidden,
 		ontoggle
-	}: { rows: Row[]; label?: string; open: boolean; hidden: Mark[]; ontoggle: () => void } = $props();
+	}: { rows: Row[]; label?: string; round?: boolean; open: boolean; hidden: Mark[]; ontoggle: () => void } = $props();
 
 	const added = $derived(rows.filter((r) => r.kind === 'add').length);
 	const removed = $derived(rows.filter((r) => r.kind === 'del').length);
 </script>
 
-<button class="fold-row" aria-expanded={open} title={`${open ? 'Fold' : 'Show'} ${label ? `the ${label}` : 'this code'}`} onclick={ontoggle}>
+<button
+	class="fold-row"
+	aria-expanded={open}
+	title={`${open ? 'Fold' : 'Show'} ${round ? 'the lines this round left as they were' : label ? `the ${label}` : 'this code'}`}
+	onclick={ontoggle}
+>
 	<span class="tab" aria-hidden="true"
 		><svg width="9" height="9" viewBox="0 0 24 24" style:transform={open ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg></span
 	>
 	<span class="kind">…</span>
 	<!-- The counts say what's hidden, so they go once it's open. -->
 	{#if !open}
-		{#if added || removed}
+		{#if round}
+			<span class="changes">{rows.length} {rows.length === 1 ? 'line' : 'lines'} this round left as they were</span>
+		{:else if added || removed}
 			<span class="changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
 		{:else}
 			<span class="changes">{rows.length} unchanged lines</span>

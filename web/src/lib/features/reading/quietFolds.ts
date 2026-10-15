@@ -7,7 +7,9 @@ import type { Hunk, Row } from './diff/parse';
 //   name a test folds, but only when it's wholly new or unchanged - an
 //   edit or a deletion is what needs reading, so it stays open.
 // - Imports and test setup fold whatever changed, with +/- on the row.
-export type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; rows: Row[]; label?: string };
+// A round's fold holds lines the round left as they were, whatever the PR
+// did to them before.
+export type Piece = { type: 'row'; row: Row } | { type: 'fold'; id: string; rows: Row[]; label?: string; round?: boolean };
 
 const MIN_FOLD = 3;
 
@@ -40,5 +42,35 @@ export function quietPieces(hunk: Hunk, quietRanges: NonNullable<FileNote['quiet
 		i = range.to + 1;
 	}
 	for (; i < rows.length; i++) out.push({ type: 'row', row: rows[i] });
+	return out;
+}
+
+// In a round of some of the PR's commits, a hunk is folded down to the
+// round's own changes and a few lines either side: the rest is the file as
+// it stands, there only for its context. `anchor` says which rows are the
+// round's.
+const ROUND_CONTEXT = 3;
+
+export function roundPieces(hunk: Hunk, anchor: (row: Row, i: number) => boolean): Piece[] {
+	const { rows } = hunk;
+	const near = new Array<boolean>(rows.length).fill(false);
+	rows.forEach((row, i) => {
+		if (!anchor(row, i)) return;
+		for (let k = Math.max(0, i - ROUND_CONTEXT); k <= Math.min(rows.length - 1, i + ROUND_CONTEXT); k++) near[k] = true;
+	});
+	const out: Piece[] = [];
+	for (let i = 0; i < rows.length; ) {
+		if (near[i]) {
+			out.push({ type: 'row', row: rows[i++] });
+			continue;
+		}
+		let j = i;
+		while (j < rows.length && !near[j]) j++;
+		const run = rows.slice(i, j);
+		// A fold's row takes a line itself, so a short run just shows.
+		if (run.length >= MIN_FOLD) out.push({ type: 'fold', id: `${hunk.index}:round:${run[0].key}`, rows: run, round: true });
+		else for (const row of run) out.push({ type: 'row', row });
+		i = j;
+	}
 	return out;
 }

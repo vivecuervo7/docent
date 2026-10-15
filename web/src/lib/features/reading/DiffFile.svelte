@@ -26,7 +26,7 @@
 	import FoldRow from './FoldRow.svelte';
 	import HiddenMarks from './HiddenMarks.svelte';
 	import Pin from './Pin.svelte';
-	import { quietPieces } from './quietFolds';
+	import { quietPieces, roundPieces } from './quietFolds';
 	import { isConcluded, useSession } from '$lib/session/session.svelte';
 	import { isUnread } from '$lib/types';
 	import type { ReferenceElement } from '@floating-ui/dom';
@@ -192,7 +192,15 @@
 	});
 	const quietRanges = $derived(foldTests ? (note?.quietRanges ?? []) : []);
 
-	const piecesOf = $derived(new Map(hunks.map((h) => [h.index, quietPieces(h, quietRanges, scenarioLines)])));
+	// Where the round removed lines - shown or not - so the same lines show
+	// around them in either view.
+	const removedAt = $derived(new Set((file.rangeRemoved ?? []).map((run) => run.at)));
+	const isRoundRow = (r: Row) =>
+		!!r.removed || ((r.kind === 'add' || r.kind === 'del') && !earlier(r)) || (r.kind !== 'del' && r.new !== undefined && (removedAt.has(r.new) || removedAt.has(r.new + 1)));
+	// A round's hunks fold to its own changes; any other diff folds its quiet code.
+	const piecesOf = $derived(
+		new Map(hunks.map((h) => [h.index, rangeNew ? roundPieces(h, isRoundRow) : quietPieces(h, quietRanges, scenarioLines)]))
+	);
 	const visible = (h: Hunk) =>
 		(piecesOf.get(h.index) ?? []).flatMap((p) => (p.type === 'row' ? [p.row] : openFolds.has(p.id) ? p.rows : []));
 
@@ -552,6 +560,7 @@
 			<FoldRow
 				rows={piece.rows}
 				label={piece.label}
+				round={piece.round}
 				open={openFolds.has(id)}
 				hidden={hiddenMarks(piece.rows)}
 				ontoggle={() => (openFolds.has(id) ? openFolds.delete(id) : openFolds.add(id))}
