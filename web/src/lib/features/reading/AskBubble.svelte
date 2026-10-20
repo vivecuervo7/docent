@@ -22,6 +22,15 @@
 	let draft = $state('');
 	let list = $state<HTMLElement | null>(null);
 
+	// Asked to show one of its notes, from Wrap up: it opens.
+	$effect(() => {
+		const id = session.revealing;
+		if (id && notes.some((n) => n.id === id)) {
+			session.revealing = null;
+			open = true;
+		}
+	});
+
 	async function send(text: string, kind: SendKind) {
 		session.createNote(slice ? { path: '', slice: slice.id } : { path: '' }, text, { comment: kind === 'comment' });
 		await tick();

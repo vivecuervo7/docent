@@ -71,6 +71,31 @@
 	const redraft = (item: FeedbackItem) =>
 		session.draftYourComments((item.noteIds ?? []).filter((id) => session.record.notes.some((n) => n.id === id)));
 
+	// Opens a finding or a thread where it was raised: the slice holding its
+	// lines or file, or for something about the PR as a whole, the Overview.
+	function show(id: string, path: string | undefined, start: FeedbackItem['start']) {
+		if (!path) return goto(base);
+		const slice = session.slicesOf(path, start)[0];
+		if (!slice) return;
+		session.revealing = id;
+		goto(`${base}/slices/${slice}`);
+	}
+
+	function showThread(item: FeedbackItem) {
+		const note = session.record.notes.find((n) => n.id === item.noteIds?.[0]);
+		if (!note) return;
+		if (note.slice) {
+			session.revealing = note.id;
+			return goto(`${base}/slices/${note.slice}`);
+		}
+		if (!note.path && !note.github) {
+			session.revealing = note.id;
+			return goto(base);
+		}
+		// A thread about something said on GitHub opens from that thread.
+		show(note.github ?? note.id, note.path, note.start);
+	}
+
 	// The first time through, preparing starts on the way to Post.
 	function toPost() {
 		if (!session.post.draft) session.post.prepare();
@@ -97,6 +122,7 @@
 		messages={item.messages}
 		alsoBy={groups.membersOf(reviewer, item.id).map((m) => ({ who: reviewerName(session.record, m.reviewer), body: m.item.body }))}
 		kept={item.included ?? true}
+		onshow={item.path ? () => show(item.id, item.path, item.start) : undefined}
 		onkeep={() => session.setFindingIncluded(reviewer, item.id, true)}
 		onskip={() => session.setFindingIncluded(reviewer, item.id, false)}
 	/>
@@ -114,6 +140,7 @@
 		kept={item.included}
 		changed={changed(item)}
 		onredraft={session.yourDraft.pending ? undefined : () => redraft(item)}
+		onshow={item.noteIds?.length ? () => showThread(item) : undefined}
 		onkeep={() => session.setYourIncluded(item.id, true)}
 		onskip={() => session.setYourIncluded(item.id, false)}
 	/>

@@ -7,7 +7,6 @@
 	import type { LineRef } from '$lib/types';
 	import type { NoteMessage } from '$lib/types';
 	import NoteText from '../../ui/NoteText.svelte';
-	import FindingLines from '../posting/FindingLines.svelte';
 
 	// One thing that could go into the review: an agent's finding or one of
 	// your drafted comments, with keep or skip.
@@ -32,6 +31,7 @@
 		kept,
 		onkeep,
 		onskip,
+		onshow,
 		changed = false,
 		onredraft
 	}: {
@@ -63,6 +63,8 @@
 		kept: boolean | null;
 		onkeep: () => void;
 		onskip: () => void;
+		// Opens it where it was raised.
+		onshow?: () => void;
 		// One of yours whose threads have changed since it was drafted.
 		changed?: boolean;
 		onredraft?: () => void;
@@ -72,7 +74,6 @@
 	let showTalk = $state(false);
 	let showAlso = $state(false);
 
-	let showingDiff = $state(false);
 	const lines = $derived.by(() => {
 		if (!start) return undefined;
 		const endLine = end?.line ?? start.line;
@@ -93,7 +94,7 @@
 			{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
-		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" />
+		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" boxed />
 		{#if rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
 				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
@@ -138,15 +139,8 @@
 		<button class="keep" class:on={kept === true} class:suggested aria-pressed={kept === true} onclick={onkeep}>Keep</button>
 		<button class="skip" class:on={kept === false} class:suggested aria-pressed={kept === false} onclick={onskip}>Skip</button>
 	</div>
-	{#if path && start}
-		<div class="foot">
-			<button class="link diff-toggle" class:open={showingDiff} aria-expanded={showingDiff} onclick={() => (showingDiff = !showingDiff)}>{showingDiff ? 'Hide diff' : 'Show diff'}</button>
-		</div>
-	{/if}
-	{#if showingDiff && path && start}
-		<div class="diff">
-			<FindingLines mark={{ path, start, end: end ?? start }} />
-		</div>
+	{#if onshow}
+		<div class="foot"><button class="link" onclick={onshow}>Show in slice</button></div>
 	{/if}
 </li>
 
@@ -221,17 +215,11 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	/* Under both columns, so Show diff ends where Keep and Skip do. */
+	/* Under both columns, so Show in slice ends where Keep and Skip do. */
 	.foot {
 		grid-column: 1 / -1;
 		display: flex;
 		justify-content: flex-end;
-	}
-	.diff {
-		grid-column: 1 / -1;
-	}
-	.diff-toggle.open {
-		color: var(--text);
 	}
 	.link {
 		margin-left: auto;
