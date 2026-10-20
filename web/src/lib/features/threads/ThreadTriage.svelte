@@ -117,7 +117,6 @@
 <section class="triage">
 	<div class="head">
 		<h2>GitHub threads</h2>
-		<span class="faint">{open.length} open{#if resolved.length}{` · ${resolved.length} resolved`}{/if}</span>
 		<span class="grow"></span>
 		{#if session.github && open.length}
 			{#if checking.length}
@@ -131,11 +130,10 @@
 				<button class="link" title="Whether this round addresses them, one line each" onclick={() => checkAll(open)}>Check against this round</button>
 			{/if}
 		{/if}
-		{#if resolved.length}
-			<label class="toggle">
-				<input type="checkbox" bind:checked={showResolved} />
-				Show resolved
-			</label>
+		{#if ticked.length}
+			<button class="btn primary" disabled={resolving} onclick={resolveTicked}>
+				{#if resolving}<Spinner size={13} />{/if} Resolve {ticked.length} selected
+			</button>
 		{/if}
 	</div>
 
@@ -151,36 +149,31 @@
 				{@const threads = byVerdict(verdict)}
 				{#if threads.length}
 					<div class="group">
-						<div class="group-head">
-							<span class="verdict {verdict}">{label} · {threads.length}</span>
-							{#if verdict === 'addressed'}
-								<span class="grow"></span>
-								{#if ticked.length}
-									<button class="btn primary" disabled={resolving} onclick={resolveTicked}>
-										{#if resolving}<Spinner size={13} />{/if} Resolve {ticked.length} selected
-									</button>
-								{/if}
-							{/if}
-						</div>
+						<span class="verdict {verdict}">{label} · {threads.length}</span>
 						<ul>{#each threads as t (t.id)}{@render row(t, verdict === 'addressed')}{/each}</ul>
 					</div>
 				{/if}
 			{/each}
 			{#if rest.length}
 				<div class="group">
-					<div class="group-head"><span class="verdict">Not checked · {rest.length}</span></div>
+					<span class="verdict">Not checked · {rest.length}</span>
 					<ul>{#each rest as t (t.id)}{@render row(t, false)}{/each}</ul>
 				</div>
 			{/if}
 		{:else if open.length}
 			<ul>{#each open as t (t.id)}{@render row(t, false)}{/each}</ul>
+		{:else}
+			<p class="faint">Every thread on this round’s files is resolved.</p>
 		{/if}
 
-		{#if showResolved && resolved.length}
-			<div class="group">
-				<div class="group-head"><span class="verdict">Resolved · {resolved.length}</span></div>
+		<!-- Resolved threads come last, and only on asking. -->
+		{#if resolved.length}
+			<button class="link more" aria-expanded={showResolved} onclick={() => (showResolved = !showResolved)}>
+				{showResolved ? 'Hide' : 'Show'} {resolved.length} resolved
+			</button>
+			{#if showResolved}
 				<ul>{#each resolved as t (t.id)}{@render row(t, false)}{/each}</ul>
-			</div>
+			{/if}
 		{/if}
 		<p class="faint small">Resolve, reopen and reply act on GitHub straight away.</p>
 	{/if}
@@ -203,46 +196,33 @@
 		flex-direction: column;
 		gap: 14px;
 	}
-	.head,
-	.group-head {
+	/* As tall with Resolve as without, so unticking the last doesn't jump. */
+	.head {
 		display: flex;
 		align-items: center;
 		gap: 12px;
+		min-height: 34px;
 		font-size: 13.5px;
 	}
 	h2 {
 		margin: 0;
-		font-size: 13px;
-		font-weight: 600;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--faint);
+		font-family: var(--serif);
+		font-size: 24px;
+		font-weight: 500;
 	}
 	.grow {
 		flex-grow: 1;
 	}
-	.toggle {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		color: var(--muted);
-		font-size: 13px;
-		cursor: pointer;
-	}
-	.toggle input,
 	li input {
 		accent-color: var(--you);
 	}
 	.group {
 		display: flex;
 		flex-direction: column;
-		gap: 14px;
-	}
-	/* As tall with Resolve as without, so unticking the last doesn't jump. */
-	.group-head {
-		min-height: 32px;
+		gap: 8px;
 	}
 	.verdict {
+		font-size: 13.5px;
 		font-weight: 600;
 		color: var(--muted);
 	}
@@ -321,6 +301,9 @@
 		text-decoration: underline;
 		text-underline-offset: 3px;
 		cursor: pointer;
+	}
+	.more {
+		align-self: flex-start;
 	}
 	.link:hover {
 		color: var(--text);
