@@ -50,9 +50,8 @@ export interface OverlapReviewer {
 	name: string;
 	kept: number;
 	kickedBack: number;
-	// Kept findings no other reviewer raised, and kicked back ones.
+	// Kept findings no other reviewer raised.
 	alone: number;
-	aloneKicked: number;
 	rounds: number;
 }
 export interface OverlapPair {
@@ -77,7 +76,7 @@ function overlapOf(rounds: RoundStats[]) {
 	for (const r of rounds) {
 		if (!r.found || !r.ran) continue;
 		for (const v of r.ran) {
-			const t = reviewers.get(v.id) ?? { id: v.id, name: v.name, kept: 0, kickedBack: 0, alone: 0, aloneKicked: 0, rounds: 0 };
+			const t = reviewers.get(v.id) ?? { id: v.id, name: v.name, kept: 0, kickedBack: 0, alone: 0, rounds: 0 };
 			t.rounds++;
 			reviewers.set(v.id, t);
 		}
@@ -85,10 +84,7 @@ function overlapOf(rounds: RoundStats[]) {
 		for (const f of r.found) {
 			const t = reviewers.get(f.by);
 			if (!t) continue;
-			if (f.kickedBack) {
-				t.kickedBack++;
-				if (!f.with.length) t.aloneKicked++;
-			}
+			if (f.kickedBack) t.kickedBack++;
 			if (!f.kept) continue;
 			t.kept++;
 			if (!f.with.length) t.alone++;
