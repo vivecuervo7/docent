@@ -125,7 +125,7 @@
 				{#if !folded || i === 0 || i >= entries.length - 1}
 					<li>
 						<span class="who">
-							<Avatar src={e.avatar} name={e.author} />
+							<Avatar src={e.avatar} name={e.author} size={16} />
 							{e.author}
 							{#if e.author === session.meta?.author}<span class="tag">author</span>{/if}
 							{#if e.createdAt}<span class="faint">· {timeAgo(Date.parse(e.createdAt))}</span>{/if}
@@ -270,7 +270,7 @@
 	.entries li {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 10px;
 		padding: 12px 16px;
 		border-top: 1px solid var(--line);
 	}
