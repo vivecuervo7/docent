@@ -143,16 +143,17 @@
 			<dd></dd>
 			<dt>Kept</dt>
 			<dd>{focus.kept}</dd>
-			<dt class="sub">Unique</dt>
+			<dt>Unique</dt>
 			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
-			<dt class="sub">Corroborated</dt>
+			<dt>Corroborated</dt>
 			<dd>{focus.kept - focus.alone} <span class="faint">({share(focus.kept - focus.alone, focus.kept)}%)</span></dd>
+			<span class="rule" aria-hidden="true"></span>
 			<dt>Kicked back</dt>
 			<dd>{focus.kickedBack}</dd>
 			{#if focus.kickedBack}
-				<dt class="sub">Unique</dt>
+				<dt>Unique</dt>
 				<dd>{focus.aloneKicked} <span class="faint">({share(focus.aloneKicked, focus.kickedBack)}%)</span></dd>
-				<dt class="sub">Corroborated</dt>
+				<dt>Corroborated</dt>
 				<dd>
 					{focus.kickedBack - focus.aloneKicked} <span class="faint">({share(focus.kickedBack - focus.aloneKicked, focus.kickedBack)}%)</span>
 				</dd>
@@ -238,11 +239,12 @@
 		text-align: right;
 		font-variant-numeric: tabular-nums;
 	}
-	/* Of the figure above: what of it only this reviewer raised, and what
-	   another did too. */
-	.legend .sub {
-		padding-left: 12px;
-		color: var(--faint);
+	/* Kicked back set apart from kept, each with its own unique and
+	   corroborated beneath it. */
+	.legend .rule {
+		grid-column: 1 / -1;
+		margin: 3px 0;
+		border-top: 1px solid var(--line-2);
 	}
 	.legend .who {
 		color: var(--text);
