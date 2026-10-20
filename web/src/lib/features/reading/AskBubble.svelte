@@ -98,7 +98,7 @@
 
 <div class="corner" bind:this={corner} style:bottom="{24 + scrollbar}px">
 	{#if open}
-		<div class="panel" role="dialog" aria-label={title}>
+		<div class="panel" class:full={messages.length || status.pending} role="dialog" aria-label={title}>
 			<header>
 				<span class="title">{title}</span>
 				{#if slice}<span class="faint subject">{slice.title}</span>{/if}
@@ -197,7 +197,7 @@
 	.panel {
 		width: 520px;
 		max-width: calc(100vw - 48px);
-		height: min(640px, calc(100vh - 180px));
+		max-height: min(640px, calc(100vh - 180px));
 		display: flex;
 		flex-direction: column;
 		border-radius: 16px;
@@ -206,6 +206,11 @@
 			0 0 0 1px var(--line-2),
 			0 32px 80px -24px rgba(0, 0, 0, 0.85);
 		overflow: hidden;
+	}
+	/* Empty, it's as tall as its prompt; once there's a conversation it
+	   takes its full height, so answers arriving don't keep resizing it. */
+	.panel.full {
+		height: min(640px, calc(100vh - 180px));
 	}
 	header {
 		display: flex;
