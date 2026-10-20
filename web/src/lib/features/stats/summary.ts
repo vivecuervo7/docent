@@ -39,13 +39,15 @@ export function summarise(stats: Stats) {
 	const prs = byPr(stats.rounds).filter((p) => p.at > 0);
 	const measured = prs.filter((p) => p.lines > 0 && p.slices.length);
 
-	const byReviewer = new Map<string, { name: string; raised: number; kept: number; skipped: number; filtered: number }>();
+	const byReviewer = new Map<string, { name: string; raised: number; kept: number; asSuggested: number; kickedBack: number; filtered: number }>();
 	for (const r of stats.rounds)
 		for (const v of r.reviewers) {
-			const t = byReviewer.get(v.name) ?? { name: v.name, raised: 0, kept: 0, skipped: 0, filtered: 0 };
+			const t = byReviewer.get(v.name) ?? { name: v.name, raised: 0, kept: 0, asSuggested: 0, kickedBack: 0, filtered: 0 };
+			const kickedBack = v.kickedBack ?? v.skipped;
 			t.raised += v.raised;
 			t.kept += v.kept;
-			t.skipped += v.skipped;
+			t.kickedBack += kickedBack;
+			t.asSuggested += v.skipped - kickedBack;
 			t.filtered += v.filtered;
 			byReviewer.set(v.name, t);
 		}

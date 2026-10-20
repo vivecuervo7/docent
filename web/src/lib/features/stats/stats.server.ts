@@ -63,10 +63,15 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
   for (const { reviewer, item } of findings) {
     const who = reviewerOf(record.agentReviewers?.find((a) => a.id === reviewer));
     const name = who.name;
-    const r = reviewers.get(name) ?? { ...who, raised: 0, kept: 0, skipped: 0, filtered: 0 };
+    const r = reviewers.get(name) ?? { ...who, raised: 0, kept: 0, skipped: 0, kickedBack: 0, filtered: 0 };
     r.raised++;
     if (item.filtered) r.filtered++;
-    else if (decided(item)) item.included ? r.kept++ : r.skipped++;
+    else if (decided(item) && item.included) r.kept++;
+    else if (decided(item)) {
+      r.skipped++;
+      // Skipped though neither its reviewer nor the editor suggested it.
+      if (!item.setAside && !item.skipSuggested) r.kickedBack!++;
+    }
     reviewers.set(name, r);
     if (item.severity && !item.filtered) severities[item.severity] = (severities[item.severity] ?? 0) + 1;
   }

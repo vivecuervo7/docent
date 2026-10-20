@@ -80,23 +80,27 @@
 				<h2>Reviewers</h2>
 				<ul class="reviewers">
 					{#each s.reviewers as r (r.name)}
-						{@const decided = r.kept + r.skipped}
-						{@const open = r.raised - decided - r.filtered}
+						{@const open = r.raised - r.kept - r.asSuggested - r.kickedBack - r.filtered}
 						<li>
 							<span class="name">{r.name}</span>
 							<span class="count faint">{number(r.raised)} {r.raised === 1 ? 'finding' : 'findings'}</span>
-							<span class="split" title="{r.kept} kept · {r.skipped} skipped · {r.filtered} filtered · {open} undecided">
+							<span
+								class="split"
+								title="{r.kept} kept · {r.kickedBack} kicked back · {r.asSuggested} skipped as suggested · {r.filtered} filtered · {open} undecided"
+							>
 								<span class="kept" style:flex={r.kept}></span>
-								<span class="skipped" style:flex={r.skipped}></span>
+								<span class="kicked" style:flex={r.kickedBack}></span>
+								<span class="suggested" style:flex={r.asSuggested}></span>
 								<span class="filtered" style:flex={r.filtered}></span>
 								<span class="open" style:flex={open}></span>
 							</span>
-							<span class="rate">{pct(r.kept, decided)} kept</span>
+							<span class="rate">{pct(r.kickedBack, r.kept + r.kickedBack)} kicked back</span>
 						</li>
 					{/each}
 				</ul>
 				<div class="key faint">
-					<span class="swatch kept"></span>Kept <span class="swatch skipped"></span>Skipped <span class="swatch filtered"></span>Filtered by the editor
+					<span class="swatch kept"></span>Kept <span class="swatch kicked"></span>Kicked back by you
+					<span class="swatch suggested"></span>Skipped as suggested <span class="swatch filtered"></span>Filtered by the editor
 					<span class="swatch open"></span>Undecided
 				</div>
 			</section>
@@ -266,7 +270,7 @@
 	}
 	.reviewers li {
 		display: grid;
-		grid-template-columns: 160px 100px minmax(0, 1fr) 80px;
+		grid-template-columns: 160px 100px minmax(0, 1fr) 120px;
 		align-items: center;
 		gap: 14px;
 		padding: 11px 16px;
@@ -300,9 +304,14 @@
 	.swatch.kept {
 		background: #7fd89b;
 	}
-	.skipped,
-	.swatch.skipped {
+	.kicked,
+	.swatch.kicked {
 		background: #a87670;
+	}
+	/* Skipped as its reviewer or the editor suggested: their call, not a miss. */
+	.suggested,
+	.swatch.suggested {
+		background: #5d5f66;
 	}
 	.filtered,
 	.swatch.filtered {

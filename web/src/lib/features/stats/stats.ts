@@ -14,7 +14,9 @@ export interface RoundStats {
 	// Lines its changes touched, and each slice's share.
 	sizes?: { lines: number; slices: number[] };
 	// By persona or external reviewer, which their ids name.
-	reviewers: { name: string; persona?: string; external?: string; raised: number; kept: number; skipped: number; filtered: number }[];
+	// Of those skipped, kicked back: skipped though its reviewer and the
+	// editor stood by it. Missing from figures taken before it was counted.
+	reviewers: { name: string; persona?: string; external?: string; raised: number; kept: number; skipped: number; kickedBack?: number; filtered: number }[];
 	severities: Partial<Record<Severity, number>>;
 	questions: number;
 	comments: number;
