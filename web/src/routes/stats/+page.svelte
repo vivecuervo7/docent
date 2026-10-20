@@ -93,6 +93,8 @@
 							<dd></dd>
 							<dt>Lines read</dt>
 							<dd>{number(p.lines)}</dd>
+							<dt>Files</dt>
+							<dd>{number(p.files)}</dd>
 							{#if p.rounds > 1}
 								<dt>Rounds</dt>
 								<dd>{p.rounds}</dd>
@@ -106,6 +108,8 @@
 							<dd>{number(p.slice)}</dd>
 							<dt>Largest slice</dt>
 							<dd>{number(p.largest)}</dd>
+							<dt>Files per slice</dt>
+							<dd>{p.filesPerSlice.toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
 						</dl>
 					{/if}
 				</div>

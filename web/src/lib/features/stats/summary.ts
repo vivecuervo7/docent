@@ -130,6 +130,8 @@ export function summarise(stats: Stats) {
 					slice: Math.round(mean(p.slices)),
 					slices: p.slices.length,
 					largest: Math.max(...p.slices),
+					files: p.files,
+					filesPerSlice: mean(p.sliceFiles),
 					rounds: p.rounds
 				}))
 				.sort((a, b) => a.lines - b.lines)
