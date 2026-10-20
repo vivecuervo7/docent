@@ -71,6 +71,7 @@
 	} = $props();
 
 	let showTalk = $state(false);
+	const hasVerdicts = $derived(!!(notes?.impact || notes?.checked || (notes && speculative) || onPr || setAside));
 	let showAlso = $state(false);
 
 	const lines = $derived.by(() => {
@@ -85,7 +86,6 @@
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
 			<SeverityTag {severity} />
-			<Verdicts {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} />
 			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
 			{#if path}<span class="where"><FilePath {path} {lines} /></span>{/if}
 			{#if changed}
@@ -94,8 +94,11 @@
 			{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
-		{#if rationale}
-			<div class="rationale"><NoteText text={rationale} /></div>
+		{#if rationale || hasVerdicts}
+			<div class="rationale">
+				{#if rationale}<NoteText text={rationale} />{/if}
+				{#if hasVerdicts}<div class="verdicts"><Verdicts {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} /></div>{/if}
+			</div>
 		{/if}
 		{#if alsoBy.length}
 			<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
@@ -239,6 +242,12 @@
 		line-height: 1.6;
 	}
 	/* The agent's own reasoning, on the half brown of Docent's thread replies. */
+	.verdicts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px 14px;
+		margin-top: 2px;
+	}
 	.rationale {
 		margin-top: 6px;
 		padding: 10px 14px;
