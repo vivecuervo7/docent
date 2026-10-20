@@ -79,7 +79,11 @@
 				m.y -= dy * move;
 			}
 		}
-		const outer = (n: (typeof nodes)[number]) => radius(n.kept + n.kickedBack);
+		// The hovered ring, a gauge for one reviewer at a time, widens by its
+		// radius in step with what you kicked back, so a third rejected reads
+		// as a ring a third wider.
+		const gauge = (n: { r: number; kept: number; kickedBack: number }) => (n.r * (n.kept + n.kickedBack)) / n.kept;
+		const outer = (n: (typeof nodes)[number]) => gauge(n);
 		const minX = Math.min(...nodes.map((n) => n.x - outer(n)));
 		const maxX = Math.max(...nodes.map((n) => n.x + outer(n)));
 		const minY = Math.min(...nodes.map((n) => n.y - outer(n)));
@@ -87,7 +91,7 @@
 		const scale = Math.min((WIDTH - PAD * 2) / (maxX - minX || 1), (HEIGHT - PAD * 2) / (maxY - minY || 1));
 		const ox = (WIDTH - (maxX - minX) * scale) / 2 - minX * scale;
 		const oy = (HEIGHT - (maxY - minY) * scale) / 2 - minY * scale;
-		return nodes.map((n) => ({ ...n, cx: n.x * scale + ox, cy: n.y * scale + oy, pr: n.r * scale, ring: radius(n.kept + n.kickedBack) * scale }));
+		return nodes.map((n) => ({ ...n, cx: n.x * scale + ox, cy: n.y * scale + oy, pr: n.r * scale, ring: gauge(n) * scale }));
 	});
 
 	let pointed = $state<string | null>(null);
