@@ -81,28 +81,22 @@
 				<h2>Reviewers</h2>
 				<ul class="reviewers">
 					{#each s.reviewers as r (r.id)}
-						{@const open = r.raised - r.kept - r.asSuggested - r.kickedBack - r.filtered}
 						<li>
 							<span class="name">{r.name}</span>
 							<span class="count faint">{number(r.raised)} {r.raised === 1 ? 'finding' : 'findings'}</span>
-							<span
-								class="split"
-								title="{r.kept} kept · {r.kickedBack} kicked back · {r.asSuggested} skipped as suggested · {r.filtered} filtered · {open} undecided"
-							>
+							<span class="split" title="{r.kept} kept · {r.asSuggested} skipped as suggested · {r.filtered} filtered · {r.kickedBack} kicked back">
 								<span class="kept" style:flex={r.kept}></span>
-								<span class="kicked" style:flex={r.kickedBack}></span>
 								<span class="suggested" style:flex={r.asSuggested}></span>
 								<span class="filtered" style:flex={r.filtered}></span>
-								<span class="open" style:flex={open}></span>
+								<span class="kicked" style:flex={r.kickedBack}></span>
 							</span>
 							<span class="rate">{pct(r.kickedBack, r.kept + r.kickedBack)} kicked back</span>
 						</li>
 					{/each}
 				</ul>
 				<div class="key faint">
-					<span class="swatch kept"></span>Kept <span class="swatch kicked"></span>Kicked back by you
-					<span class="swatch suggested"></span>Skipped as suggested <span class="swatch filtered"></span>Filtered by the editor
-					<span class="swatch open"></span>Undecided
+					<span class="swatch kept"></span>Kept <span class="swatch suggested"></span>Skipped as suggested
+					<span class="swatch filtered"></span>Filtered by the editor <span class="swatch kicked"></span>Kicked back by you
 				</div>
 				{#if s.overlap.reviewers.length > 1}
 					<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} />
@@ -312,19 +306,15 @@
 	.swatch.kicked {
 		background: #a87670;
 	}
-	/* Skipped as its reviewer or the editor suggested: their call, not a miss. */
+	/* Skipped as its reviewer suggested, or filtered by the editor: the
+	   tools doing their job, so green too, deepening as it goes. */
 	.suggested,
 	.swatch.suggested {
-		background: #464850;
+		background: #4a7d5a;
 	}
 	.filtered,
 	.swatch.filtered {
-		background: var(--line-2);
-	}
-	.open,
-	.swatch.open {
-		background: var(--surface-2);
-		box-shadow: inset 0 0 0 1px var(--line-2);
+		background: #2f5239;
 	}
 	@media (max-width: 700px) {
 		.figures {

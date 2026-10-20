@@ -67,12 +67,14 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     const name = who.name;
     const r = reviewers.get(name) ?? { ...who, raised: 0, kept: 0, skipped: 0, kickedBack: 0, filtered: 0 };
     r.raised++;
+    // One left undecided counts as what it was left at, which is what's
+    // posted: kept, unless the editor suggested skipping it.
     if (item.filtered) r.filtered++;
-    else if (decided(item) && item.included) r.kept++;
-    else if (decided(item)) {
+    else if (item.included) r.kept++;
+    else {
       r.skipped++;
-      // Skipped though neither its reviewer nor the editor suggested it.
-      if (!item.setAside && !item.skipSuggested) r.kickedBack!++;
+      // Skipped by you though neither its reviewer nor the editor suggested it.
+      if (decided(item) && !item.setAside && !item.skipSuggested) r.kickedBack!++;
     }
     reviewers.set(name, r);
     if (item.severity && !item.filtered) severities[item.severity] = (severities[item.severity] ?? 0) + 1;
@@ -86,7 +88,7 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
   for (const [key, { reviewer, item }] of shown) {
     const lead = item.joins && shown.has(`${item.joins.reviewer}/${item.joins.id}`) ? `${item.joins.reviewer}/${item.joins.id}` : key;
     const head = shown.get(lead)!.item;
-    const point = points.get(lead) ?? { by: new Set(), kept: decided(head) && head.included, skipped: decided(head) && !head.included };
+    const point = points.get(lead) ?? { by: new Set(), kept: head.included, skipped: !head.included };
     point.by.add(idOf(reviewerOf(record.agentReviewers?.find((a) => a.id === reviewer))));
     points.set(lead, point);
   }
@@ -115,6 +117,7 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     conclusions: yours.filter((m) => m.conclusion).length,
     answers: answers.length,
     checks: Object.values(record.threadChecks ?? {}).filter((c) => c.verdict).length,
+    counted: COUNTED,
     points: [...points.values()].map((p) => ({ by: [...p.by], kept: p.kept, skipped: p.skipped })),
     ran: [...new Map(ran.map((r) => [idOf(r), { id: idOf(r), ...r }])).values()],
     postedComments: {
@@ -200,12 +203,14 @@ async function drain() {
   measuring.busy = false;
 }
 
-// Rounds recorded before their points were get them once, from the
-// reviews still kept.
+// What a round's figures count, which goes up when that changes: rounds
+// counted the old way are taken again once, from the reviews still kept.
+const COUNTED = 2;
+
 function fillPoints() {
   const missing = new Set(
     (db.prepare("SELECT key, stats FROM round_stats").all() as { key: string; stats: string }[])
-      .filter((r) => !("points" in JSON.parse(r.stats)))
+      .filter((r) => (JSON.parse(r.stats) as RoundStats).counted !== COUNTED)
       .map((r) => r.key)
   );
   for (const key of missing) {

@@ -23,6 +23,8 @@ export interface RoundStats {
 	conclusions: number;
 	answers: number;
 	checks: number;
+	// How the figures were counted, for taking them again when that changes.
+	counted?: number;
 	// Each point raised - the editor's group of findings making it - by the
 	// reviewers raising it, and whether you kept or skipped it.
 	points?: { by: string[]; kept: boolean; skipped: boolean }[];
