@@ -194,6 +194,29 @@ async function editNext(owner: string, repo: string, number: string, round: numb
       else outcome.set(id, checked);
     }
   }
+  // In a round of some commits, a finding on lines it didn't change is
+  // nudged, gently: a minor one or a nit starts out skipped; a major one or a
+  // blocker stands, tagged as outside the round.
+  if (record.range) {
+    const files = await fetchReviewFiles(owner, repo, number, round);
+    const inRound = (item: Item) => {
+      if (!item.path) return true;
+      const file = files.find((f) => f.filename === item.path);
+      if (!file) return false;
+      if (!item.start || !file.rangeLines) return true;
+      const end = item.end ?? item.start;
+      const lines = file.rangeLines[item.start.side];
+      return lines.some((n) => n >= item.start!.line && n <= end.line);
+    };
+    for (const { item } of batch) {
+      const o = outcome.get(item.id);
+      if (!o || o.filtered || inRound(item)) continue;
+      const severity = o.severity ?? item.severity;
+      if (severity === "minor" || severity === "nit") {
+        o.skipSuggested ??= `${severity === "nit" ? "A nit" : "Minor"}, and outside this round's changes.`;
+      } else if (severity) o.outsideRound = true;
+    }
+  }
   settle(owner, repo, number, round, batch, (id) => ({ edited: true, ...outcome.get(id) }));
   return editNext(owner, repo, number, round, mcpUrl);
 }
@@ -219,7 +242,7 @@ function settle(
         ...draft,
         items: draft.items.map((i) => {
           if (!ids.has(i.id)) return i;
-          const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, impactLevel: _l, checkedVerdict: _v, raisedBefore: _r, skipSuggested, matched: _m, ...rest } =
+          const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, impactLevel: _l, checkedVerdict: _v, raisedBefore: _r, outsideRound: _out, skipSuggested, matched: _m, ...rest } =
             i as Item;
           const next: Item = { ...rest, ...change(i.id) };
           // A suggested skip applies until the reviewer decides, and lifts

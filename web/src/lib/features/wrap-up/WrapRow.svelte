@@ -26,6 +26,7 @@
 		setAside,
 		skipSuggested,
 		raisedBefore,
+		outsideRound = false,
 		notes,
 		suggested = false,
 		severity,
@@ -59,6 +60,8 @@
 		skipSuggested?: string;
 		// The earlier round that raised the same point and kept it.
 		raisedBefore?: number;
+		// A major one or a blocker on lines this round didn't change.
+		outsideRound?: boolean;
 		// What the editor found, folded behind its verdicts.
 		notes?: { impact?: string; impactLevel?: string; checked?: string; checkedVerdict?: string };
 		// Whether the choice shown is the panel's, not yet confirmed by you.
@@ -90,6 +93,7 @@
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
 			<SeverityTag {severity} />
+			{#if outsideRound}<span class="speculative" title="On lines this round's commits didn't change">Outside this round</span>{/if}
 			{#if raisedBefore}<span class="speculative" title="Raised in round {raisedBefore} too, and kept: it may not have been fixed">Raised again</span>{/if}
 			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
 			{#if path}<span class="where"><FilePath {path} {lines} /></span>{/if}

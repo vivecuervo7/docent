@@ -92,6 +92,7 @@
 	<header>
 		<span class="who">{mark.who}</span>
 		<SeverityTag severity={item?.severity} />
+		{#if item?.outsideRound}<span class="again" title="On lines this round's commits didn't change">Outside this round</span>{/if}
 		{#if item?.raisedBefore}<span class="again" title="Raised in round {item.raisedBefore} too, and kept: it may not have been fixed">Raised again</span>{/if}
 		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" title="Close" onclick={onclose}>

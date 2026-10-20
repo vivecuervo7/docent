@@ -112,6 +112,7 @@
 		setAside={item.setAside}
 		skipSuggested={item.skipSuggested}
 		raisedBefore={item.raisedBefore}
+		outsideRound={item.outsideRound}
 		notes={{ impact: item.impact, impactLevel: item.impactLevel, checked: item.checked, checkedVerdict: item.checkedVerdict }}
 		suggested={!item.decided}
 		severity={item.severity}

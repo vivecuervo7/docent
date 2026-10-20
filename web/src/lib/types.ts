@@ -133,6 +133,8 @@ export interface FeedbackItem {
 	// The earlier round of the review that raised the same point and kept it:
 	// raised again, it likely wasn't fixed.
 	raisedBefore?: number;
+	// A major one or a blocker on lines a round of some commits didn't change.
+	outsideRound?: boolean;
 }
 
 export interface FeedbackDraft {
