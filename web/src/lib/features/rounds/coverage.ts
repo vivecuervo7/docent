@@ -18,14 +18,20 @@ export interface Coverage {
 	fresh: number;
 }
 
-export function coverage(all: { sha: string; merge: boolean }[], rounds: RoundEnds[]): Coverage {
+// A round's commits, as positions in `all`. A round ending on a commit not
+// among them read up to one older than the latest hundred, when `all` is
+// cut to those, and so all of them; otherwise the PR's history has been
+// rewritten since, by a rebase, and it covers none of today's commits.
+export function spanOf(all: { sha: string }[], r: RoundEnds, cut: boolean): { from: number; to: number } {
 	const at = (sha: string | undefined) => (sha ? all.findIndex((c) => c.sha === sha) : -1);
-	const spans = rounds.map((r) => {
-		const end = r.range?.to ?? r.end;
-		const to = end ? at(end) : -1;
-		// A commit not among these - older than the last hundred - is taken as all of them.
-		return { from: r.range ? at(r.range.after) : -1, to: end && to < 0 ? all.length - 1 : to };
-	});
+	const end = r.range?.to ?? r.end;
+	const to = end ? at(end) : -1;
+	return { from: r.range ? at(r.range.after) : -1, to: end && to < 0 && cut ? all.length - 1 : to };
+}
+
+// `all` may be only the latest hundred commits.
+export function coverage(all: { sha: string; merge: boolean }[], rounds: RoundEnds[]): Coverage {
+	const spans = rounds.map((r) => spanOf(all, r, all.length >= 100));
 	const last = Math.max(-1, ...spans.map((s) => s.to));
 	const commits = all.flatMap((c, k) => {
 		if (c.merge) return [];

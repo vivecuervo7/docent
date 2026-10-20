@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { useSession } from '$lib/session/session.svelte';
 	import CommitTrack from './CommitTrack.svelte';
+	import { spanOf } from './coverage';
 	import { ask } from '$lib/ui/confirm.svelte';
 
 	// The commits this review covers, from any page: a quiet chip with the
@@ -14,14 +15,10 @@
 	let open = $state(false);
 
 	const all = $derived(session.commits ?? []);
-	const at = (sha: string | undefined) => (sha ? all.findIndex((c) => c.sha === sha) : -1);
 	// Each round's commits, as positions in `all`: after `from`, up to `to`.
-	const spans = $derived(
-		session.roundSpans.map((r) => {
-			const to = r.end ? at(r.end) : -1;
-			return { index: r.index, from: r.range ? at(r.range.after) : -1, to: r.end && to < 0 ? all.length - 1 : to };
-		})
-	);
+	// These are all the PR's commits, so a round ending on one not among
+	// them was rebased away.
+	const spans = $derived(session.roundSpans.map((r) => ({ index: r.index, begun: !!r.end, ...spanOf(all, r, false) })));
 	const latest = $derived(spans.at(-1)!);
 	const viewed = $derived(spans.find((s) => s.index === session.round) ?? latest);
 	// The round number of a span, from 1.
@@ -31,7 +28,7 @@
 	const pips = $derived(
 		all.flatMap((c, k) => {
 			if (c.merge) return [];
-			const fresh = latest.to >= 0 && k > Math.max(...spans.map((s) => s.to));
+			const fresh = latest.begun && k > Math.max(...spans.map((s) => s.to));
 			const state: 'in' | 'new' | 'other' | 'out' = covers(viewed, k) ? 'in' : fresh ? 'new' : spans.some((s) => covers(s, k)) ? 'other' : 'out';
 			// The latest round holding it, to open from it.
 			const holder = [...spans].reverse().find((s) => covers(s, k));
@@ -140,16 +137,16 @@
 								<button class="link" onclick={() => view(s.index)}>Round {numberOf(s)}</button>
 							{/if}
 							<span class="faint">
-								{s.to < 0 ? 'choosing its commits' : `${count} ${count === 1 ? 'commit' : 'commits'}`}{s.index === null ? ' · latest' : ''}
+								{!s.begun ? 'choosing its commits' : s.to < 0 ? 'rebased since' : `${count} ${count === 1 ? 'commit' : 'commits'}`}{s.index === null ? ' · latest' : ''}
 							</span>
 						</li>
 					{/each}
 				</ul>
 				<!-- Another round is for new commits, or for splitting a PR's commits up. -->
-				{#if latest.to >= 0}
+				{#if latest.begun}
 					<div class="next">
 						{#if fresh}
-							<span class="faint">{fresh} {fresh === 1 ? 'commit' : 'commits'} since round {spans.length}</span>
+							<span class="faint">{latest.to < 0 ? `Rebased since round ${spans.length}` : `${fresh} ${fresh === 1 ? 'commit' : 'commits'} since round ${spans.length}`}</span>
 							<button class="btn" onclick={reviewNew}>Review {fresh === 1 ? 'it' : 'them'} as round {spans.length + 1}</button>
 						{:else}
 							<button class="btn" onclick={reviewNew}>Start round {spans.length + 1}</button>
