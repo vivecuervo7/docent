@@ -7,7 +7,6 @@
 	import type { LineRef } from '$lib/types';
 	import type { NoteMessage } from '$lib/types';
 	import NoteText from '../../ui/NoteText.svelte';
-	import Dialog from '../../ui/Dialog.svelte';
 	import FindingLines from '../posting/FindingLines.svelte';
 
 	// One thing that could go into the review: an agent's finding or one of
@@ -33,7 +32,6 @@
 		kept,
 		onkeep,
 		onskip,
-		onshow,
 		changed = false,
 		onredraft
 	}: {
@@ -65,27 +63,14 @@
 		kept: boolean | null;
 		onkeep: () => void;
 		onskip: () => void;
-		onshow?: () => void;
 		// One of yours whose threads have changed since it was drafted.
 		changed?: boolean;
 		onredraft?: () => void;
 	} = $props();
 
-	// Its details - the editor's notes, why it was raised, who else raised
-	// it, what was asked about it - fold behind one line naming them.
-	let showDetails = $state(false);
-	const detailParts = $derived(
-		[
-			notes?.impactLevel && `Impact: ${notes.impactLevel}`,
-			notes?.checkedVerdict && `Checked: ${notes.checkedVerdict}`,
-			notes && speculative && 'Speculative',
-			onPr && 'Already on the PR',
-			setAside && 'Set aside',
-			alsoBy.length && raisedBy(who ?? 'This reviewer', alsoBy),
-			messages.length && `${messages.length} ${messages.length === 1 ? 'message' : 'messages'} about it`,
-			rationale && (kind === 'finding' ? 'Why it was raised' : 'Why it was drafted')
-		].filter((p): p is string => !!p)
-	);
+	let showWhy = $state(false);
+	let showTalk = $state(false);
+	let showAlso = $state(false);
 
 	let showingDiff = $state(false);
 	const lines = $derived.by(() => {
@@ -108,27 +93,20 @@
 			{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
-	</div>
-	<div class="decide" role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
-		<button class="keep" class:on={kept === true} class:suggested aria-pressed={kept === true} onclick={onkeep}>Keep</button>
-		<button class="skip" class:on={kept === false} class:suggested aria-pressed={kept === false} onclick={onskip}>Skip</button>
-	</div>
-	{#if detailParts.length || (path && start)}
-		<div class="foot">
-			{#if detailParts.length}
-				<button class="why" aria-expanded={showDetails} onclick={() => (showDetails = !showDetails)}>
-					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showDetails ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-					{detailParts.join(' · ')}
-				</button>
-			{/if}
-			{#if path && start}<button class="link" onclick={() => (showingDiff = true)}>Show diff</button>{/if}
-		</div>
-	{/if}
-	{#if showDetails}
-		<div class="details">
-			<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" />
-			{#if rationale}<div class="rationale"><NoteText text={rationale} /></div>{/if}
-			{#if alsoBy.length}
+		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" />
+		{#if rationale}
+			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				{kind === 'finding' ? 'Why it was raised' : 'Why it was drafted'}
+			</button>
+			{#if showWhy}<div class="rationale"><NoteText text={rationale} /></div>{/if}
+		{/if}
+		{#if alsoBy.length}
+			<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				{raisedBy(who ?? 'This reviewer', alsoBy)}
+			</button>
+			{#if showAlso}
 				<ol class="talk">
 					{#each alsoBy as a, i (i)}
 						<li>
@@ -138,7 +116,13 @@
 					{/each}
 				</ol>
 			{/if}
-			{#if messages.length}
+		{/if}
+		{#if messages.length}
+			<button class="why" aria-expanded={showTalk} onclick={() => (showTalk = !showTalk)}>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showTalk ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				{messages.length} {messages.length === 1 ? 'message' : 'messages'} about it
+			</button>
+			{#if showTalk}
 				<ol class="talk">
 					{#each messages as m, i (i)}
 						<li class={m.role}>
@@ -148,19 +132,24 @@
 					{/each}
 				</ol>
 			{/if}
+		{/if}
+	</div>
+	<div class="decide" role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
+		<button class="keep" class:on={kept === true} class:suggested aria-pressed={kept === true} onclick={onkeep}>Keep</button>
+		<button class="skip" class:on={kept === false} class:suggested aria-pressed={kept === false} onclick={onskip}>Skip</button>
+	</div>
+	{#if path && start}
+		<div class="foot">
+			<button class="link diff-toggle" class:open={showingDiff} aria-expanded={showingDiff} onclick={() => (showingDiff = !showingDiff)}>{showingDiff ? 'Hide diff' : 'Show diff'}</button>
+		</div>
+	{/if}
+	{#if showingDiff && path && start}
+		<div class="diff">
+			<FindingLines mark={{ path, start, end: end ?? start }} />
 		</div>
 	{/if}
 </li>
 
-{#if showingDiff && path && start}
-	<Dialog label="The lines it's on" width={820} middle onclose={() => (showingDiff = false)}>
-		<FindingLines mark={{ path, start, end: end ?? start }} />
-		<div class="dialog-foot">
-			{#if onshow}<button class="link" onclick={() => ((showingDiff = false), onshow())}>Open in the slice</button>{/if}
-			<button class="btn" onclick={() => (showingDiff = false)}>Close</button>
-		</div>
-	</Dialog>
-{/if}
 
 <style>
 	.row {
@@ -176,8 +165,7 @@
 	}
 	/* A skip fades the row; Keep's own fill says it's kept. */
 	.row.skipped > .text,
-	.row.skipped > .foot,
-	.row.skipped > .details {
+	.row.skipped > .foot {
 		opacity: 0.55;
 	}
 	.changed {
@@ -233,24 +221,17 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.details {
-		grid-column: 1 / -1;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
 	/* Under both columns, so Show diff ends where Keep and Skip do. */
 	.foot {
 		grid-column: 1 / -1;
 		display: flex;
-		align-items: baseline;
-		gap: 12px;
-	}
-	.dialog-foot {
-		display: flex;
-		align-items: center;
 		justify-content: flex-end;
-		gap: 14px;
+	}
+	.diff {
+		grid-column: 1 / -1;
+	}
+	.diff-toggle.open {
+		color: var(--text);
 	}
 	.link {
 		margin-left: auto;
