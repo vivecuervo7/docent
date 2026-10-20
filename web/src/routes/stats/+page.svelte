@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
-	import ActivityMap from '$lib/features/stats/ActivityMap.svelte';
+	import WeeklyPrs from '$lib/features/stats/WeeklyPrs.svelte';
 	import type { Stats } from '$lib/features/stats/stats';
 	import { summarise } from '$lib/features/stats/summary';
 	import Spinner from '$lib/ui/Spinner.svelte';
@@ -20,6 +20,14 @@
 	// Sizes on a square-root scale, so small PRs still show beside big ones,
 	// up to most PRs' size: the few far bigger run off the top.
 	const height = (n: number, top: number) => (n > 0 ? Math.max(2, Math.min(100, Math.sqrt(n / top) * 100)) : 0);
+	// The scale's marks: evenly spaced up the chart, each a round number.
+	const nice = (n: number) => {
+		const step = 10 ** Math.floor(Math.log10(n));
+		return Math.round(n / step) * step;
+	};
+	const ticks = (top: number) => [0, ...[0.25, 0.5, 0.75, 1].map((f) => nice(top * f * f))].filter((t, i, all) => all.indexOf(t) === i && t <= top);
+	const short = (n: number) => (n >= 1000 ? `${n / 1000}k` : `${n}`);
+	const recent = $derived(s ? s.weeks.reduce((a, w) => a + w.prs.length, 0) : 0);
 </script>
 
 <main>
@@ -33,39 +41,42 @@
 	{:else if !s}
 		<p class="faint loading"><Spinner size={14} /> Adding it up…</p>
 	{:else}
-		<section>
-			<h2>{number(s.reviewsThisYear)} {s.reviewsThisYear === 1 ? 'review' : 'reviews'} in the last year</h2>
-			<ActivityMap days={s.days} />
-		</section>
-
 		<section class="figures">
 			<div><strong>{number(s.prs)}</strong><span>pull requests</span></div>
-			<div><strong>{number(s.rounds)}</strong><span>rounds reviewed</span></div>
 			<div><strong>{number(s.lines)}</strong><span>lines read</span></div>
-			<div>
-				<strong>{number(s.posted.yours + s.posted.panel)}</strong><span>comments posted</span>
-				<small class="faint">{number(s.posted.yours)} yours · {number(s.posted.panel)} from the panel</small>
-			</div>
+			<div><strong>{number(s.posted)}</strong><span>comments posted</span></div>
+			<div><strong>{number(s.questions)}</strong><span>questions asked</span></div>
 		</section>
 
-		{#if s.reviewability.rounds.length}
-			{@const sorted = s.reviewability.rounds.map((r) => r.lines)}
-			{@const most = sorted[Math.floor(sorted.length * 0.9)] ?? sorted.at(-1) ?? 1}
+		<section>
+			<h2>{number(recent)} {recent === 1 ? 'pull request' : 'pull requests'} in the last {s.weeks.length} weeks</h2>
+			<WeeklyPrs weeks={s.weeks} />
+		</section>
+
+		{#if s.reviewability.prs.length}
+			{@const sizes = s.reviewability.prs.map((p) => p.lines)}
+			{@const top = sizes[Math.floor(sizes.length * 0.9)] ?? sizes.at(-1) ?? 1}
 			<section>
 				<h2>What slicing does</h2>
 				<p class="lede">
-					A PR averaged <strong>{number(s.reviewability.pr)}</strong> changed lines. A slice of it averaged
+					A pull request averaged <strong>{number(s.reviewability.pr)}</strong> lines read. A slice of it averaged
 					<strong>{number(s.reviewability.slice)}</strong>.
 				</p>
-				<div class="sizes" role="img" aria-label="Each round's changed lines, with its average slice">
-					{#each s.reviewability.rounds as r, i (i)}
-						<span class="pair" title="{r.title}, round {r.round}: {number(r.lines)} lines in {r.slices} {r.slices === 1 ? 'slice' : 'slices'} of about {number(r.slice)}">
-							<span class="bar pr" class:over={r.lines > most} style:height="{height(r.lines, most)}%"></span>
-							<span class="bar slice" style:height="{height(r.slice, most)}%"></span>
-						</span>
-					{/each}
+				<div class="chart">
+					<div class="axis faint" aria-hidden="true">
+						{#each ticks(top) as t (t)}<span style:bottom="{height(t, top)}%">{short(t)}</span>{/each}
+					</div>
+					<div class="sizes" role="img" aria-label="Each pull request's lines read, with its average slice">
+						{#each ticks(top) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
+						{#each s.reviewability.prs as p, i (i)}
+							<span class="pair" title="{p.title}: {number(p.lines)} lines in {p.slices} {p.slices === 1 ? 'slice' : 'slices'} of about {number(p.slice)}">
+								<span class="bar pr" class:over={p.lines > top} style:height="{height(p.lines, top)}%"></span>
+								<span class="bar slice" style:height="{height(p.slice, top)}%"></span>
+							</span>
+						{/each}
+					</div>
 				</div>
-				<div class="key faint"><span class="swatch pr"></span>The round’s changed lines <span class="swatch slice"></span>Its average slice</div>
+				<div class="key faint"><span class="swatch pr"></span>Lines read in the pull request <span class="swatch slice"></span>Its average slice</div>
 			</section>
 		{/if}
 
@@ -95,17 +106,6 @@
 				</div>
 			</section>
 		{/if}
-
-		<section class="tidbits">
-			<div><strong>{number(s.tidbits.questions)}</strong><span>questions asked</span></div>
-			<div><strong>{number(s.tidbits.comments)}</strong><span>comments written</span></div>
-			<div><strong>{number(s.tidbits.conclusions)}</strong><span>conclusions drawn</span></div>
-			<div><strong>{number(s.tidbits.calls)}</strong><span>model calls</span></div>
-			<div><strong>{number(s.tidbits.checks)}</strong><span>threads checked</span></div>
-			<div><strong>{number(s.tidbits.resolved)}</strong><span>threads resolved</span></div>
-			<div><strong>{number(s.tidbits.streak)}</strong><span>{s.tidbits.streak === 1 ? 'day' : 'days'} in a row, at most</span></div>
-			<div><strong>{s.tidbits.severity ?? '–'}</strong><span>most common finding</span></div>
-		</section>
 	{/if}
 </main>
 
@@ -156,14 +156,12 @@
 	.bad {
 		color: var(--danger);
 	}
-	.figures,
-	.tidbits {
+	.figures {
 		display: grid;
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 		gap: 12px;
 	}
-	.figures div,
-	.tidbits div {
+	.figures div {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
@@ -176,19 +174,9 @@
 		font-size: 30px;
 		font-weight: 500;
 	}
-	.tidbits strong {
-		font-size: 20px;
-		font-weight: 500;
-		text-transform: capitalize;
-	}
-	.figures span,
-	.tidbits span {
+	.figures span {
 		color: var(--muted);
 		font-size: 13.5px;
-	}
-	small {
-		margin-top: 4px;
-		font-size: 12px;
 	}
 	.lede {
 		margin: 0;
@@ -199,15 +187,40 @@
 		color: var(--text);
 		font-weight: 500;
 	}
+	.chart {
+		display: flex;
+		gap: 8px;
+		padding: 14px 14px 0;
+		border-radius: 12px;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	/* The scale, in lines, beside the bars. */
+	.axis {
+		position: relative;
+		width: 30px;
+		height: 140px;
+		font-size: 11px;
+	}
+	.axis span {
+		position: absolute;
+		right: 0;
+		transform: translateY(50%);
+		line-height: 1;
+	}
 	.sizes {
+		position: relative;
+		flex: 1;
 		display: flex;
 		align-items: flex-end;
 		gap: 3px;
-		height: 120px;
-		padding: 12px 14px 0;
-		border-radius: 12px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		overflow-x: auto;
+		height: 140px;
+		border-bottom: 1px solid var(--line-2);
+	}
+	.grid {
+		position: absolute;
+		left: 0;
+		right: 0;
+		border-top: 1px dashed var(--line);
 	}
 	.pair {
 		position: relative;
@@ -313,8 +326,7 @@
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	@media (max-width: 700px) {
-		.figures,
-		.tidbits {
+		.figures {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 		.reviewers li {
