@@ -108,8 +108,6 @@
 							<dd>{number(p.slice)}</dd>
 							<dt>Largest slice</dt>
 							<dd>{number(p.largest)}</dd>
-							<dt>Files per slice</dt>
-							<dd>{p.filesPerSlice.toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
 						</dl>
 					{/if}
 				</div>
