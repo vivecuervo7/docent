@@ -447,6 +447,8 @@ export interface GitHubThread {
 	originalLine?: number;
 	// The commit it was left on.
 	commit?: string;
+	// The lines it was left on, as GitHub shows them: the diff up to them.
+	diffHunk?: string;
 	entries: GitHubEntry[];
 	// GitHub's id for the thread, which resolving it takes, and whether it is.
 	node?: string;

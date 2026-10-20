@@ -10,6 +10,7 @@
 	import ThreadPanel from '$lib/features/reading/ThreadPanel.svelte';
 	import GitHubThreadPanel from '$lib/features/reading/GitHubThreadPanel.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
+	import ThreadTriage from '$lib/features/threads/ThreadTriage.svelte';
 	import { looseNotesFrom } from '$lib/features/reading/marks';
 	import { isGenerating, isSliceReviewed, useSession } from '$lib/session/session.svelte';
 
@@ -87,6 +88,8 @@
 				{#each prThreads as note (note.id)}<div class="pr-thread"><ThreadPanel {note} /></div>{/each}
 				<Composer bind:value={draft} placeholder="Ask about the PR, or write a comment for the review…" onsend={startThread} />
 			</div>
+
+			<ThreadTriage />
 		</section>
 
 		<aside>

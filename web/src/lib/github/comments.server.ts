@@ -26,6 +26,8 @@ export interface GitHubThread {
   originalStartLine?: number;
   originalLine?: number;
   commit?: string;
+  // The lines it was left on, as GitHub shows them: the diff up to them.
+  diffHunk?: string;
   entries: GitHubEntry[];
   // GitHub's id for the thread, which resolving it takes, and whether it is.
   node?: string;
@@ -52,6 +54,7 @@ interface RawInline {
   original_line: number | null;
   original_start_line?: number | null;
   original_commit_id?: string;
+  diff_hunk?: string;
   subject_type?: "line" | "file";
 }
 
@@ -149,6 +152,7 @@ export async function fetchGitHubComments(owner: string, repo: string, number: s
         ...(c.original_line !== null ? { originalLine: c.original_line } : {}),
         ...(c.original_start_line ? { originalStartLine: c.original_start_line } : {}),
         ...(c.original_commit_id ? { commit: c.original_commit_id } : {}),
+        ...(c.diff_hunk ? { diffHunk: c.diff_hunk } : {}),
         ...(placed
           ? {
               start: { side: side(c.start_side ?? c.side), line: c.start_line ?? c.line! },
