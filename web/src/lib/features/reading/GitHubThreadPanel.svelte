@@ -1,58 +1,19 @@
 <script lang="ts">
-	import type { GitHubComments, GitHubThread } from '$lib/types';
+	import type { GitHubThread } from '$lib/types';
 	import { useSession } from '$lib/session/session.svelte';
 	import { timeAgo } from '$lib/ui/format';
 	import NoteText from '../../ui/NoteText.svelte';
-	import Composer, { type SendKind } from './Composer.svelte';
 	import ThreadPanel from './ThreadPanel.svelte';
 
-	// What someone said on GitHub: an inline thread, or a comment on the PR
-	// as a whole. Read here as it is there; it's theirs, not the review's.
-	// Below it, your own thread about it, begun by asking - or by asking
-	// whether the changes under review have addressed it.
-	// Without `onclose` it sits in the page rather than a bubble.
-	// Beside the code, it's for reading: it's acted on from the Overview.
-	let {
-		thread,
-		comment,
-		readonly = false,
-		onclose
-	}: {
-		thread?: GitHubThread;
-		comment?: GitHubComments['general'][number];
-		readonly?: boolean;
-		onclose?: () => void;
-	} = $props();
+	// A thread someone left on GitHub, beside the code it's on: read here as
+	// it is there, with your own thread about it. It's acted on from the
+	// Overview.
+	let { thread, onclose }: { thread: GitHubThread; onclose: () => void } = $props();
 
 	const session = useSession();
-	const id = $derived(thread?.id ?? comment?.id ?? '');
-	const entries = $derived(thread?.entries ?? (comment ? [comment] : []));
-	const yours = $derived(session.record.notes.find((n) => n.github === id));
-	let draft = $state('');
-	// Replying, resolving and reopening happen on GitHub there and then.
-	let reply = $state('');
-	let busy = $state(false);
-	let error = $state<string | null>(null);
-	async function act(change: { resolved?: boolean; reply?: string }) {
-		if (!thread || busy) return;
-		busy = true;
-		error = null;
-		try {
-			await session.changeThreads([{ thread, ...change }]);
-			if (change.reply) reply = '';
-		} catch (err) {
-			error = (err as Error).message;
-		} finally {
-			busy = false;
-		}
-	}
-
-	const ADDRESSED =
-		'Have the changes under review addressed this comment? Say what in them addresses it, or what is still left, by line.';
-	const ask = (text: string, kind: SendKind) => session.askAboutGitHub(id, text, { comment: kind === 'comment' });
+	const yours = $derived(session.record.notes.find((n) => n.github === thread.id));
 
 	const where = $derived.by(() => {
-		if (!thread) return 'On GitHub';
 		const file = thread.path.split('/').pop();
 		if (thread.start && thread.end) {
 			const { line: a } = thread.start;
@@ -64,55 +25,27 @@
 	});
 </script>
 
-<div class="thread" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose?.()}>
+<div class="thread" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose()}>
 	<header>
 		<span class="where">{where}</span>
-		{#if onclose}
-			<button class="icon" aria-label="Close" title="Close" onclick={onclose}>
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
-			</button>
-		{/if}
+		<button class="icon" aria-label="Close" title="Close" onclick={onclose}>
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+		</button>
 	</header>
-	{#if thread && readonly}
-		<div class="state">
-			<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
-			<a class="link" href="{session.base}?thread={thread.id}">Open on the Overview</a>
-		</div>
-	{:else if thread?.node}
-		<div class="state">
-			<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
-			<button class="link" disabled={busy} onclick={() => act({ resolved: !thread?.resolved })}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
-			{#if error}<span class="bad">{error}</span>{/if}
-		</div>
-	{/if}
+	<div class="state">
+		<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
+		<a class="link" href="{session.base}?thread={thread.id}">Open on the Overview</a>
+	</div>
 	<ol class="messages">
-		{#each entries as e, i (i)}
+		{#each thread.entries as e, i (i)}
 			<li>
 				<span class="role">{e.author}{#if e.createdAt}<span class="faint">{` · ${timeAgo(Date.parse(e.createdAt))}`}</span>{/if}</span>
 				<div class="text"><NoteText text={e.body} /></div>
 			</li>
 		{/each}
 	</ol>
-	{#if thread?.node && !readonly}
-		<div class="reply">
-			<textarea rows="1" placeholder="Reply on GitHub…" bind:value={reply} disabled={busy}></textarea>
-			{#if reply.trim()}
-				<div class="reply-actions">
-					<button class="btn" disabled={busy} onclick={() => act({ reply, resolved: !thread?.resolved })}>
-						{thread.resolved ? 'Reply and reopen' : 'Reply and resolve'}
-					</button>
-					<button class="btn primary" disabled={busy} onclick={() => act({ reply })}>Reply</button>
-				</div>
-			{/if}
-		</div>
-	{/if}
 	{#if yours}
 		<div class="yours"><ThreadPanel note={yours} title="Your thread about it" /></div>
-	{:else if !readonly}
-		<div class="ask">
-			<button class="chip" onclick={() => session.askAboutGitHub(id, 'Has this been addressed?', { prompt: ADDRESSED })}>Has this been addressed?</button>
-			<Composer bind:value={draft} placeholder="Ask Docent about this comment…" onsend={ask} />
-		</div>
 	{/if}
 </div>
 
@@ -152,46 +85,6 @@
 	.state {
 		flex-wrap: wrap;
 	}
-	.bad {
-		flex-basis: 100%;
-		color: var(--danger);
-	}
-	.reply {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding: 12px 16px;
-		border-top: 1px solid var(--line-2);
-	}
-	.reply-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-	}
-	.reply textarea {
-		box-sizing: border-box;
-		resize: none;
-		field-sizing: content;
-		min-height: 3.2em;
-		max-height: 140px;
-		padding: 8px 10px;
-		border: 0;
-		border-radius: 8px;
-		background: var(--bg);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		color: var(--text);
-		font: inherit;
-		font-size: 13.5px;
-		line-height: 1.5;
-		outline: none;
-	}
-	.reply textarea:focus {
-		box-shadow: inset 0 0 0 1px var(--you);
-	}
-	.state .link:disabled {
-		opacity: 0.5;
-		cursor: default;
-	}
 	.state .link {
 		margin-left: auto;
 		border: 0;
@@ -229,30 +122,6 @@
 		display: flex;
 		flex-direction: column;
 		border-top: 1px solid var(--line-2);
-	}
-	.ask {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 12px;
-		padding: 14px 16px 16px;
-		border-top: 1px solid var(--line-2);
-	}
-	.ask :global(.composer) {
-		align-self: stretch;
-	}
-	.chip {
-		padding: 4px 10px;
-		border: 0;
-		border-radius: 999px;
-		background: var(--you-chip);
-		color: var(--you-text);
-		font: inherit;
-		font-size: 12.5px;
-		cursor: pointer;
-	}
-	.chip:hover {
-		filter: brightness(1.2);
 	}
 	.text {
 		display: flex;

@@ -194,7 +194,7 @@
 	{#each githubThreads as t (t.id)}
 		{#if session.openMark === t.id}
 			<Floating anchor={openAnchor} label="GitHub thread">
-				<GitHubThreadPanel thread={t} readonly onclose={() => (session.openMark = null)} />
+				<GitHubThreadPanel thread={t} onclose={() => (session.openMark = null)} />
 			</Floating>
 		{/if}
 	{/each}

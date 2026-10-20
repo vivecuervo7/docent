@@ -17,6 +17,8 @@
 
 	const session = useSession();
 	const thread = $derived(session.github?.threads.find((t) => t.id === id));
+	// Or something said on the PR as a whole, which is only read and asked about.
+	const comment = $derived(thread ? undefined : session.github?.general.find((c) => c.id === id));
 	const at = $derived(order.indexOf(id));
 	const check = $derived(thread ? checkOf(session.record.threadChecks, thread) : undefined);
 	const yours = $derived(session.record.notes.find((n) => n.github === id));
@@ -27,7 +29,7 @@
 
 	// Long threads show their first and latest comments, the rest folded.
 	let showAll = $state(false);
-	const entries = $derived(thread?.entries ?? []);
+	const entries = $derived(thread?.entries ?? (comment ? [comment] : []));
 	const folded = $derived(!showAll && entries.length > 3 ? entries.length - 2 : 0);
 
 	// A reply drafted by the check, to edit, until one's written.
@@ -164,8 +166,35 @@
 				</div>
 			</div>
 		{/if}
+	{:else if comment}
+		<header>
+			<span class="faint">On the PR as a whole · {comment.state ? 'a review' : 'a comment'}</span>
+			{#if order.length > 1}<span class="faint">{at + 1} of {order.length}</span>{/if}
+			<span class="grow"></span>
+			{#if order.length > 1}
+				<button class="link" disabled={at <= 0} onclick={() => step(-1)}>‹ Previous</button>
+				<button class="link" disabled={at >= order.length - 1} onclick={() => step(1)}>Next ›</button>
+				<span class="faint keys">j / k</span>
+			{/if}
+			<button class="icon" aria-label="Close" title="Close" onclick={onclose}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+			</button>
+		</header>
+		<ol class="entries">
+			<li>
+				<span class="who">{comment.author}{#if comment.createdAt}<span class="faint">{` · ${timeAgo(Date.parse(comment.createdAt))}`}</span>{/if}</span>
+				<div class="text"><NoteText text={comment.body} /></div>
+			</li>
+		</ol>
+		<div class="check">
+			{#if yours}
+				<div class="yours"><ThreadPanel note={yours} title="Asked about it" /></div>
+			{:else}
+				<Composer bind:value={draft} placeholder="Ask Docent about this…" onsend={ask} />
+			{/if}
+		</div>
 	{:else}
-		<p class="faint">This thread is no longer on GitHub.</p>
+		<p class="faint">This is no longer on GitHub.</p>
 	{/if}
 </Dialog>
 

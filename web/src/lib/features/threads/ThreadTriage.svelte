@@ -4,6 +4,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
+	import { timeAgo } from '$lib/ui/format';
 	import { useSession } from '$lib/session/session.svelte';
 	import type { GitHubThread } from '$lib/types';
 	import ThreadDialog from './ThreadDialog.svelte';
@@ -25,6 +26,9 @@
 				(a.start?.line ?? 0) - (b.start?.line ?? 0)
 		);
 	});
+	// What was said on the PR as a whole: review bodies and comments, which
+	// GitHub doesn't resolve.
+	const general = $derived(session.githubShown?.general ?? []);
 	const open = $derived(all.filter((t) => !t.resolved));
 	const resolved = $derived(all.filter((t) => t.resolved));
 	let showResolved = $state(false);
@@ -74,6 +78,7 @@
 	let opened = $state<{ id: string; order: string[] } | null>(null);
 	const listed = $derived([
 		...(anyChecked ? [...VERDICTS.flatMap(({ verdict }) => byVerdict(verdict)), ...rest] : open),
+		...general,
 		...(showResolved ? resolved : [])
 	]);
 	function show(id: string) {
@@ -81,7 +86,7 @@
 	}
 	$effect(() => {
 		const id = page.url.searchParams.get('thread');
-		if (id && all.some((t) => t.id === id) && opened?.id !== id) {
+		if (id && (all.some((t) => t.id === id) || general.some((c) => c.id === id)) && opened?.id !== id) {
 			show(id);
 			goto(session.base, { replaceState: true, noScroll: true, keepFocus: true });
 		}
@@ -129,8 +134,8 @@
 
 	{#if !session.github}
 		<p class="faint">Reading what’s been said on GitHub…</p>
-	{:else if !all.length}
-		<p class="faint">No threads on this round’s files.</p>
+	{:else if !all.length && !general.length}
+		<p class="faint">Nothing said on GitHub about this round.</p>
 	{:else}
 		{#if open.length}
 			<div class="bar">
@@ -179,6 +184,22 @@
 			{/if}
 		{:else if open.length}
 			<ul>{#each open as t (t.id)}{@render row(t, false)}{/each}</ul>
+		{/if}
+
+		{#if general.length}
+			<div class="group">
+				<div class="group-head"><span class="verdict">On the PR as a whole · {general.length}</span></div>
+				<ul>
+					{#each general as c (c.id)}
+						<li>
+							<button class="open" onclick={() => show(c.id)}>
+								<span class="meta">{c.author} · {c.state ? 'review' : 'comment'}{#if c.createdAt}{` · ${timeAgo(Date.parse(c.createdAt))}`}{/if}</span>
+								<span class="gist"><InlineText text={c.body.trim().split('\n')[0]} /></span>
+							</button>
+						</li>
+					{/each}
+				</ul>
+			</div>
 		{/if}
 
 		{#if showResolved && resolved.length}
