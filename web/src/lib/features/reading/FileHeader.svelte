@@ -70,19 +70,10 @@
 </script>
 
 <header>
-	<button class="toggle" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
+	<button class="toggle name" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
 		<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 		<span class="path"><FilePath path={file.filename} /></span>
-		<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
-		<span class="stat"><span class="plus">+{counts.added}</span> <span class="minus">−{counts.removed}</span></span>
 	</button>
-	{#if elsewhere.length}
-		<span class="rest faint"
-			>rest in {elsewhere.length === 1 ? 'slice' : 'slices'}
-			{#each elsewhere as e, i (e.id)}{i ? ', ' : ''}<a href="{session.base}/slices/{e.id}">{e.n}</a
-				>{/each}</span
-		>
-	{/if}
 	<button
 		class="icon comment-file"
 		class:shown={composing}
@@ -96,7 +87,7 @@
 		>
 	</button>
 	{#if composing}
-		<Floating anchor={commentButton} placement="bottom-end" pointer={false} label="Ask about or comment on the whole file">
+		<Floating anchor={commentButton} placement="bottom-start" pointer={false} label="Ask about or comment on the whole file">
 			<div class="file-composer">
 				<span class="faint">{file.filename.split('/').pop()} · the whole file</span>
 				<Composer
@@ -110,6 +101,18 @@
 				/>
 			</div>
 		</Floating>
+	{/if}
+	<!-- The rest of the header opens and closes the file too. -->
+	<button class="toggle rest" tabindex="-1" aria-hidden="true" onclick={() => (collapsed = !collapsed)}>
+		<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
+		<span class="stat"><span class="plus">+{counts.added}</span> <span class="minus">−{counts.removed}</span></span>
+	</button>
+	{#if elsewhere.length}
+		<span class="rest faint"
+			>rest in {elsewhere.length === 1 ? 'slice' : 'slices'}
+			{#each elsewhere as e, i (e.id)}{i ? ', ' : ''}<a href="{session.base}/slices/{e.id}">{e.n}</a
+				>{/each}</span
+		>
 	{/if}
 	{#if collapsed ? summary : wholeFile.length || fileThreads.length || githubThreads.length}
 		<!-- A closed file shows one marker while findings await confirming or
@@ -214,7 +217,6 @@
 		height: 52px;
 	}
 	.toggle {
-		flex-grow: 1;
 		min-width: 0;
 		height: 100%;
 		display: flex;
@@ -232,6 +234,13 @@
 	.chevron {
 		flex-shrink: 0;
 		color: var(--faint);
+	}
+	.name {
+		flex: 0 1 auto;
+	}
+	.rest {
+		flex: 1 1 0;
+		padding-left: 10px;
 	}
 	.toggle:hover .chevron,
 	.toggle:hover .path {
@@ -286,15 +295,15 @@
 		display: flex;
 		gap: 4px;
 	}
-	/* Offered on hover, so a long list of files isn't a column of buttons. */
+	/* Beside the file's name, where asking about the file comes to mind. */
 	.comment-file {
 		flex-shrink: 0;
-		opacity: 0;
+		margin-left: 6px;
+		color: var(--faint);
 	}
-	header:hover .comment-file,
-	.comment-file:focus-visible,
+	.comment-file:hover,
 	.comment-file.shown {
-		opacity: 1;
+		color: var(--you-text);
 	}
 	.file-composer {
 		display: flex;
