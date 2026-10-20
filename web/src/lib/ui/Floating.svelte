@@ -19,8 +19,9 @@
 		fallback?: Placement[];
 		// Show an arrow pointing at the anchor.
 		pointer?: boolean;
-		// An agent's finding sits on the agent's brown.
-		tone?: 'plain' | 'agent';
+		// An agent's finding sits on the agent's brown; `raised` is the lighter
+		// brown, for a card over brown.
+		tone?: 'plain' | 'agent' | 'raised';
 		label: string;
 		children: Snippet;
 	} = $props();
@@ -103,6 +104,13 @@
 		box-shadow:
 			0 0 0 1px var(--popover-line),
 			0 30px 70px -20px rgba(0, 0, 0, 0.7);
+	}
+	.floating.raised {
+		--bubble: var(--popover-raised);
+		background: var(--popover-raised);
+		box-shadow:
+			0 0 0 1px var(--popover-raised-line),
+			0 30px 70px -20px rgba(0, 0, 0, 0.8);
 	}
 	/* A long, narrow pointer, so the bubble stands off the diff's edge. */
 	.tip {

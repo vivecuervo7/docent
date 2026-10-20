@@ -14,6 +14,9 @@
 	--agent-tint: rgba(240, 169, 75, 0.08);
 	--popover: #1f1c17;
 	--popover-line: #342d21;
+	/* A lighter brown, for a card raised over brown or near-brown. */
+	--popover-raised: #2b261f;
+	--popover-raised-line: #4a4030;
 	--you: #7aa7ff;
 	--you-text: #c3d7ff;
 	--you-chip: #1c2740;

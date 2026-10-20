@@ -61,7 +61,7 @@
 		onclick={() => (shown = shown?.key === v.key && shown.pinned ? null : { key: v.key, pinned: true })}>{v.word}</button
 	>
 	{#if shown?.key === v.key}
-		<Floating anchor={anchors[v.key]} placement="top-start" fallback={['bottom-start']} label={v.title} tone="agent">
+		<Floating anchor={anchors[v.key]} placement="top-start" fallback={['bottom-start']} label={v.title} tone="raised">
 			<div class="card">
 				<span class="title">{v.title}</span>
 				<p><InlineText text={v.text} /></p>
