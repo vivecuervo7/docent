@@ -1,12 +1,12 @@
 <script lang="ts">
-	// One quiet button: collapses every file while any is open, and expands
-	// them all when none are.
-	let { anyOpen, onfold }: { anyOpen: boolean; onfold: (open: boolean) => void } = $props();
-	const label = $derived(anyOpen ? 'Collapse all files' : 'Expand all files');
+	// One quiet button: expands every file while any is closed, and collapses
+	// them all once they're all open.
+	let { allOpen, onfold }: { allOpen: boolean; onfold: (open: boolean) => void } = $props();
+	const label = $derived(allOpen ? 'Collapse all files' : 'Expand all files');
 </script>
 
-<button class="fold-all" aria-label={label} title={label} onclick={() => onfold(!anyOpen)}>
-	{#if anyOpen}
+<button class="fold-all" aria-label={label} title={label} onclick={() => onfold(!allOpen)}>
+	{#if allOpen}
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5" /><path d="m7 4 5 5 5-5" /></svg>
 	{:else}
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>

@@ -7,7 +7,7 @@
 
 	// Every file in the PR, whole, outside the slices.
 	const session = useSession();
-	let anyOpen = $state(false);
+	let allOpen = $state(false);
 	// The last expand all / collapse all, which every file follows.
 	let fold = $state<{ open: boolean; at: number } | null>(null);
 	const reviewedFiles = $derived(
@@ -28,9 +28,9 @@
 		<h1>All {session.files.length} files</h1>
 		<div class="above-files">
 			<p class="faint">{reviewedFiles} of {session.files.length} reviewed</p>
-			<FoldAll {anyOpen} onfold={(open) => (fold = { open, at: Date.now() })} />
+			<FoldAll {allOpen} onfold={(open) => (fold = { open, at: Date.now() })} />
 		</div>
-		<FileDiffs bind:anyOpen keys={session.hunkKeys} {notes} {fold} />
+		<FileDiffs bind:allOpen keys={session.hunkKeys} {notes} {fold} />
 	</main>
 </div>
 

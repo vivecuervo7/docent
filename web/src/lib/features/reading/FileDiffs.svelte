@@ -11,19 +11,19 @@
 		keys,
 		notes = [],
 		fold = null,
-		anyOpen = $bindable(false)
+		allOpen = $bindable(false)
 	}: {
 		// The hunks to show, as `path#index`, in the PR's file order.
 		keys: string[];
 		notes?: FileNote[];
 		fold?: { open: boolean; at: number } | null;
-		// Whether any file here is open, for the page's fold-all button.
-		anyOpen?: boolean;
+		// Whether every file here is open, for the page's fold-all button.
+		allOpen?: boolean;
 	} = $props();
 
 	const open = new SvelteSet<string>();
 	$effect(() => {
-		anyOpen = open.size > 0;
+		allOpen = files.length > 0 && files.every(({ file }) => open.has(file.filename));
 	});
 
 	const session = useSession();
