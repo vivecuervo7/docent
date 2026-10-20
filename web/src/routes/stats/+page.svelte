@@ -91,16 +91,19 @@
 							<dd></dd>
 							<dt>Lines read</dt>
 							<dd>{number(p.lines)}</dd>
-							<dt>Slices</dt>
-							<dd>{p.slices}</dd>
+							{#if p.rounds > 1}
+								<dt>Rounds</dt>
+								<dd>{p.rounds}</dd>
+								<dt>Slices per round</dt>
+								<dd>{(p.slices / p.rounds).toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
+							{:else}
+								<dt>Slices</dt>
+								<dd>{p.slices}</dd>
+							{/if}
 							<dt>Average slice</dt>
 							<dd>{number(p.slice)}</dd>
 							<dt>Largest slice</dt>
 							<dd>{number(p.largest)}</dd>
-							{#if p.rounds > 1}
-								<dt>Rounds</dt>
-								<dd>{p.rounds}</dd>
-							{/if}
 						</dl>
 					{/if}
 				</div>
