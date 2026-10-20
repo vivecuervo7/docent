@@ -94,10 +94,7 @@
 		</div>
 		<div class="body"><NoteText text={body} /></div>
 		{#if rationale}
-			<div class="rationale">
-				<span class="rationale-label">{kind === 'finding' ? 'Why it was raised' : 'Why it was drafted'}</span>
-				<NoteText text={rationale} />
-			</div>
+			<div class="rationale"><NoteText text={rationale} /></div>
 		{/if}
 		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" boxed />
 		{#if alsoBy.length}
@@ -242,10 +239,6 @@
 		line-height: 1.6;
 	}
 	/* The agent's own reasoning, on the half brown of Docent's thread replies. */
-	.rationale-label {
-		font-size: 12px;
-		color: var(--faint);
-	}
 	.rationale {
 		padding: 10px 14px;
 		border-radius: 10px;
