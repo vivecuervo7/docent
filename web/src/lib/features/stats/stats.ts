@@ -23,6 +23,11 @@ export interface RoundStats {
 	conclusions: number;
 	answers: number;
 	checks: number;
+	// Each point raised - the editor's group of findings making it - by the
+	// reviewers raising it, and whether you kept or skipped it.
+	points?: { by: string[]; kept: boolean; skipped: boolean }[];
+	// The reviewers that ran on the round.
+	ran?: { id: string; name: string; persona?: string; external?: string }[];
 	postedComments: { yours: number; panel: number };
 }
 

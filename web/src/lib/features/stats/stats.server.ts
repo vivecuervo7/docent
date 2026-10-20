@@ -41,6 +41,9 @@ function reviewerOf(r: AgentReviewer | undefined): { name: string; persona?: str
 
 const decided = (i: FeedbackItem) => !!i.decided;
 
+// A reviewer as the stats tell reviewers apart across PRs.
+const idOf = (who: { name: string; persona?: string; external?: string }) => who.persona ?? who.external ?? who.name;
+
 // A round's figures, from its review as it stands.
 function roundStats(key: string, record: PrRecord, round: number): Omit<RoundStats, "sizes"> | null {
   const [owner, repo, number] = key.split("/");
@@ -75,6 +78,24 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     if (item.severity && !item.filtered) severities[item.severity] = (severities[item.severity] ?? 0) + 1;
   }
 
+  // The points raised: findings the editor grouped as the same point taken
+  // together, under the one leading them, with who raised them and what
+  // was decided. Findings it filtered out aren't points.
+  const shown = new Map(findings.filter((f) => !f.item.filtered).map((f) => [`${f.reviewer}/${f.item.id}`, f]));
+  const points = new Map<string, { by: Set<string>; kept: boolean; skipped: boolean }>();
+  for (const [key, { reviewer, item }] of shown) {
+    const lead = item.joins && shown.has(`${item.joins.reviewer}/${item.joins.id}`) ? `${item.joins.reviewer}/${item.joins.id}` : key;
+    const head = shown.get(lead)!.item;
+    const point = points.get(lead) ?? { by: new Set(), kept: decided(head) && head.included, skipped: decided(head) && !head.included };
+    point.by.add(idOf(reviewerOf(record.agentReviewers?.find((a) => a.id === reviewer))));
+    points.set(lead, point);
+  }
+  // Who reviewed this round, so overlap is only weighed between reviewers
+  // that ran together.
+  const ran = (record.agentReviewers ?? [])
+    .filter((a) => a.persona !== "auto" && (a.lastRun || findings.some((f) => f.reviewer === a.id)))
+    .map((a) => reviewerOf(a));
+
   // What went out: each posted comment, by whether it came from your
   // threads or the panel's findings.
   const yoursIds = new Set((record.feedback?.yours?.items ?? []).map((i) => i.id));
@@ -94,6 +115,8 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     conclusions: yours.filter((m) => m.conclusion).length,
     answers: answers.length,
     checks: Object.values(record.threadChecks ?? {}).filter((c) => c.verdict).length,
+    points: [...points.values()].map((p) => ({ by: [...p.by], kept: p.kept, skipped: p.skipped })),
+    ran: [...new Map(ran.map((r) => [idOf(r), { id: idOf(r), ...r }])).values()],
     postedComments: {
       yours: sent.filter((c) => c.from.some((id) => yoursIds.has(id))).length,
       panel: sent.filter((c) => !c.from.some((id) => yoursIds.has(id))).length,
@@ -177,31 +200,64 @@ async function drain() {
   measuring.busy = false;
 }
 
-persistent("stats-watch", () => {
-  onRecordChange({
-    saved: (key, record) => {
-      try {
-        saveRounds(key, record);
-      } catch (err) {
-        console.error(`[stats] ${key}: ${(err as Error).message}`);
-      }
-    },
-    // A review deleted keeps its figures, out of the way of a fresh review
-    // of the same PR.
-    deleted: (key) => {
-      db.prepare("UPDATE round_stats SET key = ? WHERE key = ?").run(`${key}@${Date.now()}`, key);
-    },
-  });
+// Rounds recorded before their points were get them once, from the
+// reviews still kept.
+function fillPoints() {
+  const missing = new Set(
+    (db.prepare("SELECT key, stats FROM round_stats").all() as { key: string; stats: string }[])
+      .filter((r) => !("points" in JSON.parse(r.stats)))
+      .map((r) => r.key)
+  );
+  for (const key of missing) {
+    const { record, version } = getRecord(key);
+    if (version) saveRounds(key, record);
+  }
+}
+
+// What a save or delete does, set afresh each time this module loads, so a
+// watcher made by an earlier load still runs the latest code.
+const hooks = persistent("stats-hooks", () => ({ saved: (_key: string, _record: Record<string, unknown>) => {}, deleted: (_key: string) => {} }));
+hooks.saved = (key, record) => {
+  try {
+    saveRounds(key, record);
+  } catch (err) {
+    console.error(`[stats] ${key}: ${(err as Error).message}`);
+  }
+};
+// A review deleted keeps its figures, out of the way of a fresh review of
+// the same PR.
+hooks.deleted = (key) => {
+  db.prepare("UPDATE round_stats SET key = ? WHERE key = ?").run(`${key}@${Date.now()}`, key);
+};
+persistent("stats-watcher", () => {
+  onRecordChange({ saved: (key, record) => hooks.saved(key, record), deleted: (key) => hooks.deleted(key) });
   return true;
 });
+fillPoints();
 
 export function readStats(): Stats {
   // A persona or external reviewer removed takes its figures with it.
   const persona = new Set(personas.list().map((p) => p.id));
   const external = new Set(externalReviewers.list().map((e) => e.id));
-  const kept = (r: RoundStats["reviewers"][number]) => (!r.persona || persona.has(r.persona)) && (!r.external || external.has(r.external));
-  const rounds = (db.prepare("SELECT stats FROM round_stats").all() as { stats: string }[])
-    .map((r) => JSON.parse(r.stats) as RoundStats)
-    .map((r) => ({ ...r, reviewers: r.reviewers.filter(kept) }));
-  return { rounds };
+  const kept = (r: { persona?: string; external?: string }) => (!r.persona || persona.has(r.persona)) && (!r.external || external.has(r.external));
+  const rounds = (db.prepare("SELECT stats FROM round_stats").all() as { stats: string }[]).map((r) => JSON.parse(r.stats) as RoundStats);
+  // Their points too: a removed reviewer is left out of who raised each.
+  const removed = new Set(
+    rounds.flatMap((r) => [...r.reviewers, ...(r.ran ?? [])].filter((v) => !kept(v)).map((v) => v.persona ?? v.external ?? v.name))
+  );
+  // Named as they're called now, so a rename carries back.
+  const personaName = new Map(personas.list().map((p) => [p.id, p.name]));
+  const externalName = new Map(externalReviewers.list().map((e) => [e.id, e.name]));
+  const named = <T extends { name: string; persona?: string; external?: string }>(v: T): T => ({
+    ...v,
+    name: (v.persona && personaName.get(v.persona)) || (v.external && externalName.get(v.external)) || v.name,
+  });
+  return {
+    rounds: rounds.map((r) => ({
+      ...r,
+      reviewers: r.reviewers.filter(kept).map(named),
+      ...(r.points ? { points: r.points.map((p) => ({ ...p, by: p.by.filter((id) => !removed.has(id)) })).filter((p) => p.by.length) } : {}),
+      ...(r.ran ? { ran: r.ran.filter((v) => !removed.has(v.id)).map(named) } : {})
+    }))
+  };
 }

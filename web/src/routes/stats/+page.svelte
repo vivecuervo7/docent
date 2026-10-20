@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
+	import OverlapMap from '$lib/features/stats/OverlapMap.svelte';
 	import type { Stats } from '$lib/features/stats/stats';
 	import { summarise } from '$lib/features/stats/summary';
 	import Spinner from '$lib/ui/Spinner.svelte';
@@ -103,6 +104,9 @@
 					<span class="swatch suggested"></span>Skipped as suggested <span class="swatch filtered"></span>Filtered by the editor
 					<span class="swatch open"></span>Undecided
 				</div>
+				{#if s.overlap.reviewers.length > 1}
+					<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} />
+				{/if}
 			</section>
 		{/if}
 	{/if}
