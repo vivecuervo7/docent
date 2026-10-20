@@ -74,6 +74,16 @@
 		<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 		<span class="path"><FilePath path={file.filename} /></span>
 	</button>
+	{#if collapsed && summary}
+		<!-- A closed file says only that something in it wants you - findings
+		     to confirm, or something new to read - as the slices do; it opens
+		     on the first. -->
+		{@const label = summary.count
+			? `${summary.count} ${summary.count === 1 ? 'finding' : 'findings'} to confirm`
+			: 'New to read'}
+		{@const first = summary.first}
+		<button class="notice" aria-label="{label} - open it" title={label} onclick={() => (session.revealing = first.id)}></button>
+	{/if}
 	<!-- The rest of the header opens and closes the file too. -->
 	<button class="toggle rest" tabindex="-1" aria-hidden="true" onclick={() => (collapsed = !collapsed)}>
 		<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
@@ -86,40 +96,10 @@
 				>{/each}</span
 		>
 	{/if}
-	<!-- In the gutter with the pins: asking about the file, then, on a closed
-	     file, one marker while findings await confirming or anything is new
-	     to read; on an open one, the findings about the whole file, which
-	     have no lines to sit on. -->
+	<!-- In the gutter: on an open file, the findings and threads about the
+	     whole file, which have no lines to sit on; then asking about it. -->
 	<span class="pins">
-			<button
-				class="comment-file"
-				class:shown={composing}
-				bind:this={commentButton}
-				aria-label="Ask about or comment on the whole file"
-				title="Ask about or comment on the whole file"
-				onclick={() => (composing = !composing)}
-			>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-					><path d="M4 5h16v11H9l-5 4z" /><path d="M12 8.5v4M10 10.5h4" /></svg
-				>
-			</button>
-		{#if collapsed ? summary : wholeFile.length || fileThreads.length || githubThreads.length}
-			{#if collapsed && summary}
-				{@const label = summary.count
-					? `${summary.count} ${summary.count === 1 ? 'finding' : 'findings'} to confirm`
-					: summary.kind === 'finding'
-						? 'New to read on a finding'
-						: 'New reply in a thread'}
-				{@const first = summary.first}
-				<Pin
-					kind={summary.kind}
-					skipped={!summary.solid}
-					unread={summary.unread}
-					label="{label} - open {summary.count ? 'the first' : 'it'}"
-					title={label}
-					onclick={() => (session.revealing = first.id)}
-				/>
-			{:else if !collapsed}
+		{#if !collapsed && (wholeFile.length || fileThreads.length || githubThreads.length)}
 				{#each wholeFile as m (m.id)}
 					<Pin
 						kind="finding"
@@ -162,8 +142,19 @@
 						onclick={() => (session.openMark = session.openMark === t.id ? null : t.id)}
 					/>
 				{/each}
-			{/if}
 		{/if}
+		<button
+			class="comment-file"
+			class:shown={composing}
+			bind:this={commentButton}
+			aria-label="Ask about or comment on the whole file"
+			title="Ask about or comment on the whole file"
+			onclick={() => (composing = !composing)}
+		>
+			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+				><path d="M4 5h16v11H9l-5 4z" /><path d="M12 8.5v4M10 10.5h4" /></svg
+			>
+		</button>
 	</span>
 	{#if composing}
 		<Floating anchor={commentButton} placement="bottom-end" pointer={false} label="Ask about or comment on the whole file">
@@ -296,6 +287,17 @@
 		transform: translateY(-50%);
 		display: flex;
 		gap: 4px;
+	}
+	.notice {
+		flex-shrink: 0;
+		width: 7px;
+		height: 7px;
+		margin-left: 10px;
+		padding: 0;
+		border: 0;
+		border-radius: 4px;
+		background: var(--you);
+		cursor: pointer;
 	}
 	/* Asking about the whole file, first in the gutter beside the file's
 	   name, where the pins on its lines sit too. */
