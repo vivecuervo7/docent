@@ -8,7 +8,7 @@ export type Verdict = NonNullable<ThreadCheck['verdict']>;
 export const VERDICTS: { verdict: Verdict; label: string }[] = [
 	{ verdict: 'addressed', label: 'Look addressed' },
 	{ verdict: 'not-yet', label: 'Not yet resolved' },
-	{ verdict: 'unclear', label: 'Unclear' }
+	{ verdict: 'unclear', label: 'Unclear if resolved' }
 ];
 
 // A check still standing: one made since the thread's last reply.
