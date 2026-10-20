@@ -310,7 +310,7 @@
 	   tools doing their job, so green too, deepening as it goes. */
 	.suggested,
 	.swatch.suggested {
-		background: #56685b;
+		background: #627566;
 	}
 	.filtered,
 	.swatch.filtered {
