@@ -87,6 +87,24 @@ export function prHead(owner: string, repo: string, number: string): Promise<str
   });
 }
 
+// How the given files differ between two commits, each file's diff as its
+// patch: the commits are fetched by their shas, which works for one GitHub
+// still holds though no branch leads to it.
+export function changesBetween(owner: string, repo: string, from: string, to: string, paths: string[]): Promise<{ filename: string; patch: string }[]> {
+  return inRepo(owner, repo, async (dir) => {
+    await ensureRepo(owner, repo, dir);
+    await git(dir, ["fetch", "--quiet", "--depth=1", "--filter=blob:none", "--no-tags", "origin", from, to]);
+    // Git's usual context, as GitHub's patches have: a deletion's place is
+    // told by the line after it.
+    const out = await git(dir, ["diff", "--no-renames", "--no-color", from, to, "--", ...paths]);
+    return out.split(/^diff --git /m).flatMap((part) => {
+      const name = part.match(/^\+\+\+ b\/(.+)$/m)?.[1];
+      const at = part.search(/^@@ /m);
+      return name && at >= 0 ? [{ filename: name, patch: part.slice(at) }] : [];
+    });
+  });
+}
+
 // A path as given by a model: relative to the repo's root, without "./" or
 // a leading slash, and never climbing out of it.
 function clean(path: string): string {

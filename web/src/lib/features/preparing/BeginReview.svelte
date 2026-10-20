@@ -13,7 +13,9 @@
 	// the panel to review them. Both ends of the range snap to commits; a day
 	// is labelled at its first. Merge commits are left out, as they bring in
 	// the base branch's work. A later round starts from the first commit
-	// since the round before, and can be taken back for that round.
+	// since the round before, and can be taken back for that round. One begun
+	// after a rebase, the round before's last commit gone, reviews what
+	// changed since that round: there are no commits to choose between.
 
 	const session = useSession();
 	const next = $derived(session.roundCount > 1);
@@ -28,6 +30,7 @@
 	let from = $state(0);
 	let to = $state(0);
 	let starting = $state(false);
+	let rebased = $state(false);
 
 	$effect(() => {
 		fetchCommits(session.ref).then(
@@ -36,6 +39,7 @@
 				to = commits.length - 1;
 				// The last round may have ended on a merge, which isn't listed.
 				const ended = all.findIndex((c) => c.sha === session.previousHead);
+				rebased = next && !!session.previousHead && ended < 0;
 				const since = next && ended >= 0 ? all.slice(ended + 1).find((c) => !c.merge) : undefined;
 				if (since) from = commits.findIndex((c) => c.sha === since.sha);
 			},
@@ -51,7 +55,11 @@
 	function begin(review: boolean) {
 		if (!commits) return;
 		starting = true;
-		const range = whole ? null : { after: commits[from].parent, to: commits[to].sha };
+		const range = rebased
+			? { after: session.previousHead!, to: commits[last].sha, rebased: true as const }
+			: whole
+				? null
+				: { after: commits[from].parent, to: commits[to].sha };
 		session.begin(range, { review });
 	}
 </script>
@@ -68,7 +76,9 @@
 			<p class="faint loading"><Spinner size={14} /> Loading the commits…</p>
 		{:else}
 			<p class="lede">
-				{#if commits.length === 1}
+				{#if rebased}
+					Rebased since round {session.roundCount - 1}: what changed since it, in the PR as it stands now.
+				{:else if commits.length === 1}
 					One commit.
 				{:else if whole}
 					All {commits.length} commits.
@@ -77,7 +87,7 @@
 				{/if}
 			</p>
 
-			{#if commits.length > 1}
+			{#if commits.length > 1 && !rebased}
 				<div class="slider">
 					<CommitTrack
 						dates={commits.map((c) => c.date)}

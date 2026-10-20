@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fetchPrBaseSha, fetchPrFiles, fetchPrHeadSha, type PrFile } from "./github.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
+import { changesBetween } from "./repoCache.server.js";
 import { roundRecord } from "../storage/rounds.server.js";
 import type { PrCommit, ReviewRange } from "../types.server.js";
 
@@ -11,7 +12,9 @@ const execFileAsync = promisify(execFile);
 // commit, shown only where the range changed it. That's the end result, not
 // the steps, and every line shown is in the PR's diff, so comments on it can
 // go inline. It also drops what a merge from the base branch brought in:
-// those lines changed in the range, but aren't in the PR's diff.
+// those lines changed in the range, but aren't in the PR's diff. A rebased
+// range has no commits to compare, so its changes come from the files at
+// either end, base branch work and all; the PR's diff leaves most of that out.
 
 // The PR's own commits, oldest first. A merge commit is marked, for the
 // range picker to leave out: it brings in the base branch's work.
@@ -46,13 +49,20 @@ export async function fetchReviewFiles(owner: string, repo: string, number: stri
   const prFiles =
     to === head ? fetchPrFiles(owner, repo, number) : fetchPrBaseSha(owner, repo, number).then((base) => compareFiles(owner, repo, base, to));
   if (!range) return prFiles;
-  const [pr, changed] = await Promise.all([prFiles, compareFiles(owner, repo, range.after, range.to)]);
+  const pr = await prFiles;
+  const changed = range.rebased
+    ? await changesBetween(owner, repo, range.after, range.to, pr.map((f) => f.filename)).catch(() => {
+        throw new Error(`GitHub no longer has ${range.after.slice(0, 7)}, the commit the round before read up to, so what changed since can't be told.`);
+      })
+    : await compareFiles(owner, repo, range.after, range.to);
   return scopeToRange(pr, changed);
 }
 
 // For a model reviewing a range, what its diff covers; empty for the whole PR.
 export function rangeNote(owner: string, repo: string, number: string, round?: number): string {
   const range = roundRecord(owner, repo, number, round).range as ReviewRange | undefined;
+  if (range?.rebased)
+    return `The PR was rebased since its last round of review, which read it at ${range.after.slice(0, 7)}. This review covers only what changed since then: the diff is the PR as it stands now, shown only where it differs from what that round read. Review those changes, and read the rest of the PR only for context.`;
   return range
     ? `This review covers only some of the PR's commits, ${range.after.slice(0, 7)}..${range.to.slice(0, 7)}. The diff is the PR as it stands after them, shown only where they changed it: review those changes, and read the rest of the PR only for context.`
     : "";
@@ -77,7 +87,7 @@ async function compareFiles(owner: string, repo: string, from: string, to: strin
 // What the range removed that the PR had added itself appears in neither
 // the PR's diff nor the base branch; it's kept apart, as `rangeRemoved`, by
 // the line it sat before, and the hunk around it counts as touched.
-export function scopeToRange(prFiles: PrFile[], rangeFiles: PrFile[]): PrFile[] {
+export function scopeToRange(prFiles: PrFile[], rangeFiles: Pick<PrFile, "filename" | "patch">[]): PrFile[] {
   const byName = new Map(rangeFiles.map((f) => [f.filename, f]));
   return prFiles.flatMap((file) => {
     const changed = byName.get(file.filename);

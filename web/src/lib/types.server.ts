@@ -49,9 +49,12 @@ export interface FileNote {
 }
 
 // Some of a PR's commits: those after `after`, up to and including `to`.
+// Or, `rebased`, what changed since a round read `after`, a commit the PR
+// no longer has: no commits lead from it, so it's told by the files.
 export interface ReviewRange {
   after: string;
   to: string;
+  rebased?: true;
 }
 
 export interface PrCommit {
