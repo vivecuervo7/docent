@@ -22,10 +22,12 @@
 		const c = 0.5 * Math.sqrt((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2));
 		return a + b - c;
 	}
-	// The distance at which two circles overlap by the given area.
-	function apart(r1: number, r2: number, area: number) {
-		if (area <= 0) return (r1 + r2) * 1.12;
-		if (area >= Math.PI * Math.min(r1, r2) ** 2) return Math.abs(r1 - r2);
+	// What two circles' distance should be for them to overlap by the given
+	// area: exactly, for a partial overlap; at most, for one wholly inside the
+	// other; at least, for none.
+	function apart(r1: number, r2: number, area: number): { d: number; kind: 'exact' | 'within' | 'clear' } {
+		if (area <= 0) return { d: (r1 + r2) * 1.08, kind: 'clear' };
+		if (area >= Math.PI * Math.min(r1, r2) ** 2 * 0.999) return { d: Math.abs(r1 - r2) * 0.85, kind: 'within' };
 		let lo = Math.abs(r1 - r2);
 		let hi = r1 + r2;
 		for (let i = 0; i < 40; i++) {
@@ -33,11 +35,11 @@
 			if (lens(r1, r2, mid) > area) lo = mid;
 			else hi = mid;
 		}
-		return (lo + hi) / 2;
+		return { d: (lo + hi) / 2, kind: 'exact' };
 	}
 
 	// Placed by nudging each pair towards its distance, many times over;
-	// reviewers that never ran together only keep clear of each other.
+	// reviewers that never ran together, or share nothing, only keep clear.
 	const layout = $derived.by(() => {
 		const nodes = [...reviewers].sort((a, b) => b.kept - a.kept).map((r, i, all) => {
 			const angle = (i / all.length) * Math.PI * 2;
@@ -53,17 +55,19 @@
 			nodes.slice(i + 1).map((m) => {
 				const p = pairOf(n.id, m.id);
 				const together = !!p?.together;
-				return { n, m, target: apart(n.r, m.r, together ? p!.shared : 0), weight: together ? 1 : 0.15, together };
+				const { d, kind } = apart(n.r, m.r, together ? p!.shared : 0);
+				return { n, m, target: d, kind, weight: together ? 1 : 0.3 };
 			})
 		);
-		for (let step = 0; step < 400; step++) {
-			const rate = 0.5 * (1 - step / 400) + 0.02;
-			for (const { n, m, target, weight, together } of links) {
+		for (let step = 0; step < 800; step++) {
+			const rate = 0.5 * (1 - step / 800) + 0.02;
+			for (const { n, m, target, kind, weight } of links) {
 				const dx = m.x - n.x;
 				const dy = m.y - n.y;
 				const dist = Math.hypot(dx, dy) || 0.001;
-				// Apart enough is enough for those that never met.
-				if (!together && dist >= target) continue;
+				// Inside is inside, and clear is clear: only an exact overlap is
+				// held to its distance.
+				if ((kind === 'clear' && dist >= target) || (kind === 'within' && dist <= target)) continue;
 				const move = ((dist - target) / dist) * weight * rate * 0.5;
 				n.x += dx * move;
 				n.y += dy * move;
