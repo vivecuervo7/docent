@@ -24,16 +24,6 @@
 	const base = $derived(session.base);
 	const done = $derived(slice ? isSliceReviewed(slice, session.reviewed) : false);
 
-	// Files in this slice, and how many are reviewed.
-	const fileCounts = $derived.by(() => {
-		const byFile = new Map<string, boolean>();
-		for (const key of slice?.hunks ?? []) {
-			const path = key.slice(0, key.lastIndexOf('#'));
-			byFile.set(path, (byFile.get(path) ?? true) && !!session.reviewed[key]);
-		}
-		return { total: byFile.size, reviewed: [...byFile.values()].filter(Boolean).length };
-	});
-
 	// The next slice still to review, after this one, else before it.
 	const next = $derived.by(() => {
 		const after = slices.slice(index + 1).find((s) => !isSliceReviewed(s, session.reviewed));
@@ -166,7 +156,6 @@
 			{/key}
 
 			<div class="finish">
-				<span class="faint count">{fileCounts.reviewed} of {fileCounts.total} {fileCounts.total === 1 ? 'file' : 'files'} reviewed</span>
 				{#if done}
 					<button class="btn" onclick={() => session.setReviewed(slice.hunks, false)}>Mark not reviewed</button>
 					<button class="btn primary big" onclick={goNext}>{next ? 'Next slice →' : 'Wrap up →'}</button>
@@ -333,11 +322,6 @@
 		font-size: 13.5px;
 		/* Clicks reach the code under the fade; only the bar's own controls take them. */
 		pointer-events: none;
-	}
-	/* In line with the file names, past their chevrons. */
-	.finish .count {
-		margin-right: auto;
-		padding-left: 30px;
 	}
 	.finish > * {
 		pointer-events: auto;
