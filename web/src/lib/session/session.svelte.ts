@@ -658,6 +658,12 @@ export class PrSession {
 		const rest = threads.filter((n) => !n.messages.some((m) => m.comment));
 		const basedOn = Object.fromEntries(threads.map((n) => [n.id, n.messages.length]));
 		if (!rest.length) return this.#saveDraft([], basedOn, scope);
+		// What was drafted from these threads before, so a redraft can say
+		// which of its comments carries on which, and keep the choice made on it.
+		const inScope = new Set(scope);
+		const earlier = (this.record.feedback.yours?.items ?? [])
+			.filter((i) => !i.asWritten && (i.noteIds ?? []).some((id) => inScope.has(id)))
+			.map(({ id, body }) => ({ id, body }));
 		this.#drafting = { pending: true };
 		try {
 			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/feedback/yours`, {
@@ -673,6 +679,7 @@ export class PrSession {
 						messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
 						...(n.github ? { github: this.#githubText(n.github) } : {})
 					})),
+					earlier,
 					input: { threads: rest.map((n) => n.id), basedOn, scope },
 					...(this.round !== null ? { round: this.round } : {})
 				})
@@ -691,9 +698,9 @@ export class PrSession {
 	async #applyDraft(job: Job) {
 		const { threads: ids = [], basedOn = {}, scope } = (job.input ?? {}) as { threads?: string[]; basedOn?: Record<string, number>; scope?: string[] };
 		const { comments = [] } = (job.result ?? {}) as {
-			comments?: { threads: number[]; body: string; rationale?: string; at?: { path: string; startLine: number; endLine: number } }[];
+			comments?: { threads: number[]; body: string; rationale?: string; replaces?: string; at?: { path: string; startLine: number; endLine: number } }[];
 		};
-		const drafted = comments.map(({ threads: indices, body, rationale, at }): FeedbackItem => {
+		const drafted = comments.map(({ threads: indices, body, rationale, replaces, at }): FeedbackItem & { replaces?: string } => {
 			// Threads deleted since drop out.
 			const sources = indices.flatMap((i) => this.record.notes.filter((n) => n.id === ids[i]));
 			const elsewhere =
@@ -705,7 +712,7 @@ export class PrSession {
 							noteIds: sources.map((n) => n.id)
 						}
 					: undefined;
-			return { id: crypto.randomUUID(), body, rationale, included: true, ...(elsewhere ?? placeFromThreads(sources)) };
+			return { id: crypto.randomUUID(), body, rationale, included: true, ...(replaces ? { replaces } : {}), ...(elsewhere ?? placeFromThreads(sources)) };
 		});
 		await this.#saveDraft(drafted, basedOn, scope ?? Object.keys(basedOn), job.startedAt);
 	}
@@ -713,7 +720,7 @@ export class PrSession {
 	// Your comments: those you wrote, word for word on their threads' lines,
 	// with what was drafted, in the threads' order. What was drafted from
 	// threads outside the scope stays as it was. From a job, once.
-	async #saveDraft(drafted: FeedbackItem[], basedOn: Record<string, number>, scope: string[], job?: number) {
+	async #saveDraft(drafted: (FeedbackItem & { replaces?: string })[], basedOn: Record<string, number>, scope: string[], job?: number) {
 		const threads = this.threads;
 		const inScope = new Set(scope);
 		const asWritten: FeedbackItem[] = threads
@@ -743,9 +750,15 @@ export class PrSession {
 			const kept = (before?.items ?? []).filter(
 				(i) => !(i.noteIds ?? []).some((id) => inScope.has(id)) && (i.noteIds ?? []).some((id) => exists.has(id))
 			);
-			// A redraft of the same threads keeps the choice made on it.
-			const choices = new Map((before?.items ?? []).filter((i) => !i.included).map((i) => [sourceKey(i), false]));
-			const fresh = [...asWritten, ...drafted].map((i) => (choices.has(sourceKey(i)) ? { ...i, included: false } : i));
+			// A redraft keeps a skip: on what's written as it was, by its thread,
+			// and on what's drafted, by the earlier comment it says it replaces.
+			const skipped = (before?.items ?? []).filter((i) => !i.included);
+			const skippedThreads = new Set(skipped.filter((i) => i.asWritten).map(sourceKey));
+			const skippedIds = new Set(skipped.map((i) => i.id));
+			const fresh = [
+				...asWritten.map((i) => (skippedThreads.has(sourceKey(i)) ? { ...i, included: false } : i)),
+				...drafted.map(({ replaces, ...i }) => (replaces && skippedIds.has(replaces) ? { ...i, included: false } : i))
+			];
 			const based = Object.fromEntries(Object.entries({ ...before?.basedOn, ...basedOn }).filter(([id]) => exists.has(id)));
 			r.feedback.yours = { items: [...kept, ...fresh].sort((a, b) => at(a) - at(b)), draftedAt: Date.now(), basedOn: based };
 		});

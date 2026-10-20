@@ -21,6 +21,15 @@ export interface DraftedComment {
   at?: { path: string; startLine: number; endLine: number };
   body: string;
   rationale?: string;
+  // The earlier comment it's a new version of, by its id.
+  replaces?: string;
+}
+
+// A comment drafted from the same threads before, which a redraft may
+// carry on.
+export interface EarlierComment {
+  id: string;
+  body: string;
 }
 
 const REPORT_FEEDBACK_TOOL = {
@@ -44,6 +53,7 @@ const REPORT_FEEDBACK_TOOL = {
             path: { type: "string", description: "Only for a comment placed away from its threads' lines." },
             start_line: { type: "integer", description: "New-file line number, with path." },
             end_line: { type: "integer", description: "New-file line number, with path." },
+            replaces: { type: "string", description: "The id of the earlier comment this is a new version of, if any." },
           },
           required: ["threads", "body", "rationale"],
         },
@@ -71,6 +81,9 @@ comment, and split a thread that raises several points into several comments.
 Each comment is addressed to the author, written as the reviewer, specific to the lines, and \
 short: a sentence or two, with a suggestion where there is one. Start a minor point with \
 "Nit: ", as reviewers do. Don't mention the assistant or the thread. Put code in backticks. Report no comments if nothing is worth posting.
+When earlier comments drafted from these threads are listed, the threads have moved on since: \
+write the comments as the threads now stand, and give each that makes the same point as an earlier \
+one that earlier comment's id as replaces. Leave replaces out for a new point.
 Also give each comment a rationale, for the reviewer only (the author never sees it): which of \
 their notes it came from and what those showed - say so when you combined several notes or \
 split one. A sentence or two.`;
@@ -92,14 +105,18 @@ export function draftYourFeedback(
   prTitle: string | undefined,
   signal: AbortSignal,
   model?: string,
+  earlier: EarlierComment[] = [],
 ): Promise<DraftedComment[]> {
   return inLane(async () => {
     signal.throwIfAborted();
     const intro = prTitle ? `PR: ${prTitle}\n\n` : "";
+    const before = earlier.length
+      ? `\n\nEarlier comments drafted from these threads:\n${earlier.map((c) => `[${c.id}] ${c.body}`).join("\n\n")}`
+      : "";
     const call = await chatWithTool(
       [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: intro + threads.map(threadText).join("\n\n") },
+        { role: "user", content: intro + threads.map(threadText).join("\n\n") + before },
       ],
       REPORT_FEEDBACK_TOOL,
       signal,
@@ -108,7 +125,7 @@ export function draftYourFeedback(
     const raw = (call.arguments as { comments?: unknown }).comments;
     if (!Array.isArray(raw)) return [];
     return raw.flatMap((entry): DraftedComment[] => {
-      const { threads: refs, body, rationale, path, start_line, end_line } = (entry ?? {}) as Record<string, unknown>;
+      const { threads: refs, body, rationale, path, start_line, end_line, replaces } = (entry ?? {}) as Record<string, unknown>;
       if (typeof body !== "string" || !body.trim()) return [];
       const indices = Array.isArray(refs)
         ? [...new Set(refs.filter((n): n is number => Number.isInteger(n)).map((n) => n - 1))].filter(
@@ -125,6 +142,7 @@ export function draftYourFeedback(
           body: body.trim(),
           rationale: typeof rationale === "string" && rationale.trim() ? rationale.trim() : undefined,
           ...(placed ? { at: placed } : {}),
+          ...(typeof replaces === "string" && earlier.some((c) => c.id === replaces) ? { replaces } : {}),
         },
       ];
     });
