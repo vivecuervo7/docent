@@ -79,7 +79,7 @@
 			<section>
 				<h2>Reviewers</h2>
 				<ul class="reviewers">
-					{#each s.reviewers as r (r.name)}
+					{#each s.reviewers as r (r.id)}
 						{@const open = r.raised - r.kept - r.asSuggested - r.kickedBack - r.filtered}
 						<li>
 							<span class="name">{r.name}</span>
