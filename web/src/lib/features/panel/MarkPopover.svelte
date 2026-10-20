@@ -195,7 +195,7 @@
 			<button class="btn primary" onclick={() => mark.reviewer && session.keepFiltered(mark.reviewer, mark.id)}>Show it</button>
 		{:else}
 		{#if item?.skipSuggested && !item.decided}<span class="suggested">Skip suggested: {item.skipSuggested}</span>{/if}
-		<KeepSkip kept={isKept} suggested={!item?.decided} onkeep={() => keep(true)} onskip={() => keep(false)} />
+		<KeepSkip kept={isKept} suggested={!item?.decided} tone="agent" onkeep={() => keep(true)} onskip={() => keep(false)} />
 		{/if}
 	</footer>
 </div>
@@ -409,6 +409,8 @@
 	footer {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
 		gap: 8px;
 		padding: 0 16px 14px;
 	}
