@@ -70,7 +70,6 @@
 		onredraft?: () => void;
 	} = $props();
 
-	let showWhy = $state(false);
 	let showTalk = $state(false);
 	let showAlso = $state(false);
 
@@ -94,14 +93,13 @@
 			{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
-		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" boxed />
 		{#if rationale}
-			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-				{kind === 'finding' ? 'Why it was raised' : 'Why it was drafted'}
-			</button>
-			{#if showWhy}<div class="rationale"><NoteText text={rationale} /></div>{/if}
+			<div class="rationale">
+				<span class="rationale-label">{kind === 'finding' ? 'Why it was raised' : 'Why it was drafted'}</span>
+				<NoteText text={rationale} />
+			</div>
 		{/if}
+		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" boxed />
 		{#if alsoBy.length}
 			<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
 				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
@@ -244,6 +242,10 @@
 		line-height: 1.6;
 	}
 	/* The agent's own reasoning, on the half brown of Docent's thread replies. */
+	.rationale-label {
+		font-size: 12px;
+		color: var(--faint);
+	}
 	.rationale {
 		padding: 10px 14px;
 		border-radius: 10px;
