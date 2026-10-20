@@ -44,6 +44,8 @@ const decided = (i: FeedbackItem) => !!i.decided;
 // A reviewer as the stats tell reviewers apart across PRs.
 const idOf = (who: { name: string; persona?: string; external?: string }) => who.persona ?? who.external ?? who.name;
 
+const fileOf = (hunk: string) => hunk.slice(0, hunk.lastIndexOf("#"));
+
 // A round's figures, from its review as it stands.
 function roundStats(key: string, record: PrRecord, round: number): Omit<RoundStats, "sizes"> | null {
   const [owner, repo, number] = key.split("/");
@@ -110,6 +112,9 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     ...(posted ? { posted: posted.at } : {}),
     ...(record.completedAt ? { completed: record.completedAt } : {}),
     slices: record.slices?.length ?? 0,
+    // The files the round's slices cover, and how many each slice does.
+    files: [...new Set((record.slices ?? []).flatMap((sl) => sl.hunks.map(fileOf)))],
+    sliceFiles: (record.slices ?? []).map((sl) => new Set(sl.hunks.map(fileOf)).size),
     reviewers: [...reviewers.values()],
     severities,
     questions: yours.filter((m) => !m.comment && !m.conclusion).length,
@@ -205,7 +210,7 @@ async function drain() {
 
 // What a round's figures count, which goes up when that changes: rounds
 // counted the old way are taken again once, from the reviews still kept.
-const COUNTED = 2;
+const COUNTED = 3;
 
 function fillPoints() {
   const missing = new Set(

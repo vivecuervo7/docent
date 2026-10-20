@@ -11,6 +11,8 @@ export interface RoundStats {
 	posted?: number;
 	completed?: number;
 	slices: number;
+	files?: string[];
+	sliceFiles?: number[];
 	// Lines its changes touched, and each slice's share.
 	sizes?: { lines: number; slices: number[] };
 	// By persona or external reviewer, which their ids name.

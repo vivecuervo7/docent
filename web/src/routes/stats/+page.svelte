@@ -62,8 +62,10 @@
 			<section>
 				<h2>Slice and dice</h2>
 				<p class="lede">
-					Pull requests averaged <strong>{number(s.reviewability.pr)}</strong> lines. The average slice was
-					<strong>{number(s.reviewability.slice)}</strong> lines.
+					Pull requests averaged <strong>{number(s.reviewability.pr)}</strong> lines across
+					<strong>{number(s.reviewability.files)}</strong> files. The average slice was
+					<strong>{number(s.reviewability.slice)}</strong> lines and covered
+					<strong>{s.reviewability.sliceFiles.toLocaleString(undefined, { maximumFractionDigits: 1 })}</strong> files.
 				</p>
 				<div class="chart">
 					<div class="axis faint" aria-hidden="true">
