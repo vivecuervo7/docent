@@ -147,6 +147,7 @@
 	.row {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-rows: auto 1fr;
 		align-items: start;
 		gap: 8px 24px;
 		padding: 16px 16px 16px 18px;
@@ -213,9 +214,14 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	/* Under both columns, so Show in slice ends where Keep and Skip do. */
+	/* Under Keep and Skip, level with the bottom of the text beside it. */
+	.text {
+		grid-row: 1 / span 2;
+	}
 	.foot {
-		grid-column: 1 / -1;
+		grid-column: 2;
+		grid-row: 2;
+		align-self: end;
 		display: flex;
 		justify-content: flex-end;
 	}
@@ -249,7 +255,7 @@
 		margin-top: 2px;
 	}
 	.rationale {
-		margin-top: 6px;
+		margin-top: 10px;
 		padding: 10px 14px;
 		border-radius: 10px;
 		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
