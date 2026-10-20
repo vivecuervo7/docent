@@ -40,8 +40,21 @@ export interface Editable {
   setAside?: string;
 }
 
+// A finding from an earlier round of the same review, with what the reviewer
+// decided on it there.
+export interface Earlier {
+  id: string;
+  round: number;
+  decision: "kept" | "skipped";
+  who: string;
+  location: string;
+  body: string;
+}
+
 export interface Edit {
   sameAs?: string;
+  // The earlier round's finding it makes the same point as.
+  earlier?: string;
   filtered?: string;
   // For one kept, what checking it against the code showed.
   checked?: string;
@@ -80,6 +93,11 @@ const EDIT_TOOL = {
             same_as: {
               type: "string",
               description: "The id of the finding - shown or new - making the same point. Leave out when it's a point of its own.",
+            },
+            earlier: {
+              type: "string",
+              description:
+                "The id of a finding from an earlier round that makes the same point, if any - however it's worded. Leave out otherwise.",
             },
             filter: {
               type: "string",
@@ -196,7 +214,7 @@ export async function editFindings(
   owner: string,
   repo: string,
   number: string,
-  args: { slice?: string; fresh: Editable[]; shown: Editable[]; filter: boolean; mcpUrl: string; round?: number },
+  args: { slice?: string; fresh: Editable[]; shown: Editable[]; earlier?: Earlier[]; filter: boolean; mcpUrl: string; round?: number },
   signal: AbortSignal,
 ): Promise<Map<string, Edit>> {
   const model = await editorModel();
@@ -249,6 +267,10 @@ export async function editFindings(
             diff && `The diff of this part:\n\n${diff}`,
             `Already said on the PR:\n\n${conversation || "(nothing yet)"}`,
             `Findings already shown:\n\n${list(args.shown, false) || "(none)"}`,
+            args.earlier?.length &&
+              `Findings from earlier rounds of this review, and what the reviewer decided - say which a new finding makes the same point as (earlier):\n\n${args.earlier
+                .map((f) => `[${f.id}] round ${f.round}, ${f.decision}: ${f.who}, on ${f.location}\n${f.body}`)
+                .join("\n\n")}`,
             `New findings:\n\n${list(args.fresh, true)}`,
             task,
           ]
@@ -268,9 +290,10 @@ export async function editFindings(
     const raw = (call.arguments as { edits?: unknown }).edits;
     const out = new Map<string, Edit>();
     for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, filter, checked, speculative, severity, disputed, on_pr, impact, skip, impact_level, checked_verdict } = (e ?? {}) as {
+      const { id, same_as, earlier, filter, checked, speculative, severity, disputed, on_pr, impact, skip, impact_level, checked_verdict } = (e ?? {}) as {
         id?: unknown;
         same_as?: unknown;
+        earlier?: unknown;
         filter?: unknown;
         checked?: unknown;
         speculative?: unknown;
@@ -284,6 +307,7 @@ export async function editFindings(
       };
       if (typeof id !== "string" || !asked.has(id)) continue;
       const edit: Edit = {};
+      if (typeof earlier === "string" && args.earlier?.some((f) => f.id === earlier)) edit.earlier = earlier;
       if (typeof same_as === "string" && same_as !== id && known.has(same_as)) {
         edit.sameAs = same_as;
         if (typeof disputed === "string" && disputed.trim()) edit.disputed = disputed.trim();

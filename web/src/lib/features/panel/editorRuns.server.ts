@@ -1,7 +1,8 @@
-import { editFindings, type Edit, type Editable } from "./editor.server.js";
+import { editFindings, type Earlier, type Edit, type Editable } from "./editor.server.js";
 import { getAgentReview } from "./agentReviews.server.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 import { changeRound, roundRecord } from "../../storage/rounds.server.js";
+import { getRecord, keyFor } from "../../storage/store.server.js";
 import { persistent } from "../../storage/persistent.server.js";
 import { nearestHunk, parseFilePatch, type Hunk } from "../reading/diff/parse.js";
 import { reviewerName } from "./findings.js";
@@ -96,6 +97,31 @@ async function editNext(owner: string, repo: string, number: string, round: numb
     ...(item.setAside ? { setAside: item.setAside } : {}),
   });
 
+  // What earlier rounds of this review raised and you decided, for the editor
+  // to match new findings against: one you skipped there isn't asked again,
+  // one you kept and that's back likely wasn't fixed.
+  const total = ((getRecord(keyFor(owner, repo, number)).record as unknown as PrRecord).rounds?.length ?? 0) + 1;
+  const thisRound = round === undefined ? total - 1 : round;
+  const earlier: Earlier[] = [];
+  for (let i = 0; i < thisRound; i++) {
+    const before = roundRecord(owner, repo, number, i) as unknown as PrRecord;
+    for (const [reviewer, draft] of Object.entries(before.feedback ?? {})) {
+      if (!reviewer.startsWith("agent-")) continue;
+      for (const item of draft?.items ?? []) {
+        if (!item.decided || item.filtered || item.joins) continue;
+        earlier.push({
+          id: `r${i + 1}:${item.id}`,
+          round: i + 1,
+          decision: item.included ? "kept" : "skipped",
+          who: reviewerName(before, reviewer),
+          location: where(item),
+          body: item.body,
+        });
+      }
+    }
+  }
+  const earlierById = new Map(earlier.map((f) => [f.id, f]));
+
   let edits: Map<string, Edit>;
   try {
     edits = await editFindings(
@@ -106,6 +132,7 @@ async function editNext(owner: string, repo: string, number: string, round: numb
         ...(first.docents && first.slices[0] ? { slice: first.slices[0] } : {}),
         fresh: batch.map(describe),
         shown: shown.map(describe),
+        ...(earlier.length ? { earlier } : {}),
         filter: first.docents,
         mcpUrl,
         round,
@@ -154,6 +181,14 @@ async function editNext(owner: string, repo: string, number: string, round: numb
         ...(e?.checkedVerdict ? { checkedVerdict: e.checkedVerdict as Item["checkedVerdict"] } : {}),
         ...(e?.skip ? { skipSuggested: e.skip } : {}),
       };
+      // The same point as one from an earlier round: skipped there, it's
+      // filtered here; kept there, it's kept and said to be back.
+      const before = e?.earlier ? earlierById.get(e.earlier) : undefined;
+      if (before?.decision === "skipped" && !rootFiltered) {
+        outcome.set(id, { filtered: `Skipped in round ${before.round}.` });
+        continue;
+      }
+      if (before) checked.raisedBefore = before.round;
       if (rootFiltered) outcome.set(id, { filtered: e?.filtered ?? rootFiltered });
       else if (id !== root) outcome.set(id, { joins: { reviewer: reviewerOf.get(root)!, id: root }, ...checked });
       else outcome.set(id, checked);
@@ -184,7 +219,7 @@ function settle(
         ...draft,
         items: draft.items.map((i) => {
           if (!ids.has(i.id)) return i;
-          const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, impactLevel: _l, checkedVerdict: _v, skipSuggested, matched: _m, ...rest } =
+          const { joins: _j, filtered: _f, editFailed: _e, checked: _c, speculative: _s, disputed: _d, onPr: _o, impact: _i, impactLevel: _l, checkedVerdict: _v, raisedBefore: _r, skipSuggested, matched: _m, ...rest } =
             i as Item;
           const next: Item = { ...rest, ...change(i.id) };
           // A suggested skip applies until the reviewer decides, and lifts

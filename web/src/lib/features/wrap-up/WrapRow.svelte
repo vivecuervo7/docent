@@ -25,6 +25,7 @@
 		onPr,
 		setAside,
 		skipSuggested,
+		raisedBefore,
 		notes,
 		suggested = false,
 		severity,
@@ -56,6 +57,8 @@
 		setAside?: string;
 		// Why the editor suggests skipping it, while undecided.
 		skipSuggested?: string;
+		// The earlier round that raised the same point and kept it.
+		raisedBefore?: number;
 		// What the editor found, folded behind its verdicts.
 		notes?: { impact?: string; impactLevel?: string; checked?: string; checkedVerdict?: string };
 		// Whether the choice shown is the panel's, not yet confirmed by you.
@@ -87,6 +90,7 @@
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
 			<SeverityTag {severity} />
+			{#if raisedBefore}<span class="speculative" title="Raised in round {raisedBefore} too, and kept: it may not have been fixed">Raised again</span>{/if}
 			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
 			{#if path}<span class="where"><FilePath {path} {lines} /></span>{/if}
 			{#if changed}

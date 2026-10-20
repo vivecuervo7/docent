@@ -130,6 +130,9 @@ export interface FeedbackItem {
 	// Why the editor suggests skipping it: it holds, but likely isn't worth
 	// posting. It starts out skipped until the reviewer decides.
 	skipSuggested?: string;
+	// The earlier round of the review that raised the same point and kept it:
+	// raised again, it likely wasn't fixed.
+	raisedBefore?: number;
 }
 
 export interface FeedbackDraft {

@@ -92,6 +92,7 @@
 	<header>
 		<span class="who">{mark.who}</span>
 		<SeverityTag severity={item?.severity} />
+		{#if item?.raisedBefore}<span class="again" title="Raised in round {item.raisedBefore} too, and kept: it may not have been fixed">Raised again</span>{/if}
 		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" title="Close" onclick={onclose}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -405,6 +406,14 @@
 	}
 	.ask {
 		padding: 0 12px 10px;
+	}
+	.again {
+		padding: 1px 7px;
+		border-radius: 999px;
+		box-shadow: 0 0 0 1px var(--popover-line);
+		color: var(--faint);
+		font-size: 11.5px;
+		white-space: nowrap;
 	}
 	footer {
 		display: flex;

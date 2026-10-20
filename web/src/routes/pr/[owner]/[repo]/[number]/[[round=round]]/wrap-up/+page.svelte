@@ -111,6 +111,7 @@
 		onPr={item.onPr}
 		setAside={item.setAside}
 		skipSuggested={item.skipSuggested}
+		raisedBefore={item.raisedBefore}
 		notes={{ impact: item.impact, impactLevel: item.impactLevel, checked: item.checked, checkedVerdict: item.checkedVerdict }}
 		suggested={!item.decided}
 		severity={item.severity}
