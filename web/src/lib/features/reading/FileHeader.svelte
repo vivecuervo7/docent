@@ -308,7 +308,16 @@
 		border: 0;
 		background: none;
 		color: var(--faint);
+		opacity: 0;
 		cursor: pointer;
+	}
+	/* It appears as the header, or its place in the gutter, is hovered:
+	   appearing is what says it's there to use. The gutter is within the
+	   header, so hovering either shows it. */
+	header:hover .comment-file,
+	.comment-file:focus-visible,
+	.comment-file.shown {
+		opacity: 1;
 	}
 	.comment-file:hover,
 	.comment-file.shown {
