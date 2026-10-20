@@ -4,7 +4,6 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
-	import { timeAgo } from '$lib/ui/format';
 	import { useSession } from '$lib/session/session.svelte';
 	import type { GitHubThread } from '$lib/types';
 	import ThreadDialog from './ThreadDialog.svelte';
@@ -26,9 +25,6 @@
 				(a.start?.line ?? 0) - (b.start?.line ?? 0)
 		);
 	});
-	// What was said on the PR as a whole: review bodies and comments, which
-	// GitHub doesn't resolve.
-	const general = $derived(session.githubShown?.general ?? []);
 	const open = $derived(all.filter((t) => !t.resolved));
 	const resolved = $derived(all.filter((t) => t.resolved));
 	let showResolved = $state(false);
@@ -78,7 +74,6 @@
 	let opened = $state<{ id: string; order: string[] } | null>(null);
 	const listed = $derived([
 		...(anyChecked ? [...VERDICTS.flatMap(({ verdict }) => byVerdict(verdict)), ...rest] : open),
-		...general,
 		...(showResolved ? resolved : [])
 	]);
 	function show(id: string) {
@@ -86,7 +81,7 @@
 	}
 	$effect(() => {
 		const id = page.url.searchParams.get('thread');
-		if (id && (all.some((t) => t.id === id) || general.some((c) => c.id === id)) && opened?.id !== id) {
+		if (id && all.some((t) => t.id === id) && opened?.id !== id) {
 			show(id);
 			goto(session.base, { replaceState: true, noScroll: true, keepFocus: true });
 		}
@@ -124,6 +119,18 @@
 		<h2>GitHub threads</h2>
 		<span class="faint">{open.length} open{#if resolved.length}{` · ${resolved.length} resolved`}{/if}</span>
 		<span class="grow"></span>
+		{#if session.github && open.length}
+			{#if checking.length}
+				<span class="checking faint"><Spinner size={12} /> Checking {checking.length < open.length ? `${checking.length} of ${open.length}` : `all ${open.length}`}…</span>
+			{:else if anyChecked}
+				{#if unchecked.length}
+					<button class="link" onclick={() => checkAll(unchecked)}>Check {unchecked.length} new</button>
+				{/if}
+				<button class="link" onclick={() => checkAll(open)}>Check again</button>
+			{:else}
+				<button class="link" title="Whether this round addresses them, one line each" onclick={() => checkAll(open)}>Check against this round</button>
+			{/if}
+		{/if}
 		{#if resolved.length}
 			<label class="toggle">
 				<input type="checkbox" bind:checked={showResolved} />
@@ -134,28 +141,9 @@
 
 	{#if !session.github}
 		<p class="faint">Reading what’s been said on GitHub…</p>
-	{:else if !all.length && !general.length}
-		<p class="faint">Nothing said on GitHub about this round.</p>
+	{:else if !all.length}
+		<p class="faint">No threads on this round’s files.</p>
 	{:else}
-		{#if open.length}
-			<div class="bar">
-				{#if checking.length}
-					<span><Spinner size={13} /> Checking {open.length - checking.length > 0 ? `${checking.length} of ${open.length}` : `all ${open.length}`} against this round…</span>
-				{:else if anyChecked}
-					<span>Checked against this round</span>
-					<span class="faint">{VERDICTS.map(({ verdict, label }) => `${byVerdict(verdict).length} ${label.toLowerCase()}`).join(' · ')}</span>
-					<span class="grow"></span>
-					{#if unchecked.length}
-						<button class="link" onclick={() => checkAll(unchecked)}>Check {unchecked.length} new</button>
-					{/if}
-					<button class="link" onclick={() => checkAll(open)}>Check all again</button>
-				{:else}
-					<span class="faint">Whether this round addresses them, one line each.</span>
-					<span class="grow"></span>
-					<button class="btn" onclick={() => checkAll(open)}>Check all {open.length} against this round</button>
-				{/if}
-			</div>
-		{/if}
 		{#if error}<p class="bad">{error}</p>{/if}
 
 		{#if anyChecked}
@@ -186,22 +174,6 @@
 			<ul>{#each open as t (t.id)}{@render row(t, false)}{/each}</ul>
 		{/if}
 
-		{#if general.length}
-			<div class="group">
-				<div class="group-head"><span class="verdict">On the PR as a whole · {general.length}</span></div>
-				<ul>
-					{#each general as c (c.id)}
-						<li>
-							<button class="open" onclick={() => show(c.id)}>
-								<span class="meta">{c.author} · {c.state ? 'review' : 'comment'}{#if c.createdAt}{` · ${timeAgo(Date.parse(c.createdAt))}`}{/if}</span>
-								<span class="gist"><InlineText text={c.body.trim().split('\n')[0]} /></span>
-							</button>
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/if}
-
 		{#if showResolved && resolved.length}
 			<div class="group">
 				<div class="group-head"><span class="verdict">Resolved · {resolved.length}</span></div>
@@ -217,13 +189,19 @@
 {/if}
 
 <style>
+	.checking {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+	}
 	.triage {
+		margin-top: 16px;
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
 	}
 	.head,
-	.bar,
 	.group-head {
 		display: flex;
 		align-items: center;
@@ -252,17 +230,6 @@
 	.toggle input,
 	li input {
 		accent-color: var(--you);
-	}
-	.bar {
-		padding: 10px 14px;
-		border-radius: 12px;
-		background: var(--surface);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-	}
-	.bar span {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
 	}
 	.group {
 		display: flex;
