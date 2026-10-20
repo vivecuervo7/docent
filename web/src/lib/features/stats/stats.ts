@@ -14,7 +14,8 @@ export interface RoundStats {
 	slices: number;
 	// Lines its changes touched, and each slice's share.
 	sizes?: { lines: number; slices: number[] };
-	reviewers: { name: string; raised: number; kept: number; skipped: number; filtered: number }[];
+	// By persona or external reviewer, which their ids name.
+	reviewers: { name: string; persona?: string; external?: string; raised: number; kept: number; skipped: number; filtered: number }[];
 	severities: Partial<Record<Severity, number>>;
 	questions: number;
 	comments: number;

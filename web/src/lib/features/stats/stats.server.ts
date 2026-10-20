@@ -31,16 +31,17 @@ const db = persistent("stats-tables", () => {
 });
 
 // Who raised a finding, as the stats group reviewers across PRs: their
-// persona or external reviewer by name, else Docent's general reviewer, or
-// your own agent.
-function reviewerName(r: AgentReviewer | undefined): string {
-  if (!r) return "Unknown";
+// persona or external reviewer, by name and id, else Docent's general
+// reviewer, or your own agent.
+function reviewerOf(r: AgentReviewer | undefined): { name: string; persona?: string; external?: string } {
+  if (!r) return { name: "Unknown" };
   const runs = r.ranWith ?? r.planned;
-  if (runs === "external") return "Your own agent";
+  if (runs === "external") return { name: "Your own agent" };
   const session = runs?.startsWith("session:") ? runs.slice(8) : runs?.startsWith("persona:") ? runs.slice(8) : null;
-  if (session) return externalReviewers.list().find((e) => e.id === session)?.name ?? "External reviewer";
-  if (r.persona === "auto") return "Auto";
-  return (r.persona && personas.list().find((p) => p.id === r.persona)?.name) || "General";
+  if (session) return { name: externalReviewers.list().find((e) => e.id === session)?.name ?? "External reviewer", external: session };
+  if (r.persona === "auto") return { name: "Auto" };
+  const persona = r.persona ? personas.list().find((p) => p.id === r.persona) : undefined;
+  return r.persona ? { name: persona?.name ?? "Persona", persona: r.persona } : { name: "General" };
 }
 
 const decided = (i: FeedbackItem) => !!i.decided;
@@ -49,13 +50,14 @@ const decided = (i: FeedbackItem) => !!i.decided;
 function roundStats(key: string, record: PrRecord, round: number): Omit<RoundStats, "sizes"> | null {
   const [owner, repo, number] = key.split("/");
   const notes = record.notes ?? [];
-  const yours = notes.flatMap((n) => n.messages.filter((m) => m.role === "user"));
   const findings = Object.entries(record.feedback ?? {})
     .filter(([id]) => id.startsWith("agent-"))
     .flatMap(([id, draft]) => (draft?.items ?? []).map((item) => ({ reviewer: id, item })));
+  // What you wrote: in your own threads, and asking about findings.
+  const yours = [...notes, ...findings.map((f) => f.item)].flatMap((t) => (t.messages ?? []).filter((m) => m.role === "user"));
   const answers = [...notes.flatMap((n) => n.messages), ...findings.flatMap((f) => f.item.messages ?? [])].filter((m) => m.role === "assistant");
   const posted = record.review?.posted;
-  const activity = [...yours.map((m) => m.at), ...findings.flatMap((f) => (f.item.messages ?? []).filter((m) => m.role === "user").map((m) => m.at))];
+  const activity = yours.map((m) => m.at);
   if (posted) activity.push(posted.at);
   if (record.completedAt) activity.push(record.completedAt);
   if (!record.slices?.length && !activity.length) return null;
@@ -63,8 +65,9 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
   const reviewers = new Map<string, RoundStats["reviewers"][number]>();
   const severities: Partial<Record<Severity, number>> = {};
   for (const { reviewer, item } of findings) {
-    const name = reviewerName(record.agentReviewers?.find((a) => a.id === reviewer));
-    const r = reviewers.get(name) ?? { name, raised: 0, kept: 0, skipped: 0, filtered: 0 };
+    const who = reviewerOf(record.agentReviewers?.find((a) => a.id === reviewer));
+    const name = who.name;
+    const r = reviewers.get(name) ?? { ...who, raised: 0, kept: 0, skipped: 0, filtered: 0 };
     r.raised++;
     if (item.filtered) r.filtered++;
     else if (decided(item)) item.included ? r.kept++ : r.skipped++;
@@ -238,6 +241,14 @@ persistent("stats-watch", () => {
 });
 
 export function readStats(): Stats {
-  const rounds = (db.prepare("SELECT stats FROM round_stats").all() as { stats: string }[]).map((r) => JSON.parse(r.stats) as RoundStats);
+  // Taken afresh from the reviews kept, so they follow what's changed since.
+  for (const { key, record } of listRecords()) saveRounds(key, record);
+  // A persona or external reviewer removed takes its figures with it.
+  const persona = new Set(personas.list().map((p) => p.id));
+  const external = new Set(externalReviewers.list().map((e) => e.id));
+  const kept = (r: RoundStats["reviewers"][number]) => (!r.persona || persona.has(r.persona)) && (!r.external || external.has(r.external));
+  const rounds = (db.prepare("SELECT stats FROM round_stats").all() as { stats: string }[])
+    .map((r) => JSON.parse(r.stats) as RoundStats)
+    .map((r) => ({ ...r, reviewers: r.reviewers.filter(kept) }));
   return { rounds, calls: tallied("call"), resolved: tallied("resolved") };
 }
