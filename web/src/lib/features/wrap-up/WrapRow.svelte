@@ -2,6 +2,7 @@
 	import { raisedBy } from '../panel/findings';
 	import FilePath from '../../ui/FilePath.svelte';
 	import Verdicts from './Verdicts.svelte';
+	import KeepSkip from '../../ui/KeepSkip.svelte';
 	import SeverityTag from '../panel/SeverityTag.svelte';
 	import type { Severity } from '$lib/types';
 	import type { LineRef } from '$lib/types';
@@ -133,10 +134,7 @@
 			{/if}
 		{/if}
 	</div>
-	<div class="decide" role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
-		<button class="keep" class:on={kept === true} class:suggested aria-pressed={kept === true} onclick={onkeep}>Keep</button>
-		<button class="skip" class:on={kept === false} class:suggested aria-pressed={kept === false} onclick={onskip}>Skip</button>
-	</div>
+	<div class="decide"><KeepSkip {kept} {suggested} {onkeep} {onskip} /></div>
 	{#if onshow}
 		<div class="foot"><button class="link" onclick={onshow}>Show in slice</button></div>
 	{/if}
@@ -309,39 +307,7 @@
 		cursor: pointer;
 	}
 	.decide {
-		flex-shrink: 0;
-		display: flex;
-		padding: 2px;
-		border-radius: 9px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
-	}
-	.decide button {
-		height: 28px;
-		padding: 0 12px;
-		border: 0;
-		border-radius: 7px;
-		background: none;
-		color: var(--muted);
-		font: inherit;
-		font-size: 13px;
-		font-weight: 500;
-		cursor: pointer;
-	}
-	/* Your choice fills its half; the panel's, standing until you make
-	   one, is only outlined. */
-	.decide button.on {
-		background: var(--surface-2);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		color: var(--text);
-	}
-	.decide button.keep.on {
-		background: var(--done-bg);
-		box-shadow: none;
-		color: var(--done);
-	}
-	.decide button.on.suggested {
-		background: none;
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		color: var(--text);
+		grid-row: 1;
+		grid-column: 2;
 	}
 </style>
