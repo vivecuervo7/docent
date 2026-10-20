@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { readOk } from '$lib/api/client';
-	import WeeklyPrs from '$lib/features/stats/WeeklyPrs.svelte';
 	import type { Stats } from '$lib/features/stats/stats';
 	import { summarise } from '$lib/features/stats/summary';
 	import Spinner from '$lib/ui/Spinner.svelte';
@@ -17,17 +16,12 @@
 	const s = $derived(stats ? summarise(stats) : null);
 	const number = (n: number) => n.toLocaleString();
 	const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
-	// Sizes on a square-root scale, so small PRs still show beside big ones,
-	// up to most PRs' size: the few far bigger run off the top.
-	const height = (n: number, top: number) => (n > 0 ? Math.max(2, Math.min(100, Math.sqrt(n / top) * 100)) : 0);
-	// The scale's marks: evenly spaced up the chart, each a round number.
-	const nice = (n: number) => {
-		const step = 10 ** Math.floor(Math.log10(n));
-		return Math.round(n / step) * step;
-	};
-	const ticks = (top: number) => [0, ...[0.25, 0.5, 0.75, 1].map((f) => nice(top * f * f))].filter((t, i, all) => all.indexOf(t) === i && t <= top);
-	const short = (n: number) => (n >= 1000 ? `${n / 1000}k` : `${n}`);
-	const recent = $derived(s ? s.weeks.reduce((a, w) => a + w.prs.length, 0) : 0);
+	// Sizes on a square-root scale up to the biggest, so small PRs still
+	// show beside big ones.
+	const height = (n: number, top: number) => (n > 0 ? Math.max(2, Math.sqrt(n / top) * 100) : 0);
+	// The scale's four marks, evenly up the chart, the last at the biggest.
+	const ticks = (top: number) => [0.25, 0.5, 0.75, 1].map((f) => Math.round(top * f * f));
+	const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k` : `${n}`);
 </script>
 
 <main>
@@ -45,22 +39,16 @@
 			<div><strong>{number(s.prs)}</strong><span>pull requests</span></div>
 			<div><strong>{number(s.lines)}</strong><span>lines read</span></div>
 			<div><strong>{number(s.posted)}</strong><span>comments posted</span></div>
-			<div><strong>{number(s.questions)}</strong><span>questions asked</span></div>
-		</section>
-
-		<section>
-			<h2>{number(recent)} {recent === 1 ? 'pull request' : 'pull requests'} in the last {s.weeks.length} weeks</h2>
-			<WeeklyPrs weeks={s.weeks} />
+			<div><strong>{number(s.calls)}</strong><span>model calls</span></div>
 		</section>
 
 		{#if s.reviewability.prs.length}
-			{@const sizes = s.reviewability.prs.map((p) => p.lines)}
-			{@const top = sizes[Math.floor(sizes.length * 0.9)] ?? sizes.at(-1) ?? 1}
+			{@const top = Math.max(1, ...s.reviewability.prs.map((p) => p.lines))}
 			<section>
-				<h2>What slicing does</h2>
+				<h2>Slice and dice</h2>
 				<p class="lede">
-					A pull request averaged <strong>{number(s.reviewability.pr)}</strong> lines read. A slice of it averaged
-					<strong>{number(s.reviewability.slice)}</strong>.
+					Pull requests averaged <strong>{number(s.reviewability.pr)}</strong> lines. The average slice was
+					<strong>{number(s.reviewability.slice)}</strong> lines.
 				</p>
 				<div class="chart">
 					<div class="axis faint" aria-hidden="true">
@@ -70,7 +58,7 @@
 						{#each ticks(top) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
 						{#each s.reviewability.prs as p, i (i)}
 							<span class="pair" title="{p.title}: {number(p.lines)} lines in {p.slices} {p.slices === 1 ? 'slice' : 'slices'} of about {number(p.slice)}">
-								<span class="bar pr" class:over={p.lines > top} style:height="{height(p.lines, top)}%"></span>
+								<span class="bar pr" style:height="{height(p.lines, top)}%"></span>
 								<span class="bar slice" style:height="{height(p.slice, top)}%"></span>
 							</span>
 						{/each}
@@ -82,7 +70,7 @@
 
 		{#if s.reviewers.length}
 			<section>
-				<h2>The panel</h2>
+				<h2>Reviewers</h2>
 				<ul class="reviewers">
 					{#each s.reviewers as r (r.name)}
 						{@const decided = r.kept + r.skipped}
@@ -242,11 +230,6 @@
 	.bar.slice,
 	.swatch.slice {
 		background: #7fd89b;
-	}
-	/* Bigger than the scale shows. */
-	.bar.pr.over {
-		border-radius: 0;
-		background: linear-gradient(to bottom, transparent, var(--line-2) 14px);
 	}
 	.bar.slice {
 		left: 2px;

@@ -3,9 +3,6 @@ import type { RoundStats, Stats } from './stats';
 // The stats page's figures, worked out from each round's, with a PR's
 // rounds taken together: every round's lines were read again.
 
-const DAY = 86_400_000;
-const WEEK = 7 * DAY;
-
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : 0);
 
@@ -38,21 +35,6 @@ function byPr(rounds: RoundStats[]): PrStats[] {
 	});
 }
 
-// Weeks back from this one, each with the PRs last worked on in it: from
-// the first week anything was done, up to half a year.
-function weeksOf(prs: PrStats[]) {
-	const start = new Date();
-	start.setHours(0, 0, 0, 0);
-	start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-	const thisWeek = start.getTime();
-	const first = Math.min(...prs.filter((p) => p.at).map((p) => p.at));
-	const count = Math.min(26, Math.max(8, Math.ceil((thisWeek - first) / WEEK) + 1));
-	return Array.from({ length: count }, (_, i) => {
-		const from = thisWeek - (count - 1 - i) * WEEK;
-		return { from, prs: prs.filter((p) => p.at >= from && p.at < from + WEEK).sort((a, b) => b.lines - a.lines) };
-	});
-}
-
 export function summarise(stats: Stats) {
 	const prs = byPr(stats.rounds).filter((p) => p.at > 0);
 	const measured = prs.filter((p) => p.lines > 0 && p.slices.length);
@@ -72,8 +54,7 @@ export function summarise(stats: Stats) {
 		prs: prs.length,
 		lines: sum(prs.map((p) => p.lines)),
 		posted: sum(stats.rounds.map((r) => r.postedComments.yours + r.postedComments.panel)),
-		questions: sum(stats.rounds.map((r) => r.questions)),
-		weeks: weeksOf(prs),
+		calls: stats.calls.length,
 		reviewability: {
 			pr: Math.round(mean(measured.map((p) => p.lines))),
 			slice: Math.round(mean(measured.flatMap((p) => p.slices))),
