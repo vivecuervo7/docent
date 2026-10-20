@@ -1,4 +1,4 @@
-import { database, listRecords, onRecordChange } from "../../storage/store.server.js";
+import { database, getRecord, onRecordChange } from "../../storage/store.server.js";
 import { persistent } from "../../storage/persistent.server.js";
 import { roundView } from "../../storage/rounds.js";
 import { externalReviewers, personas } from "../../storage/settings.server.js";
@@ -9,8 +9,8 @@ import type { RoundStats, Stats } from "./stats.js";
 
 // What reviewing has added up to, kept apart from the reviews themselves so
 // it outlasts them: a review deleted leaves its rounds' figures here. Each
-// round's figures are taken afresh whenever its review is saved, from when
-// the server starts.
+// round's figures are taken afresh whenever its review is saved, and read
+// straight from here.
 
 const db = persistent("stats-tables", () => {
   const opened = database();
@@ -161,7 +161,8 @@ function measure(key: string, roundIndex: number | undefined, round: number) {
     const [owner, repo, number] = key.split("/");
     const files = await fetchReviewFiles(owner, repo, number, roundIndex);
     const current = readRound(key, round);
-    const record = listRecords().find((r) => r.key === key)?.record as unknown as PrRecord | undefined;
+    const { record: stored, version } = getRecord(key);
+    const record = version ? (stored as unknown as PrRecord) : undefined;
     const slices = record ? (roundIndex === undefined ? record : roundView(record, roundIndex)).slices : null;
     if (current && slices) writeRound({ ...current, sizes: sizesOf(files, slices) });
   });
@@ -191,13 +192,10 @@ persistent("stats-watch", () => {
       db.prepare("UPDATE round_stats SET key = ? WHERE key = ?").run(`${key}@${Date.now()}`, key);
     },
   });
-  for (const { key, record } of listRecords()) saveRounds(key, record);
   return true;
 });
 
 export function readStats(): Stats {
-  // Taken afresh from the reviews kept, so they follow what's changed since.
-  for (const { key, record } of listRecords()) saveRounds(key, record);
   // A persona or external reviewer removed takes its figures with it.
   const persona = new Set(personas.list().map((p) => p.id));
   const external = new Set(externalReviewers.list().map((e) => e.id));
