@@ -6,7 +6,6 @@ import { fetchReviewFiles } from "../../github/range.server.js";
 import { parseFilePatch } from "../reading/diff/parse.js";
 import type { AgentReviewer, FeedbackItem, PrFile, PrRecord, Severity } from "../../types.js";
 import type { RoundStats, Stats } from "./stats.js";
-import { tally, tallied } from "./tallies.server.js";
 
 // What reviewing has added up to, kept apart from the reviews themselves so
 // it outlasts them: a review deleted leaves its rounds' figures here. Each
@@ -22,9 +21,6 @@ const db = persistent("stats-tables", () => {
       round INTEGER NOT NULL,
       stats TEXT NOT NULL,
       PRIMARY KEY (key, round)
-    );
-    CREATE TABLE IF NOT EXISTS stats_meta (
-      name TEXT PRIMARY KEY
     );
   `);
   return opened;
@@ -176,51 +172,6 @@ async function drain() {
   measuring.busy = false;
 }
 
-// The model calls a review made before they were counted as they happened:
-// each answer, draft, preparation and check, and Docent's own reviewers at
-// about a call a slice. Once, when the stats are first set up.
-function countEarlierCalls() {
-  // Calls already counted as they happened aren't counted again.
-  const since = tallied("call")[0] ?? Infinity;
-  const count = (at: number) => at < since && tally("call", at);
-  for (const { record: stored } of listRecords()) {
-    const record = stored as unknown as PrRecord;
-    const rounds = [...(record.rounds ?? []).map((_, i) => roundView(record, i)), record];
-    for (const r of rounds) {
-      const when = [
-        ...(r.notes ?? []).flatMap((n) => n.messages.map((m) => m.at)),
-        r.review?.posted?.at,
-        r.completedAt,
-      ].filter((x): x is number => typeof x === "number");
-      const first = when.length ? Math.min(...when) : undefined;
-      for (const n of r.notes ?? []) for (const m of n.messages) if (m.role === "assistant") count(m.at);
-      for (const draft of Object.values(r.feedback ?? {}))
-        for (const item of draft?.items ?? []) for (const m of item.messages ?? []) if (m.role === "assistant") count(m.at);
-      if (r.feedback?.yours?.draftedAt) count(r.feedback.yours.draftedAt);
-      if (r.review?.preparedAt) count(r.review.preparedAt);
-      for (const c of Object.values(r.threadChecks ?? {})) if (c.verdict) count(c.at);
-      if (r.summary && first) for (let i = 0; i < 4; i++) count(first);
-      for (const a of r.agentReviewers ?? []) {
-        const runs = a.ranWith;
-        if (!a.lastRun || !runs || runs === "external" || runs.startsWith("session:") || runs.startsWith("persona:")) continue;
-        const calls = (r.slices?.length ?? 0) + 1;
-        for (let i = 0; i < calls; i++) count(a.lastRun.startedAt);
-        if (a.picks?.at) count(a.picks.at);
-      }
-    }
-  }
-}
-
-// Set up once: figures for every review already kept, and the calls they made.
-function setUp() {
-  const done = (name: string) => !!db.prepare("SELECT 1 FROM stats_meta WHERE name = ?").get(name);
-  if (!done("calls")) {
-    countEarlierCalls();
-    db.prepare("INSERT INTO stats_meta (name) VALUES ('calls')").run();
-  }
-  for (const { key, record } of listRecords()) saveRounds(key, record);
-}
-
 persistent("stats-watch", () => {
   onRecordChange({
     saved: (key, record) => {
@@ -236,7 +187,7 @@ persistent("stats-watch", () => {
       db.prepare("UPDATE round_stats SET key = ? WHERE key = ?").run(`${key}@${Date.now()}`, key);
     },
   });
-  setUp();
+  for (const { key, record } of listRecords()) saveRounds(key, record);
   return true;
 });
 
@@ -250,5 +201,5 @@ export function readStats(): Stats {
   const rounds = (db.prepare("SELECT stats FROM round_stats").all() as { stats: string }[])
     .map((r) => JSON.parse(r.stats) as RoundStats)
     .map((r) => ({ ...r, reviewers: r.reviewers.filter(kept) }));
-  return { rounds, calls: tallied("call"), resolved: tallied("resolved") };
+  return { rounds };
 }

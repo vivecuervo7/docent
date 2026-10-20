@@ -54,7 +54,7 @@ export function summarise(stats: Stats) {
 		prs: prs.length,
 		lines: sum(prs.map((p) => p.lines)),
 		posted: sum(stats.rounds.map((r) => r.postedComments.yours + r.postedComments.panel)),
-		calls: stats.calls.length,
+		slices: sum(stats.rounds.map((r) => r.slices)),
 		reviewability: {
 			pr: Math.round(mean(measured.map((p) => p.lines))),
 			slice: Math.round(mean(measured.flatMap((p) => p.slices))),

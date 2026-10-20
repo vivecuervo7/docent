@@ -1,7 +1,6 @@
 import type { Severity } from '../../types';
 
-// What the stats page reads: each round's figures, and when model calls were
-// made and GitHub threads were resolved.
+// What the stats page reads: each round's figures.
 
 export interface RoundStats {
 	key: string;
@@ -27,6 +26,4 @@ export interface RoundStats {
 
 export interface Stats {
 	rounds: RoundStats[];
-	calls: number[];
-	resolved: number[];
 }
