@@ -311,7 +311,7 @@
 	/* Skipped as its reviewer or the editor suggested: their call, not a miss. */
 	.suggested,
 	.swatch.suggested {
-		background: #5d5f66;
+		background: #464850;
 	}
 	.filtered,
 	.swatch.filtered {
