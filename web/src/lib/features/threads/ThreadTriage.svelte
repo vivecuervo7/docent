@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { SvelteSet } from 'svelte/reactivity';
+	import Avatar from '$lib/ui/Avatar.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import { useSession } from '$lib/session/session.svelte';
@@ -96,6 +97,7 @@
 		{/if}
 		<button class="open" onclick={() => show(t.id)}>
 			<span class="meta">
+				<Avatar src={t.entries[0]?.avatar} name={t.entries[0]?.author ?? '?'} size={16} />
 				<span class="mono">{threadWhere(t)}</span> · {t.entries[0]?.author ?? 'someone'}
 				{#if t.entries.length > 1}· {t.entries.length - 1} {t.entries.length === 2 ? 'reply' : 'replies'}{/if}
 				{#if t.outdated}· outdated{:else if touchedBy(session.files, t) && session.files.some((f) => f.rangeLines)}· changed this round{/if}
@@ -270,6 +272,10 @@
 		color: #fff;
 	}
 	.meta {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-wrap: wrap;
 		font-size: 12.5px;
 		color: var(--faint);
 	}

@@ -10,6 +10,8 @@ const execFileAsync = promisify(execFile);
 
 export interface GitHubEntry {
   author: string;
+  // Their GitHub avatar's address.
+  avatar?: string;
   body: string;
   createdAt: string;
 }
@@ -43,7 +45,7 @@ export interface GitHubComments {
 interface RawInline {
   id: number;
   in_reply_to_id?: number;
-  user: { login?: string } | null;
+  user: { login?: string; avatar_url?: string } | null;
   path: string;
   body: string;
   created_at: string;
@@ -164,7 +166,7 @@ export async function fetchGitHubComments(owner: string, repo: string, number: s
       };
       byRoot.set(root, thread);
     }
-    thread.entries.push({ author: login(c.user), body: c.body, createdAt: c.created_at });
+    thread.entries.push({ author: login(c.user), ...(c.user?.avatar_url ? { avatar: c.user.avatar_url } : {}), body: c.body, createdAt: c.created_at });
   }
 
   const general = [

@@ -2,6 +2,7 @@
 	import type { GitHubThread } from '$lib/types';
 	import { useSession } from '$lib/session/session.svelte';
 	import { timeAgo } from '$lib/ui/format';
+	import Avatar from '../../ui/Avatar.svelte';
 	import NoteText from '../../ui/NoteText.svelte';
 	import ThreadPanel from './ThreadPanel.svelte';
 
@@ -39,7 +40,12 @@
 	<ol class="messages">
 		{#each thread.entries as e, i (i)}
 			<li>
-				<span class="role">{e.author}{#if e.createdAt}<span class="faint">{` · ${timeAgo(Date.parse(e.createdAt))}`}</span>{/if}</span>
+				<span class="role">
+					<Avatar src={e.avatar} name={e.author} size={18} />
+					{e.author}
+					{#if e.author === session.meta?.author}<span class="tag">author</span>{/if}
+					{#if e.createdAt}<span class="faint">· {timeAgo(Date.parse(e.createdAt))}</span>{/if}
+				</span>
 				<div class="text"><NoteText text={e.body} /></div>
 			</li>
 		{/each}
@@ -115,8 +121,19 @@
 		border-bottom: 0;
 	}
 	.role {
+		display: flex;
+		align-items: center;
+		gap: 7px;
 		font-size: 12px;
 		color: var(--muted);
+	}
+	.tag {
+		padding: 0 6px;
+		border-radius: 999px;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--faint);
+		font-size: 11px;
+		line-height: 16px;
 	}
 	.yours {
 		display: flex;

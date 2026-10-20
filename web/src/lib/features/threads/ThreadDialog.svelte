@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Avatar from '$lib/ui/Avatar.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import NoteText from '$lib/ui/NoteText.svelte';
@@ -123,7 +124,12 @@
 			{#each entries as e, i (i)}
 				{#if !folded || i === 0 || i >= entries.length - 1}
 					<li>
-						<span class="who">{e.author}{#if e.createdAt}<span class="faint">{` · ${timeAgo(Date.parse(e.createdAt))}`}</span>{/if}</span>
+						<span class="who">
+							<Avatar src={e.avatar} name={e.author} />
+							{e.author}
+							{#if e.author === session.meta?.author}<span class="tag">author</span>{/if}
+							{#if e.createdAt}<span class="faint">· {timeAgo(Date.parse(e.createdAt))}</span>{/if}
+						</span>
 						<div class="text"><NoteText text={e.body} /></div>
 					</li>
 				{:else if i === 1}
@@ -276,8 +282,20 @@
 		font-size: 12.5px;
 	}
 	.who {
-		font-size: 12px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 12.5px;
 		color: var(--muted);
+	}
+	/* The PR's own author, as GitHub marks them. */
+	.tag {
+		padding: 0 6px;
+		border-radius: 999px;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--faint);
+		font-size: 11px;
+		line-height: 16px;
 	}
 	.text {
 		display: flex;

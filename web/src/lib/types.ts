@@ -435,6 +435,8 @@ export interface PrCommit {
 // where they sit, and what was said on the PR as a whole.
 export interface GitHubEntry {
 	author: string;
+	// Their GitHub avatar's address.
+	avatar?: string;
 	body: string;
 	createdAt: string;
 }
