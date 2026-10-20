@@ -16,11 +16,14 @@
 	const s = $derived(stats ? summarise(stats) : null);
 	const number = (n: number) => n.toLocaleString();
 	const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
-	// Sizes on a square-root scale up to the biggest, so small PRs still
-	// show beside big ones.
-	const height = (n: number, top: number) => (n > 0 ? Math.max(2, Math.sqrt(n / top) * 100) : 0);
-	// The scale's four marks, evenly up the chart, the last at the biggest.
-	const ticks = (top: number) => [0.25, 0.5, 0.75, 1].map((f) => Math.round(top * f * f));
+	// The scale: four even steps of a round size, the last at about the
+	// biggest PR, just under or past it.
+	const step = (most: number) => {
+		const unit = 10 ** Math.floor(Math.log10(most / 4));
+		return ([1, 1.5, 2, 2.5, 5, 10].map((m) => m * unit).find((m) => m * 4 >= most * 0.9) ?? unit * 10);
+	};
+	const ticks = (most: number) => [1, 2, 3, 4].map((i) => i * step(most));
+	const height = (n: number, top: number) => (n > 0 ? Math.max(2, (n / top) * 100) : 0);
 	const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k` : `${n}`);
 </script>
 
@@ -43,7 +46,8 @@
 		</section>
 
 		{#if s.reviewability.prs.length}
-			{@const top = Math.max(1, ...s.reviewability.prs.map((p) => p.lines))}
+			{@const most = Math.max(1, ...s.reviewability.prs.map((p) => p.lines))}
+			{@const top = Math.max(most, step(most) * 4)}
 			<section>
 				<h2>Slice and dice</h2>
 				<p class="lede">
@@ -52,10 +56,10 @@
 				</p>
 				<div class="chart">
 					<div class="axis faint" aria-hidden="true">
-						{#each ticks(top) as t (t)}<span style:bottom="{height(t, top)}%">{short(t)}</span>{/each}
+						{#each ticks(most) as t (t)}<span style:bottom="{height(t, top)}%">{short(t)}</span>{/each}
 					</div>
 					<div class="sizes" role="img" aria-label="Each pull request's lines read, with its average slice">
-						{#each ticks(top) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
+						{#each ticks(most) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
 						{#each s.reviewability.prs as p, i (i)}
 							<span class="pair" title="{p.title}: {number(p.lines)} lines in {p.slices} {p.slices === 1 ? 'slice' : 'slices'} of about {number(p.slice)}">
 								<span class="bar pr" style:height="{height(p.lines, top)}%"></span>
