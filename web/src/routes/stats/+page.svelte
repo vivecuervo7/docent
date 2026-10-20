@@ -310,11 +310,11 @@
 	   tools doing their job, so green too, deepening as it goes. */
 	.suggested,
 	.swatch.suggested {
-		background: #4a7d5a;
+		background: #56685b;
 	}
 	.filtered,
 	.swatch.filtered {
-		background: #2f5239;
+		background: #37443b;
 	}
 	@media (max-width: 700px) {
 		.figures {
