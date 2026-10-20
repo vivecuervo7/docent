@@ -108,8 +108,7 @@
 		<!-- Circles big enough to hold their name show it; the rest say on pointing. -->
 		{#each layout.filter((n) => n.pr >= 34) as n (n.id)}
 			<g class="label" class:dim={!lit(n.id)}>
-				<text x={n.cx} y={n.cy - 2} text-anchor="middle" class="name">{n.name}</text>
-				<text x={n.cx} y={n.cy + 14} text-anchor="middle" class="alone">{share(n.alone, n.kept)}% only {n.name}</text>
+				<text x={n.cx} y={n.cy + 4} text-anchor="middle" class="name">{n.name}</text>
 			</g>
 		{/each}
 		{#if focus && focus.pr < 34}
@@ -127,19 +126,31 @@
 			/>
 		{/each}
 	</svg>
-	<p class="card" class:shown={!!focus}>
-		{#if focus}
-			<strong>{focus.name}</strong>: {focus.kept} kept ({share(focus.alone, focus.kept)}% only {focus.name}) · {focus.decided - focus.kept} skipped
-			{#if partners.length}· shares {partners.map((p) => `${p.shared} with ${nameOf(p.id)}`).join(', ')}{/if}
-			· across {focus.rounds} {focus.rounds === 1 ? 'round' : 'rounds'}
-		{:else}
-			Circles are kept findings, overlapping where reviewers raised the same point. Point at one for more.
-		{/if}
-	</p>
+	<!-- What pointing at a reviewer tells, in the corner. -->
+	{#if focus}
+		<dl class="legend">
+			<dt class="who">{focus.name}</dt>
+			<dd></dd>
+			<dt>Kept</dt>
+			<dd>{focus.kept}</dd>
+			<dt>Only {focus.name}</dt>
+			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
+			<dt>Skipped</dt>
+			<dd>{focus.decided - focus.kept}</dd>
+			{#each partners as p (p.id)}
+				<dt>Shared with {nameOf(p.id)}</dt>
+				<dd>{p.shared}</dd>
+			{/each}
+			<dt>Rounds</dt>
+			<dd>{focus.rounds}</dd>
+		</dl>
+	{/if}
+	<p class="hint faint">Kept findings, overlapping where reviewers raised the same point. Point at one for its figures.</p>
 </div>
 
 <style>
 	.map {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
@@ -178,12 +189,6 @@
 		transition: opacity 120ms;
 	}
 	.name,
-	.alone {
-		paint-order: stroke;
-		stroke: var(--bg);
-		stroke-width: 3px;
-		stroke-linejoin: round;
-	}
 	.lone {
 		pointer-events: none;
 	}
@@ -192,25 +197,39 @@
 		font-size: 13px;
 		font-weight: 500;
 	}
-	.alone {
-		fill: var(--muted);
-		font-size: 11.5px;
-	}
 	.hit {
 		fill: transparent;
 		cursor: default;
 	}
-	.card {
+	.legend {
+		position: absolute;
+		top: 14px;
+		left: 16px;
+		display: grid;
+		grid-template-columns: auto auto;
+		gap: 4px 18px;
 		margin: 0;
-		min-height: 1.5em;
-		color: var(--faint);
+		padding: 10px 12px;
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--surface) 88%, transparent);
+		box-shadow: inset 0 0 0 1px var(--line-2);
 		font-size: 12.5px;
+		pointer-events: none;
 	}
-	.card.shown {
+	.legend dt {
 		color: var(--muted);
 	}
-	.card strong {
+	.legend dd {
+		margin: 0;
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+	.legend .who {
 		color: var(--text);
 		font-weight: 500;
+	}
+	.hint {
+		margin: 0;
+		font-size: 12.5px;
 	}
 </style>
