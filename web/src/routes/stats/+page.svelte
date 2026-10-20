@@ -138,6 +138,7 @@
 					<span class="swatch filtered"></span>Filtered by the editor <span class="swatch kicked"></span>Kicked back by you
 				</div>
 				{#if s.overlap.reviewers.length > 1}
+					<h3>Reviewer alignment</h3>
 					<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} />
 				{/if}
 			</section>
@@ -180,6 +181,13 @@
 		margin: 0;
 		font-family: var(--serif);
 		font-size: 22px;
+		font-weight: 500;
+	}
+	/* A part of a section, apart from what's above it. */
+	h3 {
+		margin: 14px 0 0;
+		font-family: var(--serif);
+		font-size: 17px;
 		font-weight: 500;
 	}
 	.loading {
