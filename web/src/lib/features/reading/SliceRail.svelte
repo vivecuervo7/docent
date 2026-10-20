@@ -17,11 +17,13 @@
 			{@const unread = session.unreadIn(s.id)}
 			<li>
 				<a href="{base}/slices/{s.id}" class:current={s.id === current} aria-current={s.id === current ? 'page' : undefined}>
-					<span class="mark"><StateMark state={reviewed ? 'done' : s.id === current ? 'now' : 'todo'} /></span>
+					<span class="mark">
+						<StateMark state={reviewed ? 'done' : s.id === current ? 'now' : 'todo'} />
+						{#if unread}
+							<span class="unread" title="{unread} new to read" aria-label="{unread} new to read"></span>
+						{/if}
+					</span>
 					<span class="title">{s.title}</span>
-					{#if unread}
-						<span class="unread" title="{unread} new to read" aria-label="{unread} new to read"></span>
-					{/if}
 				</a>
 			</li>
 		{/each}
@@ -90,19 +92,23 @@
 		font-weight: 500;
 	}
 	.mark {
+		position: relative;
 		padding-top: 1px;
 	}
 	.title {
 		flex-grow: 1;
 	}
-	/* Something new to read on the slice: the dot a marker in the diff shows. */
+	/* Something new to read on the slice: the dot a pin in the diff shows,
+	   on its mark the same way. */
 	.unread {
-		flex-shrink: 0;
+		position: absolute;
+		top: -1px;
+		right: -3px;
 		width: 7px;
 		height: 7px;
-		margin-top: 7px;
 		border-radius: 4px;
 		background: var(--you);
+		box-shadow: 0 0 0 2px var(--bg);
 	}
 	.all {
 		align-items: center;
