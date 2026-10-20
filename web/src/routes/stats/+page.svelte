@@ -29,7 +29,10 @@
 
 <main>
 	<div class="head">
-		<a class="back faint" href="/">← Pull requests</a>
+		<a class="btn back" href="/">
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
+			Back to your reviews
+		</a>
 		<h1>Stats</h1>
 	</div>
 
@@ -110,17 +113,15 @@
 		flex-direction: column;
 		gap: 40px;
 	}
+	/* As Settings and Getting started open. */
 	.head {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 24px;
 	}
 	.back {
-		font-size: 13.5px;
+		align-self: flex-start;
 		text-decoration: none;
-	}
-	.back:hover {
-		color: var(--text);
 	}
 	h1 {
 		margin: 0;
