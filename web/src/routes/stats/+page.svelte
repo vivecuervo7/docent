@@ -41,8 +41,8 @@
 		<section class="figures">
 			<div><strong>{number(s.prs)}</strong><span>pull requests</span></div>
 			<div><strong>{number(s.lines)}</strong><span>lines read</span></div>
-			<div><strong>{number(s.posted)}</strong><span>comments posted</span></div>
 			<div><strong>{number(s.slices)}</strong><span>slices sliced</span></div>
+			<div><strong>{number(s.posted)}</strong><span>comments posted</span></div>
 		</section>
 
 		{#if s.reviewability.prs.length}
