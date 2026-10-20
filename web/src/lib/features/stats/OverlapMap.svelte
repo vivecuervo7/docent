@@ -140,7 +140,7 @@
 			<dd>{focus.decided - focus.kept}</dd>
 			<dt>Unique</dt>
 			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
-			<dt>Shared</dt>
+			<dt>Corroborated</dt>
 			<dd>{focus.kept - focus.alone} <span class="faint">({share(focus.kept - focus.alone, focus.kept)}%)</span></dd>
 		</dl>
 	{/if}
