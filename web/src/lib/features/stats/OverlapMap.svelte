@@ -143,12 +143,20 @@
 			<dd></dd>
 			<dt>Kept</dt>
 			<dd>{focus.kept}</dd>
+			<dt class="sub">Unique</dt>
+			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
+			<dt class="sub">Corroborated</dt>
+			<dd>{focus.kept - focus.alone} <span class="faint">({share(focus.kept - focus.alone, focus.kept)}%)</span></dd>
 			<dt>Kicked back</dt>
 			<dd>{focus.kickedBack}</dd>
-			<dt>Unique</dt>
-			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
-			<dt>Corroborated</dt>
-			<dd>{focus.kept - focus.alone} <span class="faint">({share(focus.kept - focus.alone, focus.kept)}%)</span></dd>
+			{#if focus.kickedBack}
+				<dt class="sub">Unique</dt>
+				<dd>{focus.aloneKicked} <span class="faint">({share(focus.aloneKicked, focus.kickedBack)}%)</span></dd>
+				<dt class="sub">Corroborated</dt>
+				<dd>
+					{focus.kickedBack - focus.aloneKicked} <span class="faint">({share(focus.kickedBack - focus.aloneKicked, focus.kickedBack)}%)</span>
+				</dd>
+			{/if}
 		</dl>
 	{/if}
 	<p class="hint faint">Kept findings, overlapping where reviewers raised the same point. Point at one for its figures.</p>
@@ -229,6 +237,12 @@
 		margin: 0;
 		text-align: right;
 		font-variant-numeric: tabular-nums;
+	}
+	/* Of the figure above: what of it only this reviewer raised, and what
+	   another did too. */
+	.legend .sub {
+		padding-left: 12px;
+		color: var(--faint);
 	}
 	.legend .who {
 		color: var(--text);
