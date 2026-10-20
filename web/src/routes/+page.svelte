@@ -59,6 +59,7 @@
 <div class="page">
 	<div class="picker">
 		<a class="guide faint" href="/getting-started">Getting started</a>
+		<a class="guide faint" href="/stats">Stats</a>
 		<a class="guide faint" href="/settings">Settings</a>
 		<ModelPicker />
 	</div>
