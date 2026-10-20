@@ -155,9 +155,11 @@
 							<span class="verdict {verdict}">{label} · {threads.length}</span>
 							{#if verdict === 'addressed'}
 								<span class="grow"></span>
-								<button class="btn primary" disabled={!ticked.length || resolving} onclick={resolveTicked}>
-									{#if resolving}<Spinner size={13} />{/if} Resolve {ticked.length} selected
-								</button>
+								{#if ticked.length}
+									<button class="btn primary" disabled={resolving} onclick={resolveTicked}>
+										{#if resolving}<Spinner size={13} />{/if} Resolve {ticked.length} selected
+									</button>
+								{/if}
 							{/if}
 						</div>
 						<ul>{#each threads as t (t.id)}{@render row(t, verdict === 'addressed')}{/each}</ul>
@@ -234,7 +236,11 @@
 	.group {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 14px;
+	}
+	/* As tall with Resolve as without, so unticking the last doesn't jump. */
+	.group-head {
+		min-height: 32px;
 	}
 	.verdict {
 		font-weight: 600;
