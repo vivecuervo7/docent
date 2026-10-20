@@ -159,14 +159,14 @@
 			{/if}
 			{#key slice.id}
 				<div class="above-files">
-					<p class="hint faint">Drag down the line numbers to select lines.</p>
 					<FoldAll {anyOpen} onfold={(open) => (fold = { open, at: Date.now(), slice: slice.id })} />
+					<p class="hint faint">Drag down the line numbers to select lines.</p>
 				</div>
 				<FileDiffs bind:anyOpen keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} fold={fold?.slice === slice.id ? fold : null} />
 			{/key}
 
 			<div class="finish">
-				<span class="faint">{fileCounts.reviewed} of {fileCounts.total} {fileCounts.total === 1 ? 'file' : 'files'} reviewed</span>
+				<span class="faint count">{fileCounts.reviewed} of {fileCounts.total} {fileCounts.total === 1 ? 'file' : 'files'} reviewed</span>
 				{#if done}
 					<button class="btn" onclick={() => session.setReviewed(slice.hunks, false)}>Mark not reviewed</button>
 					<button class="btn primary big" onclick={goNext}>{next ? 'Next slice →' : 'Wrap up →'}</button>
@@ -309,11 +309,12 @@
 		font-size: 15px;
 		line-height: 1.6;
 	}
+	/* Fold all sits over the files' own chevrons. */
 	.above-files {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		margin: 44px 0 6px;
+		gap: 8px;
+		margin: 44px 0 6px -6px;
 	}
 	.hint {
 		margin: 0;
@@ -327,12 +328,14 @@
 		justify-content: flex-end;
 		gap: 12px;
 		margin-top: 12px;
-		/* Clear of the corner's conversation bubble. */
-		padding: 16px 48px 24px 0;
+		padding: 16px 0 24px;
 		background: linear-gradient(transparent, var(--bg) 30%);
 		font-size: 13.5px;
 		/* Clicks reach the code under the fade; only the bar's own controls take them. */
 		pointer-events: none;
+	}
+	.finish .count {
+		margin-right: auto;
 	}
 	.finish > * {
 		pointer-events: auto;
