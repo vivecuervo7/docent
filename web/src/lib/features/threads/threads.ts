@@ -7,7 +7,7 @@ export type Verdict = NonNullable<ThreadCheck['verdict']>;
 
 export const VERDICTS: { verdict: Verdict; label: string }[] = [
 	{ verdict: 'addressed', label: 'Look addressed' },
-	{ verdict: 'not-yet', label: 'Not yet' },
+	{ verdict: 'not-yet', label: 'Not yet resolved' },
 	{ verdict: 'unclear', label: 'Unclear' }
 ];
 
