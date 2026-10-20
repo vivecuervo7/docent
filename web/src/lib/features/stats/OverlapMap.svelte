@@ -1,11 +1,12 @@
 <script lang="ts">
 	import type { OverlapPair, OverlapReviewer } from './summary';
 
-	// Reviewers as circles sized by the points of theirs you kept, set so
-	// each pair overlaps by about the kept points both raised: a circle mostly
-	// inside another finds little the other doesn't; one off on its own finds
-	// its own. Only reviewers that ran together are drawn together; pointing
-	// at one shows all it raised, skipped too, and who it shares points with.
+	// Reviewers as circles sized by the findings of theirs you kept, set so
+	// each pair overlaps by about how many of the smaller one's kept findings
+	// the other corroborated: a circle mostly inside another finds little the
+	// other doesn't; one off on its own finds its own. Only reviewers that ran
+	// together are drawn together; pointing at one rings what it wanted
+	// posted, kicked back too, and shows who corroborates it.
 	let { reviewers, pairs }: { reviewers: OverlapReviewer[]; pairs: OverlapPair[] } = $props();
 
 	const WIDTH = 760;
@@ -55,7 +56,10 @@
 			nodes.slice(i + 1).map((m) => {
 				const p = pairOf(n.id, m.id);
 				const together = !!p?.together;
-				const { d, kind } = apart(n.r, m.r, together ? p!.shared : 0);
+				// From the smaller one's side: how much of it the other corroborates.
+				const smaller = n.kept <= m.kept ? n.id : m.id;
+				const shared = !p ? 0 : p.a === smaller ? p.aShared : p.bShared;
+				const { d, kind } = apart(n.r, m.r, together ? shared : 0);
 				return { n, m, target: d, kind, weight: together ? 1 : 0.3 };
 			})
 		);
@@ -75,7 +79,7 @@
 				m.y -= dy * move;
 			}
 		}
-		const outer = (n: (typeof nodes)[number]) => Math.max(n.r, radius(n.decided));
+		const outer = (n: (typeof nodes)[number]) => radius(n.kept + n.kickedBack);
 		const minX = Math.min(...nodes.map((n) => n.x - outer(n)));
 		const maxX = Math.max(...nodes.map((n) => n.x + outer(n)));
 		const minY = Math.min(...nodes.map((n) => n.y - outer(n)));
@@ -83,7 +87,7 @@
 		const scale = Math.min((WIDTH - PAD * 2) / (maxX - minX || 1), (HEIGHT - PAD * 2) / (maxY - minY || 1));
 		const ox = (WIDTH - (maxX - minX) * scale) / 2 - minX * scale;
 		const oy = (HEIGHT - (maxY - minY) * scale) / 2 - minY * scale;
-		return nodes.map((n) => ({ ...n, cx: n.x * scale + ox, cy: n.y * scale + oy, pr: n.r * scale, ring: radius(n.decided) * scale }));
+		return nodes.map((n) => ({ ...n, cx: n.x * scale + ox, cy: n.y * scale + oy, pr: n.r * scale, ring: radius(n.kept + n.kickedBack) * scale }));
 	});
 
 	let pointed = $state<string | null>(null);
@@ -91,9 +95,8 @@
 	const partners = $derived(
 		focus
 			? pairs
-					.filter((p) => (p.a === focus.id || p.b === focus.id) && p.shared > 0)
-					.map((p) => ({ id: p.a === focus.id ? p.b : p.a, shared: p.shared }))
-					.sort((a, b) => b.shared - a.shared)
+					.filter((p) => (p.a === focus.id || p.b === focus.id) && p.aShared + p.bShared > 0)
+					.map((p) => ({ id: p.a === focus.id ? p.b : p.a }))
 			: []
 	);
 	const lit = (id: string) => !focus || id === focus.id || partners.some((p) => p.id === id);
@@ -136,8 +139,8 @@
 			<dd></dd>
 			<dt>Kept</dt>
 			<dd>{focus.kept}</dd>
-			<dt>Skipped</dt>
-			<dd>{focus.decided - focus.kept}</dd>
+			<dt>Kicked back</dt>
+			<dd>{focus.kickedBack}</dd>
 			<dt>Unique</dt>
 			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
 			<dt>Corroborated</dt>
@@ -172,7 +175,7 @@
 		fill: rgba(127, 216, 155, 0.3);
 		stroke: #7fd89b;
 	}
-	/* All it raised and you decided on, skipped too. */
+	/* What it wanted posted: kept, and what you kicked back. */
 	.ring {
 		fill: none;
 		stroke: var(--faint);

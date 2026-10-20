@@ -27,9 +27,10 @@ export interface RoundStats {
 	checks: number;
 	// How the figures were counted, for taking them again when that changes.
 	counted?: number;
-	// Each point raised - the editor's group of findings making it - by the
-	// reviewers raising it, and whether you kept or skipped it.
-	points?: { by: string[]; kept: boolean; skipped: boolean }[];
+	// Each finding the editor didn't filter out: who raised it, whether it's
+	// kept or you kicked it back, and whose findings it was grouped with as
+	// the same point.
+	found?: { by: string; kept: boolean; kickedBack: boolean; with: string[] }[];
 	// The reviewers that ran on the round.
 	ran?: { id: string; name: string; persona?: string; external?: string }[];
 	postedComments: { yours: number; panel: number };

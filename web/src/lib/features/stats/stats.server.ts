@@ -82,18 +82,26 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     if (item.severity && !item.filtered) severities[item.severity] = (severities[item.severity] ?? 0) + 1;
   }
 
-  // The points raised: findings the editor grouped as the same point taken
-  // together, under the one leading them, with who raised them and what
-  // was decided. Findings it filtered out aren't points.
+  // Each finding the editor didn't filter out, with what became of it and
+  // whose findings it grouped with as the same point.
   const shown = new Map(findings.filter((f) => !f.item.filtered).map((f) => [`${f.reviewer}/${f.item.id}`, f]));
-  const points = new Map<string, { by: Set<string>; kept: boolean; skipped: boolean }>();
+  const leadOf = (key: string, item: FeedbackItem) =>
+    item.joins && shown.has(`${item.joins.reviewer}/${item.joins.id}`) ? `${item.joins.reviewer}/${item.joins.id}` : key;
+  const who = (reviewer: string) => idOf(reviewerOf(record.agentReviewers?.find((a) => a.id === reviewer)));
+  const groups = new Map<string, Set<string>>();
   for (const [key, { reviewer, item }] of shown) {
-    const lead = item.joins && shown.has(`${item.joins.reviewer}/${item.joins.id}`) ? `${item.joins.reviewer}/${item.joins.id}` : key;
-    const head = shown.get(lead)!.item;
-    const point = points.get(lead) ?? { by: new Set(), kept: head.included, skipped: !head.included };
-    point.by.add(idOf(reviewerOf(record.agentReviewers?.find((a) => a.id === reviewer))));
-    points.set(lead, point);
+    const lead = leadOf(key, item);
+    groups.set(lead, (groups.get(lead) ?? new Set()).add(who(reviewer)));
   }
+  const found = [...shown].map(([key, { reviewer, item }]) => {
+    const by = who(reviewer);
+    return {
+      by,
+      kept: item.included,
+      kickedBack: decided(item) && !item.included && !item.setAside && !item.skipSuggested,
+      with: [...groups.get(leadOf(key, item))!].filter((other) => other !== by),
+    };
+  });
   // Who reviewed this round, so overlap is only weighed between reviewers
   // that ran together.
   const ran = (record.agentReviewers ?? [])
@@ -123,7 +131,7 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     answers: answers.length,
     checks: Object.values(record.threadChecks ?? {}).filter((c) => c.verdict).length,
     counted: COUNTED,
-    points: [...points.values()].map((p) => ({ by: [...p.by], kept: p.kept, skipped: p.skipped })),
+    found,
     ran: [...new Map(ran.map((r) => [idOf(r), { id: idOf(r), ...r }])).values()],
     postedComments: {
       yours: sent.filter((c) => c.from.some((id) => yoursIds.has(id))).length,
@@ -210,7 +218,7 @@ async function drain() {
 
 // What a round's figures count, which goes up when that changes: rounds
 // counted the old way are taken again once, from the reviews still kept.
-const COUNTED = 3;
+const COUNTED = 4;
 
 function fillPoints() {
   const missing = new Set(
@@ -251,7 +259,7 @@ export function readStats(): Stats {
   const external = new Set(externalReviewers.list().map((e) => e.id));
   const kept = (r: { persona?: string; external?: string }) => (!r.persona || persona.has(r.persona)) && (!r.external || external.has(r.external));
   const rounds = (db.prepare("SELECT stats FROM round_stats").all() as { stats: string }[]).map((r) => JSON.parse(r.stats) as RoundStats);
-  // Their points too: a removed reviewer is left out of who raised each.
+  // Their findings too, and whose they were grouped with.
   const removed = new Set(
     rounds.flatMap((r) => [...r.reviewers, ...(r.ran ?? [])].filter((v) => !kept(v)).map((v) => v.persona ?? v.external ?? v.name))
   );
@@ -266,7 +274,7 @@ export function readStats(): Stats {
     rounds: rounds.map((r) => ({
       ...r,
       reviewers: r.reviewers.filter(kept).map(named),
-      ...(r.points ? { points: r.points.map((p) => ({ ...p, by: p.by.filter((id) => !removed.has(id)) })).filter((p) => p.by.length) } : {}),
+      ...(r.found ? { found: r.found.filter((f) => !removed.has(f.by)).map((f) => ({ ...f, with: f.with.filter((id) => !removed.has(id)) })) } : {}),
       ...(r.ran ? { ran: r.ran.filter((v) => !removed.has(v.id)).map(named) } : {})
     }))
   };

@@ -42,22 +42,24 @@ function byPr(rounds: RoundStats[]): PrStats[] {
 	});
 }
 
-// How reviewers' kept points overlap: each reviewer by the points of
-// theirs you kept and all you decided on, and each pair by the kept points
-// both raised, on the rounds they reviewed together.
+// How reviewers' kept findings overlap: each reviewer by the findings of
+// theirs you kept and kicked back, and each pair by how many of each one's
+// kept findings the other corroborated, on the rounds they reviewed together.
 export interface OverlapReviewer {
 	id: string;
 	name: string;
 	kept: number;
-	decided: number;
-	// Kept points no other reviewer raised.
+	kickedBack: number;
+	// Kept findings no other reviewer raised.
 	alone: number;
 	rounds: number;
 }
 export interface OverlapPair {
 	a: string;
 	b: string;
-	shared: number;
+	// a's kept findings b corroborated, and b's a did.
+	aShared: number;
+	bShared: number;
 	together: number;
 }
 
@@ -67,27 +69,30 @@ function overlapOf(rounds: RoundStats[]) {
 	const pair = (a: string, b: string) => {
 		const [x, y] = [a, b].sort();
 		const key = `${x}\u0000${y}`;
-		const p = pairs.get(key) ?? { a: x, b: y, shared: 0, together: 0 };
+		const p = pairs.get(key) ?? { a: x, b: y, aShared: 0, bShared: 0, together: 0 };
 		pairs.set(key, p);
 		return p;
 	};
 	for (const r of rounds) {
-		if (!r.points || !r.ran) continue;
+		if (!r.found || !r.ran) continue;
 		for (const v of r.ran) {
-			const t = reviewers.get(v.id) ?? { id: v.id, name: v.name, kept: 0, decided: 0, alone: 0, rounds: 0 };
+			const t = reviewers.get(v.id) ?? { id: v.id, name: v.name, kept: 0, kickedBack: 0, alone: 0, rounds: 0 };
 			t.rounds++;
 			reviewers.set(v.id, t);
 		}
 		for (let i = 0; i < r.ran.length; i++) for (let j = i + 1; j < r.ran.length; j++) pair(r.ran[i].id, r.ran[j].id).together++;
-		for (const p of r.points) {
-			for (const id of p.by) {
-				const t = reviewers.get(id);
-				if (!t) continue;
-				if (p.kept || p.skipped) t.decided++;
-				if (p.kept) t.kept++;
-				if (p.kept && p.by.length === 1) t.alone++;
+		for (const f of r.found) {
+			const t = reviewers.get(f.by);
+			if (!t) continue;
+			if (f.kickedBack) t.kickedBack++;
+			if (!f.kept) continue;
+			t.kept++;
+			if (!f.with.length) t.alone++;
+			for (const other of f.with) {
+				const p = pair(f.by, other);
+				if (p.a === f.by) p.aShared++;
+				else p.bShared++;
 			}
-			if (p.kept) for (let i = 0; i < p.by.length; i++) for (let j = i + 1; j < p.by.length; j++) pair(p.by[i], p.by[j]).shared++;
 		}
 	}
 	return { reviewers: [...reviewers.values()].filter((r) => r.kept > 0), pairs: [...pairs.values()] };
