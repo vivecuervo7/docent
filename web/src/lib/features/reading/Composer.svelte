@@ -9,8 +9,9 @@
 	// for a reply. The second action depends on the conversation: Comment
 	// keeps it as a comment to post as written; Conclude closes it with the
 	// reviewer's decision, which isn't posted but is what drafting follows.
-	// Enter asks and Mod+Enter takes the second action. The draft is bound,
-	// so it outlives the box closing.
+	// Enter asks and Mod+Enter takes the second action. `both` offers Comment
+	// and Conclude, for a conversation that runs on, with Mod+Enter commenting.
+	// The draft is bound, so it outlives the box closing.
 	let {
 		value = $bindable(''),
 		placeholder,
@@ -25,7 +26,7 @@
 	}: {
 		value?: string;
 		placeholder: string;
-		second?: 'comment' | 'conclude';
+		second?: 'comment' | 'conclude' | 'both';
 		rows?: number;
 		autofocus?: boolean;
 		// Shows the buttons before anything is written, not only once it is.
@@ -37,7 +38,8 @@
 		onescape?: () => void;
 	} = $props();
 
-	const secondLabel = $derived(second === 'comment' ? 'Comment' : 'Conclude');
+	const secondLabel = $derived(second === 'conclude' ? 'Conclude' : 'Comment');
+	const modKind = $derived<SendKind>(second === 'conclude' ? 'conclude' : 'comment');
 
 	function send(kind: SendKind) {
 		const text = value.trim();
@@ -65,18 +67,26 @@
 		onkeydown={(e) => {
 			if (e.key === 'Enter' && !e.shiftKey) {
 				e.preventDefault();
-				send(e.metaKey || e.ctrlKey ? second : 'ask');
+				send(e.metaKey || e.ctrlKey ? modKind : 'ask');
 			} else if (e.key === 'Escape' && onescape) onescape();
 		}}
 	></textarea>
 	{#if actionsAlways || value.trim()}
 		<div class="foot">
 			<span class="faint">Enter to ask · {MOD}Enter to {secondLabel.toLowerCase()}</span>
+			{#if second === 'both'}
+				<button
+					class="btn"
+					disabled={!value.trim()}
+					title="Your decision on where this lands; it’s not posted, but drafting follows it"
+					onclick={() => send('conclude')}>Conclude</button
+				>
+			{/if}
 			<button
 				class="btn"
 				disabled={!value.trim()}
-				title={second === 'comment' ? 'Post this to the PR as written' : 'Close this with your decision; it’s not posted, but drafting follows it'}
-				onclick={() => send(second)}>{secondLabel}</button
+				title={second === 'conclude' ? 'Close this with your decision; it’s not posted, but drafting follows it' : 'Post this to the PR as written'}
+				onclick={() => send(modKind)}>{secondLabel}</button
 			>
 			<button class="btn primary" disabled={!value.trim() || askDisabled} onclick={() => send('ask')}>Ask</button>
 		</div>

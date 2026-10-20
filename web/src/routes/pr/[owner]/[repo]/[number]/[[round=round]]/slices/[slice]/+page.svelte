@@ -175,7 +175,7 @@
 				{/if}
 			</div>
 		</main>
-		<AskBubble {slice} above={72} />
+		<AskBubble {slice} />
 	{:else}
 		<main><p>No slice “{sliceId}” in this PR.</p></main>
 	{/if}
@@ -327,7 +327,8 @@
 		justify-content: flex-end;
 		gap: 12px;
 		margin-top: 12px;
-		padding: 16px 0 24px;
+		/* Clear of the corner's conversation bubble. */
+		padding: 16px 48px 24px 0;
 		background: linear-gradient(transparent, var(--bg) 30%);
 		font-size: 13.5px;
 		/* Clicks reach the code under the fade; only the bar's own controls take them. */
