@@ -63,6 +63,10 @@
 		box-shadow: none;
 		color: #1f1c17;
 	}
+	/* Skip a shade darker than Keep. */
+	.agent button.skip.on {
+		background: #b8a78f;
+	}
 	.agent button.on.suggested {
 		background: none;
 		box-shadow: inset 0 0 0 1px var(--popover-line);
