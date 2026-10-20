@@ -10,8 +10,7 @@
 	import NoteText from '$lib/ui/NoteText.svelte';
 	import SliceRail from '$lib/features/reading/SliceRail.svelte';
 	import ViewOptions from '$lib/features/reading/ViewOptions.svelte';
-	import AskBar from '$lib/features/reading/AskBar.svelte';
-	import ThreadPanel from '$lib/features/reading/ThreadPanel.svelte';
+	import AskBubble from '$lib/features/reading/AskBubble.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 
 	const session = useSession();
@@ -24,10 +23,6 @@
 	const slice = $derived(slices[index]);
 	const base = $derived(session.base);
 	const done = $derived(slice ? isSliceReviewed(slice, session.reviewed) : false);
-	// What's been asked or said about the slice as a whole.
-	const sliceNotes = $derived(session.record.notes.filter((n) => n.slice === sliceId));
-	let aboutSlice = $state<HTMLElement | null>(null);
-	const toAboutSlice = () => aboutSlice?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
 	// Files in this slice, and how many are reviewed.
 	const fileCounts = $derived.by(() => {
@@ -140,11 +135,6 @@
 			</div>
 			<h1>{slice.title}</h1>
 			<div class="summary"><NoteText text={slice.summary} /></div>
-			{#if sliceNotes.length}
-				<button class="link to-notes" onclick={toAboutSlice}>
-					{sliceNotes.length} {sliceNotes.length === 1 ? 'note' : 'notes'} about this slice ↓
-				</button>
-			{/if}
 			{#if reviewing || filtered.length}
 				<div class="editor faint">
 					{#if reviewing}<span>The panel is still reviewing this slice</span>{/if}
@@ -175,15 +165,7 @@
 				<FileDiffs bind:anyOpen keys={slice.hunks} notes={session.record.fileNotes?.[slice.id] ?? []} fold={fold?.slice === slice.id ? fold : null} />
 			{/key}
 
-			{#if sliceNotes.length}
-				<section class="about-slice" bind:this={aboutSlice}>
-					<h2>About this slice</h2>
-					{#each sliceNotes as note (note.id)}<div class="slice-thread"><ThreadPanel {note} /></div>{/each}
-				</section>
-			{/if}
-
 			<div class="finish">
-				<AskBar {slice} onslicenote={toAboutSlice} />
 				<span class="faint">{fileCounts.reviewed} of {fileCounts.total} {fileCounts.total === 1 ? 'file' : 'files'} reviewed</span>
 				{#if done}
 					<button class="btn" onclick={() => session.setReviewed(slice.hunks, false)}>Mark not reviewed</button>
@@ -193,6 +175,7 @@
 				{/if}
 			</div>
 		</main>
+		<AskBubble {slice} above={72} />
 	{:else}
 		<main><p>No slice “{sliceId}” in this PR.</p></main>
 	{/if}
@@ -336,33 +319,11 @@
 		margin: 0;
 		font-size: 13px;
 	}
-	.to-notes {
-		margin: 4px 0 0;
-		color: var(--muted);
-		font-size: 13.5px;
-	}
-	.about-slice {
-		display: grid;
-		gap: 14px;
-		margin-top: 40px;
-		max-width: 860px;
-		scroll-margin-top: 96px;
-	}
-	.about-slice h2 {
-		font-size: 22px;
-	}
-	.slice-thread {
-		border-radius: 14px;
-		background: var(--surface);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		overflow: hidden;
-	}
 	.finish {
 		position: sticky;
-		z-index: 5;
 		bottom: 0;
 		display: flex;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 12px;
 		margin-top: 12px;
@@ -372,9 +333,8 @@
 		/* Clicks reach the code under the fade; only the bar's own controls take them. */
 		pointer-events: none;
 	}
-	.finish > :global(*) {
+	.finish > * {
 		pointer-events: auto;
-		white-space: nowrap;
 	}
 	.big {
 		height: 42px;

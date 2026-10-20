@@ -6,10 +6,8 @@
 	import PreparingView from '$lib/features/preparing/PreparingView.svelte';
 	import ReviewModel from '$lib/features/preparing/ReviewModel.svelte';
 	import StateMark from '$lib/ui/StateMark.svelte';
-	import Composer, { type SendKind } from '$lib/features/reading/Composer.svelte';
-	import ThreadPanel from '$lib/features/reading/ThreadPanel.svelte';
+	import AskBubble from '$lib/features/reading/AskBubble.svelte';
 	import ThreadTriage from '$lib/features/threads/ThreadTriage.svelte';
-	import { looseNotesFrom } from '$lib/features/reading/marks';
 	import { isGenerating, isSliceReviewed, useSession } from '$lib/session/session.svelte';
 
 	// The Overview: what the PR is, its slices, and the review panel to start
@@ -19,10 +17,6 @@
 	const session = useSession();
 	// The panel's findings about the whole PR, rather than a file.
 	const wholePr = $derived(session.looseFindings.filter((f) => !f.mark.path).map((f) => f.mark));
-	// Your threads on the PR as a whole, and the one being written.
-	const prThreads = $derived(looseNotesFrom(session.record).filter((n) => !n.path && !n.slice));
-	let draft = $state('');
-	const startThread = (text: string, kind: SendKind) => session.createNote({ path: '' }, text, { comment: kind === 'comment' });
 	const base = $derived(session.base);
 	const summary = $derived(session.record.summary);
 	const githubUrl = $derived(
@@ -66,15 +60,14 @@
 				</ol>
 			</div>
 
-			<!-- Findings and your threads about the PR as a whole have no file to
-			     sit on in the diff. Your comments here lead the posted review. -->
-			<div class="block whole-pr">
-				<h2>About the PR as a whole</h2>
-				{#each wholePr as mark (mark.id)}<FindingCard {mark} />{/each}
-				<!-- Your threads sit by the box they're asked from, so a new one appears where you asked it. -->
-				{#each prThreads as note (note.id)}<div class="pr-thread"><ThreadPanel {note} /></div>{/each}
-				<Composer bind:value={draft} placeholder="Ask about the PR, or write a comment for the review…" onsend={startThread} />
-			</div>
+			<!-- The panel's findings about the PR as a whole have no file to sit
+			     on in the diff. Your own are asked from the corner. -->
+			{#if wholePr.length}
+				<div class="block whole-pr">
+					<h2>About the PR as a whole</h2>
+					{#each wholePr as mark (mark.id)}<FindingCard {mark} />{/each}
+				</div>
+			{/if}
 
 			<ThreadTriage />
 		</section>
@@ -83,6 +76,7 @@
 			<PanelCard />
 		</aside>
 	</main>
+	<AskBubble />
 {/if}
 
 <style>
@@ -182,11 +176,5 @@
 	aside {
 		position: sticky;
 		top: 96px;
-	}
-	.pr-thread {
-		border-radius: 14px;
-		background: var(--surface);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		overflow: hidden;
 	}
 </style>
