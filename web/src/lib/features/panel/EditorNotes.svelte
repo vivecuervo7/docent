@@ -14,8 +14,7 @@
 		setAside,
 		fontSize = 13,
 		chevron = 14,
-		tone = 'muted',
-		boxed = false
+		tone = 'muted'
 	}: {
 		impact?: string;
 		impactLevel?: string;
@@ -27,8 +26,6 @@
 		fontSize?: number;
 		chevron?: number;
 		tone?: 'muted' | 'faint';
-		// Each note opens in a box, like the reasoning beside it.
-		boxed?: boolean;
 	} = $props();
 
 	let open = $state<Record<string, boolean>>({});
@@ -54,13 +51,7 @@
 		<svg width={chevron} height={chevron} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={open[n.key] ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
 		{n.label}
 	</button>
-	{#if open[n.key]}
-		{#if boxed}
-			<p class="text boxed"><InlineText text={n.text} /></p>
-		{:else}
-			<p class="text" style:font-size="{fontSize}px" style:padding-left="{chevron + 6}px"><InlineText text={n.text} /></p>
-		{/if}
-	{/if}
+	{#if open[n.key]}<p class="text" style:font-size="{fontSize}px" style:padding-left="{chevron + 6}px"><InlineText text={n.text} /></p>{/if}
 {/each}
 
 <style>
@@ -82,12 +73,5 @@
 		margin: 0;
 		line-height: 1.55;
 		color: var(--muted);
-	}
-	.text.boxed {
-		padding: 10px 14px;
-		border-radius: 10px;
-		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
-		font-size: 13.5px;
-		line-height: 1.6;
 	}
 </style>

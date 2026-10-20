@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { raisedBy } from '../panel/findings';
 	import FilePath from '../../ui/FilePath.svelte';
-	import EditorNotes from '../panel/EditorNotes.svelte';
+	import Verdicts from './Verdicts.svelte';
 	import SeverityTag from '../panel/SeverityTag.svelte';
 	import type { Severity } from '$lib/types';
 	import type { LineRef } from '$lib/types';
@@ -85,6 +85,7 @@
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
 			<SeverityTag {severity} />
+			<Verdicts {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} />
 			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
 			{#if path}<span class="where"><FilePath {path} {lines} /></span>{/if}
 			{#if changed}
@@ -96,7 +97,6 @@
 		{#if rationale}
 			<div class="rationale"><NoteText text={rationale} /></div>
 		{/if}
-		<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" boxed />
 		{#if alsoBy.length}
 			<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
 				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
@@ -240,6 +240,7 @@
 	}
 	/* The agent's own reasoning, on the half brown of Docent's thread replies. */
 	.rationale {
+		margin-top: 6px;
 		padding: 10px 14px;
 		border-radius: 10px;
 		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
