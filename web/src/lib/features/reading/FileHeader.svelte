@@ -74,34 +74,6 @@
 		<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
 		<span class="path"><FilePath path={file.filename} /></span>
 	</button>
-	<button
-		class="icon comment-file"
-		class:shown={composing}
-		bind:this={commentButton}
-		aria-label="Ask about or comment on the whole file"
-		title="Ask about or comment on the whole file"
-		onclick={() => (composing = !composing)}
-	>
-		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-			><path d="M4 5h16v11H9l-5 4z" /><path d="M12 8.5v4M10 10.5h4" /></svg
-		>
-	</button>
-	{#if composing}
-		<Floating anchor={commentButton} placement="bottom-start" pointer={false} label="Ask about or comment on the whole file">
-			<div class="file-composer">
-				<span class="faint">{file.filename.split('/').pop()} · the whole file</span>
-				<Composer
-					bind:value={draft}
-					rows={2}
-					autofocus
-					actionsAlways
-					placeholder="Ask about this file, or write a comment on it…"
-					onsend={startThread}
-					onescape={() => (composing = false)}
-				/>
-			</div>
-		</Floating>
-	{/if}
 	<!-- The rest of the header opens and closes the file too. -->
 	<button class="toggle rest" tabindex="-1" aria-hidden="true" onclick={() => (collapsed = !collapsed)}>
 		<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
@@ -114,11 +86,24 @@
 				>{/each}</span
 		>
 	{/if}
-	{#if collapsed ? summary : wholeFile.length || fileThreads.length || githubThreads.length}
-		<!-- A closed file shows one marker while findings await confirming or
-		     anything is new to read; an open one shows the findings about the
-		     whole file, which have no lines to sit on. -->
-		<span class="pins">
+	<!-- In the gutter with the pins: asking about the file, then, on a closed
+	     file, one marker while findings await confirming or anything is new
+	     to read; on an open one, the findings about the whole file, which
+	     have no lines to sit on. -->
+	<span class="pins">
+			<button
+				class="comment-file"
+				class:shown={composing}
+				bind:this={commentButton}
+				aria-label="Ask about or comment on the whole file"
+				title="Ask about or comment on the whole file"
+				onclick={() => (composing = !composing)}
+			>
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+					><path d="M4 5h16v11H9l-5 4z" /><path d="M12 8.5v4M10 10.5h4" /></svg
+				>
+			</button>
+		{#if collapsed ? summary : wholeFile.length || fileThreads.length || githubThreads.length}
 			{#if collapsed && summary}
 				{@const label = summary.count
 					? `${summary.count} ${summary.count === 1 ? 'finding' : 'findings'} to confirm`
@@ -140,6 +125,7 @@
 						kind="finding"
 						id={m.id}
 						skipped={m.included === false}
+						filtered={!!m.filtered}
 						active={session.openMark === m.id}
 						unread={m.unread}
 						unreadLabel="New answer"
@@ -177,7 +163,23 @@
 					/>
 				{/each}
 			{/if}
-		</span>
+		{/if}
+	</span>
+	{#if composing}
+		<Floating anchor={commentButton} placement="bottom-end" pointer={false} label="Ask about or comment on the whole file">
+			<div class="file-composer">
+				<span class="faint">{file.filename.split('/').pop()} · the whole file</span>
+				<Composer
+					bind:value={draft}
+					rows={2}
+					autofocus
+					actionsAlways
+					placeholder="Ask about this file, or write a comment on it…"
+					onsend={startThread}
+					onescape={() => (composing = false)}
+				/>
+			</div>
+		</Floating>
 	{/if}
 	<!-- Outside the pins, whose transform would trap the bubble under the diff. -->
 	{#each wholeFile as m (m.id)}
@@ -295,11 +297,18 @@
 		display: flex;
 		gap: 4px;
 	}
-	/* Beside the file's name, where asking about the file comes to mind. */
+	/* Asking about the whole file, first in the gutter beside the file's
+	   name, where the pins on its lines sit too. */
 	.comment-file {
-		flex-shrink: 0;
-		margin-left: 6px;
+		display: grid;
+		place-items: center;
+		width: 20px;
+		height: 18px;
+		padding: 0;
+		border: 0;
+		background: none;
 		color: var(--faint);
+		cursor: pointer;
 	}
 	.comment-file:hover,
 	.comment-file.shown {
