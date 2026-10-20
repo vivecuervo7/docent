@@ -334,6 +334,52 @@ export class PrSession {
 		if (refused.length) throw new Error(`GitHub didn't change ${refused.length === 1 ? 'a thread' : `${refused.length} threads`}: ${refused[0].error}`);
 	}
 
+	// A GitHub thread's lines as they read in the round, with +/- markers;
+	// none once they've moved.
+	threadCode(thread: GitHubThread): string {
+		const { start, end } = thread;
+		const hunk = start && end ? nearestHunk(this.hunks.get(thread.path) ?? [], start) : undefined;
+		return hunk && start && end ? codeIn(hunk, start, end) : '';
+	}
+
+	// Checks whether the round addresses these GitHub threads. The checks run
+	// on the backend and are saved into the round as each is made.
+	async checkThreads(threads: GitHubThread[]) {
+		if (!threads.length) return;
+		const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-threads/check`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				model: this.record.model,
+				threads: threads.map((t) => {
+					const file = this.files.find((f) => f.filename === t.path);
+					const lines =
+						t.start && t.end
+							? noteWhere({ path: t.path, start: t.start, end: t.end })
+							: t.outdated
+								? `outdated: its lines have changed since${t.originalLine ? `; it was left on line ${t.originalLine}` : ''}`
+								: 'the whole file';
+					return {
+						id: t.id,
+						entries: t.entries.length,
+						context: {
+							path: t.path,
+							lines,
+							code: this.threadCode(t),
+							fileDiff: file?.patch ?? '',
+							...(file?.rangeLines ? { roundLines: describeLines(file.rangeLines.new) } : {}),
+							github: [t.diffHunk ? `Left on:\n${t.diffHunk}` : '', ...t.entries.map((e) => `${e.author}: ${e.body}`)].filter(Boolean).join('\n\n')
+						}
+					};
+				}),
+				...(this.round !== null ? { round: this.round } : {})
+			})
+		});
+		await readOk(res);
+		await this.reload();
+		this.watch();
+	}
+
 	// What's been said on GitHub again, after changing it.
 	async refreshGitHub() {
 		const comments = await readOk<GitHubComments>(await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`));
@@ -783,7 +829,9 @@ export class PrSession {
 			const r = this.record;
 			const awaited = [...r.notes, ...Object.values(r.feedback).flatMap((d) => d?.items ?? [])].some((x) => x.awaiting);
 			const working =
-				Object.values(r.jobs ?? {}).some((job) => job?.status === 'running') || r.agentReviewers.some((a) => a.picking);
+				Object.values(r.jobs ?? {}).some((job) => job?.status === 'running') ||
+				r.agentReviewers.some((a) => a.picking) ||
+				Object.values(r.threadChecks ?? {}).some((c) => c.checking);
 			if ((!awaited && !working) || this.#closed) {
 				clearInterval(this.#watching!);
 				this.#watching = null;

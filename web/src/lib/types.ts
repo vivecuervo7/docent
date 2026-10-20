@@ -264,6 +264,8 @@ export interface PrRecord {
 	// Set once the reviewer marks the review complete, after posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
+	// Whether the round addresses each GitHub thread, by thread id.
+	threadChecks?: Record<string, ThreadCheck>;
 	// Work on the round a model's still doing, or has done and the page hasn't
 	// made its own yet: drafting your comments, preparing the review.
 	jobs?: Partial<Record<'draft' | 'prepare', Job>>;
@@ -271,6 +273,18 @@ export interface PrRecord {
 	rounds?: Round[];
 	// Asked for when it was begun: start the panel once it's prepared.
 	reviewWhenPrepared?: boolean;
+}
+
+export interface ThreadCheck {
+	checking?: boolean;
+	verdict?: 'addressed' | 'not-yet' | 'unclear';
+	reason?: string;
+	// A reply to post on the thread, when it isn't addressed.
+	reply?: string;
+	error?: string;
+	at: number;
+	// How many comments the thread had when checked.
+	entries: number;
 }
 
 export interface Job {
@@ -299,6 +313,7 @@ export type Round = Partial<
 		| 'preparedHead'
 		| 'completedAt'
 		| 'jobs'
+		| 'threadChecks'
 	>
 >;
 
