@@ -11,13 +11,16 @@
 	// Below it, your own thread about it, begun by asking - or by asking
 	// whether the changes under review have addressed it.
 	// Without `onclose` it sits in the page rather than a bubble.
+	// Beside the code, it's for reading: it's acted on from the Overview.
 	let {
 		thread,
 		comment,
+		readonly = false,
 		onclose
 	}: {
 		thread?: GitHubThread;
 		comment?: GitHubComments['general'][number];
+		readonly?: boolean;
 		onclose?: () => void;
 	} = $props();
 
@@ -70,7 +73,12 @@
 			</button>
 		{/if}
 	</header>
-	{#if thread?.node}
+	{#if thread && readonly}
+		<div class="state">
+			<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
+			<a class="link" href="{session.base}?thread={thread.id}">Open on the Overview</a>
+		</div>
+	{:else if thread?.node}
 		<div class="state">
 			<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
 			<button class="link" disabled={busy} onclick={() => act({ resolved: !thread?.resolved })}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
@@ -85,7 +93,7 @@
 			</li>
 		{/each}
 	</ol>
-	{#if thread?.node}
+	{#if thread?.node && !readonly}
 		<div class="reply">
 			<textarea rows="1" placeholder="Reply on GitHub…" bind:value={reply} disabled={busy}></textarea>
 			{#if reply.trim()}
@@ -100,7 +108,7 @@
 	{/if}
 	{#if yours}
 		<div class="yours"><ThreadPanel note={yours} title="Your thread about it" /></div>
-	{:else}
+	{:else if !readonly}
 		<div class="ask">
 			<button class="chip" onclick={() => session.askAboutGitHub(id, 'Has this been addressed?', { prompt: ADDRESSED })}>Has this been addressed?</button>
 			<Composer bind:value={draft} placeholder="Ask Docent about this comment…" onsend={ask} />

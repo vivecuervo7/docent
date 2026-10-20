@@ -8,13 +8,16 @@ import { nearestHunk, parseFilePatch, type Hunk } from '../features/reading/diff
 import { Panel, sessionId } from '../features/panel/panel.svelte';
 import { ReviewPost } from '../features/posting/post.svelte';
 import { everythingElse, isSliceReviewed } from '../features/reading/progress';
-import { readPref, writePref } from '../ui/prefs';
+import { readChoice, readPref, writeChoice, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
 import { beginRound, dropRound, keepRound, roundView } from '../storage/rounds';
 import { isNewFinding, isUnread, noteWhere, type FeedbackItem, type Generation, type GitHubComments, type GitHubThread, type Job, type PrCommit, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type Slice, type StepName } from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
+
+export const GITHUB_IN_DIFF = ['hidden', 'open', 'all'] as const;
+export type GitHubInDiff = (typeof GITHUB_IN_DIFF)[number];
 
 export function isGenerating(generation: Generation | null | undefined): boolean {
 	return generation?.status === 'queued' || generation?.status === 'running';
@@ -83,6 +86,9 @@ export class PrSession {
 	// A round of some commits shown as the PR sees it, against the base
 	// branch, or as its commits made it, rework included.
 	commitView = $state(readPref('docent.commitView', false));
+	// GitHub threads beside the code while reading. They're gone through on
+	// the Overview, so reading shows none unless asked.
+	githubInDiff = $state(readChoice('docent.githubInDiff', 'hidden', GITHUB_IN_DIFF));
 
 	// Each file's hunks, parsed once.
 	readonly hunks = $derived(new Map<string, Hunk[]>(this.files.map((f) => [f.filename, parseFilePatch(f.patch ?? '')])));
@@ -155,6 +161,12 @@ export class PrSession {
 				}),
 			general: this.github.general.filter((c) => leftBy(c.createdAt))
 		};
+	});
+	// What of that sits beside the code while reading.
+	readonly githubInReading = $derived.by((): GitHubComments | null => {
+		const shown = this.githubShown;
+		if (!shown || this.githubInDiff === 'hidden') return null;
+		return this.githubInDiff === 'all' ? shown : { ...shown, threads: shown.threads.filter((t) => !t.resolved) };
 	});
 	// The commit the round before the latest read up to.
 	readonly previousHead = $derived(this.#stored.rounds?.at(-1)?.range?.to ?? this.#stored.rounds?.at(-1)?.preparedHead);
@@ -234,6 +246,11 @@ export class PrSession {
 	setCommitView(value: boolean) {
 		this.commitView = value;
 		writePref('docent.commitView', value);
+	}
+
+	setGitHubInDiff(value: GitHubInDiff) {
+		this.githubInDiff = value;
+		writeChoice('docent.githubInDiff', value);
 	}
 
 	// Ticks or unticks hunks, by key (`path#index`).

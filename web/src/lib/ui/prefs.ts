@@ -15,3 +15,21 @@ export function writePref(key: string, value: boolean) {
 		// Not kept, which only means the default next time.
 	}
 }
+
+// A preference that's one of a few choices.
+export function readChoice<T extends string>(key: string, fallback: T, choices: readonly T[]): T {
+	try {
+		const value = localStorage.getItem(key);
+		return choices.includes(value as T) ? (value as T) : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+export function writeChoice(key: string, value: string) {
+	try {
+		localStorage.setItem(key, value);
+	} catch {
+		// Not kept, which only means the default next time.
+	}
+}

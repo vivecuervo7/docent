@@ -47,7 +47,7 @@
 
 	const session = useSession();
 	// GitHub threads on the file with no lines here: outdated, or on the whole file.
-	const githubThreads = $derived(looseGitHubThreads(session.githubShown, file.filename));
+	const githubThreads = $derived(looseGitHubThreads(session.githubInReading, file.filename));
 
 	// Starting a thread on the whole file, from the header's comment button.
 	let composing = $state(false);
@@ -194,7 +194,7 @@
 	{#each githubThreads as t (t.id)}
 		{#if session.openMark === t.id}
 			<Floating anchor={openAnchor} label="GitHub thread">
-				<GitHubThreadPanel thread={t} onclose={() => (session.openMark = null)} />
+				<GitHubThreadPanel thread={t} readonly onclose={() => (session.openMark = null)} />
 			</Floating>
 		{/if}
 	{/each}

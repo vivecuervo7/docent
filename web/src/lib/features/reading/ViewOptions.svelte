@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { useSession } from '$lib/session/session.svelte';
+	import { GITHUB_IN_DIFF, useSession } from '$lib/session/session.svelte';
 
 	// How the diffs are shown. Kept in this browser.
 	const session = useSession();
 	let open = $state(false);
 	// Only a round of some of the PR's commits can be shown either way.
 	const inRound = $derived(session.files.some((f) => f.rangeLines));
+	const GITHUB_LABELS = { hidden: 'Hidden', open: 'Open only', all: 'All' };
 
 	$effect(() => {
 		if (!open) return;
@@ -39,8 +40,17 @@
 					<small class="faint">Imports, test setup and new test bodies fold, showing what changed inside.</small>
 				</span>
 			</label>
+			<div class="choice">
+				<span class="label">GitHub threads in the diff</span>
+				<div class="switch" role="radiogroup" aria-label="GitHub threads in the diff">
+					{#each GITHUB_IN_DIFF as choice (choice)}
+						<button role="radio" aria-checked={session.githubInDiff === choice} onclick={() => session.setGitHubInDiff(choice)}>{GITHUB_LABELS[choice]}</button>
+					{/each}
+				</div>
+				<small class="faint">They’re gone through on the Overview. Shown here, they’re for reading beside the code.</small>
+			</div>
 			{#if inRound}
-				<div class="round-view">
+				<div class="choice">
 					<span class="label">Round shown as</span>
 					<div class="switch" role="radiogroup" aria-label="Round shown as">
 						<button role="radio" aria-checked={!session.commitView} onclick={() => session.setCommitView(false)}>PR view</button>
@@ -101,7 +111,7 @@
 		font-size: 12.5px;
 		line-height: 1.4;
 	}
-	.round-view {
+	.choice {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;

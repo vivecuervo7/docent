@@ -384,7 +384,7 @@
 		const id = session.revealing;
 		if (!id) return;
 		untrack(() => {
-			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id) || looseGitHubThreads(session.githubShown, file.filename).some((t) => t.id === id)) {
+			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id) || looseGitHubThreads(session.githubInReading, file.filename).some((t) => t.id === id)) {
 				session.revealing = null;
 				collapsed = false;
 				session.openMark = id;
@@ -509,7 +509,7 @@
 			{#if session.openMark === p.mark.id}
 				<Floating anchor={openAnchor} label={p.mark.github ? 'GitHub thread' : p.mark.note ? 'Thread' : 'Finding'} tone={p.mark.kind === 'finding' ? 'agent' : 'plain'}>
 					{#if p.mark.github}
-						<GitHubThreadPanel thread={p.mark.github} onclose={() => (session.openMark = null)} />
+						<GitHubThreadPanel thread={p.mark.github} readonly onclose={() => (session.openMark = null)} />
 					{:else if p.mark.note}
 						<ThreadPanel note={p.mark.note} onclose={() => (session.openMark = null)} />
 					{:else}

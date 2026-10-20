@@ -35,7 +35,7 @@
 		const subject = path.replace(/(^|\/)(__tests__|tests?)\//, '$1').replace(/\.(test|spec)(\.[^/.]+)$/, '$2');
 		return `${subject}\u0000${isTest ? 1 : 0}`;
 	}
-	const marks = $derived([...marksFrom(session.record), ...githubMarksFrom(session.githubShown, session.record)]);
+	const marks = $derived([...marksFrom(session.record), ...githubMarksFrom(session.githubInReading, session.record)]);
 
 	const files = $derived.by(() => {
 		const byFile = new Map<string, number[]>();
