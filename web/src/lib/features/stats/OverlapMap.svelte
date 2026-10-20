@@ -104,8 +104,24 @@
 			: []
 	);
 	const lit = (id: string) => !focus || id === focus.id || partners.some((p) => p.id === id);
-	const share = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
 </script>
+
+<!-- A figure, and how much of it only this reviewer raised against how
+     much another did too. -->
+{#snippet split(label: string, tone: string, unique: number, corroborated: number)}
+	<div class="figure">
+		<span>{label}</span>
+		<span class="value">{unique + corroborated}</span>
+	</div>
+	<div class="split {tone}" role="img" aria-label="{unique} unique, {corroborated} corroborated">
+		<span class="unique" style:flex={unique}></span>
+		<span class="corroborated" style:flex={corroborated}></span>
+	</div>
+	<div class="ends faint">
+		<span>unique {unique}</span>
+		<span>{corroborated} corroborated</span>
+	</div>
+{/snippet}
 
 <div class="map">
 	<svg viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-label="How the reviewers' kept findings overlap">
@@ -138,27 +154,13 @@
 	</svg>
 	<!-- What pointing at a reviewer tells, in the corner. -->
 	{#if focus}
-		<dl class="legend">
-			<dt class="who">{focus.name}</dt>
-			<dd></dd>
-			<dt>Kept</dt>
-			<dd>{focus.kept}</dd>
-			<dt>Unique</dt>
-			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
-			<dt>Corroborated</dt>
-			<dd>{focus.kept - focus.alone} <span class="faint">({share(focus.kept - focus.alone, focus.kept)}%)</span></dd>
-			<span class="rule" aria-hidden="true"></span>
-			<dt>Kicked back</dt>
-			<dd>{focus.kickedBack}</dd>
+		<div class="legend">
+			<span class="who">{focus.name}</span>
+			{@render split('Kept', 'kept', focus.alone, focus.kept - focus.alone)}
 			{#if focus.kickedBack}
-				<dt>Unique</dt>
-				<dd>{focus.aloneKicked} <span class="faint">({share(focus.aloneKicked, focus.kickedBack)}%)</span></dd>
-				<dt>Corroborated</dt>
-				<dd>
-					{focus.kickedBack - focus.aloneKicked} <span class="faint">({share(focus.kickedBack - focus.aloneKicked, focus.kickedBack)}%)</span>
-				</dd>
+				{@render split('Kicked back', 'kicked', focus.aloneKicked, focus.kickedBack - focus.aloneKicked)}
 			{/if}
-		</dl>
+		</div>
 	{/if}
 	<p class="hint faint">Kept findings, overlapping where reviewers raised the same point. Point at one for its figures.</p>
 </div>
@@ -220,35 +222,57 @@
 		position: absolute;
 		top: 14px;
 		left: 16px;
-		display: grid;
-		grid-template-columns: auto auto;
-		gap: 4px 18px;
-		margin: 0;
-		padding: 10px 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+		width: 210px;
+		padding: 10px 12px 12px;
 		border-radius: 10px;
 		background: color-mix(in srgb, var(--surface) 88%, transparent);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		font-size: 12.5px;
 		pointer-events: none;
 	}
-	.legend dt {
-		color: var(--muted);
-	}
-	.legend dd {
-		margin: 0;
-		text-align: right;
-		font-variant-numeric: tabular-nums;
-	}
-	/* Kicked back set apart from kept, each with its own unique and
-	   corroborated beneath it. */
-	.legend .rule {
-		grid-column: 1 / -1;
-		margin: 3px 0;
-		border-top: 1px solid var(--line-2);
-	}
 	.legend .who {
 		color: var(--text);
 		font-weight: 500;
+	}
+	.figure {
+		display: flex;
+		justify-content: space-between;
+		margin-top: 4px;
+		color: var(--muted);
+	}
+	.value {
+		color: var(--text);
+		font-variant-numeric: tabular-nums;
+	}
+	/* Unique the brighter side, corroborated the softer; green for kept, red
+	   for kicked back. */
+	.split {
+		display: flex;
+		gap: 2px;
+		height: 6px;
+		border-radius: 3px;
+		overflow: hidden;
+	}
+	.split.kept .unique {
+		background: #7fd89b;
+	}
+	.split.kept .corroborated {
+		background: #4f7f5e;
+	}
+	.split.kicked .unique {
+		background: #e3a19b;
+	}
+	.split.kicked .corroborated {
+		background: #8a5f5a;
+	}
+	.ends {
+		display: flex;
+		justify-content: space-between;
+		font-size: 11.5px;
+		font-variant-numeric: tabular-nums;
 	}
 	.hint {
 		margin: 0;
