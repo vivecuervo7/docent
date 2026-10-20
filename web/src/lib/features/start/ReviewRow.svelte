@@ -65,7 +65,7 @@
 				{#each rounds as r, i (r.n)}
 					<span class="round">
 						{#if !nextFirst && i === rounds.length - 1}
-							<a class="badge {r.tone}" href={r.href}>{#if r.tone === 'working'}<Spinner size={11} />{/if}{r.label}</a>
+							<a class="badge {r.tone}" href={r.href}>{#if r.tone === 'working'}<Spinner size={11} tone="you" />{/if}{r.label}</a>
 						{:else}
 							<a class="hit" href={r.href} aria-label="Round {r.n} · {r.label}"
 								><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a
@@ -247,7 +247,12 @@
 	}
 	.badge.working,
 	.mark.working {
-		--tone: #e8e2d6;
+		--tone: #8ab4ff;
+	}
+	/* Under way: Ready's blue, outlined but not yet filled. */
+	.badge.working {
+		background: none;
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 70%, transparent);
 	}
 	.badge.ready,
 	.mark.ready {
