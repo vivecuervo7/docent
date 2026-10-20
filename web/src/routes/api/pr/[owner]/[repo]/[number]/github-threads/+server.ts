@@ -1,6 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { changeThreads } from '$lib/github/comments.server.js';
+import { tally } from '$lib/features/stats/tallies.server.js';
 import { badRequest, bodyOf, failed, validParams } from '$lib/api/http.server.js';
 
 // Replies to, resolves or reopens inline threads on GitHub, as the reviewer
@@ -21,7 +22,9 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 		);
 	if (!validParams(owner, repo, number) || !valid) return badRequest('invalid thread changes');
 	try {
-		return json({ results: await changeThreads({ owner, repo, number }, changes) });
+		const results = await changeThreads({ owner, repo, number }, changes);
+		for (const r of results) if (!r.error && changes.find((c: { node: string }) => c.node === r.node)?.resolved === true) tally('resolved');
+		return json({ results });
 	} catch (err) {
 		return failed(err);
 	}

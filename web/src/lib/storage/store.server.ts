@@ -29,6 +29,15 @@ const db = persistent("db", () => {
   return opened;
 });
 
+// The database itself, for what's kept beside the reviews.
+export const database = () => db;
+
+// Told of each review saved or deleted, by what keeps track of them.
+const watchers = persistent("record-watchers", () => [] as { saved: (key: string, record: Record<string, unknown>) => void; deleted: (key: string) => void }[]);
+export function onRecordChange(watcher: (typeof watchers)[number]) {
+  watchers.push(watcher);
+}
+
 export interface StoredRecord {
   record: Record<string, unknown>;
   // 0 for a PR with nothing saved yet.
@@ -61,6 +70,7 @@ export function putRecord(key: string, record: Record<string, unknown>, version:
       ? db.prepare("INSERT INTO prs (key, record, version) VALUES (?, ?, 1) ON CONFLICT(key) DO NOTHING").run(key, json)
       : db.prepare("UPDATE prs SET record = ?, version = ? WHERE key = ? AND version = ?").run(json, next, key, version);
   if (result.changes === 0) throw new VersionConflict(getRecord(key));
+  for (const w of watchers) w.saved(key, record);
   return next;
 }
 
@@ -89,4 +99,5 @@ export function listRecords(): { key: string; record: Record<string, unknown> }[
 
 export function deleteRecord(key: string): void {
   db.prepare("DELETE FROM prs WHERE key = ?").run(key);
+  for (const w of watchers) w.deleted(key);
 }

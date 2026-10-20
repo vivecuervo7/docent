@@ -9,6 +9,7 @@ import { request as httpsRequest } from "node:https";
 import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.server.js";
 import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.server.js";
 import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "../storage/settings.server.js";
+import { tally } from "../features/stats/tallies.server.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -139,6 +140,7 @@ export async function chatWithTool(
   access?: CodeAccess,
 ): Promise<ToolCall> {
   const resolved = target(model);
+  tally("call");
   if (resolved.kind === "claude-code") return claudeCodeChatWithTool(resolved.alias, messages, tool, signal, access);
   if (resolved.kind === "codex") return codexChatWithTool(resolved.model, messages, tool, signal, access);
 
@@ -174,6 +176,7 @@ export async function chatWithTool(
 // in the message content.
 export async function chat(messages: ChatMessage[], signal?: AbortSignal, model = modelName(), access?: CodeAccess): Promise<string> {
   const resolved = target(model);
+  tally("call");
   if (resolved.kind === "claude-code") return claudeCodeChat(resolved.alias, messages, signal, access);
   if (resolved.kind === "codex") return codexChat(resolved.model, messages, signal, access);
 
