@@ -2,14 +2,20 @@
 	import type { Snippet } from 'svelte';
 
 	// A centred card over a dimmed page. Escape or a click on the dimmed
-	// area closes it.
-	let { label, width = 660, onclose, children }: { label: string; width?: number; onclose: () => void; children: Snippet } = $props();
+	// area closes it. `middle` centres it down the page too.
+	let {
+		label,
+		width = 660,
+		middle = false,
+		onclose,
+		children
+	}: { label: string; width?: number; middle?: boolean; onclose: () => void; children: Snippet } = $props();
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
 <div class="scrim" role="presentation" onclick={onclose}></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label={label} style:width="{width}px">
+<div class="dialog" class:middle role="dialog" aria-modal="true" aria-label={label} style:width="{width}px">
 	{@render children()}
 </div>
 
@@ -39,5 +45,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
+	}
+	.dialog.middle {
+		top: 50%;
+		transform: translate(-50%, -50%);
 	}
 </style>

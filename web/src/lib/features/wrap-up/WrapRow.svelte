@@ -87,19 +87,6 @@
 		].filter((p): p is string => !!p)
 	);
 
-	// A long comment shows its first few lines until opened out.
-	let bodyEl = $state<HTMLElement | null>(null);
-	let long = $state(false);
-	let showAll = $state(false);
-	$effect(() => {
-		if (!bodyEl) return;
-		const measure = () => (long = bodyEl!.scrollHeight > bodyEl!.clientHeight + 4 || showAll);
-		const observer = new ResizeObserver(measure);
-		observer.observe(bodyEl);
-		measure();
-		return () => observer.disconnect();
-	});
-
 	let showingDiff = $state(false);
 	const lines = $derived.by(() => {
 		if (!start) return undefined;
@@ -120,56 +107,53 @@
 				{#if onredraft}<button class="redraft" onclick={onredraft}>Redraft</button>{/if}
 			{/if}
 		</div>
-		<div class="body" class:clamped={!showAll} bind:this={bodyEl}><NoteText text={body} /></div>
-		{#if long}
-			<button class="more" onclick={() => (showAll = !showAll)}>{showAll ? 'Show less' : 'Show all'}</button>
-		{/if}
-		{#if showDetails}
-			<div class="details">
-				<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" />
-				{#if rationale}<div class="rationale"><NoteText text={rationale} /></div>{/if}
-				{#if alsoBy.length}
-					<ol class="talk">
-						{#each alsoBy as a, i (i)}
-							<li>
-								{#if a.who !== alsoBy[i - 1]?.who}<span class="role">{a.who}</span>{/if}
-								<div class="rationale-text"><NoteText text={a.body} /></div>
-							</li>
-						{/each}
-					</ol>
-				{/if}
-				{#if messages.length}
-					<ol class="talk">
-						{#each messages as m, i (i)}
-							<li class={m.role}>
-								<span class="role">{m.role === 'user' ? 'You' : who}</span>
-								<div class="rationale-text"><NoteText text={m.text} /></div>
-							</li>
-						{/each}
-					</ol>
-				{/if}
-			</div>
-		{/if}
-		{#if detailParts.length || (path && start)}
-			<div class="foot">
-				{#if detailParts.length}
-					<button class="why" aria-expanded={showDetails} onclick={() => (showDetails = !showDetails)}>
-						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showDetails ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
-						{detailParts.join(' · ')}
-					</button>
-				{/if}
-				{#if path && start}<button class="link" onclick={() => (showingDiff = true)}>Show diff</button>{/if}
-			</div>
-		{/if}
+		<div class="body"><NoteText text={body} /></div>
 	</div>
 	<div class="decide" role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
 		<button class="keep" class:on={kept === true} class:suggested aria-pressed={kept === true} onclick={onkeep}>Keep</button>
 		<button class="skip" class:on={kept === false} class:suggested aria-pressed={kept === false} onclick={onskip}>Skip</button>
 	</div>
+	{#if detailParts.length || (path && start)}
+		<div class="foot">
+			{#if detailParts.length}
+				<button class="why" aria-expanded={showDetails} onclick={() => (showDetails = !showDetails)}>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showDetails ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+					{detailParts.join(' · ')}
+				</button>
+			{/if}
+			{#if path && start}<button class="link" onclick={() => (showingDiff = true)}>Show diff</button>{/if}
+		</div>
+	{/if}
+	{#if showDetails}
+		<div class="details">
+			<EditorNotes {...notes} speculative={notes ? speculative : undefined} {onPr} {setAside} fontSize={12.5} chevron={13} tone="faint" />
+			{#if rationale}<div class="rationale"><NoteText text={rationale} /></div>{/if}
+			{#if alsoBy.length}
+				<ol class="talk">
+					{#each alsoBy as a, i (i)}
+						<li>
+							{#if a.who !== alsoBy[i - 1]?.who}<span class="role">{a.who}</span>{/if}
+							<div class="rationale-text"><NoteText text={a.body} /></div>
+						</li>
+					{/each}
+				</ol>
+			{/if}
+			{#if messages.length}
+				<ol class="talk">
+					{#each messages as m, i (i)}
+						<li class={m.role}>
+							<span class="role">{m.role === 'user' ? 'You' : who}</span>
+							<div class="rationale-text"><NoteText text={m.text} /></div>
+						</li>
+					{/each}
+				</ol>
+			{/if}
+		</div>
+	{/if}
 </li>
 
 {#if showingDiff && path && start}
-	<Dialog label="The lines it's on" width={820} onclose={() => (showingDiff = false)}>
+	<Dialog label="The lines it's on" width={820} middle onclose={() => (showingDiff = false)}>
 		<FindingLines mark={{ path, start, end: end ?? start }} />
 		<div class="dialog-foot">
 			{#if onshow}<button class="link" onclick={() => ((showingDiff = false), onshow())}>Open in the slice</button>{/if}
@@ -180,9 +164,10 @@
 
 <style>
 	.row {
-		display: flex;
-		align-items: flex-start;
-		gap: 24px;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+		gap: 8px 24px;
 		padding: 16px 16px 16px 18px;
 		border-top: 1px solid var(--line);
 	}
@@ -190,7 +175,9 @@
 		border-top: 0;
 	}
 	/* A skip fades the row; Keep's own fill says it's kept. */
-	.row.skipped > .text {
+	.row.skipped > .text,
+	.row.skipped > .foot,
+	.row.skipped > .details {
 		opacity: 0.55;
 	}
 	.changed {
@@ -246,29 +233,15 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.clamped {
-		max-height: calc(14.5px * 1.6 * 4);
-		overflow: hidden;
-		mask-image: linear-gradient(black 60%, transparent);
-	}
-	.more {
-		align-self: flex-start;
-		border: 0;
-		background: none;
-		padding: 0;
-		color: var(--muted);
-		font: inherit;
-		font-size: 12.5px;
-		text-decoration: underline;
-		text-underline-offset: 3px;
-		cursor: pointer;
-	}
 	.details {
+		grid-column: 1 / -1;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
+	/* Under both columns, so Show diff ends where Keep and Skip do. */
 	.foot {
+		grid-column: 1 / -1;
 		display: flex;
 		align-items: baseline;
 		gap: 12px;
