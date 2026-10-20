@@ -264,10 +264,6 @@ export interface PrRecord {
 	// Set once the reviewer marks the review complete, after posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
-	// GitHub threads to resolve or reopen when the review's posted, or the
-	// round completed, by thread id.
-	// Reopening can carry a reply to the thread saying why.
-	threadChanges?: Record<string, { node: string; resolve: boolean; reply?: string }>;
 	// Work on the round a model's still doing, or has done and the page hasn't
 	// made its own yet: drafting your comments, preparing the review.
 	jobs?: Partial<Record<'draft' | 'prepare', Job>>;
@@ -303,7 +299,6 @@ export type Round = Partial<
 		| 'preparedHead'
 		| 'completedAt'
 		| 'jobs'
-		| 'threadChanges'
 	>
 >;
 
@@ -400,8 +395,6 @@ export interface ReviewPayload {
 	event?: ReviewEvent;
 	body: string;
 	comments: { path: string; line: number; start_line?: number; body: string }[];
-	// Replies to threads already on the PR, sent as part of the review.
-	replies?: { thread: string; body: string }[];
 }
 
 // Some of a PR's commits: those after `after`, up to and including `to`.

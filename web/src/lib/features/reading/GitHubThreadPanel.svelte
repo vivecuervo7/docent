@@ -25,9 +25,24 @@
 	const id = $derived(thread?.id ?? comment?.id ?? '');
 	const entries = $derived(thread?.entries ?? (comment ? [comment] : []));
 	const yours = $derived(session.record.notes.find((n) => n.github === id));
-	// Resolving or reopening it waits for the review to go out.
-	const marked = $derived(thread ? session.record.threadChanges?.[thread.id] : undefined);
 	let draft = $state('');
+	// Replying, resolving and reopening happen on GitHub there and then.
+	let reply = $state('');
+	let busy = $state(false);
+	let error = $state<string | null>(null);
+	async function act(change: { resolved?: boolean; reply?: string }) {
+		if (!thread || busy) return;
+		busy = true;
+		error = null;
+		try {
+			await session.changeThreads([{ thread, ...change }]);
+			if (change.reply) reply = '';
+		} catch (err) {
+			error = (err as Error).message;
+		} finally {
+			busy = false;
+		}
+	}
 
 	const ADDRESSED =
 		'Have the changes under review addressed this comment? Say what in them addresses it, or what is still left, by line.';
@@ -57,22 +72,9 @@
 	</header>
 	{#if thread?.node}
 		<div class="state">
-			{#if marked}
-				<span class="faint">{marked.resolve ? 'Resolving' : 'Reopening'} when you post this round’s review</span>
-				<button class="link" onclick={() => thread && session.markThread(thread, null)}>Undo</button>
-				{#if !marked.resolve}
-					<textarea
-						class="why"
-						rows="2"
-						placeholder="Reply with why it isn’t resolved (optional)"
-						value={marked.reply ?? ''}
-						onchange={(e) => thread && session.setThreadReply(thread.id, e.currentTarget.value)}
-					></textarea>
-				{/if}
-			{:else}
-				<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
-				<button class="link" onclick={() => thread && session.markThread(thread, !thread.resolved)}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
-			{/if}
+			<span class="faint">{thread.resolved ? 'Resolved on GitHub' : 'Open on GitHub'}</span>
+			<button class="link" disabled={busy} onclick={() => act({ resolved: !thread?.resolved })}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
+			{#if error}<span class="bad">{error}</span>{/if}
 		</div>
 	{/if}
 	<ol class="messages">
@@ -83,12 +85,25 @@
 			</li>
 		{/each}
 	</ol>
+	{#if thread?.node}
+		<div class="reply">
+			<textarea rows="1" placeholder="Reply on GitHub…" bind:value={reply} disabled={busy}></textarea>
+			{#if reply.trim()}
+				<div class="reply-actions">
+					<button class="btn" disabled={busy} onclick={() => act({ reply, resolved: !thread?.resolved })}>
+						{thread.resolved ? 'Reply and reopen' : 'Reply and resolve'}
+					</button>
+					<button class="btn primary" disabled={busy} onclick={() => act({ reply })}>Reply</button>
+				</div>
+			{/if}
+		</div>
+	{/if}
 	{#if yours}
 		<div class="yours"><ThreadPanel note={yours} title="Your thread about it" /></div>
 	{:else}
 		<div class="ask">
 			<button class="chip" onclick={() => session.askAboutGitHub(id, 'Has this been addressed?', { prompt: ADDRESSED })}>Has this been addressed?</button>
-			<Composer bind:value={draft} placeholder="Ask about this comment, or write a reply for the review…" onsend={ask} />
+			<Composer bind:value={draft} placeholder="Ask Docent about this comment…" onsend={ask} />
 		</div>
 	{/if}
 </div>
@@ -129,8 +144,23 @@
 	.state {
 		flex-wrap: wrap;
 	}
-	.why {
+	.bad {
 		flex-basis: 100%;
+		color: var(--danger);
+	}
+	.reply {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 12px 16px;
+		border-top: 1px solid var(--line-2);
+	}
+	.reply-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+	.reply textarea {
 		box-sizing: border-box;
 		resize: none;
 		field-sizing: content;
@@ -147,8 +177,12 @@
 		line-height: 1.5;
 		outline: none;
 	}
-	.why:focus {
+	.reply textarea:focus {
 		box-shadow: inset 0 0 0 1px var(--you);
+	}
+	.state .link:disabled {
+		opacity: 0.5;
+		cursor: default;
 	}
 	.state .link {
 		margin-left: auto;

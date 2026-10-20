@@ -84,19 +84,16 @@ async function threadStates(owner: string, repo: string, number: string): Promis
   return states;
 }
 
-// Resolves or reopens inline threads on GitHub, by their GitHub ids. Each
-// is tried on its own, so one GitHub refuses doesn't stop the rest.
-// One with a reply has it posted to the thread first, by the id of the
+// Replies to, resolves or reopens inline threads on GitHub, by their GitHub
+// ids, as the reviewer does it. Each is tried on its own, so one GitHub
+// refuses doesn't stop the rest. A reply goes first, by the id of the
 // thread's first comment.
-export async function setThreadsResolved(
+export async function changeThreads(
   ref: { owner: string; repo: string; number: string },
-  changes: { node: string; resolved: boolean; reply?: { comment: number; body: string } }[],
+  changes: { node: string; resolved?: boolean; reply?: { comment: number; body: string } }[],
 ): Promise<{ node: string; error?: string }[]> {
   return Promise.all(
     changes.map(async ({ node, resolved, reply }) => {
-      const mutation = resolved
-        ? "mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }"
-        : "mutation($id: ID!) { unresolveReviewThread(input: { threadId: $id }) { thread { id } } }";
       try {
         if (reply) {
           await execFileAsync("gh", [
@@ -108,7 +105,12 @@ export async function setThreadsResolved(
             `body=${reply.body}`,
           ]);
         }
-        await execFileAsync("gh", ["api", "graphql", "-f", `query=${mutation}`, "-F", `id=${node}`]);
+        if (resolved !== undefined) {
+          const mutation = resolved
+            ? "mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }"
+            : "mutation($id: ID!) { unresolveReviewThread(input: { threadId: $id }) { thread { id } } }";
+          await execFileAsync("gh", ["api", "graphql", "-f", `query=${mutation}`, "-F", `id=${node}`]);
+        }
         return { node };
       } catch (err) {
         const out = (err as { stdout?: string; stderr?: string }).stdout || (err as { stderr?: string }).stderr || (err as Error).message;

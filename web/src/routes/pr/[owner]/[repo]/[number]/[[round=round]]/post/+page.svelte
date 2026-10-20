@@ -80,26 +80,6 @@
 		}
 	}
 
-	// The GitHub threads this round marked to resolve or reopen, as GitHub has them.
-	const marked = $derived(
-		Object.entries(session.record.threadChanges ?? {}).map(([id, change]) => ({
-			id,
-			change,
-			thread: session.github?.threads.find((t) => t.id === id)
-		}))
-	);
-
-	// Finishing a round with nothing to post still sends the threads it marked.
-	async function completeWithoutPosting() {
-		postError = null;
-		try {
-			await post.applyThreadChanges();
-			post.setComplete(true);
-		} catch (err) {
-			postError = (err as Error).message;
-		}
-	}
-
 	async function send() {
 		posting = true;
 		postError = null;
@@ -151,25 +131,6 @@
 		<p class="bad">Couldn’t prepare the review: {post.prepareStatus.error}</p>
 	{/if}
 
-	{#if marked.length && !draft?.posted}
-		<section class="threads">
-			<h2>On GitHub, as this goes out</h2>
-			<ul>
-				{#each marked as m (m.id)}
-					<li>
-						<span class="what {m.change.resolve ? 'resolve' : 'reopen'}">{m.change.resolve ? 'Resolve' : 'Reopen'}</span>
-						<span class="which">
-							<span class="faint mono">{m.thread?.path.split('/').pop() ?? 'A thread'}{m.thread?.end ? ` · line ${m.thread.end.line}` : ''}</span>
-							<span class="gist">{m.thread?.entries[0]?.body.split('\n')[0] ?? ''}</span>
-							{#if !m.change.resolve && m.change.reply?.trim()}<span class="reply">Your reply: {m.change.reply.trim()}</span>{/if}
-						</span>
-						<button class="link" onclick={() => m.thread && session.markThread(m.thread, null)}>Leave as it is</button>
-					</li>
-				{/each}
-			</ul>
-		</section>
-	{/if}
-
 	<!-- A review can be finished with nothing posted: your own PR, say, with
 	     nothing left to raise. -->
 	{#if session.record.completedAt && !draft?.posted}
@@ -196,8 +157,8 @@
 				{:else}
 					<button class="btn primary big" onclick={() => post.prepare()}>Prepare the review</button>
 					{#if !session.record.completedAt}
-						<button class="btn big" title="Finish this review without posting a review to GitHub" onclick={completeWithoutPosting}
-							>{marked.length ? `Update ${marked.length} ${marked.length === 1 ? 'thread' : 'threads'} and complete` : 'Complete without posting'}</button
+						<button class="btn big" title="Finish this review without posting a review to GitHub" onclick={() => post.setComplete(true)}
+							>Complete without posting</button
 						>
 					{/if}
 				{/if}
@@ -351,8 +312,8 @@
 					<div class="actions">
 						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
 						{#if !session.record.completedAt}
-							<button class="link" title="Finish this review without posting a review to GitHub" onclick={completeWithoutPosting}
-								>{marked.length ? `Update ${marked.length} ${marked.length === 1 ? 'thread' : 'threads'} and complete` : 'Complete without posting'}</button
+							<button class="link" title="Finish this review without posting a review to GitHub" onclick={() => post.setComplete(true)}
+								>Complete without posting</button
 							>
 						{/if}
 						<button class="btn big" title="Only you see it until you submit it on GitHub" onclick={() => review(true)}>Leave pending</button>
@@ -377,12 +338,6 @@
 				It’s visible to everyone on the PR.
 			{/if}
 		</p>
-		{#if confirming.replies?.length}
-			<p class="confirm-text">
-				And {confirming.replies.length === 1 ? 'a reply' : `${confirming.replies.length} replies`} to {confirming.replies.length === 1 ? 'a thread' : 'threads'}
-				you're reopening, as part of the review.
-			</p>
-		{/if}
 		{#if post.stale}
 			<p class="confirm-stale">This review is out of date: since it was prepared, {staleChange}. It will post as it is now.</p>
 		{/if}
@@ -429,70 +384,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
-	}
-	.threads {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-	.threads h2 {
-		margin: 0;
-		font-size: 12px;
-		font-weight: 600;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--faint);
-	}
-	.threads ul {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		border-radius: 12px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
-	}
-	.threads li {
-		display: flex;
-		align-items: baseline;
-		gap: 12px;
-		padding: 10px 14px;
-		border-top: 1px solid var(--line);
-		font-size: 13.5px;
-	}
-	.threads li:first-child {
-		border-top: 0;
-	}
-	.what {
-		flex: none;
-		width: 56px;
-		font-weight: 500;
-	}
-	.what.resolve {
-		color: #7fd89b;
-	}
-	.what.reopen {
-		color: #ffb85c;
-	}
-	.which {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	.which .mono {
-		font-family: var(--mono);
-		font-size: 12px;
-	}
-	.reply {
-		color: var(--muted);
-		font-size: 13px;
-	}
-	.gist {
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 	.prompt > div {
 		display: flex;
