@@ -21,6 +21,9 @@ export interface NoteContext {
   prWhat?: string;
   sliceTitle?: string;
   sliceSummary?: string;
+  // About that part of the PR as a whole, rather than a file or the PR:
+  // fileDiff is then its changes.
+  wholeSlice?: boolean;
   // Reviewing some of the PR's commits: the lines in this file they changed.
   roundLines?: string;
   // Set when the thread is about something said on GitHub: that thread, as text.
@@ -39,7 +42,7 @@ export interface NoteContext {
 }
 
 const SYSTEM_PROMPT = `You are helping someone review a pull request. They have selected some \
-lines of the diff, or a whole file, or the PR as a whole, and written something about it. It is \
+lines of the diff, or a whole file, a part of the PR, or the PR as a whole, and written something about it. It is \
 either a question or a remark.
 - A question: answer it directly and concisely, grounded in the code shown - the selected lines and \
 the rest of the file's changes around them, or the file's or the PR's changes. Say so plainly when \
@@ -72,6 +75,8 @@ function contextMessage(context: NoteContext): string {
   if (context.path) {
     parts.push(`File: ${context.path}`);
     parts.push(`All of this PR's changes to the file:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
+  } else if (context.wholeSlice) {
+    parts.push(`This part of the PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
   } else {
     parts.push(`All of this PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
   }
@@ -83,7 +88,7 @@ function contextMessage(context: NoteContext): string {
     parts.push(`${context.finding ? "The finding is on" : "Selected"} ${context.lines}:\n\`\`\`diff\n${context.code}\n\`\`\``);
   } else {
     // Without lines, a thread or finding is about a whole file, or the PR.
-    const about = context.path ? "the file as a whole" : "the PR as a whole";
+    const about = context.path ? "the file as a whole" : context.wholeSlice ? "this part of the PR as a whole" : "the PR as a whole";
     parts.push(context.finding ? `The finding is about ${about}.` : `The reviewer is writing about ${about}, not selected lines.`);
   }
   if (context.finding) {

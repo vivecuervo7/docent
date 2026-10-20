@@ -276,7 +276,7 @@ export class PrSession {
 	// Without lines, on a whole file; without a path too, on the PR as a whole.
 	// With `prompt`, a quick question: the text is its label, the prompt what's asked.
 	createNote(
-		anchor: { path: string; hunk?: number; start?: LineRef; end?: LineRef; code?: string; github?: string },
+		anchor: { path: string; slice?: string; hunk?: number; start?: LineRef; end?: LineRef; code?: string; github?: string },
 		text: string,
 		{ comment = false, prompt }: { comment?: boolean; prompt?: string } = {}
 	): string {
@@ -419,11 +419,25 @@ export class PrSession {
 			.slice(0, 120_000);
 	}
 
+	// The changes to a slice's files, for a question about the slice.
+	#sliceChanges(slice: Slice) {
+		const paths = new Set(slice.hunks.map((k) => k.slice(0, k.lastIndexOf('#'))));
+		return this.files
+			.filter((f) => paths.has(f.filename))
+			.map((f) => `--- ${f.filename}\n${f.patch ?? ''}`)
+			.join('\n\n')
+			.slice(0, 120_000);
+	}
+
 	async #requestReply(id: string) {
 		const note = this.record.notes.find((n) => n.id === id);
 		if (!note) return;
 		const file = this.files.find((f) => f.filename === note.path);
-		const slice = note.hunk === undefined ? undefined : this.slices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
+		const slice = note.slice
+			? this.slices.find((s) => s.id === note.slice)
+			: note.hunk === undefined
+				? undefined
+				: this.slices.find((s) => s.hunks.includes(`${note.path}#${note.hunk}`));
 		// A thread without lines is about its whole file, or with no path the PR.
 		const lines = note.start ? noteWhere(note) : '';
 		const code = note.code ?? '';
@@ -437,7 +451,8 @@ export class PrSession {
 						path: note.path,
 						lines,
 						code,
-						fileDiff: note.path ? (file?.patch ?? code) : this.#allChanges(),
+						fileDiff: note.path ? (file?.patch ?? code) : note.slice && slice ? this.#sliceChanges(slice) : this.#allChanges(),
+						...(note.slice ? { wholeSlice: true } : {}),
 						prTitle: this.title,
 						prWhat: this.record.summary?.what,
 						sliceTitle: slice?.title,
@@ -631,7 +646,7 @@ export class PrSession {
 					prTitle: this.title,
 					threads: rest.map((n) => ({
 						path: n.path,
-						lines: noteWhere(n),
+						lines: n.slice ? `the slice “${this.slices.find((sl) => sl.id === n.slice)?.title ?? n.slice}” as a whole` : noteWhere(n),
 						code: n.code ?? '',
 						messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
 						...(n.github ? { github: this.#githubText(n.github) } : {})
@@ -776,7 +791,7 @@ export class PrSession {
 	// answers not yet seen, on findings or your own threads.
 	unreadIn(sliceId: string): number {
 		const findings = this.allFindings.filter((f) => f.mark.unread && f.slices.includes(sliceId)).length;
-		const threads = this.record.notes.filter((n) => isUnread(n) && this.slicesOf(n.path, n.start).includes(sliceId)).length;
+		const threads = this.record.notes.filter((n) => isUnread(n) && (n.slice === sliceId || this.slicesOf(n.path, n.start).includes(sliceId))).length;
 		return findings + threads;
 	}
 

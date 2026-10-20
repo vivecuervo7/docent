@@ -22,7 +22,7 @@
 	// The panel's findings about the whole PR, rather than a file.
 	const wholePr = $derived(session.looseFindings.filter((f) => !f.mark.path).map((f) => f.mark));
 	// Your threads on the PR as a whole, and the one being written.
-	const prThreads = $derived(looseNotesFrom(session.record).filter((n) => !n.path));
+	const prThreads = $derived(looseNotesFrom(session.record).filter((n) => !n.path && !n.slice));
 	let draft = $state('');
 	// What's been said on GitHub about the PR as a whole, folded away.
 	const general = $derived(session.githubShown?.general ?? []);

@@ -154,11 +154,13 @@ export interface NoteMessage {
 }
 
 // A thread on selected lines, or without lines on a whole file, or with no
-// path either on the PR as a whole.
+// path either on a slice or the PR as a whole.
 export interface Note {
 	id: string;
-	// Empty for a thread on the PR as a whole.
+	// Empty for a thread on a slice or the PR as a whole.
 	path: string;
+	// The slice it's about as a whole.
+	slice?: string;
 	// The hunk the selection starts in, for showing its lines again.
 	hunk?: number;
 	start?: LineRef;
@@ -178,7 +180,8 @@ export interface Note {
 }
 
 // Where a thread sits, in words: its lines, its file, or the PR.
-export function noteWhere(note: Pick<Note, 'path' | 'start' | 'end'>): string {
+export function noteWhere(note: Pick<Note, 'path' | 'start' | 'end' | 'slice'>): string {
+	if (note.slice) return 'the slice as a whole';
 	if (!note.path) return 'the PR as a whole';
 	if (!note.start || !note.end) return 'the whole file';
 	return note.start.line === note.end.line ? `line ${note.start.line}` : `lines ${note.start.line}–${note.end.line}`;

@@ -47,7 +47,7 @@
 
 <div class="thread" role="presentation" onkeydown={(e) => e.key === 'Escape' && onclose?.()}>
 	<header>
-		<span class="where">{title ?? (note.path ? `${note.path.split('/').pop()} · ${where}` : 'The PR as a whole')}</span>
+		<span class="where">{title ?? (note.path ? `${note.path.split('/').pop()} · ${where}` : note.slice ? 'This slice as a whole' : 'The PR as a whole')}</span>
 		<button class="icon" aria-label="Delete thread" title="Delete thread" onclick={remove}>
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
 		</button>
