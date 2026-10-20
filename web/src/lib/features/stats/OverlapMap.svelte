@@ -96,7 +96,6 @@
 					.sort((a, b) => b.shared - a.shared)
 			: []
 	);
-	const nameOf = (id: string) => reviewers.find((r) => r.id === id)?.name ?? id;
 	const lit = (id: string) => !focus || id === focus.id || partners.some((p) => p.id === id);
 	const share = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
 </script>
@@ -137,16 +136,12 @@
 			<dd></dd>
 			<dt>Kept</dt>
 			<dd>{focus.kept}</dd>
-			<dt>Only {focus.name}</dt>
-			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
 			<dt>Skipped</dt>
 			<dd>{focus.decided - focus.kept}</dd>
-			{#each partners as p (p.id)}
-				<dt>Shared with {nameOf(p.id)}</dt>
-				<dd>{p.shared}</dd>
-			{/each}
-			<dt>Rounds</dt>
-			<dd>{focus.rounds}</dd>
+			<dt>Unique</dt>
+			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
+			<dt>Shared</dt>
+			<dd>{focus.kept - focus.alone} <span class="faint">({share(focus.kept - focus.alone, focus.kept)}%)</span></dd>
 		</dl>
 	{/if}
 	<p class="hint faint">Kept findings, overlapping where reviewers raised the same point. Point at one for its figures.</p>
