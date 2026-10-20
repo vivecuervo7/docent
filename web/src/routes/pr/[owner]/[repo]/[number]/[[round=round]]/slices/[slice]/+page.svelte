@@ -334,8 +334,10 @@
 		/* Clicks reach the code under the fade; only the bar's own controls take them. */
 		pointer-events: none;
 	}
+	/* In line with the file names, past their chevrons. */
 	.finish .count {
 		margin-right: auto;
+		padding-left: 30px;
 	}
 	.finish > * {
 		pointer-events: auto;
