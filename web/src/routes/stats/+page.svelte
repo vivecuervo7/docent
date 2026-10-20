@@ -314,7 +314,7 @@
 	}
 	.filtered,
 	.swatch.filtered {
-		background: #37443b;
+		background: #44534a;
 	}
 	@media (max-width: 700px) {
 		.figures {
