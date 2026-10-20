@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { SvelteSet } from 'svelte/reactivity';
+	import InlineText from '$lib/ui/InlineText.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import { useSession } from '$lib/session/session.svelte';
 	import type { GitHubThread } from '$lib/types';
@@ -99,13 +100,13 @@
 				{#if t.entries.length > 1}· {t.entries.length - 1} {t.entries.length === 2 ? 'reply' : 'replies'}{/if}
 				{#if t.outdated}· outdated{:else if touchedBy(session.files, t) && session.files.some((f) => f.rangeLines)}· changed this round{/if}
 			</span>
-			<span class="gist">{gist(t)}</span>
+			<span class="gist"><InlineText text={gist(t)} /></span>
 			{#if c?.checking}
 				<span class="reason faint"><Spinner size={12} /> Checking…</span>
 			{:else if c?.error}
 				<span class="reason bad">Couldn’t check: {c.error}</span>
 			{:else if c?.reason}
-				<span class="reason">{c.reason}</span>
+				<span class="reason"><span><InlineText text={c.reason} /></span></span>
 			{:else if checks?.[t.id] && !t.resolved}
 				<span class="reason faint">New replies since it was checked</span>
 			{/if}

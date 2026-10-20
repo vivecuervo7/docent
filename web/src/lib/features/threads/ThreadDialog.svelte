@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Dialog from '$lib/ui/Dialog.svelte';
+	import InlineText from '$lib/ui/InlineText.svelte';
 	import NoteText from '$lib/ui/NoteText.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import { timeAgo } from '$lib/ui/format';
@@ -136,7 +137,7 @@
 				<span class="faint"><Spinner size={13} /> Checking against this round…</span>
 			{:else if check?.verdict}
 				<span class="faint label">Docent · checked against this round</span>
-				<p>{check.reason}</p>
+				<p><InlineText text={check.reason ?? ''} /></p>
 			{:else}
 				{#if check?.error}<p class="bad">Couldn’t check: {check.error}</p>{/if}
 				<button class="btn" onclick={() => session.checkThreads([thread])}>Check it against this round</button>
