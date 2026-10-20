@@ -12,6 +12,7 @@ export interface PrStats {
 	// Lines read across its rounds, and the size of each slice they had.
 	lines: number;
 	slices: number[];
+	rounds: number;
 	// When it was last worked on.
 	at: number;
 }
@@ -30,6 +31,7 @@ function byPr(rounds: RoundStats[]): PrStats[] {
 			title: latest.pr.title,
 			lines: sum(rs.map((r) => r.sizes?.lines ?? 0)),
 			slices: rs.flatMap((r) => r.sizes?.slices.filter((n) => n > 0) ?? []),
+			rounds: rs.length,
 			at: Math.max(0, ...times)
 		};
 	});
@@ -115,7 +117,14 @@ export function summarise(stats: Stats) {
 			pr: Math.round(mean(measured.map((p) => p.lines))),
 			slice: Math.round(mean(measured.flatMap((p) => p.slices))),
 			prs: measured
-				.map((p) => ({ title: p.title, lines: p.lines, slice: Math.round(mean(p.slices)), slices: p.slices.length }))
+				.map((p) => ({
+					title: p.title,
+					lines: p.lines,
+					slice: Math.round(mean(p.slices)),
+					slices: p.slices.length,
+					largest: Math.max(...p.slices),
+					rounds: p.rounds
+				}))
 				.sort((a, b) => a.lines - b.lines)
 		},
 		reviewers: [...byReviewer.values()].filter((r) => r.raised > 0).sort((a, b) => b.raised - a.raised),

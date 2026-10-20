@@ -25,6 +25,13 @@
 	};
 	const ticks = (most: number) => [1, 2, 3, 4].map((i) => i * step(most));
 	const height = (n: number, top: number) => (n > 0 ? Math.max(2, (n / top) * 100) : 0);
+	// The bar pointed at, and where, for the card beside the cursor.
+	let pointed = $state<{ index: number; x: number; y: number; flip: boolean } | null>(null);
+	function point(e: PointerEvent, index: number) {
+		const box = (e.currentTarget as HTMLElement).closest('.chart')!.getBoundingClientRect();
+		const x = e.clientX - box.left;
+		pointed = { index, x, y: e.clientY - box.top, flip: x > box.width - 240 };
+	}
 	const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k` : `${n}`);
 </script>
 
@@ -65,12 +72,37 @@
 					<div class="sizes" role="img" aria-label="Each pull request's lines read, with its average slice">
 						{#each ticks(most) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
 						{#each s.reviewability.prs as p, i (i)}
-							<span class="pair" title="{p.title}: {number(p.lines)} lines in {p.slices} {p.slices === 1 ? 'slice' : 'slices'} of about {number(p.slice)}">
+							<span
+								class="pair"
+								class:dim={pointed && pointed.index !== i}
+								role="presentation"
+								onpointermove={(e) => point(e, i)}
+								onpointerleave={() => (pointed = null)}
+							>
 								<span class="bar pr" style:height="{height(p.lines, top)}%"></span>
 								<span class="bar slice" style:height="{height(p.slice, top)}%"></span>
 							</span>
 						{/each}
 					</div>
+					{#if pointed}
+						{@const p = s.reviewability.prs[pointed.index]}
+						<dl class="card" class:flip={pointed.flip} style:left="{pointed.x}px" style:top="{pointed.y}px">
+							<dt class="title">{p.title}</dt>
+							<dd></dd>
+							<dt>Lines read</dt>
+							<dd>{number(p.lines)}</dd>
+							<dt>Slices</dt>
+							<dd>{p.slices}</dd>
+							<dt>Average slice</dt>
+							<dd>{number(p.slice)}</dd>
+							<dt>Largest slice</dt>
+							<dd>{number(p.largest)}</dd>
+							{#if p.rounds > 1}
+								<dt>Rounds</dt>
+								<dd>{p.rounds}</dd>
+							{/if}
+						</dl>
+					{/if}
 				</div>
 				<div class="key faint"><span class="swatch pr"></span>Lines read in the pull request <span class="swatch slice"></span>Its average slice</div>
 			</section>
@@ -183,6 +215,7 @@
 		font-weight: 500;
 	}
 	.chart {
+		position: relative;
 		display: flex;
 		gap: 8px;
 		padding: 14px 14px 0;
@@ -222,6 +255,54 @@
 		flex: 1 0 8px;
 		max-width: 22px;
 		height: 100%;
+	}
+	.pair {
+		transition: opacity 100ms;
+	}
+	.pair.dim {
+		opacity: 0.4;
+	}
+	/* What a bar is, beside the cursor; on its left near the chart's right edge. */
+	.card {
+		position: absolute;
+		z-index: 2;
+		display: grid;
+		grid-template-columns: auto auto;
+		gap: 4px 18px;
+		width: max-content;
+		max-width: 260px;
+		margin: 0;
+		padding: 10px 12px;
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--surface) 94%, transparent);
+		box-shadow:
+			inset 0 0 0 1px var(--line-2),
+			0 12px 32px -12px rgba(0, 0, 0, 0.8);
+		font-size: 12.5px;
+		transform: translate(14px, 14px);
+		pointer-events: none;
+	}
+	.card.flip {
+		transform: translate(calc(-100% - 14px), 14px);
+	}
+	.card dt {
+		color: var(--muted);
+	}
+	.card dd {
+		margin: 0;
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+	.card .title {
+		grid-column: 1 / -1;
+		color: var(--text);
+		font-weight: 500;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.card .title + dd {
+		display: none;
 	}
 	.bar {
 		position: absolute;
