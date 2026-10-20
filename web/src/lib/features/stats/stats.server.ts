@@ -9,9 +9,8 @@ import type { RoundStats, Stats } from "./stats.js";
 
 // What reviewing has added up to, kept apart from the reviews themselves so
 // it outlasts them: a review deleted leaves its rounds' figures here. Each
-// round's figures are taken afresh whenever its review is saved. It starts
-// keeping them the first time the stats are asked for, from the reviews
-// there are then.
+// round's figures are taken afresh whenever its review is saved, from when
+// the server starts.
 
 const db = persistent("stats-tables", () => {
   const opened = database();

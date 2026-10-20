@@ -1,4 +1,7 @@
 import { json, type Handle } from '@sveltejs/kit';
+// Keeps the stats from the start, so no review saved before they're first
+// opened goes unrecorded.
+import '$lib/features/stats/stats.server.js';
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 
