@@ -31,7 +31,9 @@
 		kept,
 		onkeep,
 		onskip,
-		onshow
+		onshow,
+		changed = false,
+		onredraft
 	}: {
 		kind: 'finding' | 'yours';
 		// Who raised it; your own comments go without.
@@ -62,6 +64,9 @@
 		onkeep: () => void;
 		onskip: () => void;
 		onshow?: () => void;
+		// One of yours whose threads have changed since it was drafted.
+		changed?: boolean;
+		onredraft?: () => void;
 	} = $props();
 
 	let showWhy = $state(false);
@@ -74,13 +79,17 @@
 	});
 </script>
 
-<li class="row">
+<li class="row" class:kept={kept === true && !suggested} class:skipped={kept === false && !suggested}>
 	<div class="text">
 		<div class="head">
 			{#if who}<span class="who">{who}</span>{/if}
 			<SeverityTag {severity} />
 			{#if skipSuggested && suggested}<span class="speculative" title="Skip suggested: {skipSuggested}">Skip suggested</span>{/if}
-			<span class="where">{#if path}<FilePath {path} {lines} />{:else}the PR as a whole{/if}</span>
+			{#if path}<span class="where"><FilePath {path} {lines} /></span>{/if}
+			{#if changed}
+				<span class="changed">changed since drafted</span>
+				{#if onredraft}<button class="redraft" onclick={onredraft}>Redraft</button>{/if}
+			{/if}
 			{#if onshow}<button class="link" onclick={onshow}>Show in diff</button>{/if}
 		</div>
 		<div class="body"><NoteText text={body} /></div>
@@ -126,8 +135,8 @@
 		{/if}
 	</div>
 	<div class="decide" role="group" aria-label="Keep or skip{suggested ? ', as the panel suggests' : ''}">
-		<button class:on={kept === true} aria-pressed={kept === true} onclick={onkeep}>Keep</button>
-		<button class:on={kept === false} aria-pressed={kept === false} onclick={onskip}>Skip</button>
+		<button class="keep" class:on={kept === true} class:suggested aria-pressed={kept === true} onclick={onkeep}>Keep</button>
+		<button class="skip" class:on={kept === false} class:suggested aria-pressed={kept === false} onclick={onskip}>Skip</button>
 	</div>
 </li>
 
@@ -136,8 +145,36 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 24px;
-		padding: 16px 0;
+		padding: 16px 16px 16px 18px;
 		border-top: 1px solid var(--line);
+	}
+	.row:first-child {
+		border-top: 0;
+	}
+	/* Only what's decided is marked: kept on the edge, skipped faded. */
+	.row.kept {
+		box-shadow: inset 3px 0 0 var(--done);
+	}
+	.row.skipped > .text {
+		opacity: 0.55;
+	}
+	.changed {
+		color: var(--agent);
+		white-space: nowrap;
+	}
+	.redraft {
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--muted);
+		font: inherit;
+		font-size: 12.5px;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		cursor: pointer;
+	}
+	.redraft:hover {
+		color: var(--text);
 	}
 	.text {
 		flex-grow: 1;
@@ -154,8 +191,7 @@
 		font-size: 13px;
 	}
 	.who {
-		font-weight: 500;
-		color: var(--agent-text);
+		color: var(--muted);
 		white-space: nowrap;
 	}
 	.speculative {
@@ -270,8 +306,21 @@
 		font-weight: 500;
 		cursor: pointer;
 	}
+	/* Your choice fills its half; the panel's, standing until you make
+	   one, is only outlined. */
 	.decide button.on {
-		background: #ece8df;
-		color: #141413;
+		background: var(--surface-2);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--text);
+	}
+	.decide button.keep.on {
+		background: var(--done-bg);
+		box-shadow: none;
+		color: var(--done);
+	}
+	.decide button.on.suggested {
+		background: none;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--text);
 	}
 </style>

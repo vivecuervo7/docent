@@ -617,11 +617,32 @@ export class PrSession {
 		return JSON.stringify(now) !== JSON.stringify(basedOn);
 	});
 
+	// Threads replied to or added since they were drafted, by id; a thread
+	// deleted since counts as changed too.
+	readonly changedThreads = $derived.by(() => {
+		const basedOn = this.record.feedback.yours?.basedOn ?? {};
+		const changed = new Set(this.threads.filter((n) => basedOn[n.id] !== undefined && basedOn[n.id] !== n.messages.length).map((n) => n.id));
+		for (const id of Object.keys(basedOn)) if (!this.threads.some((n) => n.id === id)) changed.add(id);
+		return changed;
+	});
+	// Threads with nothing drafted from them to keep: new since the draft, or
+	// changed when nothing came of them. Drafted as Wrap up opens; those
+	// still waiting on an answer wait for it.
+	readonly undrafted = $derived.by(() => {
+		const draft = this.record.feedback.yours;
+		const drawnOn = new Set((draft?.items ?? []).flatMap((i) => i.noteIds ?? []));
+		return this.threads.filter(
+			(n) => !n.awaiting && (draft?.basedOn?.[n.id] === undefined || (this.changedThreads.has(n.id) && !drawnOn.has(n.id)))
+		);
+	});
+
 	// A thread with comments of the reviewer's own is drafted as those
 	// comments, word for word and on its lines; the model drafts the rest,
 	// following a thread's conclusion where it has one.
 	// Drafting runs on the backend as a job on the round; this covers asking
 	// for it, before the job's there.
+	// Some threads, or all of them: the draft from other threads is kept, and
+	// whether each comment is kept or skipped carries over to its redraft.
 	#drafting = $state<{ pending?: boolean; error?: string }>({});
 	readonly yourDraft = $derived.by((): { pending?: boolean; error?: string } => {
 		const job = this.record.jobs?.draft;
@@ -630,12 +651,13 @@ export class PrSession {
 		return this.#drafting;
 	});
 
-	async draftYourComments() {
-		const threads = this.threads;
-		if (!threads.length) return;
+	async draftYourComments(only?: string[]) {
+		const threads = only ? this.threads.filter((n) => only.includes(n.id)) : this.threads;
+		const scope = only ?? this.threads.map((n) => n.id);
+		if (!threads.length && !only?.length) return;
 		const rest = threads.filter((n) => !n.messages.some((m) => m.comment));
 		const basedOn = Object.fromEntries(threads.map((n) => [n.id, n.messages.length]));
-		if (!rest.length) return this.#saveDraft([], basedOn);
+		if (!rest.length) return this.#saveDraft([], basedOn, scope);
 		this.#drafting = { pending: true };
 		try {
 			const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/feedback/yours`, {
@@ -651,7 +673,7 @@ export class PrSession {
 						messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
 						...(n.github ? { github: this.#githubText(n.github) } : {})
 					})),
-					input: { threads: rest.map((n) => n.id), basedOn },
+					input: { threads: rest.map((n) => n.id), basedOn, scope },
 					...(this.round !== null ? { round: this.round } : {})
 				})
 			});
@@ -667,7 +689,7 @@ export class PrSession {
 	// A draft the backend has finished, made the round's own: each comment on
 	// its threads' lines, or where a conclusion said it applies too.
 	async #applyDraft(job: Job) {
-		const { threads: ids = [], basedOn = {} } = (job.input ?? {}) as { threads?: string[]; basedOn?: Record<string, number> };
+		const { threads: ids = [], basedOn = {}, scope } = (job.input ?? {}) as { threads?: string[]; basedOn?: Record<string, number>; scope?: string[] };
 		const { comments = [] } = (job.result ?? {}) as {
 			comments?: { threads: number[]; body: string; rationale?: string; at?: { path: string; startLine: number; endLine: number } }[];
 		};
@@ -685,15 +707,17 @@ export class PrSession {
 					: undefined;
 			return { id: crypto.randomUUID(), body, rationale, included: true, ...(elsewhere ?? placeFromThreads(sources)) };
 		});
-		await this.#saveDraft(drafted, basedOn, job.startedAt);
+		await this.#saveDraft(drafted, basedOn, scope ?? Object.keys(basedOn), job.startedAt);
 	}
 
 	// Your comments: those you wrote, word for word on their threads' lines,
-	// with what was drafted, in the threads' order. From a job, once.
-	async #saveDraft(drafted: FeedbackItem[], basedOn: Record<string, number>, job?: number) {
+	// with what was drafted, in the threads' order. What was drafted from
+	// threads outside the scope stays as it was. From a job, once.
+	async #saveDraft(drafted: FeedbackItem[], basedOn: Record<string, number>, scope: string[], job?: number) {
 		const threads = this.threads;
+		const inScope = new Set(scope);
 		const asWritten: FeedbackItem[] = threads
-			.filter((n) => n.messages.some((m) => m.comment))
+			.filter((n) => inScope.has(n.id) && n.messages.some((m) => m.comment))
 			.map((n) => ({
 				id: crypto.randomUUID(),
 				body: n.messages
@@ -708,13 +732,22 @@ export class PrSession {
 				noteIds: [n.id]
 			}));
 		const at = (item: FeedbackItem) => threads.findIndex((n) => n.id === item.noteIds?.[0]);
-		const items = [...asWritten, ...drafted].sort((a, b) => at(a) - at(b));
+		const sourceKey = (item: FeedbackItem) => [...(item.noteIds ?? [])].sort().join(' ');
 		await this.update((r) => {
 			if (job !== undefined) {
 				if (r.jobs?.draft?.status !== 'done' || r.jobs.draft.startedAt !== job) return;
 				delete r.jobs.draft;
 			}
-			r.feedback.yours = { items, draftedAt: Date.now(), basedOn };
+			const before = r.feedback.yours;
+			const exists = new Set(r.notes.map((n) => n.id));
+			const kept = (before?.items ?? []).filter(
+				(i) => !(i.noteIds ?? []).some((id) => inScope.has(id)) && (i.noteIds ?? []).some((id) => exists.has(id))
+			);
+			// A redraft of the same threads keeps the choice made on it.
+			const choices = new Map((before?.items ?? []).filter((i) => !i.included).map((i) => [sourceKey(i), false]));
+			const fresh = [...asWritten, ...drafted].map((i) => (choices.has(sourceKey(i)) ? { ...i, included: false } : i));
+			const based = Object.fromEntries(Object.entries({ ...before?.basedOn, ...basedOn }).filter(([id]) => exists.has(id)));
+			r.feedback.yours = { items: [...kept, ...fresh].sort((a, b) => at(a) - at(b)), draftedAt: Date.now(), basedOn: based };
 		});
 	}
 
@@ -808,10 +841,8 @@ export class PrSession {
 	openMark = $state<string | null>(null);
 
 
-	// Wrap up's folded lists, kept here so going to the diff and back finds
-	// them as they were left, with the scroll position intact.
-	wrapUpOpen = $state({ kept: false, skipped: false });
-	// Long line excerpts opened out in full, likewise.
+	// Long line excerpts opened out in full, kept here so going to the diff
+	// and back finds them as they were left.
 	readonly openExcerpts = new SvelteSet<string>();
 
 

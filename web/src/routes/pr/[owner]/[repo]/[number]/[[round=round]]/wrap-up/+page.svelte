@@ -1,19 +1,19 @@
 <script lang="ts">
-	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import { goto } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import { groupsOf, isShown, reviewerName } from '$lib/features/panel/findings';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import WrapRow from '$lib/features/wrap-up/WrapRow.svelte';
 	import { useSession } from '$lib/session/session.svelte';
 	import { SEVERITY_ORDER, type FeedbackItem } from '$lib/types';
 
-	// Wrap up: confirming what goes into the review. The panel's findings you
-	// haven't decided on come first, showing the choice that stands if you
-	// leave them - kept, or skipped where the editor suggested it - then your
-	// own comments, drafted from your threads; what you've decided sits folded
-	// away.
+	// Wrap up: confirming what goes into the review. Your threads are drafted
+	// into the comments they'd post as it opens; with the panel's findings,
+	// each is kept or skipped. They're grouped by where they were said - the
+	// PR as a whole, then each slice - yours first in each.
 	const session = useSession();
 	const base = $derived(session.base);
+	const groups = $derived(groupsOf(session.record));
 
 	const findings = $derived(
 		Object.entries(session.record.feedback)
@@ -22,16 +22,54 @@
 			// A group is listed once, under its lead.
 			.filter(({ reviewer, item }) => !groups.joined(reviewer, item))
 	);
-	const groups = $derived(groupsOf(session.record));
+	const yours = $derived(session.record.feedback.yours?.items ?? []);
+
 	// The most serious first; findings without a severity after the rest.
 	// Ones the editor suggests skipping come last.
 	const rank = (i: FeedbackItem) =>
 		(i.skipSuggested ? SEVERITY_ORDER.length + 1 : 0) + (i.severity ? SEVERITY_ORDER.indexOf(i.severity) : SEVERITY_ORDER.length);
-	const undecided = $derived(findings.filter((f) => !f.item.decided).sort((a, b) => rank(a.item) - rank(b.item)));
-	const kept = $derived(findings.filter((f) => f.item.decided && f.item.included));
-	const skipped = $derived(findings.filter((f) => f.item.decided && !f.item.included));
-	const yours = $derived(session.record.feedback.yours?.items ?? []);
 
+	// Which group something sits in: a slice, by the thread it came from or
+	// the lines it's on, else the PR as a whole.
+	function groupOf(item: FeedbackItem): string {
+		const notes = session.record.notes.filter((n) => item.noteIds?.includes(n.id));
+		const slice = notes.find((n) => n.slice)?.slice;
+		if (slice) return slice;
+		if (!item.path) return 'pr';
+		return session.slicesOf(item.path, item.start)[0] ?? 'elsewhere';
+	}
+	const sections = $derived.by(() => {
+		const titled = [
+			{ id: 'pr', title: 'The whole PR' },
+			...session.slices.map((s, i) => ({ id: s.id, title: `Slice ${i + 1} · ${s.title}` })),
+			{ id: 'elsewhere', title: 'Elsewhere' }
+		];
+		return titled
+			.map((g) => ({
+				...g,
+				yours: yours.filter((i) => groupOf(i) === g.id),
+				findings: findings.filter((f) => groupOf(f.item) === g.id).sort((a, b) => rank(a.item) - rank(b.item))
+			}))
+			.filter((g) => g.yours.length || g.findings.length);
+	});
+
+	const kept = $derived(yours.filter((i) => i.included).length + findings.filter((f) => f.item.decided && f.item.included).length);
+	const skipped = $derived(yours.filter((i) => !i.included).length + findings.filter((f) => f.item.decided && !f.item.included).length);
+	const toDecide = $derived(findings.filter((f) => !f.item.decided).length);
+
+	// Threads new since the draft are drafted as Wrap up opens; once, so a
+	// draft that fails isn't asked for again and again.
+	let asked = false;
+	$effect(() => {
+		const undrafted = session.undrafted;
+		if (asked || session.loading || session.yourDraft.pending || !undrafted.length) return;
+		asked = true;
+		untrack(() => session.draftYourComments(undrafted.map((n) => n.id)));
+	});
+
+	const changed = (item: FeedbackItem) => (item.noteIds ?? []).some((id) => session.changedThreads.has(id));
+	const redraft = (item: FeedbackItem) =>
+		session.draftYourComments((item.noteIds ?? []).filter((id) => session.record.notes.some((n) => n.id === id)));
 
 	// Opens a finding or a thread where it sits in the diff.
 	// To where it sits: a slice holding its lines or file, or for something
@@ -52,8 +90,10 @@
 
 	function showThread(item: FeedbackItem) {
 		const note = session.record.notes.find((n) => n.id === item.noteIds?.[0]);
+		if (!note) return;
+		if (note.slice) return goto(`${base}/slices/${note.slice}`);
 		// A thread about something said on GitHub opens from that thread.
-		if (note) show(note.github ?? note.id, note.path, note.start);
+		show(note.github ?? note.id, note.path, note.start);
 	}
 </script>
 
@@ -82,77 +122,67 @@
 	/>
 {/snippet}
 
+{#snippet mine(item: FeedbackItem)}
+	<WrapRow
+		kind="yours"
+		who="You"
+		path={item.path}
+		start={item.start}
+		end={item.end}
+		body={item.body}
+		rationale={item.rationale}
+		kept={item.included}
+		changed={changed(item)}
+		onredraft={session.yourDraft.pending ? undefined : () => redraft(item)}
+		onkeep={() => session.setYourIncluded(item.id, true)}
+		onskip={() => session.setYourIncluded(item.id, false)}
+		onshow={item.noteIds?.length ? () => showThread(item) : undefined}
+	/>
+{/snippet}
+
 <main>
-	<h1>Wrap up</h1>
-	<p class="lede">What goes into your review. Anything kept is merged and tidied when you prepare it.</p>
+	<div class="intro">
+		<h1>Wrap up</h1>
+		<p class="lede">Each of yours is drafted as the comment it would post. Keep what belongs in your review.</p>
+		{#if session.threads.length}
+			<div class="status faint">
+				{#if session.yourDraft.pending}
+					<span class="drafting"><Spinner size={13} /> Drafting from your threads…</span>
+				{:else if session.record.feedback.yours}
+					<span>
+						Drafted from your threads{#if session.changedThreads.size}{` · ${session.changedThreads.size} changed since`}{/if}
+					</span>
+				{/if}
+				<span class="grow"></span>
+				{#if !session.yourDraft.pending && session.record.feedback.yours}
+					<button class="link" onclick={() => session.draftYourComments()}>Redraft all</button>
+				{/if}
+			</div>
+		{/if}
+		{#if session.yourDraft.error}<p class="bad">Couldn’t draft: {session.yourDraft.error}</p>{/if}
+	</div>
 
-	<section>
-		<h2>To confirm <span class="count">{undecided.length}</span></h2>
-		{#if undecided.length}
-			<ul>{#each undecided as f (f.item.id)}{@render finding(f)}{/each}</ul>
-		{:else}
-			<p class="empty">Nothing from the panel is waiting to be confirmed.</p>
-		{/if}
-	</section>
-
-	<section>
-		<div class="section-head">
-			<h2>Your comments <span class="count">{yours.length}</span></h2>
-			{#if session.yourDraft.pending}
-				<span class="faint drafting"><Spinner size={13} /> Drafting…</span>
-			{:else if session.threads.length}
-				<button class="link" onclick={() => session.draftYourComments()}>
-					{session.record.feedback.yours ? 'Draft again from your threads' : 'Draft from your threads'}
-				</button>
-			{/if}
-		</div>
-		{#if session.yourDraft.error}
-			<p class="bad">Couldn’t draft: {session.yourDraft.error}</p>
-		{/if}
-		{#if session.record.feedback.yours && session.threadsChanged && !session.yourDraft.pending}
-			<p class="faint note">Your threads have changed since these were drafted.</p>
-		{/if}
-		{#if yours.length}
+	{#each sections as group (group.id)}
+		<section>
+			<h2>{group.title}</h2>
 			<ul>
-				{#each yours as item (item.id)}
-					<WrapRow
-						kind="yours"
-						path={item.path}
-						start={item.start}
-						end={item.end}
-						body={item.body}
-						rationale={item.rationale}
-						kept={item.included}
-						onkeep={() => session.setYourIncluded(item.id, true)}
-						onskip={() => session.setYourIncluded(item.id, false)}
-						onshow={item.noteIds?.length ? () => showThread(item) : undefined}
-					/>
-				{/each}
+				{#each group.yours as item (item.id)}{@render mine(item)}{/each}
+				{#each group.findings as f (f.item.id)}{@render finding(f)}{/each}
 			</ul>
-		{:else if !session.threads.length}
-			<p class="empty">No threads yet. Select lines while reading to ask or comment.</p>
-		{:else if !session.record.feedback.yours}
-			<p class="empty">{session.threads.length} {session.threads.length === 1 ? 'thread' : 'threads'} to draft comments from.</p>
-		{:else if !session.yourDraft.pending}
-			<p class="empty">Nothing in your threads reads as a comment for the author.</p>
+		</section>
+	{:else}
+		{#if !session.yourDraft.pending}
+			<p class="empty">
+				{session.threads.length
+					? 'Nothing in your threads reads as a comment for the author, and the panel found nothing.'
+					: 'Nothing yet. Select lines while reading, or use the Ask bar, to ask or comment.'}
+			</p>
 		{/if}
-	</section>
-
-	{#if kept.length}
-		<section>
-			<Disclosure bind:open={session.wrapUpOpen.kept} look="heading" label="Kept" count={kept.length} />
-			{#if session.wrapUpOpen.kept}<ul>{#each kept as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
-		</section>
-	{/if}
-
-	{#if skipped.length}
-		<section>
-			<Disclosure bind:open={session.wrapUpOpen.skipped} look="heading" label="Skipped" count={skipped.length} />
-			{#if session.wrapUpOpen.skipped}<ul>{#each skipped as f (f.item.id)}{@render finding(f)}{/each}</ul>{/if}
-		</section>
-	{/if}
+	{/each}
 
 	<div class="next">
+		<span class="faint tally">{kept} kept · {skipped} skipped{#if toDecide}{` · ${toDecide} to decide`}{/if}</span>
+		<span class="grow"></span>
 		{#if session.post.stale}<span class="faint stale-note">The prepared review is out of date.</span>{/if}
 		<button class="btn primary big" onclick={toPost}>{session.post.draft ? 'On to Post →' : 'Prepare the review →'}</button>
 	</div>
@@ -167,8 +197,25 @@
 		flex-direction: column;
 		gap: 36px;
 	}
+	.intro {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.status {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		font-size: 13px;
+	}
+	.grow {
+		flex-grow: 1;
+	}
+	.tally {
+		font-size: 13.5px;
+	}
 	h1 {
-		margin: 0 0 -24px;
+		margin: 0;
 		font-family: var(--serif);
 		font-size: 38px;
 		font-weight: 500;
@@ -183,37 +230,23 @@
 		display: flex;
 		flex-direction: column;
 	}
-	/* Kept and Skipped fold open under their headings, spaced like the rest. */
-	section > :global(.disclosure) {
-		margin-bottom: 8px;
-	}
 	h2 {
-		display: flex;
-		align-items: baseline;
-		gap: 10px;
-		margin: 0 0 8px;
-		font-family: var(--serif);
-		font-size: 22px;
-		font-weight: 500;
-	}
-	.count {
-		font-family: var(--mono);
-		font-size: 13px;
+		margin: 0 0 10px;
+		font-size: 12px;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		color: var(--faint);
-	}
-	.section-head {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 12px;
 	}
 	.link {
 		border: 0;
 		background: none;
 		padding: 0;
-		color: var(--faint);
+		color: var(--muted);
 		font: inherit;
 		font-size: 13px;
+		text-decoration: underline;
+		text-underline-offset: 3px;
 		cursor: pointer;
 	}
 	.link:hover {
@@ -229,9 +262,11 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
+		border-radius: 12px;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		overflow: hidden;
 	}
-	.empty,
-	.note {
+	.empty {
 		margin: 4px 0 0;
 		color: var(--faint);
 		font-size: 14px;
@@ -239,7 +274,6 @@
 	.next {
 		display: flex;
 		align-items: center;
-		justify-content: flex-end;
 		gap: 14px;
 	}
 	.stale-note {
@@ -252,7 +286,7 @@
 		font-size: 14.5px;
 	}
 	.bad {
-		margin: 4px 0 8px;
+		margin: 0;
 		color: var(--danger);
 		font-size: 14px;
 	}
