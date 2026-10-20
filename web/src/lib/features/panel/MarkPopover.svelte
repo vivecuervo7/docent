@@ -189,9 +189,14 @@
 		<Composer bind:value={draft} placeholder="Ask about this, or conclude…" second="conclude" tone="agent" askDisabled={status.pending} onsend={send} />
 	</div>
 	<footer>
+		{#if mark.filtered}
+			<span class="suggested">Filtered: {mark.filtered}</span>
+			<button class="btn primary" onclick={() => mark.reviewer && session.keepFiltered(mark.reviewer, mark.id)}>Show it</button>
+		{:else}
 		{#if item?.skipSuggested && !item.decided}<span class="suggested">Skip suggested: {item.skipSuggested}</span>{/if}
 		<button class="btn" class:primary={isKept} aria-pressed={isKept} onclick={() => keep(true)}>Keep</button>
 		<button class="btn" class:primary={!isKept} aria-pressed={!isKept} onclick={() => keep(false)}>Skip</button>
+		{/if}
 	</footer>
 </div>
 

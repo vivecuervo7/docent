@@ -258,7 +258,10 @@
 	const session = useSession();
 	// Findings about this file as a whole, with no lines to sit on: they sit
 	// on its header, open or closed.
-	const wholeFile = $derived(session.looseFindings.filter((f) => f.mark.path === file.filename).map((f) => f.mark));
+	const wholeFile = $derived([
+		...session.looseFindings.filter((f) => f.mark.path === file.filename).map((f) => f.mark),
+		...(session.showFiltered ? session.filteredLoose.filter((m) => m.path === file.filename) : [])
+	]);
 	// Your threads on the file as a whole, which sit on its header too.
 	const fileThreads = $derived(session.record.notes.filter((n) => n.path === file.filename && !n.start));
 
@@ -288,7 +291,7 @@
 	// when all that's left is suggested skips, and opens the first of them.
 	// Otherwise it's the first thing new to read, and opens that.
 	const summary = $derived.by(() => {
-		const all = [...findingMarks, ...wholeFile];
+		const all = [...findingMarks, ...wholeFile].filter((m) => !m.filtered);
 		const unconfirmed = all.filter((m) => !m.decided);
 		const unread = [
 			...all.filter((m) => m.unread),
@@ -494,6 +497,7 @@
 					kind={p.mark.kind}
 					id={p.mark.id}
 					skipped={p.mark.kind === 'finding' && p.mark.included === false}
+					filtered={!!p.mark.filtered}
 					active={session.openMark === p.mark.id}
 					unread={p.mark.kind === 'finding' ? !!p.mark.unread : !!p.mark.note && isUnread(p.mark.note)}
 					settled={(!!p.mark.note && isConcluded(p.mark.note)) || !!p.mark.github?.resolved}

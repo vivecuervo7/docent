@@ -37,6 +37,8 @@ export interface Mark {
 	checked?: string;
 	checkedVerdict?: string;
 	skipSuggested?: string;
+	// Why the editor filtered it out, when filtered findings are shown.
+	filtered?: string;
 	severity?: Severity;
 	// What the reviewers it's grouped with disagree with it about.
 	disputed?: string[];
@@ -47,13 +49,14 @@ export interface Mark {
 export type LooseMark = Omit<Mark, 'path' | 'start' | 'end'> & { path?: string };
 
 // The panel's findings as shown, each as a mark: with its lines, or loose.
-function findingMarks(record: PrRecord): (LooseMark & { start?: LineRef; end?: LineRef })[] {
+// With `filtered`, those the editor filtered out too.
+function findingMarks(record: PrRecord, filtered = false): (LooseMark & { start?: LineRef; end?: LineRef })[] {
 	const { membersOf, joined, exists } = groupsOf(record);
 	return Object.entries(record.feedback)
 		.filter(([key]) => key.startsWith('agent-'))
 		.flatMap(([key, draft]) =>
 			(draft?.items ?? [])
-				.filter((item) => isShown(item) && !joined(key, item))
+				.filter((item) => (isShown(item) || (filtered && !!item.filtered)) && !joined(key, item))
 				.map((item) => ({
 					id: item.id,
 					kind: 'finding' as const,
@@ -68,6 +71,7 @@ function findingMarks(record: PrRecord): (LooseMark & { start?: LineRef; end?: L
 					...(item.impact ? { impact: item.impact, impactLevel: item.impactLevel } : {}),
 					...(item.checked ? { checked: item.checked, checkedVerdict: item.checkedVerdict } : {}),
 					...(item.skipSuggested ? { skipSuggested: item.skipSuggested } : {}),
+					...(item.filtered ? { filtered: item.filtered } : {}),
 					...(item.severity ? { severity: item.severity } : {}),
 					included: item.included,
 					decided: item.decided,
@@ -95,12 +99,12 @@ function findingMarks(record: PrRecord): (LooseMark & { start?: LineRef; end?: L
 }
 
 // The findings without lines, for a file's header or the PR's overview.
-export function looseMarksFrom(record: PrRecord): LooseMark[] {
-	return findingMarks(record).filter((m) => !m.start);
+export function looseMarksFrom(record: PrRecord, filtered = false): LooseMark[] {
+	return findingMarks(record, filtered).filter((m) => !m.start);
 }
 
-export function marksFrom(record: PrRecord): Mark[] {
-	const findings = findingMarks(record).filter((m): m is Mark => !!m.path && !!m.start);
+export function marksFrom(record: PrRecord, filtered = false): Mark[] {
+	const findings = findingMarks(record, filtered).filter((m): m is Mark => !!m.path && !!m.start);
 	// A thread about something said on GitHub opens from that thread's pin.
 	const notes = record.notes.flatMap((note): Mark[] =>
 		note.start && note.end && !note.github

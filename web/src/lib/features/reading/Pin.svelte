@@ -11,6 +11,7 @@
 		label,
 		title,
 		skipped = false,
+		filtered = false,
 		active = false,
 		settled = false,
 		unread = false,
@@ -24,6 +25,8 @@
 		label: string;
 		title?: string;
 		skipped?: boolean;
+		// Filtered out by the editor, shown on asking.
+		filtered?: boolean;
 		active?: boolean;
 		settled?: boolean;
 		unread?: boolean;
@@ -37,6 +40,7 @@
 <button
 	class="pin {kind}"
 	class:skipped
+	class:filtered
 	class:active
 	class:settled
 	data-pin={id}
@@ -71,6 +75,14 @@
 		stroke: var(--agent);
 		stroke-width: 1.2;
 		opacity: 0.75;
+	}
+	/* Filtered out: a faint dashed outline, there only when asked for. */
+	.pin.finding.filtered {
+		fill: none;
+		stroke: var(--faint);
+		stroke-width: 1.2;
+		stroke-dasharray: 2 1.6;
+		opacity: 1;
 	}
 	.pin.note {
 		fill: var(--you);

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { reviewerName } from '$lib/features/panel/findings';
 	import type { LooseMark, Mark } from '$lib/features/reading/marks';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import FileDiffs from '$lib/features/reading/FileDiffs.svelte';
@@ -84,7 +83,11 @@
 	// The panel's editor at work on this slice, and what it filtered out.
 	const reviewing = $derived(sliceId ? session.panel.reviewing(sliceId) : false);
 	const filtered = $derived(sliceId ? session.panel.filteredIn(sliceId) : []);
-	let showFiltered = $state(false);
+	// Filtered findings show faintly where they were raised; the first opens.
+	function toggleFiltered() {
+		session.showFiltered = !session.showFiltered;
+		if (session.showFiltered && filtered[0]) session.revealing = filtered[0].item.id;
+	}
 
 	// The second opinion's Done completes the move it interrupted.
 	function finishOpinion() {
@@ -129,23 +132,11 @@
 				<div class="editor faint">
 					{#if reviewing}<span>The panel is still reviewing this slice</span>{/if}
 					{#if filtered.length}
-						<button class="link" onclick={() => (showFiltered = !showFiltered)} aria-expanded={showFiltered}>
+						<button class="link" class:on={session.showFiltered} aria-pressed={session.showFiltered} onclick={toggleFiltered}>
 							{filtered.length} filtered
 						</button>
 					{/if}
 				</div>
-				{#if showFiltered && filtered.length}
-					<ul class="filtered">
-						{#each filtered as { reviewer, item } (item.id)}
-							<li>
-								<div class="who faint">{reviewerName(session.record, reviewer)}{item.path ? ` · ${item.path}` : ''}</div>
-								<NoteText text={item.body} />
-								<div class="why faint">Filtered: {item.filtered}</div>
-								<button class="btn" onclick={() => session.keepFiltered(reviewer, item.id)}>Show it</button>
-							</li>
-						{/each}
-					</ul>
-				{/if}
 			{/if}
 			{#key slice.id}
 				<div class="above-files">
@@ -235,6 +226,9 @@
 		margin: 12px 0;
 		font-size: 13.5px;
 	}
+	.link.on {
+		color: var(--text);
+	}
 	.link {
 		padding: 0;
 		border: 0;
@@ -244,26 +238,6 @@
 		text-decoration: underline;
 		text-underline-offset: 3px;
 		cursor: pointer;
-	}
-	.filtered {
-		list-style: none;
-		margin: 0 0 16px;
-		padding: 0;
-		display: grid;
-		gap: 10px;
-	}
-	.filtered li {
-		display: grid;
-		gap: 6px;
-		justify-items: start;
-		padding: 12px 14px;
-		border-radius: 10px;
-		box-shadow: 0 0 0 1px var(--line-2);
-		font-size: 14px;
-	}
-	.filtered .who,
-	.filtered .why {
-		font-size: 12.5px;
 	}
 	.done-label {
 		font-size: 11.5px;
