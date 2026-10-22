@@ -153,7 +153,8 @@ function saveRounds(key: string, stored: Record<string, unknown>) {
     const before = readRound(key, i + 1);
     const sizes = before?.sizes && before.slices === figures.slices ? before.sizes : undefined;
     writeRound({ ...figures, ...(sizes ? { sizes } : {}) });
-    if (sizes?.pr === undefined && figures.slices) measure(key, i === earlier ? undefined : i, i + 1);
+    // Measured again, its last sizes kept meanwhile, when how it's counted changes.
+    if ((sizes?.pr === undefined || before?.counted !== COUNTED) && figures.slices) measure(key, i === earlier ? undefined : i, i + 1);
   }
 }
 
@@ -224,7 +225,7 @@ async function drain() {
 
 // What a round's figures count, which goes up when that changes: rounds
 // counted the old way are taken again once, from the reviews still kept.
-const COUNTED = 6;
+const COUNTED = 7;
 
 function fillPoints() {
   const missing = new Set(
