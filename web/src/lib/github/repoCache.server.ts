@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { dataDir } from "../storage/dataDir.server.js";
 import { promisify } from "node:util";
 import { persistent } from "../storage/persistent.server.js";
+import type { PrFile } from "./github.server.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -87,24 +88,43 @@ export function prHead(owner: string, repo: string, number: string): Promise<str
   });
 }
 
-// How the given files differ between two commits, each file's diff as its
-// patch: the commits are fetched by their shas, which works for one GitHub
-// still holds though no branch leads to it. The whole tree is compared, so
-// a file moved from a path outside those given is still seen as moved, its
-// patch only what changed in it, as GitHub's compare has it.
-export function changesBetween(owner: string, repo: string, from: string, to: string, paths: string[]): Promise<{ filename: string; patch: string }[]> {
-  const wanted = new Set(paths);
+// How files differ between two commits, as GitHub lists a PR's files: each
+// with its patch, but none ever left out for its size. A binary file has
+// no patch. The commits are fetched by their shas, which works for one
+// GitHub still holds though no branch leads to it. The whole tree is
+// compared, so a file moved from a path outside those asked for is still
+// seen as moved, its patch only what changed in it.
+export function changesBetween(owner: string, repo: string, from: string, to: string, paths?: string[]): Promise<PrFile[]> {
+  const wanted = paths && new Set(paths);
   return inRepo(owner, repo, async (dir) => {
     await ensureRepo(owner, repo, dir);
     await git(dir, ["fetch", "--quiet", "--depth=1", "--filter=blob:none", "--no-tags", "origin", from, to]);
     // Git's usual context, as GitHub's patches have: a deletion's place is
     // told by the line after it.
     const out = await git(dir, ["-c", "core.quotePath=false", "diff", "--find-renames", "--no-color", from, to]);
-    return out.split(/^diff --git /m).flatMap((part) => {
-      // A moved file is named by where it went; a deleted one only on its old side.
-      const name = part.match(/^rename to (.+)$/m)?.[1] ?? part.match(/^\+\+\+ b\/(.+)$/m)?.[1] ?? part.match(/^--- a\/(.+)$/m)?.[1];
+    return out.split(/^diff --git /m).flatMap((part): PrFile[] => {
       const at = part.search(/^@@ /m);
-      return name && wanted.has(name) && at >= 0 ? [{ filename: name, patch: part.slice(at) }] : [];
+      const header = at >= 0 ? part.slice(0, at) : part;
+      const moved = header.match(/^rename from (.+)$/m)?.[1];
+      // A moved file is named by where it went; a deleted one only on its old side.
+      const name =
+        header.match(/^rename to (.+)$/m)?.[1] ??
+        header.match(/^\+\+\+ b\/(.+)$/m)?.[1] ??
+        header.match(/^--- a\/(.+)$/m)?.[1] ??
+        header.match(/^Binary files (?:a\/(.+?)|\/dev\/null) and (?:b\/(.+?)|\/dev\/null) differ$/m)?.slice(1).findLast(Boolean);
+      if (!name || (wanted && !wanted.has(name))) return [];
+      const patch = at >= 0 ? part.slice(at).replace(/\n$/, "") : undefined;
+      const rows = patch?.split("\n") ?? [];
+      return [
+        {
+          filename: name,
+          status: /^new file mode/m.test(header) ? "added" : /^deleted file mode/m.test(header) ? "removed" : moved ? "renamed" : "modified",
+          additions: rows.filter((l) => l.startsWith("+")).length,
+          deletions: rows.filter((l) => l.startsWith("-")).length,
+          ...(patch ? { patch } : {}),
+          ...(moved ? { previous_filename: moved } : {}),
+        },
+      ];
     });
   });
 }

@@ -49,8 +49,7 @@ export async function fetchReviewFiles(owner: string, repo: string, number: stri
   const range = earlier ? earlier.range : record.range;
   const head = await fetchPrHeadSha(owner, repo, number);
   const to = range?.to ?? earlier?.preparedHead ?? head;
-  const prFiles =
-    to === head ? fetchPrFiles(owner, repo, number) : fetchPrBaseSha(owner, repo, number).then((base) => compareFiles(owner, repo, base, to));
+  const prFiles = to === head ? fetchPrFiles(owner, repo, number) : prFilesAt(owner, repo, number, to);
   if (!range || whole) return prFiles;
   const pr = await prFiles;
   const changed = await changesBetween(owner, repo, range.after, range.to, pr.map((f) => f.filename)).catch((err) => {
@@ -76,11 +75,13 @@ export async function fetchReviewHead(owner: string, repo: string, number: strin
   return range?.to ?? fetchPrHeadSha(owner, repo, number);
 }
 
-async function compareFiles(owner: string, repo: string, from: string, to: string): Promise<PrFile[]> {
-  const { stdout } = await execFileAsync("gh", ["api", `repos/${owner}/${repo}/compare/${from}...${to}`, "--jq", ".files"], {
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  return JSON.parse(stdout) as PrFile[];
+// The PR's files as they were at an earlier commit: what it changed since
+// it left the base branch. Only where it left is asked of GitHub's compare,
+// whose list of files stops at 300.
+async function prFilesAt(owner: string, repo: string, number: string, to: string): Promise<PrFile[]> {
+  const base = await fetchPrBaseSha(owner, repo, number);
+  const { stdout } = await execFileAsync("gh", ["api", `repos/${owner}/${repo}/compare/${base}...${to}`, "--jq", ".merge_base_commit.sha"]);
+  return changesBetween(owner, repo, stdout.trim(), to);
 }
 
 // Both diffs number new lines as the range's last commit has them, so a PR
