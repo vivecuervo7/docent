@@ -36,40 +36,30 @@
 		font-weight: 500;
 		cursor: pointer;
 	}
+	/* The choice made in the app's off-white: Keep solid, Skip faint, so the
+	   box behind tints it. */
 	button.on {
-		background: var(--surface-2);
-		box-shadow: inset 0 0 0 1px var(--line-2);
-		color: var(--text);
+		box-shadow: none;
 	}
 	button.keep.on {
-		background: var(--done-bg);
-		box-shadow: none;
-		color: #fff;
+		background: #ece8df;
+		color: #1f1c17;
+	}
+	button.skip.on {
+		background: rgb(236 232 223 / 0.24);
+		color: var(--text);
 	}
 	button.on.suggested {
 		background: none;
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 	}
-	/* In the brown: the well of the box you ask in, and the choice made in a
-	   light tan of the same brown. */
+	/* In the brown, the well of the box you ask in. */
 	.agent {
 		background: color-mix(in srgb, var(--popover) 50%, var(--bg));
 		box-shadow: inset 0 0 0 1px var(--popover-line);
 	}
-	.agent button.on,
-	.agent button.keep.on {
-		background: var(--agent-text);
-		box-shadow: none;
-		color: #1f1c17;
-	}
-	/* Skip a shade darker than Keep. */
-	.agent button.skip.on {
-		background: #b8a78f;
-	}
 	.agent button.on.suggested {
-		background: none;
 		box-shadow: inset 0 0 0 1px var(--popover-line);
-		color: var(--text);
 	}
 </style>
