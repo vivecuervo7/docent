@@ -8,6 +8,7 @@
 	import StateMark from '$lib/ui/StateMark.svelte';
 	import AskBubble from '$lib/features/reading/AskBubble.svelte';
 	import ThreadTriage from '$lib/features/threads/ThreadTriage.svelte';
+	import { PrThreads } from '$lib/features/threads/prThreads.svelte';
 	import { isGenerating, isSliceReviewed, useSession } from '$lib/session/session.svelte';
 
 	// The Overview: what the PR is, its slices, and the review panel to start
@@ -19,6 +20,12 @@
 	const wholePr = $derived(session.looseFindings.filter((f) => !f.mark.path).map((f) => f.mark));
 	const base = $derived(session.base);
 	const summary = $derived(session.record.summary);
+	// The PR's GitHub threads, which the reading view reads again once one's changed.
+	const threads = new PrThreads(session.ref, { model: () => session.record.model, onchange: () => session.refreshGitHub().catch(() => {}) });
+	$effect(() => {
+		threads.load();
+		return () => threads.close();
+	});
 	const githubUrl = $derived(
 		session.meta?.htmlUrl ?? `https://github.com/${session.ref.owner}/${session.ref.repo}/pull/${session.ref.number}`
 	);
@@ -69,7 +76,7 @@
 				</div>
 			{/if}
 
-			<ThreadTriage />
+			<ThreadTriage {threads} {base} />
 		</section>
 
 		<aside>

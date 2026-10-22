@@ -3,8 +3,8 @@ import { inLane } from "../../models/lanes.server.js";
 import { modelName } from "../../storage/settings.server.js";
 import type { AnswerAccess } from "../reading/threadReplies.server.js";
 
-// Whether the changes under review address a thread someone left on GitHub,
-// checked for every open thread at once, so none is missed.
+// Whether a thread someone left on GitHub has been dealt with, judged from
+// what's changed in its file since and what's been said on it.
 
 export interface ThreadToCheck {
   path: string;
@@ -12,10 +12,10 @@ export interface ThreadToCheck {
   lines: string;
   // Its lines as they read now, with +/- markers; empty when they've moved.
   code: string;
-  // This round's changes to its file; empty when the round didn't touch it.
+  // What's changed in its file since it was left; or, `since` unset, the
+  // PR's whole change to the file, the commit it was left on being gone.
   fileDiff: string;
-  // Reviewing some of the PR's commits: the lines in the file they changed.
-  roundLines?: string;
+  since: boolean;
   // The thread, as text.
   github: string;
 }
@@ -63,14 +63,8 @@ enough.`;
 function contextOf(thread: ThreadToCheck): string {
   const parts = [`File: ${thread.path}, ${thread.lines}`, `The thread on GitHub:\n${thread.github}`];
   if (thread.code) parts.push(`Its lines now:\n\`\`\`diff\n${thread.code}\n\`\`\``);
-  parts.push(
-    thread.fileDiff
-      ? `The changes under review to the file:\n\`\`\`diff\n${thread.fileDiff}\n\`\`\``
-      : "The changes under review don't touch this file.",
-  );
-  if (thread.roundLines) {
-    parts.push(`This review covers only some of the PR's commits. In this file they changed lines ${thread.roundLines}.`);
-  }
+  const what = thread.since ? "What's changed in the file since the comment was left" : "The PR's changes to the file";
+  parts.push(thread.fileDiff ? `${what}:\n\`\`\`diff\n${thread.fileDiff}\n\`\`\`` : thread.since ? "Nothing in the file has changed since the comment was left." : "The PR doesn't change this file.");
   return parts.join("\n\n");
 }
 

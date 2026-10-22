@@ -8,23 +8,25 @@
 	import { useSession } from '$lib/session/session.svelte';
 	import Composer, { type SendKind } from '../reading/Composer.svelte';
 	import ThreadPanel from '../reading/ThreadPanel.svelte';
-	import { VERDICTS, checkOf, touchedBy } from './threads';
+	import type { PrThreads } from './prThreads.svelte';
+	import { VERDICTS, checkOf } from './threads';
 
 	// One GitHub thread, looked at closely: the code then and now, all that
 	// was said, what checking it found, asking about it, and replying,
 	// resolving or reopening there and then. Steps on through the list it
-	// was opened from.
-	let { id = $bindable(), order, onclose }: { id: string; order: string[]; onclose: () => void } = $props();
+	// was opened from. Asking about it is for a review, where the answer's kept.
+	let { threads, id = $bindable(), order, onclose }: { threads: PrThreads; id: string; order: string[]; onclose: () => void } = $props();
 
 	const session = useSession();
-	const thread = $derived(session.github?.threads.find((t) => t.id === id));
+	const thread = $derived(threads.threads.find((t) => t.id === id));
 	const at = $derived(order.indexOf(id));
-	const check = $derived(thread ? checkOf(session.record.threadChecks, thread) : undefined);
-	const yours = $derived(session.record.notes.find((n) => n.github === id));
+	const check = $derived(thread ? checkOf(threads.checks, thread) : undefined);
+	const stale = $derived(!!check?.head && !!threads.head && check.head !== threads.head);
+	const yours = $derived(session?.record.notes.find((n) => n.github === id));
 
 	// The lines it was left on: the end of GitHub's hunk, which stops at them.
 	const then = $derived(thread?.diffHunk?.split('\n').filter((l) => !l.startsWith('@@')).slice(-8) ?? []);
-	const now = $derived(thread ? session.threadCode(thread).split('\n').filter(Boolean) : []);
+	const now = $derived(thread?.now.split('\n').filter(Boolean) ?? []);
 
 	// Long threads show their first and latest comments, the rest folded.
 	let showAll = $state(false);
@@ -52,7 +54,7 @@
 		busy = true;
 		error = null;
 		try {
-			await session.changeThreads([{ thread, ...change }]);
+			await threads.change([{ thread, ...change }]);
 			if (change.reply) reply = '';
 		} catch (err) {
 			error = (err as Error).message;
@@ -62,7 +64,7 @@
 	}
 
 	let draft = $state('');
-	const ask = (text: string, kind: SendKind) => session.askAboutGitHub(id, text, { comment: kind === 'comment' });
+	const ask = (text: string, kind: SendKind) => session?.askAboutGitHub(id, text, { comment: kind === 'comment' });
 
 	function step(by: number) {
 		const next = order[at + by];
@@ -100,7 +102,7 @@
 
 		<p class="where">
 			{thread.path}{#if thread.start && thread.end}:{thread.start.line === thread.end.line ? thread.start.line : `${thread.start.line}–${thread.end.line}`}{/if}
-			{#if thread.outdated}<span class="faint"> · outdated</span>{:else if touchedBy(session.files, thread) && session.files.some((f) => f.rangeLines)}<span class="faint"> · changed this round</span>{/if}
+			{#if thread.outdated}<span class="faint"> · outdated</span>{/if}
 		</p>
 
 		{#if then.length || now.length}
@@ -127,7 +129,7 @@
 						<span class="who">
 							<Avatar src={e.avatar} name={e.author} size={16} />
 							{e.author}
-							{#if e.author === session.meta?.author}<span class="tag">author</span>{/if}
+							{#if e.author === threads.author}<span class="tag">author</span>{/if}
 							{#if e.createdAt}<span class="faint">· {timeAgo(Date.parse(e.createdAt))}</span>{/if}
 						</span>
 						<div class="text"><NoteText text={e.body} /></div>
@@ -140,17 +142,18 @@
 
 		<div class="check">
 			{#if check?.checking}
-				<span class="faint"><Spinner size={13} /> Checking against this round…</span>
+				<span class="faint"><Spinner size={13} /> Checking…</span>
 			{:else if check?.verdict}
-				<span class="faint label">Docent · checked against this round</span>
+				<span class="faint label">Docent · {stale ? 'checked before the latest commits' : 'checked at the latest commit'}</span>
 				<p><InlineText text={check.reason ?? ''} /></p>
+				{#if stale}<button class="link" onclick={() => threads.check([thread])}>Check it again</button>{/if}
 			{:else}
 				{#if check?.error}<p class="bad">Couldn’t check: {check.error}</p>{/if}
-				<button class="btn" onclick={() => session.checkThreads([thread])}>Check it against this round</button>
+				<button class="btn" onclick={() => threads.check([thread])}>Check it</button>
 			{/if}
 			{#if yours}
 				<div class="yours"><ThreadPanel note={yours} title="Asked about it" /></div>
-			{:else}
+			{:else if session}
 				<Composer bind:value={draft} placeholder="Ask Docent about this thread…" onsend={ask} />
 			{/if}
 		</div>

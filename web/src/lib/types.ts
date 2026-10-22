@@ -293,6 +293,8 @@ export interface ThreadCheck {
 	at: number;
 	// How many comments the thread had when checked.
 	entries: number;
+	// The PR's head it was checked at.
+	head?: string;
 }
 
 export interface Job {

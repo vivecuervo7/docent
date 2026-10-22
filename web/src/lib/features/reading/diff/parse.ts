@@ -267,6 +267,18 @@ export function expansionFor(h: Hunk, start: LineRef, end: LineRef): Expansion {
 	};
 }
 
+// A hunk's lines from start to end, with +/- markers.
+export function codeIn(hunk: Hunk, start: LineRef, end: LineRef): string {
+	const within = (r: Hunk['rows'][number]) => {
+		const n = start.side === 'new' ? (r.kind !== 'del' ? r.new : undefined) : r.kind !== 'add' ? r.old : undefined;
+		return n !== undefined && n >= start.line && n <= end.line;
+	};
+	return hunk.rows
+		.filter(within)
+		.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`)
+		.join('\n');
+}
+
 // The hunk a line belongs with: the one holding it, else the nearest, for a
 // line outside the diff (an agent can point at unchanged code).
 export function nearestHunk(hunks: Hunk[], at: LineRef): Hunk | undefined {

@@ -4,32 +4,31 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
-	import { useSession } from '$lib/session/session.svelte';
 	import type { GitHubThread } from '$lib/types';
 	import ThreadDialog from './ThreadDialog.svelte';
-	import { VERDICTS, checkOf, gist, threadWhere, touchedBy, type Verdict } from './threads';
+	import type { PrThreads } from './prThreads.svelte';
+	import { VERDICTS, checkOf, gist, threadWhere, type Verdict } from './threads';
 
-	// The GitHub threads on the round, gone through before reading it: all
-	// checked against the round at once, those that look addressed resolved
-	// together, and any opened to look closer.
-	const session = useSession();
+	// A PR's GitHub threads, gone through: all checked at once for whether
+	// they've been dealt with, those that look addressed resolved together,
+	// and any opened to look closer. On a review's Overview, `base` is its
+	// page, which a thread can be opened on by URL.
+	let { threads: source, base }: { threads: PrThreads; base?: string } = $props();
 
-	// Threads on lines the round changed first, as the ones it may have settled.
-	const all = $derived.by(() => {
-		const threads = session.githubShown?.threads ?? [];
-		const order = new Map(session.files.map((f, i) => [f.filename, i]));
-		return [...threads].sort(
-			(a, b) =>
-				Number(touchedBy(session.files, b)) - Number(touchedBy(session.files, a)) ||
-				(order.get(a.path) ?? Infinity) - (order.get(b.path) ?? Infinity) ||
-				(a.start?.line ?? 0) - (b.start?.line ?? 0)
-		);
-	});
+	// By file, then line.
+	const all = $derived(
+		[...source.threads].sort((a, b) => a.path.localeCompare(b.path) || (a.start?.line ?? 0) - (b.start?.line ?? 0))
+	);
 	const open = $derived(all.filter((t) => !t.resolved));
 	const resolved = $derived(all.filter((t) => t.resolved));
 	let showResolved = $state(false);
 
-	const checks = $derived(session.record.threadChecks);
+	const checks = $derived(source.checks);
+	// A check made before the latest commits, which may have dealt with more.
+	const stale = (t: GitHubThread) => {
+		const c = check(t);
+		return !!c?.verdict && !!c.head && !!source.head && c.head !== source.head;
+	};
 	const check = (t: GitHubThread) => checkOf(checks, t);
 	const checking = $derived(open.filter((t) => check(t)?.checking));
 	const unchecked = $derived(open.filter((t) => !check(t)));
@@ -52,7 +51,7 @@
 		resolving = true;
 		error = null;
 		try {
-			await session.changeThreads(ticked.map((thread) => ({ thread, resolved: true })));
+			await source.change(ticked.map((thread) => ({ thread, resolved: true })));
 		} catch (err) {
 			error = (err as Error).message;
 		} finally {
@@ -63,7 +62,7 @@
 	async function checkAll(threads: GitHubThread[]) {
 		error = null;
 		try {
-			await session.checkThreads(threads);
+			await source.check(threads);
 		} catch (err) {
 			error = (err as Error).message;
 		}
@@ -80,10 +79,10 @@
 		opened = { id, order: listed.some((t) => t.id === id) ? listed.map((t) => t.id) : [id] };
 	}
 	$effect(() => {
-		const id = page.url.searchParams.get('thread');
-		if (id && all.some((t) => t.id === id) && opened?.id !== id) {
+		const id = base && page.url.searchParams.get('thread');
+		if (base && id && all.some((t) => t.id === id) && opened?.id !== id) {
 			show(id);
-			goto(session.base, { replaceState: true, noScroll: true, keepFocus: true });
+			goto(base, { replaceState: true, noScroll: true, keepFocus: true });
 		}
 	});
 </script>
@@ -98,7 +97,7 @@
 			<span class="meta">
 				<span class="mono">{threadWhere(t)}</span> · {t.entries[0]?.author ?? 'someone'}
 				{#if t.entries.length > 1}· {t.entries.length - 1} {t.entries.length === 2 ? 'reply' : 'replies'}{/if}
-				{#if t.outdated}· outdated{:else if touchedBy(session.files, t) && session.files.some((f) => f.rangeLines)}· changed this round{/if}
+				{#if t.outdated}· outdated{/if}
 			</span>
 			<span class="gist"><InlineText text={gist(t)} /></span>
 			{#if c?.checking}
@@ -107,6 +106,7 @@
 				<span class="reason bad">Couldn’t check: {c.error}</span>
 			{:else if c?.reason}
 				<span class="reason"><span><InlineText text={c.reason} /></span></span>
+				{#if stale(t)}<span class="reason faint">Checked before the latest commits</span>{/if}
 			{:else if checks?.[t.id] && !t.resolved}
 				<span class="reason faint">New replies since it was checked</span>
 			{/if}
@@ -118,7 +118,7 @@
 	<div class="head">
 		<h2>GitHub threads</h2>
 		<span class="grow"></span>
-		{#if session.github && open.length}
+		{#if source.data && open.length}
 			{#if checking.length}
 				<span class="checking faint"><Spinner size={12} /> Checking {checking.length < open.length ? `${checking.length} of ${open.length}` : `all ${open.length}`}…</span>
 			{:else if anyChecked}
@@ -127,7 +127,7 @@
 				{/if}
 				<button class="link" onclick={() => checkAll(open)}>Check again</button>
 			{:else}
-				<button class="link" title="Whether this round addresses them, one line each" onclick={() => checkAll(open)}>Check against this round</button>
+				<button class="link" title="Whether each has been dealt with since it was left, one line each" onclick={() => checkAll(open)}>Check them</button>
 			{/if}
 		{/if}
 		{#if ticked.length}
@@ -137,10 +137,12 @@
 		{/if}
 	</div>
 
-	{#if !session.github}
+	{#if source.error && !source.data}
+		<p class="bad">Couldn’t read the threads: {source.error}</p>
+	{:else if !source.data}
 		<p class="faint">Reading what’s been said on GitHub…</p>
 	{:else if !all.length}
-		<p class="faint">No threads on this round’s files.</p>
+		<p class="faint">No threads on GitHub yet.</p>
 	{:else}
 		{#if error}<p class="bad">{error}</p>{/if}
 
@@ -163,7 +165,7 @@
 		{:else if open.length}
 			<ul>{#each open as t (t.id)}{@render row(t, false)}{/each}</ul>
 		{:else}
-			<p class="faint">Every thread on this round’s files is resolved.</p>
+			<p class="faint">Every thread is resolved.</p>
 		{/if}
 
 		<!-- Resolved threads come last, and only on asking. -->
@@ -180,7 +182,7 @@
 </section>
 
 {#if opened}
-	<ThreadDialog bind:id={opened.id} order={opened.order} onclose={() => (opened = null)} />
+	<ThreadDialog threads={source} bind:id={opened.id} order={opened.order} onclose={() => (opened = null)} />
 {/if}
 
 <style>

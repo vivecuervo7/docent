@@ -4,7 +4,7 @@ import { fetchCommits, fetchPr, listModels, readOk } from '../api/client';
 import { groupsOf, reviewerName } from '../features/panel/findings';
 import { dismissGeneration, getGeneration, startGeneration, stopGeneration } from '../features/preparing/generations';
 import { type LooseMark, type Mark, looseMarksFrom, marksFrom } from '../features/reading/marks';
-import { nearestHunk, parseFilePatch, type Hunk } from '../features/reading/diff/parse';
+import { codeIn, nearestHunk, parseFilePatch, type Hunk } from '../features/reading/diff/parse';
 import { Panel, sessionId } from '../features/panel/panel.svelte';
 import { ReviewPost } from '../features/posting/post.svelte';
 import { everythingElse, isSliceReviewed, reviewKeys } from '../features/reading/progress';
@@ -24,18 +24,6 @@ export function isGenerating(generation: Generation | null | undefined): boolean
 }
 
 export { isSliceReviewed };
-
-// A hunk's lines from start to end, with +/- markers.
-function codeIn(hunk: Hunk, start: LineRef, end: LineRef): string {
-	const within = (r: Hunk['rows'][number]) => {
-		const n = start.side === 'new' ? (r.kind !== 'del' ? r.new : undefined) : r.kind !== 'add' ? r.old : undefined;
-		return n !== undefined && n >= start.line && n <= end.line;
-	};
-	return hunk.rows
-		.filter(within)
-		.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`)
-		.join('\n');
-}
 
 // Line numbers as ranges: "3-5, 9".
 function describeLines(lines: number[]): string {
@@ -328,52 +316,6 @@ export class PrSession {
 		await this.refreshGitHub().catch(() => {});
 		const refused = results.filter((r) => r.error);
 		if (refused.length) throw new Error(`GitHub didn't change ${refused.length === 1 ? 'a thread' : `${refused.length} threads`}: ${refused[0].error}`);
-	}
-
-	// A GitHub thread's lines as they read in the round, with +/- markers;
-	// none once they've moved.
-	threadCode(thread: GitHubThread): string {
-		const { start, end } = thread;
-		const hunk = start && end ? nearestHunk(this.hunks.get(thread.path) ?? [], start) : undefined;
-		return hunk && start && end ? codeIn(hunk, start, end) : '';
-	}
-
-	// Checks whether the round addresses these GitHub threads. The checks run
-	// on the backend and are saved into the round as each is made.
-	async checkThreads(threads: GitHubThread[]) {
-		if (!threads.length) return;
-		const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-threads/check`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				model: this.record.model,
-				threads: threads.map((t) => {
-					const file = this.files.find((f) => f.filename === t.path);
-					const lines =
-						t.start && t.end
-							? noteWhere({ path: t.path, start: t.start, end: t.end })
-							: t.outdated
-								? `outdated: its lines have changed since${t.originalLine ? `; it was left on line ${t.originalLine}` : ''}`
-								: 'the whole file';
-					return {
-						id: t.id,
-						entries: t.entries.length,
-						context: {
-							path: t.path,
-							lines,
-							code: this.threadCode(t),
-							fileDiff: file?.patch ?? '',
-							...(file?.rangeLines ? { roundLines: describeLines(file.rangeLines.new) } : {}),
-							github: [t.diffHunk ? `Left on:\n${t.diffHunk}` : '', ...t.entries.map((e) => `${e.author}: ${e.body}`)].filter(Boolean).join('\n\n')
-						}
-					};
-				}),
-				...(this.round !== null ? { round: this.round } : {})
-			})
-		});
-		await readOk(res);
-		await this.reload();
-		this.watch();
 	}
 
 	// What's been said on GitHub again, after changing it.
@@ -889,8 +831,7 @@ export class PrSession {
 			const awaited = [...r.notes, ...Object.values(r.feedback).flatMap((d) => d?.items ?? [])].some((x) => x.awaiting);
 			const working =
 				Object.values(r.jobs ?? {}).some((job) => job?.status === 'running') ||
-				r.agentReviewers.some((a) => a.picking) ||
-				Object.values(r.threadChecks ?? {}).some((c) => c.checking);
+				r.agentReviewers.some((a) => a.picking);
 			if ((!awaited && !working) || this.#closed) {
 				clearInterval(this.#watching!);
 				this.#watching = null;
