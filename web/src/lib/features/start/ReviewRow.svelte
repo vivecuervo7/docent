@@ -16,6 +16,7 @@
 	const raised = $derived(page.raisedAt(pr));
 	const hidden = $derived(page.isHidden(pr));
 	const pinned = $derived(page.isPinned(pr));
+	const unresolved = $derived(page.unresolvedOf(pr));
 	const href = $derived(`/pr/${pr.owner}/${pr.repo}/${pr.number}`);
 	const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 </script>
@@ -41,6 +42,15 @@
 			{#if r.deletable}<button class="delete" onclick={() => page.deleteRound(pr)}>Delete round {r.n}</button>{/if}
 		</span>
 	{/snippet}
+	<!-- Feedback on GitHub still open, to go through without opening the review. -->
+	{#if unresolved}
+		{@const label = `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'} on GitHub`}
+		<button class="threads" aria-label={label} title={label} onclick={() => page.openThreads(pr)}>
+			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+				><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" /></svg
+			>
+		</button>
+	{/if}
 	<span class="state">
 		<!-- Its rounds in order, joined, then the next round when there's one to
 		     review: new commits, or a round being set up for them. The row's
@@ -344,6 +354,25 @@
 	}
 	.delete:hover {
 		color: var(--danger);
+	}
+	.threads {
+		flex-shrink: 0;
+		display: grid;
+		place-items: center;
+		width: 28px;
+		height: 28px;
+		margin-right: -8px;
+		padding: 0;
+		border: 0;
+		border-radius: 8px;
+		background: none;
+		color: var(--agent);
+		opacity: 0.75;
+		cursor: pointer;
+	}
+	.threads:hover {
+		opacity: 1;
+		background: var(--surface-2);
 	}
 	/* Float just outside the row, so the states line up at its edge. */
 	.row-actions {

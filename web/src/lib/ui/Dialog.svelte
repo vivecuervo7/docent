@@ -2,14 +2,22 @@
 	import type { Snippet } from 'svelte';
 
 	// A centred card over a dimmed page. Escape or a click on the dimmed
-	// area closes it.
+	// area closes it. It's moved to the end of the page, so one opened from
+	// inside another sits over it, and Escape closes only the top one.
 	let { label, width = 660, onclose, children }: { label: string; width?: number; onclose: () => void; children: Snippet } = $props();
+
+	let card: HTMLElement;
+	const onTop = () => [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].at(-1) === card;
+	function toBody(node: HTMLElement) {
+		document.body.appendChild(node);
+		return { destroy: () => node.remove() };
+	}
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && onTop() && onclose()} />
 
-<div class="scrim" role="presentation" onclick={onclose}></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label={label} style:width="{width}px">
+<div class="scrim" role="presentation" onclick={onclose} use:toBody></div>
+<div class="dialog" role="dialog" aria-modal="true" aria-label={label} style:width="{width}px" bind:this={card} use:toBody>
 	{@render children()}
 </div>
 

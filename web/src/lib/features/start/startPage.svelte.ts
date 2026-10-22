@@ -22,6 +22,9 @@ export interface InvolvedPr extends PrRef {
 	decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
 	reviews: { state: string; author?: string }[];
 	mine: boolean;
+	// Its review threads not yet resolved; unknown in what was cached before
+	// they were counted.
+	unresolved?: number;
 }
 
 // Where a saved PR stands on GitHub now.
@@ -33,6 +36,7 @@ interface PrStatus extends PrRef {
 	state: 'OPEN' | 'CLOSED' | 'MERGED';
 	// Its latest hundred commits, oldest first.
 	commits?: { sha: string; date: string; merge: boolean }[];
+	unresolved?: number;
 }
 
 // A round on a row: where it stands, as a bauble that links to it, and
@@ -351,6 +355,25 @@ export class StartPage {
 			body: JSON.stringify({ owner: pr.owner, repo: pr.repo, number: pr.number, hidden })
 		}).catch(() => null);
 		if (res?.ok) this.hiddenKeys = (await res.json()).hidden;
+	}
+
+	// The PR whose GitHub threads are open to go through, over the list.
+	threadsOpen = $state<Row | null>(null);
+	openThreads(pr: Row) {
+		this.threadsOpen = pr;
+	}
+
+	// How many of its GitHub threads are unresolved, if known.
+	unresolvedOf(pr: PrRef): number | undefined {
+		return this.statuses[keyOf(pr)]?.unresolved ?? this.involvedOf(pr)?.unresolved;
+	}
+
+	// Once threads have been resolved or reopened, so the row says so now.
+	setUnresolved(pr: PrRef, n: number) {
+		const key = keyOf(pr);
+		if (this.unresolvedOf(pr) === n) return;
+		if (this.statuses[key]) this.statuses = { ...this.statuses, [key]: { ...this.statuses[key], unresolved: n } };
+		this.involved = this.involved.map((i) => (keyOf(i) === key ? { ...i, unresolved: n } : i));
 	}
 
 	isPinned(pr: PrRef) {

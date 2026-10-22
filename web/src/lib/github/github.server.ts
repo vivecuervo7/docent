@@ -327,13 +327,16 @@ export interface InvolvedPr {
   decision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
   reviews: { state: string; author?: string }[];
   mine: boolean;
+  // Its review threads not yet resolved, of the first hundred.
+  unresolved: number;
 }
 
 const PR_FIELDS = `number title url updatedAt createdAt isDraft
         repository { nameWithOwner }
         author { login }
         reviewDecision
-        latestReviews(first: 20) { nodes { state author { login } } }`;
+        latestReviews(first: 20) { nodes { state author { login } } }
+        reviewThreads(first: 100) { nodes { isResolved } }`;
 
 // Open PRs the reviewer is asked to review by name (not through a team),
 // has reviewed, or wrote - one query, three searches.
@@ -356,6 +359,7 @@ export async function fetchInvolvedPrs(): Promise<InvolvedPr[]> {
     author: { login: string } | null;
     reviewDecision: InvolvedPr["decision"];
     latestReviews: { nodes: { state: string; author: { login: string } | null }[] };
+    reviewThreads: { nodes: { isResolved: boolean }[] };
   };
   const data = JSON.parse(stdout).data ?? {};
   const byKey = new Map<string, InvolvedPr>();
@@ -382,6 +386,7 @@ export async function fetchInvolvedPrs(): Promise<InvolvedPr[]> {
         decision: n.reviewDecision,
         reviews: n.latestReviews.nodes.map((r) => ({ state: r.state, author: r.author?.login })),
         mine,
+        unresolved: n.reviewThreads.nodes.filter((t) => !t.isResolved).length,
       });
     }
   }
@@ -398,6 +403,8 @@ export interface PrStatus {
   updatedAt: string;
   author?: string;
   state: "OPEN" | "CLOSED" | "MERGED";
+  // Its review threads not yet resolved, of the first hundred.
+  unresolved: number;
   // Its latest hundred commits, oldest first.
   commits: { sha: string; date: string; merge: boolean }[];
 }
@@ -409,7 +416,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
   const fields = prs
     .map(
       (pr, i) =>
-        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid authoredDate parents { totalCount } } } } } }`,
+        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid authoredDate parents { totalCount } } } } reviewThreads(first: 100) { nodes { isResolved } } } }`,
     )
     .join("\n");
   const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
@@ -428,6 +435,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
         state: PrStatus["state"];
         author: { login: string } | null;
         commits: { nodes: { commit: { oid: string; authoredDate: string; parents: { totalCount: number } } }[] };
+        reviewThreads: { nodes: { isResolved: boolean }[] };
       } | null;
     } | null
   >;
@@ -443,6 +451,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
             author: found.author?.login,
             state: found.state,
             commits: found.commits.nodes.map(({ commit }) => ({ sha: commit.oid, date: commit.authoredDate, merge: commit.parents.totalCount > 1 })),
+            unresolved: found.reviewThreads.nodes.filter((t) => !t.isResolved).length,
           },
         ]
       : [];

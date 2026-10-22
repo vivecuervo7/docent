@@ -4,6 +4,7 @@
 	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
 	import ReviewRow from '$lib/features/start/ReviewRow.svelte';
 	import SetupDialog from '$lib/features/start/SetupDialog.svelte';
+	import ThreadsDialog from '$lib/features/start/ThreadsDialog.svelte';
 	import { keyOf, StartPage, type Row } from '$lib/features/start/startPage.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
@@ -32,6 +33,11 @@
 
 {#if page.checked && !page.ready && !page.setupSeen}
 	<SetupDialog {page} onclose={() => page.dismissSetup()} />
+{/if}
+
+{#if page.threadsOpen}
+	{@const pr = page.threadsOpen}
+	<ThreadsDialog {pr} title={pr.record.title ?? `#${pr.number}`} onunresolved={(n) => page.setUnresolved(pr, n)} onclose={() => (page.threadsOpen = null)} />
 {/if}
 
 <!-- A list in its groups. Each section folds its groups on its own, and a
