@@ -94,7 +94,7 @@
 							<dt>Lines</dt>
 							<dd>{number(p.size)}</dd>
 							{#if p.lines !== p.size}
-								<dt>Lines read</dt>
+								<dt>Read across rounds</dt>
 								<dd>{number(p.lines)}</dd>
 							{/if}
 							<dt>Files</dt>

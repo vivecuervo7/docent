@@ -12,9 +12,11 @@ const execFileAsync = promisify(execFile);
 // commit, shown only where the range changed it. That's the end result, not
 // the steps, and every line shown is in the PR's diff, so comments on it can
 // go inline. It also drops what a merge from the base branch brought in:
-// those lines changed in the range, but aren't in the PR's diff. A rebased
-// range has no commits to compare, so its changes come from the files at
-// either end, base branch work and all; the PR's diff leaves most of that out.
+// those lines changed in the range, but aren't in the PR's diff. What the
+// range changed comes from the PR's files at either end, not GitHub's
+// compare, which lists at most 300 files and leaves out a large file's
+// patch: a range spanning merges of a busy base branch lost files that way.
+// A rebased range has no commits between its ends, and is read the same.
 
 // The PR's own commits, oldest first. A merge commit is marked, for the
 // range picker to leave out: it brings in the base branch's work.
@@ -51,11 +53,10 @@ export async function fetchReviewFiles(owner: string, repo: string, number: stri
     to === head ? fetchPrFiles(owner, repo, number) : fetchPrBaseSha(owner, repo, number).then((base) => compareFiles(owner, repo, base, to));
   if (!range || whole) return prFiles;
   const pr = await prFiles;
-  const changed = range.rebased
-    ? await changesBetween(owner, repo, range.after, range.to, pr.map((f) => f.filename)).catch(() => {
-        throw new Error(`GitHub no longer has ${range.after.slice(0, 7)}, the commit the round before read up to, so what changed since can't be told.`);
-      })
-    : await compareFiles(owner, repo, range.after, range.to);
+  const changed = await changesBetween(owner, repo, range.after, range.to, pr.map((f) => f.filename)).catch((err) => {
+    if (!range.rebased) throw err;
+    throw new Error(`GitHub no longer has ${range.after.slice(0, 7)}, the commit the round before read up to, so what changed since can't be told.`);
+  });
   return scopeToRange(pr, changed);
 }
 

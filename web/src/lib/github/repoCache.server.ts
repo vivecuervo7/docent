@@ -89,18 +89,22 @@ export function prHead(owner: string, repo: string, number: string): Promise<str
 
 // How the given files differ between two commits, each file's diff as its
 // patch: the commits are fetched by their shas, which works for one GitHub
-// still holds though no branch leads to it.
+// still holds though no branch leads to it. The whole tree is compared, so
+// a file moved from a path outside those given is still seen as moved, its
+// patch only what changed in it, as GitHub's compare has it.
 export function changesBetween(owner: string, repo: string, from: string, to: string, paths: string[]): Promise<{ filename: string; patch: string }[]> {
+  const wanted = new Set(paths);
   return inRepo(owner, repo, async (dir) => {
     await ensureRepo(owner, repo, dir);
     await git(dir, ["fetch", "--quiet", "--depth=1", "--filter=blob:none", "--no-tags", "origin", from, to]);
     // Git's usual context, as GitHub's patches have: a deletion's place is
     // told by the line after it.
-    const out = await git(dir, ["diff", "--no-renames", "--no-color", from, to, "--", ...paths]);
+    const out = await git(dir, ["-c", "core.quotePath=false", "diff", "--find-renames", "--no-color", from, to]);
     return out.split(/^diff --git /m).flatMap((part) => {
-      const name = part.match(/^\+\+\+ b\/(.+)$/m)?.[1];
+      // A moved file is named by where it went; a deleted one only on its old side.
+      const name = part.match(/^rename to (.+)$/m)?.[1] ?? part.match(/^\+\+\+ b\/(.+)$/m)?.[1] ?? part.match(/^--- a\/(.+)$/m)?.[1];
       const at = part.search(/^@@ /m);
-      return name && at >= 0 ? [{ filename: name, patch: part.slice(at) }] : [];
+      return name && wanted.has(name) && at >= 0 ? [{ filename: name, patch: part.slice(at) }] : [];
     });
   });
 }
