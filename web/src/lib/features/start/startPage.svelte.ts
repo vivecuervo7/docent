@@ -44,6 +44,8 @@ interface PrStatus extends PrRef {
 export interface RoundBauble {
 	n: number;
 	label: string;
+	// What its card says it is, where that's more than the badge says.
+	detail?: string;
 	tone: Tone;
 	// Begun but not prepared yet.
 	draft: boolean;
@@ -74,7 +76,7 @@ export type Row = SavedPr & { unsaved?: boolean };
 
 export type Sort = 'none' | 'repo' | 'author';
 
-export type Tone = 'new' | 'working' | 'ready' | 'going' | 'read' | 'done' | 'bad' | 'quiet';
+export type Tone = 'new' | 'working' | 'ready' | 'going' | 'done' | 'bad' | 'quiet';
 
 export const keyOf = (ref: PrRef) => `${ref.owner}/${ref.repo}/${ref.number}`;
 
@@ -468,6 +470,7 @@ export class StartPage {
 			return {
 				n: i + 1,
 				label: state.label,
+				...(state.detail ? { detail: state.detail } : {}),
 				tone: state.tone,
 				draft: rounds.length > 1 && latest && !begun(r) && !generation,
 				href: rounds.length > 1 ? `${base}/round-${i + 1}` : base,
@@ -508,10 +511,12 @@ export class StartPage {
 
 	// Where a round stands, as one of a few states. Preparing and the panel
 	// are the latest round's.
-	#stateOfRound(pr: Row, r: PrRecord, latest: boolean): { label: string; tone: Tone } {
+	// Purple is untouched, blue Docent working or ready for you, amber you
+	// partway through, green done.
+	#stateOfRound(pr: Row, r: PrRecord, latest: boolean): { label: string; detail?: string; tone: Tone } {
 		if (pr.unsaved) return { label: 'New', tone: 'new' };
 		const generation = latest ? this.generationFor(pr) : undefined;
-		if (generation?.status === 'queued') return { label: 'Queued', tone: 'quiet' };
+		if (generation?.status === 'queued') return { label: 'Queued', tone: 'ready' };
 		if (isGenerating(generation) && generation?.steps.summary.status !== 'done') return { label: 'Preparing', tone: 'working' };
 		if (generation?.status === 'failed') return { label: 'Preparing failed', tone: 'bad' };
 		if (generation?.status === 'stopped' && !r.summary) return { label: 'Stopped', tone: 'quiet' };
@@ -522,10 +527,11 @@ export class StartPage {
 		if (latest && (this.panelFor(pr)?.running || this.#checking(pr))) return { label: 'Reviewing', tone: 'working' };
 		const slices = r.slices ?? generation?.results.slices ?? [];
 		const done = slices.filter((s) => isSliceReviewed(s, r.reviewed)).length;
-		if (slices.length && done === slices.length) return { label: 'Read', tone: 'read' };
+		if (slices.length && done === slices.length) return { label: 'Read', tone: 'going' };
 		if (done > 0) return { label: 'In progress', tone: 'going' };
 		if (r.summary || slices.length) return { label: 'Ready', tone: 'ready' };
-		return { label: 'Not prepared', tone: 'quiet' };
+		// Opened but never prepared is as untouched as never opened.
+		return { label: 'New', detail: 'Not prepared', tone: 'new' };
 	}
 
 	// Findings not yet through the panel's editor. The backend saves them

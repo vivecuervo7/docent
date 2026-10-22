@@ -34,7 +34,7 @@
 	</div>
 	{#snippet card(r: Round, name: string)}
 		<span class="card" role="tooltip">
-			<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{r.draft ? 'Not prepared' : r.label}</strong>
+			<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{r.draft ? 'Not prepared' : (r.detail ?? r.label)}</strong>
 			{#if r.commits}<span class="faint">{plural(r.commits, 'commit')}{r.dates ? ` · ${r.dates}` : ''}</span>{/if}
 			{#if r.progress || r.findings}
 				<span class="faint">
@@ -292,11 +292,6 @@
 	.mark.working {
 		--tone: #8ab4ff;
 	}
-	/* Under way: Ready's blue, outlined but not yet filled. */
-	.badge.working {
-		background: none;
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 70%, transparent);
-	}
 	.badge.ready,
 	.mark.ready {
 		--tone: #8ab4ff;
@@ -304,10 +299,6 @@
 	.badge.going,
 	.mark.going {
 		--tone: #ffb85c;
-	}
-	.badge.read,
-	.mark.read {
-		--tone: var(--muted);
 	}
 	.badge.done,
 	.mark.done {
