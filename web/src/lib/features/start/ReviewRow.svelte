@@ -22,12 +22,16 @@
 </script>
 
 <li>
-	<a class="main" {href}>
+	<!-- The title's link covers the row; the PR's name over it opens it on GitHub. -->
+	<div class="main">
 		<span class="text">
-			<span class="title"><InlineText text={pr.record.title ?? `#${pr.number}`} /></span>
-			<span class="faint meta">{pr.owner}/{pr.repo} #{pr.number}{author ? ` · ${author}` : ''}{raised ? ` · ${timeAgo(raised, page.now)}` : ''}</span>
+			<a class="title" {href}><InlineText text={pr.record.title ?? `#${pr.number}`} /></a>
+			<span class="faint meta"
+				><a class="github" href="https://github.com/{pr.owner}/{pr.repo}/pull/{pr.number}" target="_blank" rel="noreferrer">{pr.owner}/{pr.repo} #{pr.number}</a
+				>{author ? ` · ${author}` : ''}{raised ? ` · ${timeAgo(raised, page.now)}` : ''}</span
+			>
 		</span>
-	</a>
+	</div>
 	{#snippet card(r: Round, name: string)}
 		<span class="card" role="tooltip">
 			<strong><span class="mark {r.draft ? 'quiet' : r.tone}"></span>{name}{r.draft ? 'Not prepared' : r.label}</strong>
@@ -44,12 +48,18 @@
 	{/snippet}
 	<!-- Feedback on GitHub still open, to go through without opening the review. -->
 	{#if unresolved}
-		{@const label = `${unresolved} unresolved ${unresolved === 1 ? 'thread' : 'threads'} on GitHub`}
-		<button class="threads" aria-label={label} title={label} onclick={() => page.openThreads(pr)}>
-			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-				><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" /></svg
-			>
-		</button>
+		{@const count = plural(unresolved, 'unresolved thread')}
+		<span class="round">
+			<button class="threads" aria-label="{count} on GitHub" onclick={() => page.openThreads(pr)}>
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+					><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" /></svg
+				>
+			</button>
+			<span class="card" role="tooltip">
+				<strong><span class="mark feedback"></span>{count}</strong>
+				<span class="faint">On GitHub · click to go through them</span>
+			</span>
+		</span>
 	{/if}
 	<span class="state">
 		<!-- Its rounds in order, joined, then the next round when there's one to
@@ -136,13 +146,28 @@
 		border-top: 1px solid var(--line);
 	}
 	.main {
+		position: relative;
 		flex-grow: 1;
 		min-width: 0;
 		display: flex;
 		align-items: center;
 		gap: 14px;
 		padding: 20px 0 20px 2px;
+	}
+	.title::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+	}
+	.github {
+		position: relative;
+		z-index: 1;
+		color: inherit;
 		text-decoration: none;
+	}
+	.github:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 	.main:hover .title {
 		color: #fff;
@@ -155,6 +180,8 @@
 		gap: 5px;
 	}
 	.title {
+		color: inherit;
+		text-decoration: none;
 		font-size: 15px;
 		font-weight: 500;
 		white-space: nowrap;
@@ -289,6 +316,9 @@
 	.badge.bad,
 	.mark.bad {
 		--tone: #ff8a7a;
+	}
+	.mark.feedback {
+		--tone: var(--agent);
 	}
 	/* What a round holds, on hover or focus, below and to the right. */
 	.card {
