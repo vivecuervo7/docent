@@ -94,7 +94,9 @@ export function scopeToRange(prFiles: PrFile[], rangeFiles: Pick<PrFile, "filena
   const byName = new Map(rangeFiles.map((f) => [f.filename, f]));
   return prFiles.flatMap((file) => {
     const changed = byName.get(file.filename);
-    if (!file.patch || !changed?.patch) return [];
+    // Without the PR's diff of it, the range is taken to have changed all of it.
+    if (!file.patch) return changed ? [file] : [];
+    if (!changed?.patch) return [];
     const { added, deletedAt, removed } = rangeChanges(changed.patch);
     const lines = { old: [] as number[], new: [] as number[] };
     const inRange: number[] = [];

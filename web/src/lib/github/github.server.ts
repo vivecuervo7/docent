@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { changesBetween } from "./repoCache.server.js";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -59,7 +60,22 @@ export async function fetchPrFiles(
     const patches = await fetchPrPatches(owner, repo, number).catch(() => new Map<string, string>());
     for (const f of files) if (!f.patch) f.patch = patches.get(f.filename);
   }
+  // GitHub refuses the whole diff of a very large PR: the rest come from
+  // the repo cache.
+  const missing = files.filter((f) => !f.patch && f.additions + f.deletions > 0);
+  if (missing.length) {
+    const cached = await cachedPatches(owner, repo, number, missing.map((f) => f.filename)).catch(() => new Map<string, string>());
+    for (const f of missing) f.patch = cached.get(f.filename);
+  }
   return files;
+}
+
+async function cachedPatches(owner: string, repo: string, number: string, paths: string[]): Promise<Map<string, string>> {
+  const { stdout } = await execFileAsync("gh", ["api", `repos/${owner}/${repo}/pulls/${number}`, "--jq", "[.base.sha, .head.sha] | join(\" \")"]);
+  const [base, head] = stdout.trim().split(" ");
+  const { stdout: from } = await execFileAsync("gh", ["api", `repos/${owner}/${repo}/compare/${base}...${head}`, "--jq", ".merge_base_commit.sha"]);
+  const files = await changesBetween(owner, repo, from.trim(), head, paths);
+  return new Map(files.flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
 }
 
 // Each file's hunks from the PR's whole diff, by its path at the head (or

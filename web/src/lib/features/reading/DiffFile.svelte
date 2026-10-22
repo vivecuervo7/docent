@@ -36,6 +36,7 @@
 	import ThreadPanel from './ThreadPanel.svelte';
 	import GitHubThreadPanel from './GitHubThreadPanel.svelte';
 	import NoteText from '../../ui/NoteText.svelte';
+	import { noDiffReason } from './progress';
 
 	let {
 		file,
@@ -269,8 +270,18 @@
 	// and the other slices holding the rest of it. In a round of some commits,
 	// only the round's own changes count - what it removed of the PR's own
 	// lines too, shown or not - as GitHub counts that range.
+	// The file on GitHub's view of the PR, for one there's no diff of here:
+	// GitHub anchors each file by its path's SHA-256.
+	let anchor = $state('');
+	const githubFile = $derived(`https://github.com/${prRef.owner}/${prRef.repo}/pull/${prRef.number}/files${anchor}`);
+	$effect(() => {
+		if (file.patch) return;
+		crypto.subtle.digest('SHA-256', new TextEncoder().encode(file.filename)).then((hash) => {
+			anchor = `#diff-${[...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+		});
+	});
 	const sliceCounts = $derived.by(() => {
-		if (!hunkIndices && !rangeNew) return null;
+		if (!file.patch || (!hunkIndices && !rangeNew)) return null;
 		let added = 0;
 		let removed = 0;
 		for (const h of allHunks) {
@@ -602,7 +613,12 @@
 			{#if note.quality}<p><InlineText text={note.quality} /></p>{/if}
 		</div>
 	{/if}
-	{#if !collapsed}
+	{#if !collapsed && !file.patch}
+		<div class="diff unshown">
+			<span class="faint">{noDiffReason(file)}</span>
+			<a href={githubFile} target="_blank" rel="noreferrer">View on GitHub</a>
+		</div>
+	{:else if !collapsed}
 		<div class="diff">
 			{#each items as item (item.type === 'hunk' ? `h${item.hunk.index}` : item.id)}
 				{#if item.type === 'hunk'}
@@ -650,6 +666,14 @@
 		padding-bottom: 6px;
 		border-radius: 12px;
 		background: var(--code-bg);
+	}
+	.unshown {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 14px 16px;
+		font-size: 13.5px;
 	}
 	.hunk-header,
 	.hunk-footer {

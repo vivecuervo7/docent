@@ -1,6 +1,7 @@
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import type { PrFile } from "../../github/github.server.js";
 import type { Slice } from "../../types.server.js";
+import { noDiffReason } from "../reading/progress.js";
 
 // Splits a unified-diff patch into its hunks purely by the "@@ ... @@"
 // header lines, matching how the web app's diff parser splits hunks, so the
@@ -26,7 +27,11 @@ export function splitPatchIntoHunks(patch: string): string[] {
 function buildHunkRefs(files: PrFile[]): Map<string, string> {
   const refs = new Map<string, string>();
   for (const file of files) {
-    if (!file.patch) continue;
+    if (!file.patch) {
+      // Read whole, as the reading view has it.
+      refs.set(`${file.filename}#0`, `(${noDiffReason(file)}.)`);
+      continue;
+    }
     splitPatchIntoHunks(file.patch).forEach((hunkText, i) => {
       if (file.inRange && !file.inRange.includes(i)) return;
       refs.set(`${file.filename}#${i}`, hunkText);

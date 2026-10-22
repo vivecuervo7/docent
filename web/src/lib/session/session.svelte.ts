@@ -7,7 +7,7 @@ import { type LooseMark, type Mark, looseMarksFrom, marksFrom } from '../feature
 import { nearestHunk, parseFilePatch, type Hunk } from '../features/reading/diff/parse';
 import { Panel, sessionId } from '../features/panel/panel.svelte';
 import { ReviewPost } from '../features/posting/post.svelte';
-import { everythingElse, isSliceReviewed } from '../features/reading/progress';
+import { everythingElse, isSliceReviewed, reviewKeys } from '../features/reading/progress';
 import { readChoice, readPref, writeChoice, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
 import { beginRound, dropRound, keepRound, roundView } from '../storage/rounds';
@@ -93,11 +93,7 @@ export class PrSession {
 	// Each file's hunks, parsed once.
 	readonly hunks = $derived(new Map<string, Hunk[]>(this.files.map((f) => [f.filename, parseFilePatch(f.patch ?? '')])));
 	// The hunks under review: for a range of commits, those it touched.
-	readonly hunkKeys = $derived(
-		this.files.flatMap((f) =>
-			(this.hunks.get(f.filename) ?? []).filter((h) => !f.inRange || f.inRange.includes(h.index)).map((h) => `${f.filename}#${h.index}`)
-		)
-	);
+	readonly hunkKeys = $derived(reviewKeys(this.files, (f) => this.hunks.get(f.filename) ?? []));
 	// The prepared slices, then anything they left out.
 	readonly slices = $derived.by(() => {
 		const prepared = this.record.slices ?? [];

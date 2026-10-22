@@ -11,7 +11,10 @@
 	// The last expand all / collapse all, which every file follows.
 	let fold = $state<{ open: boolean; at: number } | null>(null);
 	const reviewedFiles = $derived(
-		[...session.hunks].filter(([path, hunks]) => hunks.length && hunks.every((h) => session.reviewed[`${path}#${h.index}`])).length
+		session.files.filter((f) => {
+			const keys = session.hunkKeys.filter((k) => k.slice(0, k.lastIndexOf('#')) === f.filename);
+			return keys.length && keys.every((k) => session.reviewed[k]);
+		}).length
 	);
 	// Every file's notes, whichever slice they were written for.
 	const notes = $derived(Object.values(session.record.fileNotes ?? {}).flat());

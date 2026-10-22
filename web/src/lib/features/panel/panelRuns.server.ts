@@ -5,7 +5,7 @@ import { fetchReviewFiles } from "../../github/range.server.js";
 import { changeRound, roundRecord } from "../../storage/rounds.server.js";
 import { defaultPanel, externalReviewers, modelName, personas } from "../../storage/settings.server.js";
 import { parseFilePatch } from "../reading/diff/parse.js";
-import { everythingElse } from "../reading/progress.js";
+import { everythingElse, reviewKeys } from "../reading/progress.js";
 import type { AgentReviewer, PrRecord } from "../../types.js";
 
 // Starting the panel, here rather than in the browser: the default panel
@@ -54,11 +54,7 @@ export function applyDefaultPanel(ref: Ref) {
 async function contextOf(ref: Ref): Promise<ReviewContext> {
   const r = read(ref);
   const files = await fetchReviewFiles(ref.owner, ref.repo, ref.number, ref.round);
-  const keys = files.flatMap((f) =>
-    parseFilePatch(f.patch ?? "")
-      .filter((h) => !f.inRange || f.inRange.includes(h.index))
-      .map((h) => `${f.filename}#${h.index}`),
-  );
+  const keys = reviewKeys(files, (f) => parseFilePatch(f.patch ?? ""));
   const prepared = r.slices ?? [];
   const rest = prepared.length ? everythingElse(keys, prepared) : null;
   return { title: r.title, summary: r.summary ?? null, slices: rest ? [...prepared, rest] : prepared };
