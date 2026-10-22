@@ -83,6 +83,7 @@ interface Cached {
 	involved?: InvolvedPr[];
 	statuses?: Record<string, PrStatus>;
 	hidden?: string[];
+	pinned?: string[];
 	login?: string | null;
 }
 
@@ -187,6 +188,9 @@ export class StartPage {
 	// Old PRs that can't be closed can be hidden: they leave the lists above
 	// for a section of their own. Kept in Docent's settings.
 	hiddenKeys = $state<string[]>(this.#cached.hidden ?? []);
+	// PRs pinned above the rest, whatever state they're in, until unpinned:
+	// one being worked on, or shown. Kept in Docent's settings too.
+	pinnedKeys = $state<string[]>(this.#cached.pinned ?? []);
 	statuses = $state<Record<string, PrStatus>>(this.#cached.statuses ?? {});
 	// What Docent needs before it can do anything: the GitHub CLI signed in,
 	// and a model to use. Null until checked.
@@ -211,12 +215,13 @@ export class StartPage {
 		}
 		return list;
 	});
-	readonly notComplete = $derived(this.rows.filter((pr) => !this.isComplete(pr) && !this.isHidden(pr)));
+	readonly pinned = $derived(this.rows.filter((pr) => this.isPinned(pr)));
+	readonly notComplete = $derived(this.rows.filter((pr) => !this.isComplete(pr) && !this.isHidden(pr) && !this.isPinned(pr)));
 	// PRs the reviewer wrote get a section of their own.
 	readonly active = $derived(this.notComplete.filter((pr) => !this.isMine(pr)));
 	readonly mine = $derived(this.notComplete.filter((pr) => this.isMine(pr)));
-	readonly hiddenRows = $derived(this.rows.filter((pr) => this.isHidden(pr)));
-	readonly complete = $derived((this.saved ?? []).filter((pr) => this.isComplete(pr) && !this.isHidden(pr)));
+	readonly hiddenRows = $derived(this.rows.filter((pr) => this.isHidden(pr) && !this.isPinned(pr)));
+	readonly complete = $derived((this.saved ?? []).filter((pr) => this.isComplete(pr) && !this.isHidden(pr) && !this.isPinned(pr)));
 	readonly checked = $derived(this.gh !== null && this.modelSources !== null);
 	readonly ready = $derived(!!this.gh?.login && !!this.modelSources?.length);
 	readonly anyRunning = $derived(
@@ -225,7 +230,7 @@ export class StartPage {
 
 	constructor() {
 		$effect(() => {
-			const cache = { saved: this.saved?.map(trimmed), involved: this.involved, statuses: this.statuses, hidden: this.hiddenKeys, login: this.login };
+			const cache = { saved: this.saved?.map(trimmed), involved: this.involved, statuses: this.statuses, hidden: this.hiddenKeys, pinned: this.pinnedKeys, login: this.login };
 			writePref(CACHE_KEY, JSON.stringify(cache));
 		});
 		$effect(() => {
@@ -237,6 +242,10 @@ export class StartPage {
 			fetch('/api/hidden-prs')
 				.then((res) => readOk<{ hidden: string[] }>(res))
 				.then((r) => (this.hiddenKeys = r.hidden))
+				.catch(() => {});
+			fetch('/api/pinned-prs')
+				.then((res) => readOk<{ pinned: string[] }>(res))
+				.then((r) => (this.pinnedKeys = r.pinned))
 				.catch(() => {});
 		});
 		$effect(() => {
@@ -342,6 +351,20 @@ export class StartPage {
 			body: JSON.stringify({ owner: pr.owner, repo: pr.repo, number: pr.number, hidden })
 		}).catch(() => null);
 		if (res?.ok) this.hiddenKeys = (await res.json()).hidden;
+	}
+
+	isPinned(pr: PrRef) {
+		return this.pinnedKeys.includes(keyOf(pr));
+	}
+
+	async setPinned(pr: PrRef, pinned: boolean) {
+		this.pinnedKeys = pinned ? [...this.pinnedKeys, keyOf(pr)] : this.pinnedKeys.filter((k) => k !== keyOf(pr));
+		const res = await fetch('/api/pinned-prs', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ owner: pr.owner, repo: pr.repo, number: pr.number, pinned })
+		}).catch(() => null);
+		if (res?.ok) this.pinnedKeys = (await res.json()).pinned;
 	}
 
 	setSort(value: Sort) {

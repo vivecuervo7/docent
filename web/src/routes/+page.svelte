@@ -86,7 +86,7 @@
 			{/if}
 		</form>
 
-		{#if page.active.length || page.mine.length || page.complete.length || page.hiddenRows.length}
+		{#if page.pinned.length || page.active.length || page.mine.length || page.complete.length || page.hiddenRows.length}
 			<!-- How every list below is grouped. -->
 			<div class="list-tools">
 				<div class="grouping">
@@ -104,6 +104,13 @@
 					/>
 				</div>
 			</div>
+		{/if}
+
+		{#if page.pinned.length}
+			<section aria-labelledby="pinned-heading">
+				<h2 id="pinned-heading" class="caps">Pinned</h2>
+				{@render groups(page.pinned, 'pinned')}
+			</section>
 		{/if}
 
 		{#if page.active.length}

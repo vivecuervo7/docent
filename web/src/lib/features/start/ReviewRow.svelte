@@ -15,6 +15,7 @@
 	const author = $derived(page.authorOf(pr));
 	const raised = $derived(page.raisedAt(pr));
 	const hidden = $derived(page.isHidden(pr));
+	const pinned = $derived(page.isPinned(pr));
 	const href = $derived(`/pr/${pr.owner}/${pr.repo}/${pr.number}`);
 	const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 </script>
@@ -96,6 +97,11 @@
 		{/if}
 	</span>
 	<span class="row-actions">
+		<button class="icon" aria-label={pinned ? 'Unpin' : 'Pin to the top'} title={pinned ? 'Unpin' : 'Pin to the top'} onclick={() => page.setPinned(pr, !pinned)}>
+			<svg width="16" height="16" viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+				><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /></svg
+			>
+		</button>
 		<button class="icon" aria-label={hidden ? 'Show in the lists again' : 'Hide'} title={hidden ? 'Show in the lists again' : 'Hide'} onclick={() => page.setHidden(pr, !hidden)}>
 			{#if hidden}
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>

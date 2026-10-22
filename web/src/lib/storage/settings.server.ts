@@ -65,6 +65,8 @@ interface Settings {
   externalReviewers?: ExternalReviewer[];
   // PRs kept off the start page's lists, as "owner/repo/number".
   hiddenPrs?: string[];
+  // PRs kept at the top of the start page, in the order they were pinned.
+  pinnedPrs?: string[];
   // Calls run at once through each tool; see laneOf.
   claudeCodeConcurrency?: number;
   codexConcurrency?: number;
@@ -223,6 +225,16 @@ export function setHidden(key: string, hidden: boolean): string[] {
   const list = hiddenPrs().filter((k) => k !== key);
   writeSettings({ hiddenPrs: hidden ? [...list, key] : list });
   return hiddenPrs();
+}
+
+export function pinnedPrs(): string[] {
+  return readSettings().pinnedPrs ?? [];
+}
+
+export function setPinned(key: string, pinned: boolean): string[] {
+  const list = pinnedPrs().filter((k) => k !== key);
+  writeSettings({ pinnedPrs: pinned ? [...list, key] : list });
+  return pinnedPrs();
 }
 
 export function defaultPanel(): PanelEntry[] | null {
