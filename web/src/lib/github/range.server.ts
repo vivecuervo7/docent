@@ -38,8 +38,9 @@ export async function fetchPrCommits(owner: string, repo: string, number: string
 // The files under review: the whole PR, or the range the review was begun
 // with. Each file of a range marks the hunks the range touched, and only
 // files it touched are listed. An earlier round's are as they were at the
-// commit it was prepared at, which its slices refer to.
-export async function fetchReviewFiles(owner: string, repo: string, number: string, round?: number): Promise<PrFile[]> {
+// commit it was prepared at, which its slices refer to. With `whole`, all
+// the PR's files at that commit, whichever commits the round covered.
+export async function fetchReviewFiles(owner: string, repo: string, number: string, round?: number, { whole = false } = {}): Promise<PrFile[]> {
   const record = getRecord(keyFor(owner, repo, number)).record as { range?: ReviewRange; rounds?: { range?: ReviewRange; preparedHead?: string }[] };
   const earlier = round === undefined ? undefined : record.rounds?.[round];
   if (round !== undefined && !earlier) throw new Error(`No round ${round + 1}`);
@@ -48,7 +49,7 @@ export async function fetchReviewFiles(owner: string, repo: string, number: stri
   const to = range?.to ?? earlier?.preparedHead ?? head;
   const prFiles =
     to === head ? fetchPrFiles(owner, repo, number) : fetchPrBaseSha(owner, repo, number).then((base) => compareFiles(owner, repo, base, to));
-  if (!range) return prFiles;
+  if (!range || whole) return prFiles;
   const pr = await prFiles;
   const changed = range.rebased
     ? await changesBetween(owner, repo, range.after, range.to, pr.map((f) => f.filename)).catch(() => {

@@ -57,7 +57,7 @@
 		</section>
 
 		{#if s.reviewability.prs.length}
-			{@const most = Math.max(1, ...s.reviewability.prs.map((p) => p.lines))}
+			{@const most = Math.max(1, ...s.reviewability.prs.map((p) => p.size))}
 			{@const top = Math.max(most, step(most) * 4)}
 			<section>
 				<h2>Slice and dice</h2>
@@ -71,7 +71,7 @@
 					<div class="axis faint" aria-hidden="true">
 						{#each ticks(most) as t (t)}<span style:bottom="{height(t, top)}%">{short(t)}</span>{/each}
 					</div>
-					<div class="sizes" role="img" aria-label="Each pull request's lines read, with its average slice">
+					<div class="sizes" role="img" aria-label="Each pull request's size, with its average slice">
 						{#each ticks(most) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
 						{#each s.reviewability.prs as p, i (i)}
 							<span
@@ -81,7 +81,7 @@
 								onpointermove={(e) => point(e, i)}
 								onpointerleave={() => (pointed = null)}
 							>
-								<span class="bar pr" style:height="{height(p.lines, top)}%"></span>
+								<span class="bar pr" style:height="{height(p.size, top)}%"></span>
 								<span class="bar slice" style:height="{height(p.slice, top)}%"></span>
 							</span>
 						{/each}
@@ -91,8 +91,12 @@
 						<dl class="card" class:flip={pointed.flip} style:left="{pointed.x}px" style:top="{pointed.y}px">
 							<dt class="title">{p.title}</dt>
 							<dd></dd>
-							<dt>Lines read</dt>
-							<dd>{number(p.lines)}</dd>
+							<dt>Lines</dt>
+							<dd>{number(p.size)}</dd>
+							{#if p.lines !== p.size}
+								<dt>Lines read</dt>
+								<dd>{number(p.lines)}</dd>
+							{/if}
 							<dt>Files</dt>
 							<dd>{number(p.files)}</dd>
 							{#if p.rounds > 1}
@@ -111,7 +115,7 @@
 						</dl>
 					{/if}
 				</div>
-				<div class="key faint"><span class="swatch pr"></span>Lines read in the pull request <span class="swatch slice"></span>Its average slice</div>
+				<div class="key faint"><span class="swatch pr"></span>Lines in the pull request <span class="swatch slice"></span>Its average slice</div>
 			</section>
 		{/if}
 

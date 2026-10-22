@@ -1,7 +1,8 @@
 import type { RoundStats, Stats } from './stats';
 
 // The stats page's figures, worked out from each round's, with a PR's
-// rounds taken together: every round's lines were read again.
+// rounds taken together: every round's lines were read again. A PR's size
+// is its own, as its latest round read it, not those rounds added up.
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : 0);
@@ -9,7 +10,9 @@ const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : 0);
 export interface PrStats {
 	id: string;
 	title: string;
-	// Lines read across its rounds, and the size of each slice they had.
+	// Lines in its diff, as its latest round read it; lines read across its
+	// rounds; and the size of each slice they had.
+	size: number;
 	lines: number;
 	slices: number[];
 	// The files read across its rounds, and how many each slice covered.
@@ -32,6 +35,9 @@ function byPr(rounds: RoundStats[]): PrStats[] {
 		return {
 			id,
 			title: latest.pr.title,
+			// A round measured before its PR's size was kept, as a review
+			// since deleted can't be measured again, gives what it read.
+			size: latest.sizes?.pr ?? latest.sizes?.lines ?? 0,
 			lines: sum(rs.map((r) => r.sizes?.lines ?? 0)),
 			slices: rs.flatMap((r) => r.sizes?.slices.filter((n) => n > 0) ?? []),
 			files: new Set(rs.flatMap((r) => r.files ?? [])).size,
@@ -124,13 +130,14 @@ export function summarise(stats: Stats) {
 		posted: sum(stats.rounds.map((r) => r.postedComments.yours + r.postedComments.panel)),
 		slices: sum(stats.rounds.map((r) => r.slices)),
 		reviewability: {
-			pr: Math.round(mean(measured.map((p) => p.lines))),
+			pr: Math.round(mean(measured.map((p) => p.size))),
 			slice: Math.round(mean(measured.flatMap((p) => p.slices))),
 			files: Math.round(mean(measured.map((p) => p.files))),
 			sliceFiles: mean(measured.flatMap((p) => p.sliceFiles)),
 			prs: measured
 				.map((p) => ({
 					title: p.title,
+					size: p.size,
 					lines: p.lines,
 					slice: Math.round(mean(p.slices)),
 					slices: p.slices.length,
@@ -138,7 +145,7 @@ export function summarise(stats: Stats) {
 					files: p.files,
 					rounds: p.rounds
 				}))
-				.sort((a, b) => a.lines - b.lines)
+				.sort((a, b) => a.size - b.size)
 		},
 		reviewers: [...byReviewer.values()].filter((r) => r.raised > 0).sort((a, b) => b.raised - a.raised),
 		overlap: overlapOf(stats.rounds)

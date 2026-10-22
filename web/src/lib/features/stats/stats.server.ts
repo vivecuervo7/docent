@@ -153,7 +153,7 @@ function saveRounds(key: string, stored: Record<string, unknown>) {
     const before = readRound(key, i + 1);
     const sizes = before?.sizes && before.slices === figures.slices ? before.sizes : undefined;
     writeRound({ ...figures, ...(sizes ? { sizes } : {}) });
-    if (!sizes && figures.slices) measure(key, i === earlier ? undefined : i, i + 1);
+    if (sizes?.pr === undefined && figures.slices) measure(key, i === earlier ? undefined : i, i + 1);
   }
 }
 
@@ -193,17 +193,23 @@ function sizesOf(files: PrFile[], slices: { hunks: string[] }[]) {
 // time, once each.
 const measuring = persistent("stats-measuring", () => ({ queue: [] as (() => Promise<void>)[], busy: false, asked: new Set<string>() }));
 function measure(key: string, roundIndex: number | undefined, round: number) {
-  const id = `${key}#${round}`;
+  // Asked again when how rounds are counted changes.
+  const id = `${key}#${round}@${COUNTED}`;
   if (measuring.asked.has(id)) return;
   measuring.asked.add(id);
   measuring.queue.push(async () => {
     const [owner, repo, number] = key.split("/");
-    const files = await fetchReviewFiles(owner, repo, number, roundIndex);
+    const [files, whole] = await Promise.all([
+      fetchReviewFiles(owner, repo, number, roundIndex),
+      fetchReviewFiles(owner, repo, number, roundIndex, { whole: true }),
+    ]);
     const current = readRound(key, round);
     const { record: stored, version } = getRecord(key);
     const record = version ? (stored as unknown as PrRecord) : undefined;
     const slices = record ? (roundIndex === undefined ? record : roundView(record, roundIndex)).slices : null;
-    if (current && slices) writeRound({ ...current, sizes: sizesOf(files, slices) });
+    // Counted as what's read is, so files shown without a patch don't count.
+    const pr = sizesOf(whole, []).lines;
+    if (current && slices) writeRound({ ...current, sizes: { ...sizesOf(files, slices), pr } });
   });
   void drain();
 }
@@ -218,7 +224,7 @@ async function drain() {
 
 // What a round's figures count, which goes up when that changes: rounds
 // counted the old way are taken again once, from the reviews still kept.
-const COUNTED = 4;
+const COUNTED = 6;
 
 function fillPoints() {
   const missing = new Set(

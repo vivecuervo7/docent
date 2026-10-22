@@ -13,8 +13,9 @@ export interface RoundStats {
 	slices: number;
 	files?: string[];
 	sliceFiles?: number[];
-	// Lines its changes touched, and each slice's share.
-	sizes?: { lines: number; slices: number[] };
+	// Lines its changes touched, and each slice's share; and the lines of the
+	// PR's whole diff as it read it, whichever commits it covered.
+	sizes?: { lines: number; slices: number[]; pr?: number };
 	// By persona or external reviewer, which their ids name.
 	// Of those skipped, kicked back: skipped though its reviewer and the
 	// editor stood by it. Missing from figures taken before it was counted.
