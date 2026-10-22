@@ -276,7 +276,7 @@
 		gap: 6px;
 		padding: 3px 10px;
 		border-radius: 999px;
-		background: color-mix(in srgb, var(--tone) 16%, transparent);
+		background: color-mix(in srgb, var(--tone) 8%, transparent);
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
 		color: var(--tone);
 		font-size: 12.5px;
