@@ -9,6 +9,7 @@ import { request as httpsRequest } from "node:https";
 import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.server.js";
 import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.server.js";
 import { providerKey } from "./providerKey.server.js";
+import { providerToolLoop } from "./providerLoop.server.js";
 import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "../storage/settings.server.js";
 
 export interface ChatMessage {
@@ -28,7 +29,9 @@ export interface ToolCall {
 }
 
 // Docent's own read tools, over MCP, for a call that should look at the
-// code before answering. Only Claude Code and Codex can use them.
+// code before answering. Claude Code and Codex use them in their own sessions;
+// a provider's model gets them through a tool loop (providerLoop.server.ts).
+// canReadCode says which models the editor and the code lookup may ask this of.
 export interface CodeAccess {
   mcpUrl: string;
   tools: string[];
@@ -145,6 +148,7 @@ export async function chatWithTool(
   const resolved = target(model);
   if (resolved.kind === "claude-code") return claudeCodeChatWithTool(resolved.alias, messages, tool, signal, access);
   if (resolved.kind === "codex") return codexChatWithTool(resolved.model, messages, tool, signal, access);
+  if (access) return providerToolLoop(resolved.provider, resolved.model, messages, tool, access, signal);
 
   const res = await postJson(
     resolved.provider,

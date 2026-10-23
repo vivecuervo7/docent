@@ -1,17 +1,22 @@
 import { codeContext } from "./codeContext.server.js";
-import { FINDINGS_SCHEMA, fillCommand, toFindings, verdictOf, type SessionResult } from "./externalSessions.server.js";
+import { ALWAYS_ALLOWED, FINDINGS_SCHEMA, fillCommand, toFindings, verdictOf, type SessionResult } from "./externalSessions.server.js";
 import { fetchReviewFiles, rangeNote } from "../../github/range.server.js";
 import { numberedFileDiff, WHOLE_DIFF_LIMIT } from "../../github/prDiff.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
+import { prRef } from "../../storage/rounds.server.js";
 import { providers, type ExternalReviewer } from "../../storage/settings.server.js";
 import type { ReviewContext } from "./agentReviews.server.js";
 
 // An external reviewer that runs on one of a provider's models: its prompt
 // goes in as the system message, followed only by how to report, and the
 // pull request - summary, whole diff, and what Docent looked up about the code
-// around it - as the message. There's no session, so no tools; Docent's own
-// reviewing instructions aren't part of it.
+// around it - as the message. It can look further through Docent's read
+// tools, in a loop Docent runs; Docent's own reviewing instructions aren't
+// part of it.
+
+// The read tools a session on Claude Code or Codex is approved for.
+const LOOK_TOOLS = ALWAYS_ALLOWED.filter((t) => t.startsWith("mcp__docent__")).map((t) => t.slice("mcp__docent__".length));
 
 const REPORT_FINDINGS = {
   name: "report_findings",
@@ -19,11 +24,12 @@ const REPORT_FINDINGS = {
   parameters: FINDINGS_SCHEMA,
 };
 
-function handback(): string {
-  return `This runs unattended inside Docent, a pull request review tool. There are no tools and no \
-checkout: the pull request is in the message that follows - its title and summary, its whole diff with \
-the new file's line number at the start of each line, and what Docent looked up about the code around \
-it. Report the review through report_findings: for each finding, its file path and new-file lines, \
+function handback(pr: string): string {
+  return `This runs unattended inside Docent, a pull request review tool. There's no checkout: the pull \
+request is in the message that follows - its title and summary, its whole diff with the new file's line \
+number at the start of each line, and what Docent looked up about the code around it. To check anything \
+the diff doesn't show before raising it, use Docent's tools (get_diff, read_file, list_files, search_code, \
+get_existing_comments), passing the pull request as ${pr}. Report the review through report_findings: for each finding, its file path and new-file lines, \
 the comment for the author, and why it was raised - and, if the review ends with an overall \
 recommendation (approve, request changes, or just comment), that too, with why. If the review set \
 findings aside - pushed back on them, or filtered them out of what it would post - hand those back \
@@ -70,12 +76,13 @@ export async function runProviderSession(
     () =>
       chatWithTool(
         [
-          { role: "system", content: `${fillCommand(reviewer.command, pr)}\n\n${handback()}` },
+          { role: "system", content: `${fillCommand(reviewer.command, pr)}\n\n${handback(prRef(pr.owner, pr.repo, pr.number, pr.round))}` },
           { role: "user", content: `${about}${aroundIt}\n\nThe whole diff:\n\n${diff}` },
         ],
         REPORT_FINDINGS,
         signal,
         model,
+        { mcpUrl, tools: LOOK_TOOLS },
       ),
     model,
   );
