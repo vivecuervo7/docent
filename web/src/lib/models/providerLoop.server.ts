@@ -21,6 +21,29 @@ const MAX_STEPS = 24;
 // reviewer that fails loses every look it has made.
 const MAX_RETRIES = 6;
 
+// What one look may send back. Docent reads a file up to 400,000 bytes, and
+// every result is sent again with each later step, so one read of a lockfile
+// could use a model's whole token allowance by itself.
+const MAX_RESULT = 20_000;
+
+type Part = { type?: string; text?: string };
+
+function clipped(result: unknown): unknown {
+  const content = (result as { content?: Part[] } | null)?.content;
+  if (!Array.isArray(content)) return result;
+  return {
+    ...(result as object),
+    content: content.map((part) =>
+      part.type === "text" && typeof part.text === "string" && part.text.length > MAX_RESULT
+        ? {
+            ...part,
+            text: `${part.text.slice(0, MAX_RESULT)}\n\n[Cut at ${MAX_RESULT.toLocaleString()} of ${part.text.length.toLocaleString()} characters. Ask for less to see the rest: a line range for read_file, a path for get_diff, a narrower pattern for search_code.]`,
+          }
+        : part,
+    ),
+  };
+}
+
 export async function providerToolLoop(
   provider: Provider,
   model: string,
@@ -33,7 +56,14 @@ export async function providerToolLoop(
   const llm = createOpenAICompatible({ name: provider.id, baseURL: provider.baseUrl, apiKey }).chatModel(model);
   const client = await createMCPClient({ transport: { type: "http", url: access.mcpUrl } });
   try {
-    const looks = Object.fromEntries(Object.entries(await client.tools()).filter(([name]) => access.tools.includes(name)));
+    const looks = Object.fromEntries(
+      Object.entries(await client.tools())
+        .filter(([name]) => access.tools.includes(name))
+        .map(([name, look]) => {
+          const run = look.execute as (input: unknown, options: unknown) => Promise<unknown>;
+          return [name, { ...look, execute: async (input: unknown, options: unknown) => clipped(await run(input, options)) }];
+        }),
+    );
     const tools: ToolSet = { ...looks, [report.name]: tool({ description: report.description, inputSchema: jsonSchema(report.parameters as JSONSchema7) }) };
     const result = await generateText({
       model: llm,
