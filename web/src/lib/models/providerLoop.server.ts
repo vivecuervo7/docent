@@ -15,6 +15,12 @@ import type { Provider } from "../storage/settings.server.js";
 // model that keeps looking still hands back what it has.
 const MAX_STEPS = 24;
 
+// Each model call is retried this many times, backing off from two seconds and
+// following the provider's retry-after. The default of two retries waits about
+// six seconds in all, which can't outlast a rate limit's window, and a
+// reviewer that fails loses every look it has made.
+const MAX_RETRIES = 6;
+
 export async function providerToolLoop(
   provider: Provider,
   model: string,
@@ -37,6 +43,7 @@ export async function providerToolLoop(
       toolChoice: "required",
       stopWhen: [hasToolCall(report.name), stepCountIs(MAX_STEPS)],
       prepareStep: ({ stepNumber }) => (stepNumber === MAX_STEPS - 1 ? { toolChoice: { type: "tool", toolName: report.name }, activeTools: [report.name] } : {}),
+      maxRetries: MAX_RETRIES,
       abortSignal: signal,
       onStepFinish: ({ toolCalls }) => {
         for (const call of toolCalls) if (call.toolName !== report.name) access.onStep?.(lookStep(call.toolName, (call.input ?? {}) as Record<string, unknown>));
