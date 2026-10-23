@@ -1,4 +1,4 @@
-import { canReadCode, chat, type ChatMessage } from "../../models/modelProvider.server.js";
+import { canLook, chat, type ChatMessage } from "../../models/modelProvider.server.js";
 import { modelName } from "../../storage/settings.server.js";
 import { inLane } from "../../models/lanes.server.js";
 
@@ -118,7 +118,7 @@ function contextMessage(context: NoteContext): string {
 }
 
 // Where an answer can look beyond the lines it's shown: the whole repo at the
-// PR's head, through Docent's read tools, on Claude Code or Codex.
+// PR's head, through Docent's read tools.
 export interface AnswerAccess {
   pr: string;
   mcpUrl: string;
@@ -145,7 +145,7 @@ export function replyToNote(
     // Asked while others were ahead of it, then abandoned: skip the model.
     signal.throwIfAborted();
     const [first, ...rest] = messages;
-    const looks = !!access && canReadCode(model ?? modelName());
+    const looks = !!access && canLook(model ?? modelName());
     const conversation: ChatMessage[] = [
       { role: "system", content: (context.finding ? FINDING_PROMPT : SYSTEM_PROMPT) + (looks ? LOOK_NOTE(access!.pr) : "") },
       { role: "user", content: `${contextMessage(context)}\n\n${context.finding ? "The reviewer asks" : "The reviewer wrote"}:\n${first.text}` },

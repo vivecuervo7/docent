@@ -1,4 +1,4 @@
-import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js";
+import { canLook, chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { modelName } from "../../storage/settings.server.js";
 import type { AnswerAccess } from "../reading/threadReplies.server.js";
@@ -71,7 +71,7 @@ function contextOf(thread: ThreadToCheck): string {
 export function checkThread(thread: ThreadToCheck, signal: AbortSignal, model?: string, access?: AnswerAccess): Promise<ThreadVerdict> {
   return inLane(async () => {
     signal.throwIfAborted();
-    const looks = !!access && canReadCode(model ?? modelName());
+    const looks = !!access && canLook(model ?? modelName());
     const call = await chatWithTool(
       [
         { role: "system", content: SYSTEM_PROMPT + (looks ? LOOK_NOTE(access!.pr) : "") },

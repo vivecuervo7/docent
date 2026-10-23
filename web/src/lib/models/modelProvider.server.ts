@@ -9,7 +9,7 @@ import { request as httpsRequest } from "node:https";
 import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.server.js";
 import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.server.js";
 import { providerKey } from "./providerKey.server.js";
-import { providerToolLoop } from "./providerLoop.server.js";
+import { providerChatLoop, providerToolLoop } from "./providerLoop.server.js";
 import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "../storage/settings.server.js";
 
 export interface ChatMessage {
@@ -31,7 +31,9 @@ export interface ToolCall {
 // Docent's own read tools, over MCP, for a call that should look at the
 // code before answering. Claude Code and Codex use them in their own sessions;
 // a provider's model gets them through a tool loop (providerLoop.server.ts).
-// canReadCode says which models the editor and the code lookup may ask this of.
+// canReadCode says which models the editor and the code lookup may ask this of;
+// canLook, which models a reply or a thread check may - a provider's model
+// among them, though one that doesn't support tool calls fails the call.
 export interface CodeAccess {
   mcpUrl: string;
   tools: string[];
@@ -43,6 +45,10 @@ export interface CodeAccess {
 export function canReadCode(model: string): boolean {
   const kind = resolveModel(model)?.kind;
   return kind === "claude-code" || kind === "codex";
+}
+
+export function canLook(model: string): boolean {
+  return resolveModel(model) !== null;
 }
 
 async function headers(provider: Provider): Promise<Record<string, string>> {
@@ -184,6 +190,7 @@ export async function chat(messages: ChatMessage[], signal?: AbortSignal, model 
   const resolved = target(model);
   if (resolved.kind === "claude-code") return claudeCodeChat(resolved.alias, messages, signal, access);
   if (resolved.kind === "codex") return codexChat(resolved.model, messages, signal, access);
+  if (access) return providerChatLoop(resolved.provider, resolved.model, messages, access, signal);
 
   const res = await postJson(resolved.provider, "/chat/completions", { model: resolved.model, messages }, signal);
 

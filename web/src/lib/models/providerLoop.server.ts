@@ -44,6 +44,31 @@ function clipped(result: unknown): unknown {
   };
 }
 
+// The model, and Docent's read tools over MCP, each result clipped. Close
+// `client` when the call's done.
+async function open(provider: Provider, model: string, access: CodeAccess) {
+  const apiKey = await providerKey(provider);
+  const llm = createOpenAICompatible({ name: provider.id, baseURL: provider.baseUrl, apiKey }).chatModel(model);
+  const client = await createMCPClient({ transport: { type: "http", url: access.mcpUrl } });
+  try {
+    const looks: ToolSet = Object.fromEntries(
+      Object.entries(await client.tools())
+        .filter(([name]) => access.tools.includes(name))
+        .map(([name, look]) => {
+          const run = look.execute as (input: unknown, options: unknown) => Promise<unknown>;
+          return [name, { ...look, execute: async (input: unknown, options: unknown) => clipped(await run(input, options)) }];
+        }),
+    );
+    return { llm, client, looks };
+  } catch (err) {
+    await client.close();
+    throw err;
+  }
+}
+
+const systemOf = (messages: ChatMessage[]) => messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+const turnsOf = (messages: ChatMessage[]) => messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
 export async function providerToolLoop(
   provider: Provider,
   model: string,
@@ -52,23 +77,13 @@ export async function providerToolLoop(
   access: CodeAccess,
   signal?: AbortSignal,
 ): Promise<ToolCall> {
-  const apiKey = await providerKey(provider);
-  const llm = createOpenAICompatible({ name: provider.id, baseURL: provider.baseUrl, apiKey }).chatModel(model);
-  const client = await createMCPClient({ transport: { type: "http", url: access.mcpUrl } });
+  const { llm, client, looks } = await open(provider, model, access);
   try {
-    const looks = Object.fromEntries(
-      Object.entries(await client.tools())
-        .filter(([name]) => access.tools.includes(name))
-        .map(([name, look]) => {
-          const run = look.execute as (input: unknown, options: unknown) => Promise<unknown>;
-          return [name, { ...look, execute: async (input: unknown, options: unknown) => clipped(await run(input, options)) }];
-        }),
-    );
     const tools: ToolSet = { ...looks, [report.name]: tool({ description: report.description, inputSchema: jsonSchema(report.parameters as JSONSchema7) }) };
     const result = await generateText({
       model: llm,
-      system: messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n"),
-      messages: messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      system: systemOf(messages),
+      messages: turnsOf(messages),
       tools,
       toolChoice: "required",
       stopWhen: [hasToolCall(report.name), stepCountIs(MAX_STEPS)],
@@ -82,6 +97,34 @@ export async function providerToolLoop(
     const reported = result.steps.flatMap((s) => s.toolCalls).find((c) => c.toolName === report.name);
     if (!reported) throw new Error("model did not return a tool call");
     return { name: report.name, arguments: reported.input };
+  } finally {
+    await client.close();
+  }
+}
+
+// The same loop for an answer in words, such as a reply to a question: the
+// model looks as far as it needs to and then answers. It ends when a step
+// asks for no more looks, and the last step is held to answering with what
+// it has.
+export async function providerChatLoop(provider: Provider, model: string, messages: ChatMessage[], access: CodeAccess, signal?: AbortSignal): Promise<string> {
+  const { llm, client, looks } = await open(provider, model, access);
+  try {
+    const result = await generateText({
+      model: llm,
+      system: systemOf(messages),
+      messages: turnsOf(messages),
+      tools: looks,
+      stopWhen: stepCountIs(MAX_STEPS),
+      prepareStep: ({ stepNumber }) => (stepNumber === MAX_STEPS - 1 ? { toolChoice: "none" } : {}),
+      maxRetries: MAX_RETRIES,
+      abortSignal: signal,
+      onStepFinish: ({ toolCalls }) => {
+        for (const call of toolCalls) access.onStep?.(lookStep(call.toolName, (call.input ?? {}) as Record<string, unknown>));
+      },
+    });
+    const text = result.text.trim();
+    if (!text) throw new Error("model returned an empty reply");
+    return text;
   } finally {
     await client.close();
   }
