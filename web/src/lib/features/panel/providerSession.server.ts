@@ -34,8 +34,9 @@ get_existing_comments), passing the pull request as ${pr}. Report the review thr
 the comment for the author, and why it was raised - and, if the review ends with an overall \
 recommendation (approve, request changes, or just comment), that too, with why. If the review set \
 findings aside - pushed back on them, or filtered them out of what it would post - hand those back \
-too, each with why it was set aside; Docent's editor makes the final call on them. Leave out \
-positive observations. Nobody is here to answer questions, and nothing is posted to GitHub.`;
+too, each with why it was set aside; Docent's editor makes the final call on them. If nothing \
+clears the bar, return an empty findings list and put any summary in the verdict reason; don't use a \
+finding to say there's nothing to report. Leave out positive observations. Nobody is here to answer questions, and nothing is posted to GitHub.`;
 }
 
 // What a model sent in place of the findings, for the error saying it didn't.
