@@ -8,6 +8,7 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.server.js";
 import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.server.js";
+import { providerKey } from "./providerKey.server.js";
 import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "../storage/settings.server.js";
 
 export interface ChatMessage {
@@ -41,15 +42,16 @@ export function canReadCode(model: string): boolean {
   return kind === "claude-code" || kind === "codex";
 }
 
-function headers(provider: Provider): Record<string, string> {
-  return { "Content-Type": "application/json", ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}) };
+async function headers(provider: Provider): Promise<Record<string, string>> {
+  const key = await providerKey(provider);
+  return { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) };
 }
 
 // node:http(s) rather than fetch: fetch gives up after five minutes without a
 // response, and a large PR queued behind other work can legitimately take
 // longer. There's no time limit here - a generation ends when it finishes or
 // is stopped through `signal`.
-function send(
+async function send(
   provider: Provider,
   method: "GET" | "POST",
   path: string,
@@ -58,10 +60,11 @@ function send(
 ): Promise<{ status: number; text: string }> {
   const url = `${provider.baseUrl}${path}`;
   const request = url.startsWith("https:") ? httpsRequest : httpRequest;
+  const requestHeaders = await headers(provider);
   return new Promise((resolve, reject) => {
     const req = request(
       url,
-      { method, headers: headers(provider), signal },
+      { method, headers: requestHeaders, signal },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (chunk: Buffer) => chunks.push(chunk));

@@ -3,10 +3,12 @@
 	import { ask } from '$lib/ui/confirm.svelte';
 	import EditorModel from '$lib/features/settings/EditorModel.svelte';
 	import ExternalReviewerSettings from '$lib/features/settings/ExternalReviewerSettings.svelte';
+	import KeyCommandField from '$lib/features/settings/KeyCommandField.svelte';
 	import PersonaSettings from '$lib/features/settings/PersonaSettings.svelte';
 	import RunnerConcurrency from '$lib/features/settings/RunnerConcurrency.svelte';
 	import SettingsList from '$lib/features/settings/SettingsList.svelte';
 	import SettingsSection from '$lib/features/settings/SettingsSection.svelte';
+	import { CLEAR_WARNING, sendsKeyInTheClear } from '$lib/features/settings/unencrypted';
 	import Field from '$lib/ui/Field.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import StateMark from '$lib/ui/StateMark.svelte';
@@ -20,6 +22,7 @@
 		baseUrl: string;
 		concurrency: number;
 		hasKey: boolean;
+		apiKeyCommand?: string;
 		models: string[];
 		error?: string;
 	}
@@ -27,6 +30,7 @@
 		name: string;
 		baseUrl: string;
 		apiKey: string;
+		apiKeyCommand: string;
 		concurrency: number;
 		clearKey: boolean;
 	}
@@ -40,8 +44,8 @@
 
 	const blank = (p: Provider | null): Draft =>
 		p
-			? { name: p.name, baseUrl: p.baseUrl, apiKey: '', concurrency: p.concurrency, clearKey: false }
-			: { name: '', baseUrl: '', apiKey: '', concurrency: 1, clearKey: false };
+			? { name: p.name, baseUrl: p.baseUrl, apiKey: '', apiKeyCommand: p.apiKeyCommand ?? '', concurrency: p.concurrency, clearKey: false }
+			: { name: '', baseUrl: '', apiKey: '', apiKeyCommand: '', concurrency: 1, clearKey: false };
 
 	async function load() {
 		loading = true;
@@ -60,6 +64,8 @@
 			name: draft.name,
 			baseUrl: draft.baseUrl,
 			concurrency: Number(draft.concurrency),
+			// Blank clears the command; saved from an edit, it replaces the old one.
+			apiKeyCommand: draft.apiKeyCommand.trim() || null,
 			// Blank keeps the saved key when editing.
 			...(draft.clearKey ? { apiKey: null } : draft.apiKey.trim() ? { apiKey: draft.apiKey } : {})
 		};
@@ -157,7 +163,11 @@
 						<p class="ok">{p.models.length} {p.models.length === 1 ? 'model' : 'models'} available</p>
 					{/if}
 					<p class="meta">
-						{p.concurrency} concurrent {p.concurrency === 1 ? 'request' : 'requests'} · {p.hasKey ? 'key saved' : 'no key'}
+						{p.concurrency} concurrent {p.concurrency === 1 ? 'request' : 'requests'} · {p.apiKeyCommand
+							? 'key from a command'
+							: p.hasKey
+								? 'key saved'
+								: 'no key'}
 					</p>
 				{/snippet}
 				{#snippet fields(draft, p)}
@@ -166,6 +176,10 @@
 						<input bind:value={draft.baseUrl} placeholder="http://127.0.0.1:8000/v1" required />
 						{#snippet hint()}Up to and including <code>/v1</code>.{/snippet}
 					</Field>
+					{#if sendsKeyInTheClear(draft.baseUrl)}
+						<p class="bad">{CLEAR_WARNING}</p>
+					{/if}
+					<KeyCommandField bind:value={draft.apiKeyCommand} />
 					<Field label="API key" element="div" for="provider-key">
 						<input
 							id="provider-key"

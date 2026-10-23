@@ -15,6 +15,15 @@ export function validParams(owner: string, repo: string, number: string): boolea
 export const badRequest = (error: string) => json({ error }, { status: 400 });
 export const notFound = (error: string) => json({ error }, { status: 404 });
 export const noContent = () => new Response(null, { status: 204 });
+export const forbidden = (error: string) => json({ error }, { status: 403 });
+
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+
+// Whether a request is from Docent's own page on this machine, for the
+// routes that save or run a command: another site can POST here without a
+// preflight, and a domain rebound to this machine brings its own Host and
+// Origin.
+export const fromThisApp = (request: Request, url: URL) => LOCAL_HOSTS.includes(url.hostname) && request.headers.get('origin') === url.origin;
 
 // A failure from GitHub or a model, reported to the page.
 export const failed = (err: unknown) => json({ error: (err as Error).message }, { status: 502 });

@@ -1,4 +1,5 @@
 import type { Provider } from '../../storage/settings.server.js';
+import { splitCommand } from '../../models/providerKey.server.js';
 
 // Checking and tidying the fields the Settings page sends, for providers,
 // personas and external reviewers; `partial` for an edit.
@@ -28,6 +29,16 @@ export function providerFields(body: unknown, partial: boolean): Checked {
 	if (b.apiKey !== undefined) {
 		if (b.apiKey !== null && (typeof b.apiKey !== 'string' || b.apiKey.length > 1000)) return { error: "That key isn't valid." };
 		fields.apiKey = typeof b.apiKey === 'string' && b.apiKey.trim() ? b.apiKey.trim() : partial ? null : undefined;
+	}
+	if (b.apiKeyCommand !== undefined) {
+		if (b.apiKeyCommand !== null && (typeof b.apiKeyCommand !== 'string' || b.apiKeyCommand.length > 500)) return { error: "That key command isn't valid." };
+		const command = typeof b.apiKeyCommand === 'string' ? b.apiKeyCommand.trim() : '';
+		try {
+			splitCommand(command);
+		} catch (err) {
+			return { error: (err as Error).message };
+		}
+		fields.apiKeyCommand = command || (partial ? null : undefined);
 	}
 	return { fields };
 }

@@ -21,6 +21,9 @@ export interface Provider {
   // Up to and including /v1.
   baseUrl: string;
   apiKey?: string;
+  // A command that prints the key, for a key kept in the reviewer's own
+  // secret store; it takes the place of `apiKey`.
+  apiKeyCommand?: string;
   // Requests it takes at once: 1 for a local server, which serves one at a
   // time, so running more only makes each slower.
   concurrency: number;
@@ -109,14 +112,20 @@ export function addProvider(fields: Omit<Provider, "id">): Provider {
   return provider;
 }
 
-// `apiKey: null` clears the key; leaving it out keeps it.
-export function updateProvider(id: string, change: Partial<Omit<Provider, "id" | "apiKey">> & { apiKey?: string | null }): Provider | null {
+// `apiKey: null` clears the key, and `apiKeyCommand: null` the command;
+// leaving either out keeps it.
+export function updateProvider(
+  id: string,
+  change: Partial<Omit<Provider, "id" | "apiKey" | "apiKeyCommand">> & { apiKey?: string | null; apiKeyCommand?: string | null },
+): Provider | null {
   const current = providers().find((p) => p.id === id);
   if (!current) return null;
-  const { apiKey, ...rest } = change;
+  const { apiKey, apiKeyCommand, ...rest } = change;
   const next: Provider = { ...current, ...rest };
   if (apiKey === null) delete next.apiKey;
   else if (apiKey !== undefined) next.apiKey = apiKey;
+  if (apiKeyCommand === null) delete next.apiKeyCommand;
+  else if (apiKeyCommand !== undefined) next.apiKeyCommand = apiKeyCommand;
   writeSettings({ providers: providers().map((p) => (p.id === id ? next : p)) });
   return next;
 }
