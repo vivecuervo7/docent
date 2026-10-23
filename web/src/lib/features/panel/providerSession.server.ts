@@ -31,6 +31,12 @@ too, each with why it was set aside; Docent's editor makes the final call on the
 positive observations. Nobody is here to answer questions, and nothing is posted to GitHub.`;
 }
 
+// What a model sent in place of the findings, for the error saying it didn't.
+function excerpt(sent: unknown): string {
+  const text = typeof sent === "string" ? sent : (JSON.stringify(sent) ?? String(sent));
+  return text.length > 300 ? `${text.slice(0, 300)}…` : text;
+}
+
 export async function runProviderSession(
   reviewer: ExternalReviewer,
   pr: { owner: string; repo: string; number: string; round?: number },
@@ -74,6 +80,6 @@ export async function runProviderSession(
     model,
   );
   const answer = call.arguments as { findings?: unknown };
-  if (!Array.isArray(answer?.findings)) throw new Error("It finished without handing its findings back.");
+  if (!Array.isArray(answer?.findings)) throw new Error(`It finished without handing its findings back. It sent: ${excerpt(call.arguments)}`);
   return { findings: toFindings(answer.findings), verdict: verdictOf(answer) };
 }
