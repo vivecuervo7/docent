@@ -138,8 +138,8 @@
 					{#snippet hint()}
 						{#if providerOf(draft.runs)}
 							The review’s instructions, up to 20,000 characters. Docent sends the model the PR with them, its title, summary and
-							whole diff, so ask for a review of that, not of a link. The model has no tools. <code>{'{pr_url}'}</code>,
-							<code>{'{owner}'}</code>, <code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in.
+							diff, so ask for a review of that, not of a link. The model can look further through Docent’s read tools.
+							<code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>, <code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in.
 						{:else}
 							A prompt or a skill, as you’d type it in Claude Code. <code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>,
 							<code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in. It runs unattended, so include anything it needs to
@@ -152,7 +152,8 @@
 				</Field>
 				{#if providerOf(draft.runs)}
 					<p class="note">
-						Calls the model directly. It reviews from the diff and what Docent looked up about the code around it; it can’t read other files or run tools.
+						Calls the model directly. It reviews from the diff and what Docent looked up about the code around it, and can read other files
+						through Docent’s tools before it reports, so the model needs to support tool calls.
 					</p>
 				{:else if draft.runs === 'claude-code'}
 					<Field

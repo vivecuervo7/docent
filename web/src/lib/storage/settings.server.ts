@@ -40,7 +40,8 @@ export interface Persona {
 
 // An external reviewer: the reviewer's own prompt or skill, run as an
 // unattended Claude Code or Codex session - or, as "provider", a prompt run
-// directly on one of a provider's models, which has no tools.
+// directly on one of a provider's models, which looks through the code with
+// Docent's read tools.
 export interface ExternalReviewer {
   id: string;
   name: string;
