@@ -531,6 +531,7 @@ export class PrSession {
 		if (id) {
 			const external = this.panel.externals.find((e) => e.id === id);
 			if (!external?.model) return this.record.model;
+			if (external.runner === 'provider') return `${external.provider}:${external.model}`;
 			return `${external.runner === 'codex' ? 'codex' : 'claude-code'}:${external.model}`;
 		}
 		return ranWith;

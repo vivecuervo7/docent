@@ -1,4 +1,4 @@
-import type { Provider } from '../../storage/settings.server.js';
+import { providers, type Provider } from '../../storage/settings.server.js';
 import { splitCommand } from '../../models/providerKey.server.js';
 
 // Checking and tidying the fields the Settings page sends, for providers,
@@ -67,13 +67,22 @@ export function externalFields(body: unknown, partial: boolean): Checked {
 	const b = (body ?? {}) as Record<string, unknown>;
 	const fields: Record<string, unknown> = {};
 	if (b.runner !== undefined || !partial) {
-		if (b.runner !== 'claude-code' && b.runner !== 'codex') return { error: 'Choose Claude Code or Codex.' };
+		if (b.runner !== 'claude-code' && b.runner !== 'codex' && b.runner !== 'provider') return { error: 'Choose where it runs.' };
 		fields.runner = b.runner;
+		if (b.runner === 'provider') {
+			if (typeof b.provider !== 'string' || !providers().some((p) => p.id === b.provider)) return { error: 'Choose one of your providers.' };
+			fields.provider = b.provider;
+		} else {
+			fields.provider = null;
+		}
 	}
+	// A prompt run directly on a model is the whole of the review's instructions, so it runs long.
+	const promptLimit = b.runner === 'provider' ? 20000 : 2000;
 	const error =
 		textField(b, 'name', 60, !partial || b.name !== undefined, fields, 'Give it a name, up to 60 characters.') ??
-		textField(b, 'command', 2000, !partial || b.command !== undefined, fields, 'Give it a prompt to run.') ??
+		textField(b, 'command', promptLimit, !partial || b.command !== undefined, fields, `Give it a prompt to run, up to ${promptLimit.toLocaleString('en-US')} characters.`) ??
 		textField(b, 'model', 200, false, fields, "That model isn't valid.") ??
 		textField(b, 'tools', 500, false, fields, "Those tools aren't valid.");
+	if (!error && b.runner === 'provider' && !fields.model) return { error: 'Choose a model.' };
 	return error ? { error } : { fields };
 }

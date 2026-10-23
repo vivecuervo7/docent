@@ -39,13 +39,16 @@ export interface Persona {
 }
 
 // An external reviewer: the reviewer's own prompt or skill, run as an
-// unattended Claude Code or Codex session.
+// unattended Claude Code or Codex session - or, as "provider", a prompt run
+// directly on one of a provider's models, which has no tools.
 export interface ExternalReviewer {
   id: string;
   name: string;
-  runner: "claude-code" | "codex";
+  runner: "claude-code" | "codex" | "provider";
   // What the reviewer would type, with {pr_url}, {owner}, {repo}, {number}.
   command: string;
+  // The provider's id, for the "provider" runner.
+  provider?: string;
   model?: string;
   // Claude Code tools it may use beyond those it always has, space-separated.
   tools?: string;

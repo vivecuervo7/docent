@@ -78,7 +78,7 @@
 						items: panel.externals.map((e) => ({
 							value: `session:${e.id}`,
 							label: e.name,
-							hint: `${e.runner === 'codex' ? 'Codex' : 'Claude Code'}${e.model ? ` · ${e.model}` : ''}`
+							hint: e.runner === 'provider' ? (e.model ?? '') : `${e.runner === 'codex' ? 'Codex' : 'Claude Code'}${e.model ? ` · ${e.model}` : ''}`
 						}))
 					}
 				]
@@ -274,7 +274,7 @@
 						{@const external = panel.externals.find((e) => `session:${e.id}` === (r.ranWith ?? ''))}
 						<span class="status working">
 							<Spinner size={13} />
-							Reviewing in a {external?.runner === 'codex' ? 'Codex' : 'Claude Code'} session
+							{external?.runner === 'provider' ? `Reviewing with ${external.model}` : `Reviewing in a ${external?.runner === 'codex' ? 'Codex' : 'Claude Code'} session`}
 							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
 						</span>
 					{:else if running}

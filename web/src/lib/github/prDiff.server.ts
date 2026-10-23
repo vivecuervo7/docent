@@ -24,6 +24,10 @@ export function numberedHunk(hunk: string): string {
   return out.join("\n");
 }
 
+// A diff bigger than this isn't sent whole: Docent's reviewer sums it up by
+// its files, and a reviewer that needs the whole of it says so.
+export const WHOLE_DIFF_LIMIT = 120_000;
+
 // For a range of commits, only the hunks it touched, unless asked for others.
 export function numberedFileDiff(file: PrFile, hunkIndices = file.inRange): string {
   if (!file.patch) return `${file.filename} (${file.status}, no text diff)`;

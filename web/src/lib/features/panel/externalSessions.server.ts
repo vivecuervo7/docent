@@ -30,7 +30,7 @@ export const ALWAYS_ALLOWED = [
 // Docent's own tools that would compete with the structured answer.
 const REFUSED = ["mcp__docent__submit_review", "mcp__docent__submit_finding", "mcp__docent__finish_review"];
 
-const FINDINGS_SCHEMA = {
+export const FINDINGS_SCHEMA = {
   type: "object",
   properties: {
     findings: {
@@ -80,7 +80,7 @@ export interface SessionResult {
   verdict?: { event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"; reason?: string };
 }
 
-function verdictOf(out: unknown): SessionResult["verdict"] {
+export function verdictOf(out: unknown): SessionResult["verdict"] {
   const { verdict, verdict_reason } = (out ?? {}) as { verdict?: unknown; verdict_reason?: unknown };
   const event = verdict === "approve" ? "APPROVE" : verdict === "request_changes" ? "REQUEST_CHANGES" : verdict === "comment" ? "COMMENT" : undefined;
   return event ? { event, ...(typeof verdict_reason === "string" && verdict_reason.trim() ? { reason: verdict_reason.trim() } : {}) } : undefined;
@@ -182,7 +182,7 @@ export function runClaudeSession(
   }).finally(() => rmSync(dir, { recursive: true, force: true }));
 }
 
-function toFindings(raw: unknown[]): SessionFinding[] {
+export function toFindings(raw: unknown[]): SessionFinding[] {
   return raw.flatMap((f): SessionFinding[] => {
     const { path, start_line, end_line, body, rationale, severity, set_aside } = (f ?? {}) as Record<string, unknown>;
     if (typeof body !== "string" || !body.trim()) return [];

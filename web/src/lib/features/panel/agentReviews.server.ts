@@ -3,12 +3,13 @@ import { codeContext } from "./codeContext.server.js";
 import { conversationText, fetchPrConversation, type PrFile } from "../../github/github.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
-import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff } from "../../github/prDiff.server.js";
+import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff, WHOLE_DIFF_LIMIT } from "../../github/prDiff.server.js";
 import { allReviewers, changeRound, prRef, roundOf } from "../../storage/rounds.server.js";
 import { editRound } from "./editorRuns.server.js";
 import { knownMcpUrl } from "../../api/mcpUrl.server.js";
 import type { PrSummary, Slice } from "../../types.server.js";
 import { runSession } from "./externalSessions.server.js";
+import { runProviderSession } from "./providerSession.server.js";
 import { emptyUsage, usageScope, type Usage } from "../../models/usage.server.js";
 import type { ExternalReviewer } from "../../storage/settings.server.js";
 import { persistent } from "../../storage/persistent.server.js";
@@ -228,8 +229,11 @@ export function startSessionReview(
   void (async () => {
     const { review, controller } = entry;
     try {
+      const pr = { owner, repo, number, round };
       const [{ findings, verdict }, files] = await Promise.all([
-        runSession(persona, { owner, repo, number, round }, mcpUrl, controller.signal),
+        persona.runner === "provider"
+          ? runProviderSession(persona, pr, context, mcpUrl, controller.signal)
+          : runSession(persona, pr, mcpUrl, controller.signal),
         fetchReviewFiles(owner, repo, number, round),
       ]);
       if (verdict) review.verdict = verdict;
@@ -512,10 +516,6 @@ to keep, and choices that look odd but are deliberate - so a part isn't faulted 
 handled elsewhere in the PR. Note anything worth checking closely in particular parts. Report as \
 findings only problems that show across parts, such as a change made in one place but not its \
 counterpart, or a new case left untested; problems within one part are for the part reviews.`;
-
-// A diff bigger than this is summed up by its files instead, in each part's
-// review.
-const WHOLE_DIFF_LIMIT = 120_000;
 
 // Docent's own reviewer: one focused pass per slice with the configured
 // model, rather than open-ended exploring, which a small local model does

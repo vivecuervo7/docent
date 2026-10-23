@@ -29,12 +29,14 @@ export interface Persona {
 	instructions: string;
 }
 
-// The reviewer's own prompt or skill, run as a Claude Code or Codex session.
+// The reviewer's own prompt or skill, run as a Claude Code or Codex session,
+// or a prompt run directly on a provider's model.
 export interface ExternalReviewer {
 	id: string;
 	name: string;
-	runner: 'claude-code' | 'codex';
+	runner: 'claude-code' | 'codex' | 'provider';
 	command: string;
+	provider?: string;
 	model?: string;
 	tools?: string;
 }
