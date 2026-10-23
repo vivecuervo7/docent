@@ -26,8 +26,9 @@ const REPORT_FINDINGS = {
 
 function handback(pr: string): string {
   return `This runs unattended inside Docent, a pull request review tool. There's no checkout: the pull \
-request is in the message that follows - its title and summary, its whole diff with the new file's line \
-number at the start of each line, and what Docent looked up about the code around it. To check anything \
+request is in the message that follows - its title and summary, its diff with the new file's line \
+number at the start of each line (a diff too large to send is listed by file, to read with get_diff), and \
+what Docent looked up about the code around it. To check anything \
 the diff doesn't show before raising it, use Docent's tools (get_diff, read_file, list_files, search_code, \
 get_existing_comments), passing the pull request as ${pr}. Report the review through report_findings: for each finding, its file path and new-file lines, \
 the comment for the author, and why it was raised - and, if the review ends with an overall \
@@ -57,9 +58,6 @@ export async function runProviderSession(
 
   const files = await fetchReviewFiles(pr.owner, pr.repo, pr.number, pr.round);
   const diff = files.map((f) => numberedFileDiff(f)).join("\n\n");
-  if (diff.length > WHOLE_DIFF_LIMIT) {
-    throw new Error(`The diff is ${diff.length.toLocaleString()} characters, more than the ${WHOLE_DIFF_LIMIT.toLocaleString()} that can be sent to a model whole.`);
-  }
   const facts = await codeContext(pr.owner, pr.repo, pr.number, mcpUrl, pr.round);
   signal.throwIfAborted();
 
@@ -70,6 +68,11 @@ export async function runProviderSession(
   ]
     .filter(Boolean)
     .join("\n");
+  // A diff too big to send whole is listed by file, for the model to read with get_diff.
+  const shown =
+    diff.length <= WHOLE_DIFF_LIMIT
+      ? `The whole diff:\n\n${diff}`
+      : `The diff is ${diff.length.toLocaleString()} characters, too much to send whole. The files it changes (read their diffs with get_diff):\n${files.map((f) => f.filename).join("\n")}`;
   const aroundIt = facts ? `\n\nWhat the code around the PR shows, looked up for this review - trust it over guesses about code the diff doesn't show:\n${facts}` : "";
 
   const call = await inLane(
@@ -77,7 +80,7 @@ export async function runProviderSession(
       chatWithTool(
         [
           { role: "system", content: `${fillCommand(reviewer.command, pr)}\n\n${handback(prRef(pr.owner, pr.repo, pr.number, pr.round))}` },
-          { role: "user", content: `${about}${aroundIt}\n\nThe whole diff:\n\n${diff}` },
+          { role: "user", content: `${about}${aroundIt}\n\n${shown}` },
         ],
         REPORT_FINDINGS,
         signal,
