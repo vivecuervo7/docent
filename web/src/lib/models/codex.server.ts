@@ -19,23 +19,41 @@ const workDir = join(tmpdir(), "docent-codex");
 
 const OFF = ["shell_tool", "apps", "browser_use", "computer_use", "in_app_browser", "image_generation", "multi_agent", "plugins", "goals"];
 
-const checks = persistent("codex.checks", () => ({ available: null as Promise<boolean> | null, catalog: null as Promise<string[]> | null }));
+const checks = persistent("codex.answers", () => new Map<string, Promise<unknown>>());
 
-// Whether `codex` is installed and signed in, checked once.
-export function codexAvailable(): Promise<boolean> {
-  checks.available ??= execFileAsync("codex", ["login", "status"], { timeout: 10_000 }).then(
-    ({ stdout, stderr }) => /logged in/i.test(`${stdout}${stderr}`),
-    () => false,
-  );
-  return checks.available;
+// A check's answer, kept until someone asks again. `fresh` asks again and
+// replaces it, for a look the reviewer asked for (the Settings page), so signing
+// in or out shows without a restart.
+function kept<T>(slot: string, run: () => Promise<T>, fresh: boolean): Promise<T> {
+  const current = checks.get(slot) as Promise<T> | undefined;
+  if (!fresh && current) return current;
+  const answer = run();
+  checks.set(slot, answer);
+  return answer;
 }
 
+// Whether `codex` is installed and signed in.
+export function codexAvailable(fresh = false): Promise<boolean> {
+  return kept(
+    "available",
+    () =>
+      execFileAsync("codex", ["login", "status"], { timeout: 10_000 }).then(
+        ({ stdout, stderr }) => /logged in/i.test(`${stdout}${stderr}`),
+        () => false,
+      ),
+    fresh,
+  );
+}
 
-// The models Codex offers for picking, from its own catalog, checked once.
+// The models Codex offers for picking, from its own catalog.
 // A model can be listed and still be outside the reviewer's plan; a call to
 // it then says so.
-export function codexModels(): Promise<string[]> {
-  checks.catalog ??= execFileAsync("codex", ["debug", "models"], { timeout: 10_000, cwd: tmpdir(), maxBuffer: 16 * 1024 * 1024 }).then(
+export function codexModels(fresh = false): Promise<string[]> {
+  return kept("catalog", listModels, fresh);
+}
+
+function listModels(): Promise<string[]> {
+  return execFileAsync("codex", ["debug", "models"], { timeout: 10_000, cwd: tmpdir(), maxBuffer: 16 * 1024 * 1024 }).then(
     ({ stdout }) => {
       const { models } = JSON.parse(stdout) as { models?: { slug?: string; visibility?: string; priority?: number }[] };
       return (models ?? [])
@@ -45,7 +63,6 @@ export function codexModels(): Promise<string[]> {
     },
     () => [],
   );
-  return checks.catalog;
 }
 
 // Codex holds its answer to the schema strictly: every object closed, every

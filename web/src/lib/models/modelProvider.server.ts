@@ -107,10 +107,11 @@ export async function listProviderModels(provider: Provider): Promise<ProviderSt
   }
 }
 
-// Codex's models when it's installed and signed in.
-export async function codexStatus(): Promise<{ installed: boolean; models: string[] }> {
-  const installed = await codexAvailable();
-  return { installed, models: installed ? await codexModels() : [] };
+// Codex's models when it's installed and signed in; `fresh` looks again
+// instead of using what was found a moment ago.
+export async function codexStatus(fresh = false): Promise<{ installed: boolean; models: string[] }> {
+  const installed = await codexAvailable(fresh);
+  return { installed, models: installed ? await codexModels(fresh) : [] };
 }
 
 // Everything that can be picked right now: Claude Code's models when

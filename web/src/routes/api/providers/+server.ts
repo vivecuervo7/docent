@@ -7,10 +7,11 @@ import { bodyOf, forbidden, fromThisApp } from '$lib/api/http.server.js';
 import { codexStatus, listProviderModels } from '$lib/models/modelProvider.server.js';
 
 // The Settings page: Claude Code, Codex, and the OpenAI-compatible providers
-// with whether each answers.
+// with whether each answers. Codex is looked at afresh, so signing in or out
+// shows on "Check again".
 export const GET: RequestHandler = async () => {
 	const list = providers();
-	const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(), Promise.all(list.map(listProviderModels))]);
+	const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(true), Promise.all(list.map(listProviderModels))]);
 	return json({
 		claudeCode: { installed: claude, models: claude ? CLAUDE_CODE_MODELS : [], concurrency: runnerConcurrency('claude-code') },
 		codex: { ...codex, concurrency: runnerConcurrency('codex') },
