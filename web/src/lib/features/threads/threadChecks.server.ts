@@ -93,7 +93,8 @@ export async function startChecks(owner: string, repo: string, number: string, i
       .then(
         (verdict) => saveCheck(key, thread.id, { ...verdict, at: Date.now(), entries, head }),
         (err) => saveCheck(key, thread.id, { error: (err as Error).message, at: Date.now(), entries, head }),
-      );
+      )
+      .catch((err) => console.error(`[threads] ${thread.id}: ${(err as Error).message}`));
   }
   return chosen.length;
 }

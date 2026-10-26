@@ -129,7 +129,7 @@ function startAuto(ref: Ref, id: string, model: string, mcpUrl: string) {
         );
       });
     }
-  })();
+  })().catch((err) => console.error(`[panel] ${id}: ${(err as Error).message}`));
 }
 
 // Starts every reviewer switched on that hasn't run, as "Start the panel"

@@ -2,6 +2,11 @@ import { json, type Handle } from '@sveltejs/kit';
 // Keeps the stats from the start, so no review saved before they're first
 // opened goes unrecorded.
 import '$lib/features/stats/stats.server.js';
+import { persistent } from '$lib/storage/persistent.server.js';
+
+// Background work nothing waits on - saving a finished job, say - that fails
+// anyway is logged, rather than stopping the server.
+persistent('unhandled-rejections', () => process.on('unhandledRejection', (err) => console.error('[unhandled]', err)));
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 

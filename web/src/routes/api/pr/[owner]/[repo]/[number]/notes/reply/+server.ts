@@ -61,6 +61,6 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 				delete t.awaiting;
 				t.replyError = (err as Error).message;
 			})
-	);
+	).catch((err) => console.error(`[reply] ${(err as Error).message}`));
 	return json({ asked: true });
 };

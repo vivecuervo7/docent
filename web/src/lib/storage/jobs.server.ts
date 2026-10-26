@@ -21,8 +21,11 @@ export function startJob(
     });
   const startedAt = Date.now();
   save({ status: "running", startedAt, input });
-  work().then(
-    (result) => save({ status: "done", startedAt, input, result }),
-    (err) => save({ status: "failed", startedAt, input, error: (err as Error).message }),
-  );
+  work()
+    .then(
+      (result) => save({ status: "done", startedAt, input, result }),
+      (err) => save({ status: "failed", startedAt, input, error: (err as Error).message }),
+    )
+    // The round can be gone by the time it's saved.
+    .catch((err) => console.error(`[job] ${name}: ${(err as Error).message}`));
 }
