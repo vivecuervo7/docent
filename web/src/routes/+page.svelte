@@ -42,7 +42,7 @@
 
 <!-- A list in its groups. Each section folds its groups on its own, and a
      dimmed one dims its rows but not their headings. -->
-{#snippet groups(list: Row[], section: string, dim = false)}
+{#snippet groups(list: Row[], section: string, dim = false, quiet = false)}
 	{#each page.grouped(list) as group (group.label)}
 		{@const key = `${section}:${page.sort}:${group.label}`}
 		{#if group.label}
@@ -56,7 +56,7 @@
 		{/if}
 		{#if !group.label || !page.collapsed.includes(key)}
 			<ul class:done-list={dim} class="indent-{group.label ? page.sort : 'none'}">
-				{#each group.items as pr (keyOf(pr))}<ReviewRow {pr} {page} />{/each}
+				{#each group.items as pr (keyOf(pr))}<ReviewRow {pr} {page} {quiet} />{/each}
 			</ul>
 		{/if}
 	{/each}
@@ -136,7 +136,7 @@
 		{#if page.done.length}
 			<section>
 				<Disclosure bind:open={showDone} label="Done" count={page.done.length} />
-				{#if showDone}{@render groups(page.done, 'complete', true)}{/if}
+				{#if showDone}{@render groups(page.done, 'complete', true, true)}{/if}
 			</section>
 		{/if}
 

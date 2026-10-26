@@ -9,7 +9,9 @@
 	// One PR on the start page: its title and where it's from, then its
 	// rounds - each opening its round, with what it holds on hover - and the
 	// next round when there are commits to review.
-	let { pr, page }: { pr: Row; page: StartPage } = $props();
+	// `quiet` in a list whose heading already says where its rows stand, as
+	// Done does: every round is a mark, its card saying the rest.
+	let { pr, page, quiet = false }: { pr: Row; page: StartPage; quiet?: boolean } = $props();
 
 	const view = $derived(page.rowOf(pr));
 	const author = $derived(page.authorOf(pr));
@@ -50,7 +52,7 @@
 	{#if unresolved}
 		{@const count = plural(unresolved, 'unresolved thread')}
 		<span class="round">
-			<button class="threads" aria-label="{count} on GitHub" onclick={() => page.openThreads(pr)}>
+			<button class="threads" aria-label="{count} on GitHub" onclick={(e) => (e.currentTarget.blur(), page.openThreads(pr))}>
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
 					><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" /></svg
 				>
@@ -85,7 +87,7 @@
 			<span class="chain">
 				{#each rounds as r, i (r.n)}
 					<span class="round">
-						{#if !nextFirst && i === rounds.length - 1}
+						{#if !nextFirst && !quiet && i === rounds.length - 1}
 							<a class="badge {r.tone}" href={r.href}>{#if r.tone === 'working'}<Spinner size={11} tone="you" />{/if}{r.label}</a>
 						{:else}
 							<a class="hit" href={r.href} aria-label="Round {r.n} · {r.label}"
