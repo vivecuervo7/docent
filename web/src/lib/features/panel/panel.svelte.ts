@@ -181,7 +181,6 @@ export class Panel {
 				if (review) this.#collect(id, review);
 			})
 		);
-		this.#nudgeEditor();
 		if (this.checking) this.#startPolling();
 		this.#checkLookup();
 	}
@@ -457,18 +456,6 @@ export class Panel {
 					.filter((item) => item.filtered && this.#slicesOf(item).includes(sliceId))
 					.map((item) => ({ reviewer, item }))
 			);
-	}
-
-	// The editor runs on the backend as reviews save; this asks it to catch
-	// up on any findings left over, as from a run a restart cut short.
-	#nudgeEditor() {
-		const { owner, repo, number } = this.#session.ref;
-		const round = this.#session.round;
-		fetch(`/api/pr/${owner}/${repo}/${number}/findings/edit`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(round === null ? {} : { round })
-		}).catch(() => {});
 	}
 
 	#checkLookup() {
