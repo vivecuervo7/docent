@@ -177,7 +177,7 @@
 				<ul>{#each resolved as t (t.id)}{@render row(t, false)}{/each}</ul>
 			{/if}
 		{/if}
-		<p class="faint small">Resolve, reopen and reply act on GitHub straight away.</p>
+		{#if open.length}<p class="faint small">Resolve, reopen and reply act on GitHub straight away.</p>{/if}
 	{/if}
 </section>
 
