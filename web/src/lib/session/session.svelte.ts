@@ -286,9 +286,12 @@ export class PrSession {
 	}
 
 	// Begins a thread about something said on GitHub, on the same lines or
-	// file, so its reply reads that code beside what was said.
-	askAboutGitHub(id: string, text: string, options: { comment?: boolean; prompt?: string } = {}): string | undefined {
-		const thread = this.github?.threads.find((t) => t.id === id);
+	// file, so its reply reads that code beside what was said. A thread shown
+	// from elsewhere comes with the question, as the review's own copy of
+	// what's on GitHub may not have it yet.
+	askAboutGitHub(id: string, text: string, options: { comment?: boolean; prompt?: string; thread?: GitHubThread } = {}): string | undefined {
+		if (options.thread) this.#githubAsked.set(id, options.thread);
+		const thread = options.thread ?? this.github?.threads.find((t) => t.id === id);
 		if (!thread) return this.github?.general.some((c) => c.id === id) ? this.createNote({ path: '', github: id }, text, options) : undefined;
 		const { path, start, end } = thread;
 		const hunk = start ? nearestHunk(this.hunks.get(path) ?? [], start) : undefined;
@@ -325,8 +328,11 @@ export class PrSession {
 	}
 
 	// What was said on GitHub that a thread asks about, as text.
+	// Threads asked about as they were shown, for what the review's copy lacks.
+	#githubAsked = new Map<string, GitHubThread>();
 	#githubText(id: string): string | undefined {
-		const entries = this.github?.threads.find((t) => t.id === id)?.entries ?? this.github?.general.filter((c) => c.id === id);
+		const entries =
+			this.github?.threads.find((t) => t.id === id)?.entries ?? this.#githubAsked.get(id)?.entries ?? this.github?.general.filter((c) => c.id === id);
 		return entries?.length ? entries.map((e) => `${e.author}: ${e.body}`).join('\n\n') : undefined;
 	}
 
