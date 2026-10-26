@@ -192,6 +192,7 @@ async function run(job: Job) {
     ]);
     // The summary and the file notes both build on the slices, and not on
     // each other, so they run side by side.
+    let panelStarted: Promise<void> | undefined;
     await Promise.all([
       step("summary", async () => {
         const meta = await fetchPrMeta(owner, repo, number);
@@ -208,7 +209,7 @@ async function run(job: Job) {
           asked = !!r.reviewWhenPrepared;
           delete r.reviewWhenPrepared;
         });
-        if (asked) void startPanel(ref, knownMcpUrl());
+        if (asked) panelStarted = startPanel(ref, knownMcpUrl());
       }),
       reuse.slices && reuse.fileNotes
         ? undefined
@@ -218,6 +219,9 @@ async function run(job: Job) {
             save((r) => (r.fileNotes = fileNotes));
           }),
     ]);
+    // Each reviewer's start is saved before the run is done, so a page that
+    // reads the review as the run finishes sees them all started.
+    await panelStarted?.catch((err) => console.error(`[panel] ${(err as Error).message}`));
     generation.status = "done";
   } catch (err) {
     // A stop aborts the in-flight model calls, which surfaces here as an
