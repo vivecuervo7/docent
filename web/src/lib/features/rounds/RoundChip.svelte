@@ -5,10 +5,9 @@
 	import { spanOf } from './coverage';
 	import { ask } from '$lib/ui/confirm.svelte';
 
-	// The commits this review covers, from any page: a quiet chip with the
-	// round and how many of the PR's commits it spans, a pip for each, that
-	// opens to every round - each opened from its commits - and, when more
-	// have been pushed, the next round to review them in.
+	// The commits this review covers, from any page: a quiet chip naming the
+	// round, that opens to every round - each opened from its commits - and,
+	// when more have been pushed, the next round to review them in.
 	// Merge commits aren't shown: they bring in the base branch's work.
 
 	const session = useSession();
@@ -35,13 +34,6 @@
 			return [{ c, k, state, holder }];
 		})
 	);
-	const inView = $derived(pips.filter((p) => p.state === 'in').length);
-	// The chip's bar: where the round sits among the commits, as percentages,
-	// and where the new ones start.
-	const pct = (n: number) => `${(n / pips.length) * 100}%`;
-	const firstIn = $derived(pips.findIndex((p) => p.state === 'in'));
-	const lastIn = $derived(pips.findLastIndex((p) => p.state === 'in'));
-	const firstNew = $derived(pips.findIndex((p) => p.state === 'new'));
 	// Each round's stretch of the line, the one open drawn last, over the rest.
 	const fills = $derived(
 		spans
@@ -105,12 +97,6 @@
 			onclick={() => (open = !open)}
 		>
 			<span>Round {numberOf(viewed)}</span>
-			<span class="bar" aria-hidden="true">
-				{#if firstIn >= 0}<i class="in" style:left={pct(firstIn)} style:width={pct(lastIn - firstIn + 1)}></i>{/if}
-				{#if firstNew >= 0 && !earlier}<i class="new" style:left={pct(firstNew)} style:right="0"></i>{/if}
-			</span>
-			<span class="faint">{inView}/{pips.length}</span>
-			{#if fresh && !earlier}<span class="fresh">+{fresh}</span>{/if}
 		</button>
 		{#if open}
 			<div class="popover" role="dialog" aria-label="Rounds of this review">
@@ -191,29 +177,6 @@
 	}
 	.pill > span {
 		white-space: nowrap;
-	}
-	.bar {
-		position: relative;
-		width: 32px;
-		height: 4px;
-		border-radius: 2px;
-		background: var(--line-2);
-	}
-	.bar i {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		border-radius: 2px;
-	}
-	.bar i.in {
-		background: var(--you);
-	}
-	.bar i.new {
-		box-shadow: inset 0 0 0 1px var(--you);
-	}
-	.fresh {
-		color: var(--you);
-		font-size: 12.5px;
 	}
 	.popover {
 		position: absolute;
