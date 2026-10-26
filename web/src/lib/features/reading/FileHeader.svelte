@@ -20,7 +20,6 @@
 		note,
 		collapsed = $bindable(),
 		counts,
-		elsewhere,
 		summary,
 		wholeFile,
 		fileThreads,
@@ -32,8 +31,6 @@
 		note?: FileNote;
 		collapsed: boolean;
 		counts: { added: number; removed: number };
-		// The other slices holding the rest of the file, numbered as they're shown.
-		elsewhere: { id: string; n: number }[];
 		// A closed file's one marker; see DiffFile.
 		summary: { kind: 'finding' | 'note'; first: Mark | { id: string }; solid: boolean; unread: boolean; count: number } | null;
 		// Findings about the file as a whole, with no lines to sit on.
@@ -89,13 +86,6 @@
 		<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
 		<span class="stat"><span class="plus">+{counts.added}</span> <span class="minus">−{counts.removed}</span></span>
 	</button>
-	{#if elsewhere.length}
-		<span class="rest faint"
-			>rest in {elsewhere.length === 1 ? 'slice' : 'slices'}
-			{#each elsewhere as e, i (e.id)}{i ? ', ' : ''}<a href="{session.base}/slices/{e.id}">{e.n}</a
-				>{/each}</span
-		>
-	{/if}
 	<!-- In the gutter: on an open file, the findings and threads about the
 	     whole file, which have no lines to sit on; then asking about it. -->
 	<span class="pins">
@@ -232,8 +222,11 @@
 		flex: 0 1 auto;
 	}
 	.rest {
-		flex: 1 1 0;
-		padding-left: 10px;
+		flex: 1 0 0;
+		margin-left: 6px;
+		padding: 0 12px 0 10px;
+		font-size: 12.5px;
+		white-space: nowrap;
 	}
 	.toggle:hover .chevron,
 	.toggle:hover .path {
@@ -264,20 +257,6 @@
 	}
 	.minus {
 		color: var(--minus-dull);
-	}
-	.rest {
-		flex-shrink: 0;
-		margin-left: 6px;
-		padding-right: 12px;
-		font-size: 12.5px;
-		white-space: nowrap;
-	}
-	.rest a {
-		color: inherit;
-		text-underline-offset: 3px;
-	}
-	.rest a:hover {
-		color: var(--text);
 	}
 	/* Hangs off the header's right edge, in line with the pins beside the code. */
 	.pins {

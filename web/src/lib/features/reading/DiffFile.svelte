@@ -266,10 +266,6 @@
 	// Your threads on the file as a whole, which sit on its header too.
 	const fileThreads = $derived(session.record.notes.filter((n) => n.path === file.filename && !n.start));
 
-	// In a slice, the lines this slice's hunks change, not the whole file's,
-	// and the other slices holding the rest of it. In a round of some commits,
-	// only the round's own changes count - what it removed of the PR's own
-	// lines too, shown or not - as GitHub counts that range.
 	// The file on GitHub's view of the PR, for one there's no diff of here:
 	// GitHub anchors each file by its path's SHA-256.
 	let anchor = $state('');
@@ -280,6 +276,10 @@
 			anchor = `#diff-${[...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
 		});
 	});
+	// In a slice, the lines this slice's hunks change, not the whole file's.
+	// In a round of some commits, only the round's own changes count - what
+	// it removed of the PR's own lines too, shown or not - as GitHub counts
+	// that range.
 	const sliceCounts = $derived.by(() => {
 		if (!file.patch || (!hunkIndices && !rangeNew)) return null;
 		let added = 0;
@@ -317,17 +317,6 @@
 		if (!unread.length) return null;
 		const first = unread[0];
 		return { kind: first.kind === 'finding' ? ('finding' as const) : ('note' as const), first, solid: kept(first), unread: true, count: 0 };
-	});
-	const elsewhere = $derived.by(() => {
-		if (!hunkIndices) return [];
-		return session.slices.flatMap((sl, i) =>
-			sl.hunks.some((k) => {
-				const at = k.lastIndexOf('#');
-				return k.slice(0, at) === file.filename && !shownIndices.has(Number(k.slice(at + 1)));
-			})
-				? [{ id: sl.id, n: i + 1 }]
-				: []
-		);
 	});
 	let draft = $state('');
 
@@ -599,7 +588,6 @@
 		{note}
 		bind:collapsed
 		counts={sliceCounts ?? { added: file.additions, removed: file.deletions }}
-		{elsewhere}
 		{summary}
 		{wholeFile}
 		{fileThreads}
