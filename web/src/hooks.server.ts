@@ -7,6 +7,16 @@ import { persistent } from '$lib/storage/persistent.server.js';
 import '$lib/storage/interrupted.server.js';
 // Marks rounds posted before posting marked them done.
 import '$lib/storage/postedDone.server.js';
+import { modelOptions } from '$lib/models/modelProvider.server.js';
+import { setupCheck } from '$lib/features/settings/setupChecks.server.js';
+
+// What's installed and which models there are, looked at once the server
+// starts, so the first page to ask has an answer waiting.
+persistent('checks-warmed', () => {
+	modelOptions.fresh().catch(() => {});
+	setupCheck.fresh().catch(() => {});
+	return true;
+});
 
 // Background work nothing waits on - saving a finished job, say - that fails
 // anyway is logged, rather than stopping the server.

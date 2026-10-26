@@ -9,6 +9,7 @@ import { request as httpsRequest } from "node:https";
 import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.server.js";
 import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.server.js";
 import { providerKey } from "./providerKey.server.js";
+import { lastKnown } from "../storage/lastKnown.server.js";
 import { providerChatLoop, providerToolLoop } from "./providerLoop.server.js";
 import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "../storage/settings.server.js";
 
@@ -135,6 +136,9 @@ export async function listModelOptions(): Promise<ModelOption[]> {
     ...list.flatMap((provider, i) => statuses[i].models.map((model) => ({ id: `${provider.id}:${model}`, label: model, source: provider.name }))),
   ];
 }
+
+// The models as last listed, for the model menu, listed again behind it.
+export const modelOptions = lastKnown("models", listModelOptions);
 
 function target(model: string) {
   const resolved = resolveModel(model);

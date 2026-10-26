@@ -6,20 +6,24 @@ import { homedir } from 'node:os';
 import { providerFields, publicProvider } from '$lib/features/settings/fields.server.js';
 import { bodyOf, forbidden, fromThisApp } from '$lib/api/http.server.js';
 import { codexStatus, listProviderModels } from '$lib/models/modelProvider.server.js';
+import { lastKnown } from '$lib/storage/lastKnown.server.js';
 
 // The Settings page: Claude Code, Codex, and the OpenAI-compatible providers
-// with whether each answers. Codex is looked at afresh, so signing in or out
-// shows on "Check again".
-export const GET: RequestHandler = async () => {
+// with whether each answers: as last looked at, unless `?fresh` asks for a
+// look now. Codex is looked at afresh then, so signing in or out shows on
+// "Check again".
+const status = lastKnown('providers', async () => {
 	const list = providers();
 	const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(true), Promise.all(list.map(listProviderModels))]);
-	return json({
+	return {
 		claudeCode: { installed: claude, models: claude ? CLAUDE_CODE_MODELS : [], concurrency: runnerConcurrency('claude-code') },
 		codex: { ...codex, concurrency: runnerConcurrency('codex') },
 		providers: list.map((p, i) => ({ ...publicProvider(p), ...statuses[i] })),
 		settingsFile: settingsFile.startsWith(homedir()) ? `~${settingsFile.slice(homedir().length)}` : settingsFile
-	});
-};
+	};
+});
+
+export const GET: RequestHandler = async ({ url }) => json(await (url.searchParams.has('fresh') ? status.fresh() : status.get()));
 
 export const POST: RequestHandler = async ({ request, url }) => {
 	const body = await bodyOf(request);

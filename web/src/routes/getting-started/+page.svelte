@@ -38,13 +38,14 @@
 	let error = $state<string | null>(null);
 	let copied = $state(false);
 
-	async function recheck() {
-		checking = true;
+	// What was last found shows at once; then it's all looked at again.
+	async function recheck(fresh = true) {
+		if (fresh) checking = true;
 		error = null;
 		try {
 			const [setup, models] = await Promise.all([
-				readOk<SetupCheck>(await fetch('/api/setup')),
-				readOk<{ options: ModelOption[] }>(await fetch('/api/models'))
+				readOk<SetupCheck>(await fetch(fresh ? '/api/setup?fresh' : '/api/setup')),
+				readOk<{ options: ModelOption[] }>(await fetch(fresh ? '/api/models?fresh' : '/api/models'))
 			]);
 			check = setup;
 			sources = [...new Set(models.options.map((o) => o.source))];
@@ -60,7 +61,7 @@
 		}
 	}
 	$effect(() => {
-		recheck();
+		recheck(false).then(() => recheck());
 	});
 
 	function copy() {
@@ -78,7 +79,7 @@
 <main>
 	<div class="head">
 		<h1>Getting started</h1>
-		<button class="btn" disabled={checking} onclick={recheck}>
+		<button class="btn" disabled={checking} onclick={() => recheck()}>
 			{#if checking}<Spinner size={13} />{/if} Check again
 		</button>
 	</div>

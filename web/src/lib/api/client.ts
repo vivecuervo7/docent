@@ -19,8 +19,9 @@ export async function fetchCommits(ref: PrRef): Promise<PrCommit[]> {
 	return (await readOk<{ commits: PrCommit[] }>(await fetch(`${prUrl(ref)}/commits`))).commits;
 }
 
-export async function listModels(): Promise<{ options: ModelOption[]; selected: string }> {
-	return readOk(await fetch('/api/models'));
+// As last listed, unless `fresh` asks for them listed again now.
+export async function listModels(fresh = false): Promise<{ options: ModelOption[]; selected: string }> {
+	return readOk(await fetch(fresh ? '/api/models?fresh' : '/api/models'));
 }
 
 export async function selectModel(model: string): Promise<string> {

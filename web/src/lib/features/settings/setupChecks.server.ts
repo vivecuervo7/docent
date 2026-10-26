@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { lastKnown } from "../../storage/lastKnown.server.js";
+import { knownMcpUrl } from "../../api/mcpUrl.server.js";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
 
@@ -36,6 +38,10 @@ function mcpEntry(out: string | null, mcpUrl: string): McpEntry {
   const url = out.match(/^\s*url:\s*(\S+)/im)?.[1];
   return url ? { added: false, elsewhere: url } : { added: false };
 }
+
+// What's set up as last checked, checked again behind it. The MCP server's
+// address is the one Docent was last reached at.
+export const setupCheck = lastKnown("setup", () => checkSetup(knownMcpUrl()));
 
 // The MCP server counts as added only at this address, so an entry left
 // pointing somewhere else isn't taken for a working one.

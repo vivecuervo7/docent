@@ -8,11 +8,29 @@
 	// Which model Docent uses, from those available right now. Anything wrong
 	// with a provider shows on the Settings page, not here.
 
-	let models = $state<{ options: ModelOption[]; selected: string } | null>(null);
+	// The menu as last seen in this browser, so it's there from the first
+	// paint rather than appearing once the models are listed.
+	const KEPT = 'docent.models';
+	let models = $state<{ options: ModelOption[]; selected: string } | null>(kept());
+
+	function kept() {
+		try {
+			return JSON.parse(localStorage.getItem(KEPT) ?? 'null');
+		} catch {
+			return null;
+		}
+	}
 
 	onMount(() => {
 		listModels()
-			.then((s) => (models = s))
+			.then((s) => {
+				models = s;
+				try {
+					localStorage.setItem(KEPT, JSON.stringify(s));
+				} catch {
+					// Not kept: the menu waits for the list next time.
+				}
+			})
 			.catch(() => {});
 	});
 

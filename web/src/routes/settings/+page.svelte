@@ -49,16 +49,17 @@
 			? { name: p.name, baseUrl: p.baseUrl, apiKey: '', apiKeyCommand: p.apiKeyCommand ?? '', concurrency: p.concurrency, clearKey: false }
 			: { name: '', baseUrl: '', apiKey: '', apiKeyCommand: '', concurrency: 1, clearKey: false };
 
-	async function load() {
-		loading = true;
+	// What was last found shows at once; then it's looked at again.
+	async function load(fresh = true) {
+		if (fresh) loading = true;
 		try {
-			setup = await readOk(await fetch('/api/providers'));
+			setup = await readOk(await fetch(fresh ? '/api/providers?fresh' : '/api/providers'));
 		} finally {
-			loading = false;
+			if (fresh) loading = false;
 		}
 	}
 	$effect(() => {
-		load();
+		load(false).then(() => load());
 	});
 
 	async function save(draft: Draft, p: Provider | null) {
@@ -95,7 +96,7 @@
 <main>
 	<div class="head">
 		<h1>Settings</h1>
-		<button class="btn" disabled={loading} onclick={load}>{#if loading}<Spinner size={13} />{/if} Check again</button>
+		<button class="btn" disabled={loading} onclick={() => load()}>{#if loading}<Spinner size={13} />{/if} Check again</button>
 	</div>
 	<p class="lede">Where Docent’s models come from. The model menu at the top picks from whatever here is available.</p>
 
