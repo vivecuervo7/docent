@@ -81,8 +81,15 @@
 		goto(`${base}/slices/${slice}`);
 	}
 
+	const threadOf = (item: FeedbackItem) => session.record.notes.find((n) => n.id === item.noteIds?.[0]);
+	// A thread about the PR as a whole sits on the Overview, not a slice.
+	const onOverview = (item: FeedbackItem) => {
+		const note = threadOf(item);
+		return !!note && !note.slice && !note.path && !note.github;
+	};
+
 	function showThread(item: FeedbackItem) {
-		const note = session.record.notes.find((n) => n.id === item.noteIds?.[0]);
+		const note = threadOf(item);
 		if (!note) return;
 		if (note.slice) {
 			session.revealing = note.id;
@@ -143,6 +150,7 @@
 		changed={changed(item)}
 		onredraft={session.yourDraft.pending ? undefined : () => redraft(item)}
 		onshow={item.noteIds?.length ? () => showThread(item) : undefined}
+		showLabel={onOverview(item) ? 'Show on the Overview' : undefined}
 		onkeep={() => session.setYourIncluded(item.id, true)}
 		onskip={() => session.setYourIncluded(item.id, false)}
 	/>

@@ -35,6 +35,7 @@
 		onkeep,
 		onskip,
 		onshow,
+		showLabel = 'Show in slice',
 		changed = false,
 		onredraft
 	}: {
@@ -72,6 +73,8 @@
 		onskip: () => void;
 		// Opens it where it was raised.
 		onshow?: () => void;
+		// Where showing it goes, when that isn't a slice.
+		showLabel?: string;
 		// One of yours whose threads have changed since it was drafted.
 		changed?: boolean;
 		onredraft?: () => void;
@@ -144,7 +147,7 @@
 	</div>
 	<div class="decide"><KeepSkip {kept} {suggested} {onkeep} {onskip} /></div>
 	{#if onshow}
-		<div class="foot"><button class="link" onclick={onshow}>Show in slice</button></div>
+		<div class="foot"><button class="link" onclick={onshow}>{showLabel}</button></div>
 	{/if}
 </li>
 
