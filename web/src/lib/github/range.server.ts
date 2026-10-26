@@ -6,7 +6,11 @@ import { changesBetween } from "./repoCache.server.js";
 import { roundRecord } from "../storage/rounds.server.js";
 import type { PrCommit, ReviewRange } from "../types.server.js";
 
-const execFileAsync = promisify(execFile);
+const run = promisify(execFile);
+// A command's output can run well past Node's 1MB default: a big PR's files
+// with their patches, say.
+const execFileAsync = (file: string, args: string[], options: { maxBuffer?: number; timeout?: number } = {}) =>
+  run(file, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
 
 // Reviewing some of a PR's commits: the PR as it stands at the range's last
 // commit, shown only where the range changed it. That's the end result, not

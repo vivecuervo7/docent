@@ -5,7 +5,11 @@ import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { commentableLines } from "../../github/prDiff.server.js";
 
-const execFileAsync = promisify(execFile);
+const run = promisify(execFile);
+// A command's output can run well past Node's 1MB default: a big PR's files
+// with their patches, say.
+const execFileAsync = (file: string, args: string[], options: { maxBuffer?: number; timeout?: number } = {}) =>
+  run(file, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
 
 // The last step: combining the comments the reviewer kept into one review,
 // then posting it. Preparing uses the model; posting doesn't.
