@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { shortDate } from '$lib/ui/format';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
@@ -175,9 +176,9 @@
 			<div class="posted" role="status">
 				<span class="grow">
 					{#if draft.posted.pending}
-						Left pending on GitHub {new Date(draft.posted.at).toLocaleString()}. Add to it and submit it there.
+						Left pending on GitHub {shortDate(draft.posted.at, { time: true })}. Add to it and submit it there.
 					{:else}
-						Posted {new Date(draft.posted.at).toLocaleString()}.
+						Posted {shortDate(draft.posted.at, { time: true })}.
 					{/if}
 				</span>
 				<a href={draft.posted.url} target="_blank" rel="noreferrer">View on GitHub</a>

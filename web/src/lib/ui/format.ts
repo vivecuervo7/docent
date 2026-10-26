@@ -6,7 +6,15 @@ export function timeAgo(at: number | undefined, now = Date.now()): string {
 	const hours = Math.round(minutes / 60);
 	if (hours < 24) return `${hours}h ago`;
 	const days = Math.round(hours / 24);
-	return days < 30 ? `${days}d ago` : new Date(at).toLocaleDateString();
+	return days < 30 ? `${days}d ago` : shortDate(at);
+}
+
+// A day as the rest of Docent writes it, "21 Oct", with its year when it
+// isn't this one; and the time too, if asked.
+export function shortDate(at: number | string, { time = false } = {}): string {
+	const date = new Date(at);
+	const year = date.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' as const };
+	return date.toLocaleString(undefined, { day: 'numeric', month: 'short', ...year, ...(time ? { hour: 'numeric', minute: '2-digit' } : {}) });
 }
 
 export function elapsed(ms: number): string {

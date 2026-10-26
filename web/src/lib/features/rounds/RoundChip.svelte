@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { shortDate } from '$lib/ui/format';
 	import { goto } from '$app/navigation';
 	import { useSession } from '$lib/session/session.svelte';
 	import CommitTrack from './CommitTrack.svelte';
@@ -84,7 +85,7 @@
 		};
 	});
 
-	const date = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+	const date = (iso: string) => shortDate(iso);
 </script>
 
 {#if pips.length}

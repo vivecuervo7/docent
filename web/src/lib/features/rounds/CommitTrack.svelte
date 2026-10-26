@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { shortDate } from '$lib/ui/format';
 	import type { Snippet } from 'svelte';
 
 	// A PR's commits along a line, oldest first: a pip for each, stretches of
@@ -39,7 +40,7 @@
 		const yesterday = new Date(today.getTime() - 86_400_000);
 		if (day.toDateString() === today.toDateString()) return 'Today';
 		if (day.toDateString() === yesterday.toDateString()) return 'Yesterday';
-		return day.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+		return shortDate(day.getTime());
 	}
 	// Where two labels would run into each other the later day keeps its
 	// label: recent work is what's usually picked out.

@@ -1,4 +1,5 @@
 import { listModels, readOk } from '$lib/api/client';
+import { shortDate } from '$lib/ui/format';
 import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
 import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
 import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
@@ -457,7 +458,7 @@ export class StartPage {
 		});
 		const covered = status?.commits ? coverage(status.commits, ends) : null;
 		const base = `/pr/${pr.owner}/${pr.repo}/${pr.number}`;
-		const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+		const day = (iso: string) => shortDate(iso);
 		const baubles = rounds.map((r, i): RoundBauble => {
 			const latest = i === rounds.length - 1;
 			const state = this.#stateOfRound(pr, r, latest);
