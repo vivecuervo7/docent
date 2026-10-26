@@ -45,6 +45,18 @@ export function checksOf(key: string): Checks {
   return checks;
 }
 
+// Checks saved as under way, which nothing is running any more.
+export function clearInterruptedChecks(error: string) {
+  const rows = db.prepare("SELECT key, checks FROM thread_checks").all() as { key: string; checks: string }[];
+  for (const row of rows) {
+    const checks = JSON.parse(row.checks) as Checks;
+    const stuck = Object.entries(checks).filter(([, c]) => c.checking);
+    if (!stuck.length) continue;
+    for (const [id, c] of stuck) checks[id] = { error, at: c.at, entries: c.entries, ...(c.head ? { head: c.head } : {}) };
+    db.prepare("UPDATE thread_checks SET checks = ? WHERE key = ?").run(JSON.stringify(checks), row.key);
+  }
+}
+
 function saveCheck(key: string, id: string, check: ThreadCheck) {
   const checks = { ...checksOf(key), [id]: check };
   db.prepare("UPDATE thread_checks SET checks = ? WHERE key = ?").run(JSON.stringify(checks), key);
