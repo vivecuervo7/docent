@@ -47,6 +47,15 @@
 
 	const toStart = $derived(panel.reviewers.filter((r) => isTicked(r) && !isRunning(r)));
 	const anyRan = $derived(panel.reviewers.some((r) => r.ranWith || panel.findings(r.id) > 0 || panel.reviews[r.id]));
+	const anyRunning = $derived(panel.reviewers.some(isRunning));
+	// A done round's panel is only what it found.
+	const done = $derived(!!session.record.completedAt && !beginning);
+	const foundBy = $derived(
+		panel.reviewers
+			.filter(hasRun)
+			.map((r) => `${nameOf(r, panel.reviewers)} found ${panel.findings(r.id)}`)
+			.join(' · ')
+	);
 	const base = $derived(session.base);
 
 	// What runs a reviewer, as its menu shows it.
@@ -149,6 +158,10 @@
 </script>
 
 <div class="card">
+	{#if done}
+		<h2>Your review panel</h2>
+		<p class="lede">{foundBy || 'No reviewers ran on this round.'}</p>
+	{:else}
 	{#if !anyRan && !beginning}
 		<span class="kicker">
 			<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor" /></svg>
@@ -160,8 +173,14 @@
 		<p class="lede">
 			{beginning
 				? 'Who reviews it: those switched on start once it’s prepared, with Prepare and review.'
-				: 'They review while you read. What they find is pinned on the code, beside your own notes.'}
+				: anyRan && !anyRunning
+					? 'What they found is pinned on the code, beside your own notes.'
+					: 'They review while you read. What they find is pinned on the code, beside your own notes.'}
 		</p>
+		<!-- The editor going through what they found before it's shown, as the panel chip says. -->
+		{#if !beginning && panel.checking}
+			<p class="checking faint"><Spinner size={12} /> Checking {panel.checking} {panel.checking === 1 ? 'finding' : 'findings'} before {panel.checking === 1 ? 'it’s' : 'they’re'} shown…</p>
+		{/if}
 	{:else}
 		<h2>No review panel</h2>
 		<p class="lede">Reviewers read the PR while you do, and what they find is pinned on the code. Add one, or review it on your own.</p>
@@ -376,9 +395,17 @@
 			<button class="btn primary big" onclick={read}>{session.reviewedSlices ? 'Continue reading' : 'Start reading'}</button>
 		{/if}
 	</div>{/if}
+	{/if}
 </div>
 
 <style>
+	.checking {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: -4px 0 0;
+		font-size: 13px;
+	}
 	.card {
 		background: #1b1813;
 		border-radius: 20px;
