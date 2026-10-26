@@ -16,7 +16,9 @@
 	const session = useSession();
 	const post = session.post;
 	const draft = $derived(post.draft);
-	const readOnly = $derived(!!draft?.posted);
+	// A done round is shown as it finished, until it's reopened.
+	const done = $derived(!!session.record.completedAt);
+	const readOnly = $derived(!!draft?.posted || done);
 
 	const EVENTS: { event: ReviewEvent; label: string; verb: string }[] = [
 		{ event: 'COMMENT', label: 'Comment', verb: 'commented' },
@@ -25,6 +27,8 @@
 	];
 	const event = $derived(EVENTS.find((e) => e.event === draft?.event) ?? EVENTS[0]);
 	const isOwnPr = $derived(!!post.people && post.people.viewer === post.people.author);
+	// What goes out: on your own PR, GitHub takes only a comment.
+	const sent = $derived(isOwnPr ? EVENTS[0] : event);
 
 	$effect(() => post.loadPeople());
 
@@ -114,9 +118,9 @@
 	<div class="head">
 		<div>
 			<h1>Post</h1>
-			<p class="lede">A last look at the review as it will appear on the PR. Reword anything before it goes out.</p>
+			{#if !readOnly}<p class="lede">A last look at the review as it will appear on the PR. Reword anything before it goes out.</p>{/if}
 		</div>
-		{#if draft && !(post.stale && !readOnly)}
+		{#if draft && !done && !(post.stale && !readOnly)}
 			{#if post.prepareStatus.pending}
 				<span class="faint pending"><Spinner size={13} /> Preparing…</span>
 			{:else if readOnly}
@@ -141,6 +145,7 @@
 	{/if}
 
 	{#if !draft}
+		{#if !done}
 		<section class="prompt">
 			<p>
 				{#if post.candidates.length}
@@ -164,6 +169,7 @@
 				{/if}
 			</div>
 		</section>
+		{/if}
 	{:else}
 		{#if draft.posted}
 			<div class="posted" role="status">
@@ -181,7 +187,7 @@
 					<button class="btn primary" onclick={() => post.setComplete(true)}>Mark done</button>
 				{/if}
 			</div>
-		{:else if post.stale}
+		{:else if post.stale && !done}
 			<div class="stale" role="status">
 				<div class="grow">
 					<strong>This review is out of date.</strong>
@@ -196,11 +202,13 @@
 			</div>
 		{/if}
 
+		<!-- A round done without posting has nothing more to show until it's reopened. -->
+		{#if draft.posted || !done}
 		<div class="review">
 			<section class="card">
 				<header>
 					<span class="viewer">{post.people?.viewer ?? 'You'}</span>
-					<span class="grow faint">{event.verb}</span>
+					<span class="grow faint">{sent.verb}</span>
 					{#if !readOnly && draft.summary.trim()}
 						<button class="link" onclick={() => post.change((d) => ({ ...d, summaryLeftOut: !d.summaryLeftOut }))}>
 							{draft.summaryLeftOut ? 'Include' : 'Leave out'}
@@ -320,6 +328,7 @@
 						<button class="btn primary big" onclick={() => review()}>Post review</button>
 					</div>
 			</section>
+		{/if}
 		{/if}
 	{/if}
 </main>
