@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import EditorModel from '$lib/features/settings/EditorModel.svelte';
@@ -14,7 +15,7 @@
 	import StateMark from '$lib/ui/StateMark.svelte';
 
 	// Where Docent's models come from: Claude Code, Codex, and any number of
-	// OpenAI-compatible providers; personas and external reviewers. The model menu on the start page picks from
+	// OpenAI-compatible providers; personas and external reviewers. The model menu at the top picks from
 	// whatever here is available; anything wrong with a provider shows here.
 	interface Provider {
 		id: string;
@@ -39,6 +40,7 @@
 		claudeCode: { installed: boolean; models: string[]; concurrency?: number };
 		codex: { installed: boolean; models: string[]; concurrency?: number };
 		providers: Provider[];
+		settingsFile: string;
 	} | null>(null);
 	let loading = $state(false);
 
@@ -88,16 +90,14 @@
 
 <svelte:head><title>Settings · Docent</title></svelte:head>
 
+<SiteHeader />
+
 <main>
-	<a class="btn back" href="/">
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
-		Back to your reviews
-	</a>
 	<div class="head">
 		<h1>Settings</h1>
 		<button class="btn" disabled={loading} onclick={load}>{#if loading}<Spinner size={13} />{/if} Check again</button>
 	</div>
-	<p class="lede">Where Docent’s models come from. The model menu on the start page picks from whatever here is available.</p>
+	<p class="lede">Where Docent’s models come from. The model menu at the top picks from whatever here is available.</p>
 
 	<SettingsSection title="Claude Code">
 		{#if !setup}
@@ -205,21 +205,17 @@
 
 	<ExternalReviewerSettings />
 
-	<p class="faint note">Saved on this machine in <code>web/data/settings.json</code>. Keys never go back to the browser.</p>
+	<p class="faint note">Saved on this machine{#if setup} in <code>{setup.settingsFile}</code>{/if}. Keys never go back to the browser.</p>
 </main>
 
 <style>
 	main {
-		max-width: 720px;
+		max-width: 760px;
 		margin: 0 auto;
-		padding: 56px 24px 96px;
+		padding: 32px 24px 96px;
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-	}
-	.back {
-		align-self: flex-start;
-		text-decoration: none;
 	}
 	.head {
 		display: flex;

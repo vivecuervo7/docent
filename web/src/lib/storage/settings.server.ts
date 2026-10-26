@@ -8,7 +8,8 @@ import { dataDir } from "./dataDir.server.js";
 // owner-only and never sent to the browser as it is), the model picked on
 // the start page, and the review panel a new PR starts with.
 
-const settingsFile = dataDir("settings.json");
+// Where they're kept, for the Settings page to say.
+export const settingsFile = dataDir("settings.json");
 
 // A model from Claude Code's or Codex's group is saved with its prefix; one
 // from a provider with the provider's id and a colon.

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import GroupHeading from '$lib/features/start/GroupHeading.svelte';
-	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
+	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import ReviewRow from '$lib/features/start/ReviewRow.svelte';
 	import SetupDialog from '$lib/features/start/SetupDialog.svelte';
 	import ThreadsDialog from '$lib/features/start/ThreadsDialog.svelte';
@@ -62,14 +62,9 @@
 	{/each}
 {/snippet}
 
-<div class="page">
-	<div class="picker">
-		<a class="guide faint" href="/getting-started">Getting started</a>
-		<a class="guide faint" href="/stats">Stats</a>
-		<a class="guide faint" href="/settings">Settings</a>
-		<ModelPicker />
-	</div>
+<SiteHeader />
 
+<div class="page">
 	<main>
 		<form onsubmit={open}>
 			<h1>Review a pull request</h1>
@@ -177,30 +172,15 @@
 		min-height: 100vh;
 		padding: 0 24px;
 	}
-	.picker {
-		position: absolute;
-		top: 22px;
-		right: 28px;
-		display: flex;
-		align-items: center;
-		gap: 18px;
-	}
 	.setup {
 		margin: 0;
 		color: var(--agent-text);
 		font-size: 14px;
 	}
-	.guide {
-		font-size: 13.5px;
-		text-decoration: none;
-	}
-	.guide:hover {
-		color: var(--text);
-	}
 	main {
 		max-width: 760px;
 		margin: 0 auto;
-		padding: 18vh 0 80px;
+		padding: calc(18vh - 64px) 0 80px;
 		display: flex;
 		flex-direction: column;
 		gap: 56px;

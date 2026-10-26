@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
 	import type { ModelOption } from '$lib/types';
 	import Spinner from '$lib/ui/Spinner.svelte';
@@ -72,11 +73,9 @@
 
 <svelte:head><title>Getting started · Docent</title></svelte:head>
 
+<SiteHeader />
+
 <main>
-	<a class="btn back" href="/">
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
-		Back to your reviews
-	</a>
 	<div class="head">
 		<h1>Getting started</h1>
 		<button class="btn" disabled={checking} onclick={recheck}>
@@ -230,16 +229,12 @@
 
 <style>
 	main {
-		max-width: 720px;
+		max-width: 760px;
 		margin: 0 auto;
-		padding: 56px 24px 96px;
+		padding: 32px 24px 96px;
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-	}
-	.back {
-		align-self: flex-start;
-		text-decoration: none;
 	}
 	.head {
 		display: flex;

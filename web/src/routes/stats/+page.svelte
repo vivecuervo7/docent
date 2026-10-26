@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
 	import OverlapMap from '$lib/features/stats/OverlapMap.svelte';
 	import type { Stats } from '$lib/features/stats/stats';
@@ -35,12 +36,10 @@
 	const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k` : `${n}`);
 </script>
 
+<SiteHeader />
+
 <main>
 	<div class="head">
-		<a class="btn back" href="/">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
-			Back to your reviews
-		</a>
 		<h1>Stats</h1>
 	</div>
 
@@ -152,9 +151,9 @@
 
 <style>
 	main {
-		max-width: 820px;
+		max-width: 760px;
 		margin: 0 auto;
-		padding: 56px 24px 96px;
+		padding: 32px 24px 96px;
 		display: flex;
 		flex-direction: column;
 		gap: 40px;
@@ -164,10 +163,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-	}
-	.back {
-		align-self: flex-start;
-		text-decoration: none;
 	}
 	h1 {
 		margin: 0;

@@ -1,7 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { claudeCodeAvailable, CLAUDE_CODE_MODELS } from '$lib/models/claudeCode.server.js';
-import { addProvider, providers, runnerConcurrency, type Provider } from '$lib/storage/settings.server.js';
+import { addProvider, providers, runnerConcurrency, settingsFile, type Provider } from '$lib/storage/settings.server.js';
+import { homedir } from 'node:os';
 import { providerFields, publicProvider } from '$lib/features/settings/fields.server.js';
 import { bodyOf, forbidden, fromThisApp } from '$lib/api/http.server.js';
 import { codexStatus, listProviderModels } from '$lib/models/modelProvider.server.js';
@@ -15,7 +16,8 @@ export const GET: RequestHandler = async () => {
 	return json({
 		claudeCode: { installed: claude, models: claude ? CLAUDE_CODE_MODELS : [], concurrency: runnerConcurrency('claude-code') },
 		codex: { ...codex, concurrency: runnerConcurrency('codex') },
-		providers: list.map((p, i) => ({ ...publicProvider(p), ...statuses[i] }))
+		providers: list.map((p, i) => ({ ...publicProvider(p), ...statuses[i] })),
+		settingsFile: settingsFile.startsWith(homedir()) ? `~${settingsFile.slice(homedir().length)}` : settingsFile
 	});
 };
 
