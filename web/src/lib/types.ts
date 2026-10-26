@@ -269,7 +269,7 @@ export interface PrRecord {
 	preparedHead?: string;
 	// The commits under review, when it isn't the whole PR.
 	range?: ReviewRange;
-	// Set once the reviewer marks the review complete, after posting.
+	// Set once the round is done: its review posted, or finished without posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
 	// Whether the round addresses each GitHub thread, by thread id.

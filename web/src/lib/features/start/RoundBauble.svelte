@@ -2,7 +2,7 @@
 	import Spinner from '$lib/ui/Spinner.svelte';
 
 	// A round at a glance, in one of two marks: a ring while it's open, filled
-	// once it's done (posted or complete); dashed while it's being set up, a
+	// once it's done (posted, or finished without posting); dashed while it's being set up, a
 	// spinner while it's preparing.
 	// Its card says the rest.
 	let { done = false, working = false, draft = false }: { done?: boolean; working?: boolean; draft?: boolean } = $props();

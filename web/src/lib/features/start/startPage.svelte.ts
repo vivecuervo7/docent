@@ -222,12 +222,12 @@ export class StartPage {
 		return list;
 	});
 	readonly pinned = $derived(this.rows.filter((pr) => this.isPinned(pr)));
-	readonly notComplete = $derived(this.rows.filter((pr) => !this.isComplete(pr) && !this.isHidden(pr) && !this.isPinned(pr)));
+	readonly notDone = $derived(this.rows.filter((pr) => !this.isDone(pr) && !this.isHidden(pr) && !this.isPinned(pr)));
 	// PRs the reviewer wrote get a section of their own.
-	readonly active = $derived(this.notComplete.filter((pr) => !this.isMine(pr)));
-	readonly mine = $derived(this.notComplete.filter((pr) => this.isMine(pr)));
+	readonly active = $derived(this.notDone.filter((pr) => !this.isMine(pr)));
+	readonly mine = $derived(this.notDone.filter((pr) => this.isMine(pr)));
 	readonly hiddenRows = $derived(this.rows.filter((pr) => this.isHidden(pr) && !this.isPinned(pr)));
-	readonly complete = $derived((this.saved ?? []).filter((pr) => this.isComplete(pr) && !this.isHidden(pr) && !this.isPinned(pr)));
+	readonly done = $derived((this.saved ?? []).filter((pr) => this.isDone(pr) && !this.isHidden(pr) && !this.isPinned(pr)));
 	readonly checked = $derived(this.gh !== null && this.modelSources !== null);
 	readonly ready = $derived(!!this.gh?.login && !!this.modelSources?.length);
 	readonly anyRunning = $derived(
@@ -430,9 +430,9 @@ export class StartPage {
 		return `${draft}Reviewed by ${by[0]}${by.length > 1 ? ` +${by.length - 1}` : ''}`;
 	}
 
-	// Marked complete, and not since given more to review: commits pushed to
+	// Done, and not since given more to review: commits pushed to
 	// a PR still open bring it back.
-	isComplete(pr: Row): boolean {
+	isDone(pr: Row): boolean {
 		return !!pr.record.completedAt && !this.rowOf(pr).fresh;
 	}
 
@@ -443,7 +443,7 @@ export class StartPage {
 
 	// What a row shows: a bauble per round, each opening its round, and the
 	// commits pushed since, to review as the next. A round begun but not
-	// prepared is a draft. A complete review, or a closed PR, counts no new
+	// prepared is a draft. A done review, or a closed PR, counts no new
 	// commits: it isn't asking for more.
 	rowOf(pr: Row): RowView {
 		const involved = this.involvedOf(pr);
@@ -483,7 +483,7 @@ export class StartPage {
 			};
 		});
 		const closed = !!status && status.state !== 'OPEN';
-		// A closed PR isn't asking for more; an open one is, complete or not.
+		// A closed PR isn't asking for more; an open one is, done or not.
 		const fresh = closed || !rounds.some((r) => begun(r)) ? 0 : (covered?.fresh ?? 0);
 		return { rounds: baubles, fresh };
 	}
@@ -520,9 +520,8 @@ export class StartPage {
 		if (isGenerating(generation) && generation?.steps.summary.status !== 'done') return { label: 'Preparing', tone: 'working' };
 		if (generation?.status === 'failed') return { label: 'Preparing failed', tone: 'bad' };
 		if (generation?.status === 'stopped' && !r.summary) return { label: 'Stopped', tone: 'quiet' };
-		if (r.completedAt) return { label: 'Complete', tone: 'done' };
+		if (r.completedAt) return { label: r.review?.posted ? 'Posted' : 'Done', tone: 'done' };
 		if (r.review?.posted?.pending) return { label: 'Pending on GitHub', tone: 'going' };
-		if (r.review?.posted) return { label: 'Posted', tone: 'done' };
 		// The editor checking what the reviewers found is part of reviewing.
 		if (latest && (this.panelFor(pr)?.running || this.#checking(pr))) return { label: 'Reviewing', tone: 'working' };
 		const slices = r.slices ?? generation?.results.slices ?? [];

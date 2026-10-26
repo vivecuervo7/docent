@@ -15,7 +15,7 @@
 
 	let url = $state('');
 	let formError = $state<string | null>(null);
-	let showComplete = $state(false);
+	let showDone = $state(false);
 	let showHidden = $state(false);
 
 	function open(e: SubmitEvent) {
@@ -92,7 +92,7 @@
 			{/if}
 		</form>
 
-		{#if page.pinned.length || page.active.length || page.mine.length || page.complete.length || page.hiddenRows.length}
+		{#if page.pinned.length || page.active.length || page.mine.length || page.done.length || page.hiddenRows.length}
 			<!-- How every list below is grouped. -->
 			<div class="list-tools">
 				<div class="grouping">
@@ -133,10 +133,10 @@
 			</section>
 		{/if}
 
-		{#if page.complete.length}
+		{#if page.done.length}
 			<section>
-				<Disclosure bind:open={showComplete} label="Complete" count={page.complete.length} />
-				{#if showComplete}{@render groups(page.complete, 'complete', true)}{/if}
+				<Disclosure bind:open={showDone} label="Done" count={page.done.length} />
+				{#if showDone}{@render groups(page.done, 'complete', true)}{/if}
 			</section>
 		{/if}
 

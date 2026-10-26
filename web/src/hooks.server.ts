@@ -5,6 +5,8 @@ import '$lib/features/stats/stats.server.js';
 import { persistent } from '$lib/storage/persistent.server.js';
 // Marks work left under way by the last run as interrupted.
 import '$lib/storage/interrupted.server.js';
+// Marks rounds posted before posting marked them done.
+import '$lib/storage/postedDone.server.js';
 
 // Background work nothing waits on - saving a finished job, say - that fails
 // anyway is logged, rather than stopping the server.

@@ -135,7 +135,7 @@
 	     nothing left to raise. -->
 	{#if session.record.completedAt && !draft?.posted}
 		<div class="posted" role="status">
-			<span class="grow">Marked complete without posting.</span>
+			<span class="grow">Done without posting.</span>
 			<button class="btn" onclick={() => post.setComplete(false)}>Reopen</button>
 		</div>
 	{/if}
@@ -158,7 +158,7 @@
 					<button class="btn primary big" onclick={() => post.prepare()}>Prepare the review</button>
 					{#if !session.record.completedAt}
 						<button class="btn big" title="Finish this review without posting a review to GitHub" onclick={() => post.setComplete(true)}
-							>Complete without posting</button
+							>Done without posting</button
 						>
 					{/if}
 				{/if}
@@ -172,13 +172,13 @@
 						Left pending on GitHub {new Date(draft.posted.at).toLocaleString()}. Add to it and submit it there.
 					{:else}
 						Posted {new Date(draft.posted.at).toLocaleString()}.
-					{/if}{#if session.record.completedAt}{' '}Marked complete.{/if}
+					{/if}
 				</span>
 				<a href={draft.posted.url} target="_blank" rel="noreferrer">View on GitHub</a>
 				{#if session.record.completedAt}
 					<button class="btn" onclick={() => post.setComplete(false)}>Reopen</button>
 				{:else}
-					<button class="btn primary" onclick={() => post.setComplete(true)}>Mark complete</button>
+					<button class="btn primary" onclick={() => post.setComplete(true)}>Mark done</button>
 				{/if}
 			</div>
 		{:else if post.stale}
@@ -313,7 +313,7 @@
 						<span class="faint grow">{tally(keptInline, keptInBody, hasSummary)}</span>
 						{#if !session.record.completedAt}
 							<button class="link" title="Finish this review without posting a review to GitHub" onclick={() => post.setComplete(true)}
-								>Complete without posting</button
+								>Done without posting</button
 							>
 						{/if}
 						<button class="btn big" title="Only you see it until you submit it on GitHub" onclick={() => review(true)}>Leave pending</button>

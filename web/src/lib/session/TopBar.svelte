@@ -52,7 +52,7 @@
 		</a>
 		<span class="joint"></span>
 		<a href="{base}/post" class="stage" class:current={onPost} aria-current={onPost ? 'page' : undefined}>
-			<StateMark state={onPost ? 'now' : session.record.review?.posted ? 'done' : 'todo'} />Post
+			<StateMark state={onPost ? 'now' : session.record.completedAt ? 'done' : 'todo'} />Post
 		</a>
 	</nav>
 	<div class="right">

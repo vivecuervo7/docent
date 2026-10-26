@@ -279,6 +279,7 @@ export class ReviewPost {
 		try {
 			const { url } = await readOk<{ url: string }>(await this.#send(draft, false, pending));
 			await this.#save({ ...draft, posted: { at: Date.now(), url, ...(pending ? { pending } : {}) } });
+			if (!pending) this.setComplete(true);
 		} catch (err) {
 			// The post can succeed and its answer still be lost on the way back.
 			// Only report a failure once GitHub confirms nothing arrived.
@@ -290,11 +291,13 @@ export class ReviewPost {
 			).catch(() => null);
 			if (!found) throw err;
 			await this.#save({ ...draft, posted: { at: Date.now(), url: found, ...(pending ? { pending } : {}) } });
+			if (!pending) this.setComplete(true);
 		}
 	}
 
-	// A review marked complete, posted or not, moves out of the way on the
-	// start page.
+	// A round is done once its review is posted, or it's finished without
+	// posting; it then moves out of the way on the start page. One left
+	// pending on GitHub is marked done by hand, once it's submitted there.
 	setComplete(complete: boolean) {
 		this.#session
 			.update((r) => {
