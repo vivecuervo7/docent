@@ -75,6 +75,8 @@ interface Settings {
   hiddenPrs?: string[];
   // PRs kept at the top of the start page, in the order they were pinned.
   pinnedPrs?: string[];
+  // One-off changes to saved reviews already made, by name.
+  carriedOver?: string[];
   // Calls run at once through each tool; see laneOf.
   claudeCodeConcurrency?: number;
   codexConcurrency?: number;
@@ -239,6 +241,15 @@ export function setHidden(key: string, hidden: boolean): string[] {
   const list = hiddenPrs().filter((k) => k !== key);
   writeSettings({ hiddenPrs: hidden ? [...list, key] : list });
   return hiddenPrs();
+}
+
+// Runs a one-off change to saved reviews the first time it's asked for, and
+// never again, whatever restarts there are.
+export function carryOver(name: string, change: () => void): void {
+  const done = readSettings().carriedOver ?? [];
+  if (done.includes(name)) return;
+  change();
+  writeSettings({ carriedOver: [...done, name] });
 }
 
 export function pinnedPrs(): string[] {
