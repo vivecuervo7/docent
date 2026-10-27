@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import { isAuto, modelLabel, nameOf } from '$lib/features/panel/panel.svelte';
 	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
@@ -79,7 +80,7 @@
 			? { status: live.status, startedAt: live.startedAt, endedAt: live.endedAt, findings: live.findings.length }
 			: r.lastRun;
 		if (!run) return { text: 'Not started', working: false };
-		const found = `${run.findings} ${run.findings === 1 ? 'finding' : 'findings'}`;
+		const found = `${plural(run.findings, 'finding')}`;
 		if (run.status === 'running') {
 			const elapsed = run.startedAt ? ` · ${duration(now - run.startedAt)}` : '';
 			if (live?.source === 'external') return { text: `Waiting for your agent${elapsed}`, working: true };
@@ -113,12 +114,12 @@
 				<span>Panel · {running} reviewing</span>
 			{:else if checking}
 				<Spinner size={15} />
-				<span>Panel · checking {checking} {checking === 1 ? 'finding' : 'findings'}</span>
+				<span>Panel · checking {plural(checking, 'finding')}</span>
 			{:else}
 				<StateMark state="done" size={15} />
 				<span>Panel · done</span>
 			{/if}
-			{#if panel.findingCount}<span class="faint">{panel.findingCount} {panel.findingCount === 1 ? 'finding' : 'findings'}</span>{/if}
+			{#if panel.findingCount}<span class="faint">{plural(panel.findingCount, 'finding')}</span>{/if}
 		</button>
 		{#if open}
 			<div class="popover" role="dialog" aria-label="Your review panel">
@@ -132,7 +133,7 @@
 								{#each l.steps.slice(-3) as step, i (i)}<span class="step faint">{step}</span>{/each}
 							{:else if l.status === 'done'}
 								<button class="state facts-toggle" aria-expanded={showFacts} onclick={() => (showFacts = !showFacts)}>
-									Looked up {l.facts.length} {l.facts.length === 1 ? 'fact' : 'facts'}{l.steps.length ? ` in ${l.steps.length} looks` : ''}
+									Looked up {plural(l.facts.length, 'fact')}{l.steps.length ? ` in ${l.steps.length} looks` : ''}
 								</button>
 								{#if showFacts}
 									<ul class="facts">

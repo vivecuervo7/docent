@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { LooseMark, Mark } from '$lib/features/reading/marks';
@@ -165,7 +166,7 @@
 	{@const marks = opinion.ids.map(markById).filter((m) => m !== undefined)}
 	<Dialog label="Slice reviewed" onclose={finishOpinion}>
 		<span class="done-label">Slice reviewed</span>
-		<h2>The panel noticed {marks.length} {marks.length === 1 ? 'thing' : 'things'} here</h2>
+		<h2>The panel noticed {plural(marks.length, 'thing')} here</h2>
 		{#each marks as mark (mark.id)}
 			<FindingCard
 				{mark}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { raisedBy } from '../panel/findings';
 	import FilePath from '../../ui/FilePath.svelte';
@@ -6,6 +7,7 @@
 	import KeepSkip from '../../ui/KeepSkip.svelte';
 	import SeverityTag from '../panel/SeverityTag.svelte';
 	import type { Severity } from '$lib/types';
+	import { lineSpan } from '$lib/types';
 	import type { LineRef } from '$lib/types';
 	import type { NoteMessage } from '$lib/types';
 	import NoteText from '../../ui/NoteText.svelte';
@@ -88,7 +90,7 @@
 	const lines = $derived.by(() => {
 		if (!start) return undefined;
 		const endLine = end?.line ?? start.line;
-		return start.line === endLine ? `line ${start.line}` : `lines ${start.line}–${endLine}`;
+		return lineSpan(start.line, endLine);
 	});
 </script>
 
@@ -132,7 +134,7 @@
 		{#if messages.length}
 			<button class="why" aria-expanded={showTalk} onclick={() => (showTalk = !showTalk)}>
 				<Icon name="chevron" size={13} turned={showTalk} />
-				{messages.length} {messages.length === 1 ? 'message' : 'messages'} about it
+				{plural(messages.length, 'message')} about it
 			</button>
 			{#if showTalk}
 				<ol class="talk">

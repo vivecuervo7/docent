@@ -195,11 +195,16 @@ export interface Note {
 }
 
 // Where a thread sits, in words: its lines, its file, or the PR.
+// Lines as said in a sentence: "line 3", "lines 3–5".
+export function lineSpan(first: number, last: number): string {
+	return first === last ? `line ${first}` : `lines ${first}–${last}`;
+}
+
 export function noteWhere(note: Pick<Note, 'path' | 'start' | 'end' | 'slice'>): string {
 	if (note.slice) return 'the slice as a whole';
 	if (!note.path) return 'the PR as a whole';
 	if (!note.start || !note.end) return 'the whole file';
-	return note.start.line === note.end.line ? `line ${note.start.line}` : `lines ${note.start.line}–${note.end.line}`;
+	return lineSpan(note.start.line, note.end.line);
 }
 
 // A thread, or a finding asked about, with a reply since it was last open.

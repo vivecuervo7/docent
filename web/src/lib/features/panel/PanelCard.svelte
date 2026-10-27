@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { goto } from '$app/navigation';
 	import { ask } from '$lib/ui/confirm.svelte';
@@ -144,7 +145,7 @@
 
 	async function remove(r: AgentReviewer) {
 		const n = panel.findings(r.id);
-		if (n > 0 && !(await ask({ title: `Remove ${nameOf(r, panel.reviewers)}?`, body: `Its ${n} ${n === 1 ? 'finding' : 'findings'} will be discarded.`, action: 'Remove' }))) return;
+		if (n > 0 && !(await ask({ title: `Remove ${nameOf(r, panel.reviewers)}?`, body: `Its ${plural(n, 'finding')} will be discarded.`, action: 'Remove' }))) return;
 		await panel.remove(r.id);
 	}
 
@@ -180,7 +181,7 @@
 		</p>
 		<!-- The editor going through what they found before it's shown, as the panel chip says. -->
 		{#if !beginning && panel.checking}
-			<p class="checking faint"><Spinner size={12} /> Checking {panel.checking} {panel.checking === 1 ? 'finding' : 'findings'} before {panel.checking === 1 ? 'it’s' : 'they’re'} shown…</p>
+			<p class="checking faint"><Spinner size={12} /> Checking {plural(panel.checking, 'finding')} before {panel.checking === 1 ? 'it’s' : 'they’re'} shown…</p>
 		{/if}
 	{:else}
 		<h2>No review panel</h2>
@@ -262,7 +263,7 @@
 						{:else if panel.errors[r.id]}
 							<span class="status bad">Couldn’t pick: {panel.errors[r.id]}</span>
 						{:else if picksRunning(r)}
-							<span class="status working"><Spinner size={13} /> {picksRunning(r)} {picksRunning(r) === 1 ? 'pick' : 'picks'} reviewing</span>
+							<span class="status working"><Spinner size={13} /> {plural(picksRunning(r), 'pick')} reviewing</span>
 						{:else if r.picks}
 							<span class="status faint">
 								{r.picks.personas.length
@@ -312,7 +313,7 @@
 						<span class="status bad">Couldn’t start: {panel.errors[r.id]}</span>
 					{:else if found || review}
 						<span class="status faint">
-							{found} {found === 1 ? 'finding' : 'findings'}{review?.status === 'stopped' ? ' · stopped' : ''}{isTicked(r) ? ' · runs again, replacing them' : ''}
+							{plural(found, 'finding')}{review?.status === 'stopped' ? ' · stopped' : ''}{isTicked(r) ? ' · runs again, replacing them' : ''}
 						</span>
 					{/if}
 					{#if r.pickedBy && r.pickReason}

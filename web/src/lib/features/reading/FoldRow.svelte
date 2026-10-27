@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import HiddenMarks from './HiddenMarks.svelte';
 	import type { Row } from './diff/parse';
 	import type { Mark } from './marks';
@@ -34,7 +35,7 @@
 	<!-- The counts say what's hidden, so they go once it's open. -->
 	{#if !open}
 		{#if round}
-			<span class="changes">{rows.length} {rows.length === 1 ? 'line' : 'lines'} this round left as they were</span>
+			<span class="changes">{plural(rows.length, 'line')} this round left as they were</span>
 		{:else if added || removed}
 			<span class="changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
 		{:else}

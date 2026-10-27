@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { lineSpan } from "../../types.js";
 import { gh, viewerLogin } from "../../github/gh.server.js";
 import { conversationText, fetchPrConversation, fetchPrFiles } from "../../github/github.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
@@ -324,8 +325,7 @@ const githubSide = (side: "old" | "new") => (side === "old" ? "LEFT" : "RIGHT");
 function describeLocation(comment: CommentToPost): string {
   if (!comment.path) return "";
   if (!comment.start || !comment.end) return `**\`${comment.path}\`:** `;
-  const lines =
-    comment.start.line === comment.end.line ? `line ${comment.start.line}` : `lines ${comment.start.line}-${comment.end.line}`;
+  const lines = lineSpan(comment.start.line, comment.end.line);
   return `**\`${comment.path}\`, ${lines}:** `;
 }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { shortDate } from '$lib/ui/format';
+	import { shortDate, plural } from '$lib/ui/format';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
@@ -54,7 +54,7 @@
 		const dropped = draft.basedOn.filter((id) => !now.includes(id)).length;
 		const parts = [
 			added && `${added} more ${added === 1 ? 'comment or finding has' : 'comments or findings have'} been kept`,
-			dropped && `${dropped} ${dropped === 1 ? 'comment or finding is' : 'comments or findings are'} no longer kept`
+			dropped && `${plural(dropped, 'comment or finding is', 'comments or findings are')} no longer kept`
 		].filter(Boolean);
 		return parts.join(' and ') || 'what’s kept in Wrap up has changed';
 	});
@@ -65,7 +65,7 @@
 	// the review's own words.
 	function tally(onLines: number, inText: number, summary: boolean) {
 		const parts = [
-			onLines > 0 && `${onLines} ${onLines === 1 ? 'comment' : 'comments'} on lines`,
+			onLines > 0 && `${plural(onLines, 'comment')} on lines`,
 			inText > 0 && `${inText} in the review’s text`,
 			summary && 'a review body'
 		].filter((p): p is string => !!p);
@@ -150,7 +150,7 @@
 		<section class="prompt">
 			<p>
 				{#if post.candidates.length}
-					Put the {counts.yours} {counts.yours === 1 ? 'comment' : 'comments'} of yours and {counts.panel}
+					Put the {plural(counts.yours, 'comment')} of yours and {counts.panel}
 					{counts.panel === 1 ? 'finding' : 'findings'} from the panel you’ve kept into one review. Comments making
 					the same point are merged, and anything already said on the PR is set aside.
 				{:else}

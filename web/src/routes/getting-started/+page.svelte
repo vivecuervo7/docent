@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
 	import type { ModelOption } from '$lib/types';
@@ -218,7 +219,7 @@
 				{#if !counts}
 					<p class="status faint">Checking…</p>
 				{:else if counts.personas}
-					<p class="status ok">{counts.personas} {counts.personas === 1 ? 'persona' : 'personas'} besides general.</p>
+					<p class="status ok">{plural(counts.personas, 'persona')} besides general.</p>
 				{:else}
 					<p class="status">Only general so far.</p>
 				{/if}

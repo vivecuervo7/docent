@@ -27,3 +27,8 @@ export function parsePrUrl(input: string): { owner: string; repo: string; number
 	const match = input.trim().match(/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/);
 	return match ? { owner: match[1], repo: match[2], number: match[3] } : null;
 }
+
+// A count with its noun: "1 finding", "3 findings".
+export function plural(n: number, one: string, many = `${one}s`): string {
+	return `${n} ${n === 1 ? one : many}`;
+}

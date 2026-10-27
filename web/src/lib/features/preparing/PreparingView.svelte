@@ -2,7 +2,7 @@
 	import InlineText from '../../ui/InlineText.svelte';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
 	import ReviewModel from './ReviewModel.svelte';
-	import { elapsed } from '$lib/ui/format';
+	import { elapsed, plural } from '$lib/ui/format';
 	import { isGenerating, useSession } from '$lib/session/session.svelte';
 	import type { StepName } from '$lib/types';
 	import Spinner from '../../ui/Spinner.svelte';
@@ -50,7 +50,7 @@
 		<ol>
 			<li>
 				<StateMark state="done" size={18} />
-				<span>Fetched the PR and its {session.files.length} {session.files.length === 1 ? 'file' : 'files'}</span>
+				<span>Fetched the PR and its {plural(session.files.length, 'file')}</span>
 			</li>
 			{#each STEPS as { step, label } (step)}
 				{@const state = generation?.steps[step]}

@@ -2,7 +2,7 @@ import { readOk } from '../api/client';
 import { groupsOf, reviewerName } from '../features/panel/findings';
 import { codeIn, nearestHunk } from '../features/reading/diff/parse';
 import { sessionId } from '../features/panel/setup';
-import { isNewFinding, isUnread, noteWhere, type GitHubThread, type LineRef, type Note, type NoteMessage, type Slice } from '../types';
+import { isNewFinding, isUnread, lineSpan, noteWhere, type GitHubThread, type LineRef, type Note, type NoteMessage, type Slice } from '../types';
 import { forModel, lineRanges, type PrSession } from './session.svelte';
 
 // Asking about the code and its findings: threads on lines, files, the
@@ -221,7 +221,7 @@ export class Conversations {
 				body: JSON.stringify({
 					context: {
 						path: path ?? '',
-						lines: start && end ? (start.line === end.line ? `line ${start.line}` : `lines ${start.line}-${end.line}`) : '',
+						lines: start && end ? lineSpan(start.line, end.line) : '',
 						code: start ? code || '(unchanged lines outside the diff)' : '',
 						fileDiff: path ? (file?.patch ?? code) : everything,
 						prTitle: this.#s.title,

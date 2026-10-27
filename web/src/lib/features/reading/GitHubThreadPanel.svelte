@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon from '$lib/ui/Icon.svelte';
 	import type { GitHubThread } from '$lib/types';
+	import { lineSpan } from '$lib/types';
 	import { useSession } from '$lib/session/session.svelte';
 	import { timeAgo } from '$lib/ui/format';
 	import Avatar from '../../ui/Avatar.svelte';
@@ -20,7 +21,7 @@
 		if (thread.start && thread.end) {
 			const { line: a } = thread.start;
 			const { line: b } = thread.end;
-			return `${file} · ${a === b ? `line ${a}` : `lines ${a}–${b}`} · on GitHub`;
+			return `${file} · ${lineSpan(a, b)} · on GitHub`;
 		}
 		if (thread.outdated) return `${file} · outdated${thread.originalLine ? `, left on line ${thread.originalLine}` : ''} · on GitHub`;
 		return `${file} · the whole file · on GitHub`;

@@ -2,7 +2,7 @@ import { readOk } from '../../api/client';
 import { groupsOf, isShown, reviewerName } from '../panel/findings';
 import type { Hunk } from '../reading/diff/parse';
 import type { PrSession } from '../../session/session.svelte';
-import type { FeedbackItem, Job, LineRef, ReviewComment, ReviewDraft, ReviewEvent, ReviewPayload } from '../../types';
+import { lineSpan, type FeedbackItem, type Job, type LineRef, type ReviewComment, type ReviewDraft, type ReviewEvent, type ReviewPayload } from '../../types';
 
 // Posting the review: preparing it from what's kept (comments making the same
 // point merged, anything already said on the PR set aside), wording it, and
@@ -322,5 +322,5 @@ function sameLines(a: Pick<FeedbackItem, 'path' | 'start' | 'end'>, b: Pick<Feed
 }
 
 export function describeLines(start: LineRef, end: LineRef): string {
-	return start.line === end.line ? `line ${start.line}` : `lines ${start.line}–${end.line}`;
+	return lineSpan(start.line, end.line);
 }

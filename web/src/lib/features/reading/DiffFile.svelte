@@ -5,6 +5,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { looseGitHubThreads, type Mark } from './marks';
 	import type { FileNote, LineRef, PrFile, PrRef } from '$lib/types';
+	import { lineSpan } from '$lib/types';
 	import { highlightHunks, segments, type Token } from '$lib/features/reading/diff/highlight';
 	import {
 		EXPAND_STEP,
@@ -441,7 +442,7 @@
 		const nums = rows.map((r) => r[side]).filter((n) => n !== undefined);
 		const first = nums[0];
 		const last = nums[nums.length - 1];
-		const label = first === last ? `line ${first}` : `lines ${first}–${last}`;
+		const label = lineSpan(first, last);
 		return side === 'old' ? `${label} (removed)` : label;
 	}
 

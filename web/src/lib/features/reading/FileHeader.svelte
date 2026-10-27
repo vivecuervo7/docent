@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import FilePath from '$lib/ui/FilePath.svelte';
@@ -74,7 +75,7 @@
 		     to confirm, or something new to read - as the slices do; it opens
 		     on the first. -->
 		{@const label = summary.count
-			? `${summary.count} ${summary.count === 1 ? 'finding' : 'findings'} to confirm`
+			? `${plural(summary.count, 'finding')} to confirm`
 			: 'New to read'}
 		{@const first = summary.first}
 		<button class="notice" aria-label="{label} - open it" title={label} onclick={() => (session.revealing = first.id)}></button>

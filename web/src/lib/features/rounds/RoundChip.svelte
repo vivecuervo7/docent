@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDismiss } from '$lib/ui/dismiss';
-	import { shortDate } from '$lib/ui/format';
+	import { shortDate, plural } from '$lib/ui/format';
 	import { goto } from '$app/navigation';
 	import { useSession } from '$lib/session/session.svelte';
 	import CommitTrack from './CommitTrack.svelte';
@@ -117,7 +117,7 @@
 								<button class="link" onclick={() => view(s.index)}>Round {numberOf(s)}</button>
 							{/if}
 							<span class="faint">
-								{!s.begun ? 'choosing its commits' : s.to < 0 ? 'rebased since' : `${count} ${count === 1 ? 'commit' : 'commits'}`}{s.index === null ? ' · latest' : ''}
+								{!s.begun ? 'choosing its commits' : s.to < 0 ? 'rebased since' : `${plural(count, 'commit')}`}{s.index === null ? ' · latest' : ''}
 							</span>
 						</li>
 					{/each}
@@ -126,7 +126,7 @@
 				{#if latest.begun}
 					<div class="next">
 						{#if fresh}
-							<span class="faint">{latest.to < 0 ? `Rebased since round ${spans.length}` : `${fresh} ${fresh === 1 ? 'commit' : 'commits'} since round ${spans.length}`}</span>
+							<span class="faint">{latest.to < 0 ? `Rebased since round ${spans.length}` : `${plural(fresh, 'commit')} since round ${spans.length}`}</span>
 							<button class="btn" onclick={reviewNew}>Review {fresh === 1 ? 'it' : 'them'} as round {spans.length + 1}</button>
 						{:else}
 							<button class="btn" onclick={reviewNew}>Start round {spans.length + 1}</button>

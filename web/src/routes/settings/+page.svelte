@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/ui/format';
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
 	import { ask } from '$lib/ui/confirm.svelte';
@@ -161,7 +162,7 @@
 					{#if p.error}
 						<p class="bad">{p.error}</p>
 					{:else}
-						<p class="ok">{p.models.length} {p.models.length === 1 ? 'model' : 'models'} available</p>
+						<p class="ok">{plural(p.models.length, 'model')} available</p>
 					{/if}
 					<p class="meta">
 						{p.concurrency} concurrent {p.concurrency === 1 ? 'request' : 'requests'} · {p.apiKeyCommand

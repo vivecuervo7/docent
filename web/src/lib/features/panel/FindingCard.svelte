@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { lineSpan } from '$lib/types';
 	import Icon from '$lib/ui/Icon.svelte';
 	import FilePath from '../../ui/FilePath.svelte';
 	import type { LooseMark, Mark } from '../reading/marks';
@@ -15,11 +16,7 @@
 	let showWhy = $state(false);
 
 	const lines = $derived(
-		!('start' in mark)
-			? 'the whole file'
-			: mark.start.line === mark.end.line
-				? `line ${mark.start.line}`
-				: `lines ${mark.start.line}–${mark.end.line}`
+		!('start' in mark) ? 'the whole file' : lineSpan(mark.start.line, mark.end.line)
 	);
 	// Kept unless skipped, as in the diff's bubble, and only suggested until
 	// you decide.

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import InlineText from '$lib/ui/InlineText.svelte';
-	import { timeAgo } from '$lib/ui/format';
+	import { timeAgo, plural } from '$lib/ui/format';
 	import RoundBauble from './RoundBauble.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import type { RoundBauble as Round, Row, StartPage } from './startPage.svelte';
@@ -20,7 +20,6 @@
 	const pinned = $derived(page.isPinned(pr));
 	const unresolved = $derived(page.unresolvedOf(pr));
 	const href = $derived(`/pr/${pr.owner}/${pr.repo}/${pr.number}`);
-	const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 </script>
 
 <li>
