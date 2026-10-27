@@ -8,8 +8,8 @@
 	import Menu from '$lib/ui/Menu.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 
-	// Mockup A's "Start your review panel": the PR's agent reviewers, what
-	// each runs with, and one button to start them and begin reading.
+	// The review panel: the PR's agent reviewers, what each runs with, and
+	// one button to start them and begin reading.
 	// `beginning`, before the PR's prepared: the panel to set up, which
 	// starts with it or later from here, so there's nothing to start yet.
 	let { beginning = false }: { beginning?: boolean } = $props();

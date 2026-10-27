@@ -14,8 +14,8 @@ import { numberedFileDiff } from "../github/prDiff.server.js";
 import { fetchReviewFiles, rangeNote } from "../github/range.server.js";
 
 // Docent over MCP, so a reviewer can run their own agent - any model, any
-// harness - against a PR and have its findings land on the Agent feedback
-// page. Stateless: each request gets a fresh server, and review state lives
+// harness - against a PR and have its findings pinned on the code with the
+// rest of the panel's. Stateless: each request gets a fresh server, and review state lives
 // in features/panel/agentReviews.server.ts.
 
 // "@round1" after the number names an earlier round of Docent's review.

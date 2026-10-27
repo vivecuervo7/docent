@@ -1,5 +1,5 @@
 import { prUrl, readOk } from '../../api/client';
-import type { AgentReview, PrRef, PrSummary, Slice } from '../../types';
+import type { AgentReview, PrRef } from '../../types';
 
 // The PR's agent reviewers each have their own review on the backend.
 const reviewUrl = (ref: PrRef, reviewer: string, action?: string) =>

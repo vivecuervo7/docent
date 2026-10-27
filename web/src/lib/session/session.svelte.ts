@@ -299,28 +299,6 @@ export class PrSession {
 		return this.createNote(anchor, text, options);
 	}
 
-	// Replies to, resolves or reopens a GitHub thread, there and then. The
-	// threads are read again after, so they show as GitHub has them.
-	async changeThreads(changes: { thread: GitHubThread; resolved?: boolean; reply?: string }[]) {
-		const sent = changes.filter((c) => c.thread.node);
-		if (!sent.length) return;
-		const res = await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-threads`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				changes: sent.map(({ thread, resolved, reply }) => ({
-					node: thread.node,
-					...(resolved !== undefined ? { resolved } : {}),
-					...(reply?.trim() ? { reply: { comment: Number(thread.id.slice(1)), body: reply.trim() } } : {})
-				}))
-			})
-		});
-		const { results } = await readOk<{ results: { node: string; error?: string }[] }>(res);
-		await this.refreshGitHub().catch(() => {});
-		const refused = results.filter((r) => r.error);
-		if (refused.length) throw new Error(`GitHub didn't change ${refused.length === 1 ? 'a thread' : `${refused.length} threads`}: ${refused[0].error}`);
-	}
-
 	// What's been said on GitHub again, after changing it.
 	async refreshGitHub() {
 		const comments = await readOk<GitHubComments>(await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`));
@@ -1035,8 +1013,6 @@ export class PrSession {
 	}
 }
 
-// Where a comment drafted from threads sits: on their lines when they're all
-// in one file, else on the PR as a whole.
 // Closed with the reviewer's conclusion, which drafting follows.
 export const isConcluded = (note: Note) => note.messages.some((m) => m.conclusion);
 

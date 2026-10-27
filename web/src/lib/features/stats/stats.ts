@@ -25,7 +25,6 @@ export interface RoundStats {
 	comments: number;
 	conclusions: number;
 	answers: number;
-	checks: number;
 	// How the figures were counted, for taking them again when that changes.
 	counted?: number;
 	// Each finding the editor didn't filter out: who raised it, whether it's

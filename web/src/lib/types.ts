@@ -272,7 +272,8 @@ export interface PrRecord {
 	// Set once the round is done: its review posted, or finished without posting.
 	completedAt?: number;
 	lastOpenedAt?: number;
-	// Whether the round addresses each GitHub thread, by thread id.
+	// Checks of GitHub threads, as rounds kept them before they were kept for
+	// the PR; read only to bring them over (features/threads/threadChecks).
 	threadChecks?: Record<string, ThreadCheck>;
 	// Work on the round a model's still doing, or has done and the page hasn't
 	// made its own yet: drafting your comments, preparing the review.

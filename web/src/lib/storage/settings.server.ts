@@ -100,15 +100,6 @@ function writeSettings(change: Settings): void {
 
 const newProviderId = () => `p${randomUUID().slice(0, 6)}`;
 
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
-}
-
-
 export function providers(): Provider[] {
   return readSettings().providers ?? [];
 }

@@ -60,7 +60,7 @@ export interface Lookup {
 }
 
 const passes = persistent("code-context.passes", () => new Map<string, Promise<string>>());
-// The latest lookup for each PR, by owner/repo#number.
+// The latest lookup for each round of a PR.
 const latest = persistent("code-context.latest", () => new Map<string, Lookup>());
 
 export function getLookup(owner: string, repo: string, number: string, round?: number): Lookup | null {

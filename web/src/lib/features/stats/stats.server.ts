@@ -129,7 +129,6 @@ function roundStats(key: string, record: PrRecord, round: number): Omit<RoundSta
     comments: yours.filter((m) => m.comment).length,
     conclusions: yours.filter((m) => m.conclusion).length,
     answers: answers.length,
-    checks: Object.values(record.threadChecks ?? {}).filter((c) => c.verdict).length,
     counted: COUNTED,
     found,
     ran: [...new Map(ran.map((r) => [idOf(r), { id: idOf(r), ...r }])).values()],

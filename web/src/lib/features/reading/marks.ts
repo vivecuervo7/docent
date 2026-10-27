@@ -142,7 +142,3 @@ export function looseGitHubThreads(comments: GitHubComments | null, path: string
 	return (comments?.threads ?? []).filter((t) => t.path === path && !t.start);
 }
 
-// Your threads without lines: on a whole file, or with no path on the PR.
-export function looseNotesFrom(record: PrRecord): Note[] {
-	return record.notes.filter((note) => !note.start && !note.github);
-}

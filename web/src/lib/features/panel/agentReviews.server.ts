@@ -67,8 +67,8 @@ export interface AgentReview {
   verdict?: { event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"; reason?: string };
 }
 
-// What the browser knows about the PR that GitHub doesn't: the slices and
-// summary it prepared. Passed in when a review starts, and served to agents.
+// What Docent knows about the PR that GitHub doesn't: the slices and summary
+// it prepared, read from the round when a review starts and served to agents.
 export interface ReviewContext {
   title?: string;
   summary?: PrSummary | null;
