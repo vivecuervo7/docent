@@ -182,9 +182,9 @@
 					{/if}
 				</span>
 				<a href={draft.posted.url} target="_blank" rel="noreferrer">View on GitHub</a>
-				{#if session.record.completedAt}
-					<button class="btn" onclick={() => post.setComplete(false)}>Reopen</button>
-				{:else}
+				<!-- Posting is the end of a round. One left pending is done once
+				     it's submitted on GitHub, which only you can say. -->
+				{#if !session.record.completedAt}
 					<button class="btn primary" onclick={() => post.setComplete(true)}>Mark done</button>
 				{/if}
 			</div>

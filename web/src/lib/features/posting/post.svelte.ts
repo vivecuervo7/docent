@@ -298,6 +298,8 @@ export class ReviewPost {
 	// A round is done once its review is posted, or it's finished without
 	// posting; it then moves out of the way on the start page. One left
 	// pending on GitHub is marked done by hand, once it's submitted there.
+	// Only one finished without posting is reopened: a posted review is the
+	// round's, and a follow-up goes in a new round.
 	setComplete(complete: boolean) {
 		this.#session
 			.update((r) => {
