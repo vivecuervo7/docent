@@ -61,15 +61,15 @@
 	// draft that fails isn't asked for again and again.
 	let asked = false;
 	$effect(() => {
-		const undrafted = session.undrafted;
-		if (asked || session.loading || session.yourDraft.pending || !undrafted.length) return;
+		const undrafted = session.yours.undrafted;
+		if (asked || session.loading || session.yours.status.pending || !undrafted.length) return;
 		asked = true;
-		untrack(() => session.draftYourComments(undrafted.map((n) => n.id)));
+		untrack(() => session.yours.draft(undrafted.map((n) => n.id)));
 	});
 
-	const changed = (item: FeedbackItem) => (item.noteIds ?? []).some((id) => session.changedThreads.has(id));
+	const changed = (item: FeedbackItem) => (item.noteIds ?? []).some((id) => session.yours.changedThreads.has(id));
 	const redraft = (item: FeedbackItem) =>
-		session.draftYourComments((item.noteIds ?? []).filter((id) => session.record.notes.some((n) => n.id === id)));
+		session.yours.draft((item.noteIds ?? []).filter((id) => session.record.notes.some((n) => n.id === id)));
 
 	// Opens a finding or a thread where it was raised: the slice holding its
 	// lines or file, or for something about the PR as a whole, the Overview.
@@ -148,11 +148,11 @@
 		rationale={item.rationale}
 		kept={item.included}
 		changed={changed(item)}
-		onredraft={session.yourDraft.pending ? undefined : () => redraft(item)}
+		onredraft={session.yours.status.pending ? undefined : () => redraft(item)}
 		onshow={item.noteIds?.length ? () => showThread(item) : undefined}
 		showLabel={onOverview(item) ? 'Show on the Overview' : undefined}
-		onkeep={() => session.setYourIncluded(item.id, true)}
-		onskip={() => session.setYourIncluded(item.id, false)}
+		onkeep={() => session.yours.setIncluded(item.id, true)}
+		onskip={() => session.yours.setIncluded(item.id, false)}
 	/>
 {/snippet}
 
@@ -160,22 +160,22 @@
 	<div class="intro">
 		<h1>Wrap up</h1>
 		<p class="lede">Each of yours is drafted as the comment it would post. Keep what belongs in your review.</p>
-		{#if session.threads.length}
+		{#if session.yours.threads.length}
 			<div class="status faint">
-				{#if session.yourDraft.pending}
+				{#if session.yours.status.pending}
 					<span class="drafting"><Spinner size={13} /> Drafting from your threads…</span>
 				{:else if session.record.feedback.yours}
 					<span>
-						Drafted from your threads{#if session.changedThreads.size}{` · ${session.changedThreads.size} changed since`}{/if}
+						Drafted from your threads{#if session.yours.changedThreads.size}{` · ${session.yours.changedThreads.size} changed since`}{/if}
 					</span>
 				{/if}
 				<span class="grow"></span>
-				{#if !session.yourDraft.pending && session.record.feedback.yours}
-					<button class="link" onclick={() => session.draftYourComments()}>Redraft all</button>
+				{#if !session.yours.status.pending && session.record.feedback.yours}
+					<button class="link" onclick={() => session.yours.draft()}>Redraft all</button>
 				{/if}
 			</div>
 		{/if}
-		{#if session.yourDraft.error}<p class="bad">Couldn’t draft: {session.yourDraft.error}</p>{/if}
+		{#if session.yours.status.error}<p class="bad">Couldn’t draft: {session.yours.status.error}</p>{/if}
 	</div>
 
 	{#each sections as group (group.id)}
@@ -187,9 +187,9 @@
 			</ul>
 		</section>
 	{:else}
-		{#if !session.yourDraft.pending}
+		{#if !session.yours.status.pending}
 			<p class="empty">
-				{session.threads.length
+				{session.yours.threads.length
 					? 'Nothing in your threads reads as a comment for the author, and the panel found nothing.'
 					: 'Nothing yet. Select lines while reading, or use the Ask bar, to ask or comment.'}
 			</p>

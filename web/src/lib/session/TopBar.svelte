@@ -21,7 +21,7 @@
 	// its or yours.
 	const wrappedUp = $derived(
 		allRead &&
-			(!session.threads.length || (!!session.record.feedback.yours && !session.threadsChanged))
+			(!session.yours.threads.length || (!!session.record.feedback.yours && !session.yours.threadsChanged))
 	);
 	// Read goes to the first slice not yet reviewed.
 	const readTarget = $derived(
