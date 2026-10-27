@@ -107,6 +107,23 @@
 	{/if}
 {/snippet}
 
+<!-- A comment's line, whether it's in the review's body or on its lines. -->
+{#snippet commentHead(comment: ReviewComment)}
+	<span class="where grow">{#if comment.path}<FilePath path={comment.path} lines={comment.start && comment.end ? describeLines(comment.start, comment.end) : undefined} />{:else}About the PR as a whole{/if}</span>
+	{@render leaveOut(comment)}
+	{@render editButton(comment.id)}
+{/snippet}
+
+{#snippet commentText(comment: ReviewComment)}
+	<EditableText
+		bind:editing={editing[comment.id]}
+		value={comment.body}
+		{readOnly}
+		placeholder="Empty comments aren’t posted."
+		onchange={(body) => post.setComment(comment.id, { body })}
+	/>
+{/snippet}
+
 {#snippet leaveOut(comment: ReviewComment)}
 	{#if !readOnly}
 		<button class="link" onclick={() => post.setComment(comment.id, { included: !comment.included })}>
@@ -229,18 +246,8 @@
 					</div>
 					{#each inBody as comment (comment.id)}
 						<div class="in-body" class:out={!comment.included}>
-							<div class="row-head">
-								<span class="where grow">{#if comment.path}<FilePath path={comment.path} lines={comment.start && comment.end ? describeLines(comment.start, comment.end) : undefined} />{:else}About the PR as a whole{/if}</span>
-								{@render leaveOut(comment)}
-								{@render editButton(comment.id)}
-							</div>
-							<EditableText
-								bind:editing={editing[comment.id]}
-								value={comment.body}
-								{readOnly}
-								placeholder="Empty comments aren’t posted."
-								onchange={(body) => post.setComment(comment.id, { body })}
-							/>
+							<div class="row-head">{@render commentHead(comment)}</div>
+							{@render commentText(comment)}
 						</div>
 					{/each}
 				</div>
@@ -250,23 +257,11 @@
 				<div class="thread">
 					{#each inline as comment (comment.id)}
 						<article class="card" class:out={!comment.included}>
-							<header>
-								<span class="where grow">{#if comment.path}<FilePath path={comment.path} lines={comment.start && comment.end ? describeLines(comment.start, comment.end) : undefined} />{:else}About the PR as a whole{/if}</span>
-								{@render leaveOut(comment)}
-								{@render editButton(comment.id)}
-							</header>
+							<header>{@render commentHead(comment)}</header>
 							{#if comment.path && comment.start && comment.end}
 								<div class="lines"><FindingLines mark={{ path: comment.path, start: comment.start, end: comment.end }} /></div>
 							{/if}
-							<div class="card-body">
-								<EditableText
-									bind:editing={editing[comment.id]}
-									value={comment.body}
-									{readOnly}
-									placeholder="Empty comments aren’t posted."
-									onchange={(body) => post.setComment(comment.id, { body })}
-								/>
-							</div>
+							<div class="card-body">{@render commentText(comment)}</div>
 						</article>
 					{/each}
 				</div>
