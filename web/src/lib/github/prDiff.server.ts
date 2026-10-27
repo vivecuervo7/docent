@@ -1,6 +1,6 @@
 import type { PrFile } from "./github.server.js";
 import { parseFilePatch, type Hunk } from "../features/reading/diff/parse.js";
-import type { Slice } from "../types.server.js";
+import type { Slice } from "../types.js";
 
 // Diffs as reviewers read them: each line numbered by where it sits in the
 // new file, so a finding can say exactly which lines it's about. Deleted

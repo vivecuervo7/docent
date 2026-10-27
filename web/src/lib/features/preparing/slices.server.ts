@@ -1,6 +1,6 @@
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import type { PrFile } from "../../github/github.server.js";
-import type { Slice } from "../../types.server.js";
+import type { Slice } from "../../types.js";
 import { noDiffReason } from "../reading/progress.js";
 import { hunkText, parseFilePatch } from "../reading/diff/parse.js";
 

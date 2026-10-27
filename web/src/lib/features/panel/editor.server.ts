@@ -5,7 +5,7 @@ import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js"
 import { inNamedLane } from "../../models/lanes.server.js";
 import { hunkIndicesByFile, numberedFileDiff } from "../../github/prDiff.server.js";
 import { prRef, roundRecord } from "../../storage/rounds.server.js";
-import type { PrSummary, Slice } from "../../types.server.js";
+import type { PrSummary, Slice } from "../../types.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 
 // The panel's editor: with several reviewers on a PR, the same point is

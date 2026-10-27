@@ -3,10 +3,10 @@ import { maxConcurrentGenerations } from "../../storage/settings.server.js";
 import { generateConversationSummary, generateSummary } from "./overview.server.js";
 import { generateFileNotes } from "./fileNotes.server.js";
 import { generateSlices } from "./slices.server.js";
-import type { ConversationSummary, FileNote, PrSummary, Slice } from "../../types.server.js";
+import type { ConversationSummary, FileNote, PrSummary, Slice } from "../../types.js";
 import { persistent } from "../../storage/persistent.server.js";
 import { fetchReviewFiles, fetchReviewHead } from "../../github/range.server.js";
-import { changeRecord, keyFor as recordKey } from "../../storage/store.server.js";
+import { changeRecord, keyFor } from "../../storage/store.server.js";
 import { applyDefaultPanel, startPanel } from "../panel/panelRuns.server.js";
 import { knownMcpUrl } from "../../api/mcpUrl.server.js";
 
@@ -62,10 +62,6 @@ interface Job {
 const jobs = persistent("generation.jobs", () => new Map<string, Job>());
 const queue = persistent("generation.queue", () => [] as string[]);
 const slots = persistent("generation.slots", () => ({ running: 0 }));
-
-function keyFor(owner: string, repo: string, number: string): string {
-  return `${owner}/${repo}/${number}`;
-}
 
 function isActive(generation: Generation): boolean {
   return generation.status === "queued" || generation.status === "running";
@@ -164,7 +160,7 @@ async function run(job: Job) {
   };
   // Into the review, unless it was stopped meanwhile.
   const save = (change: (record: Record<string, unknown>) => void) => {
-    if (generation.status === "running") changeRecord(recordKey(owner, repo, number), change);
+    if (generation.status === "running") changeRecord(keyFor(owner, repo, number), change);
   };
 
   try {
@@ -205,7 +201,7 @@ async function run(job: Job) {
         const ref = { owner, repo, number };
         applyDefaultPanel(ref);
         let asked = false;
-        changeRecord(recordKey(owner, repo, number), (r) => {
+        changeRecord(keyFor(owner, repo, number), (r) => {
           asked = !!r.reviewWhenPrepared;
           delete r.reviewWhenPrepared;
         });

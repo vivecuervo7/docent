@@ -27,8 +27,8 @@ export interface PrMeta {
 	// The PR's latest commit.
 	head?: string;
 	author?: string;
-	htmlUrl?: string;
-	body?: string;
+	htmlUrl: string;
+	body: string | null;
 }
 
 export interface LineRef {
@@ -49,14 +49,24 @@ export interface PrSummary {
 	how?: string;
 }
 
+export type ReplyOutcome = 'actioned' | 'acknowledged' | 'refuted' | 'answered' | 'mixed';
+
+export interface ThreadReply {
+	from: 'author' | 'reviewer';
+	outcome?: ReplyOutcome;
+	summary: string;
+}
+
+export interface ReviewerConversation {
+	reviewer: string;
+	verdict?: 'approved' | 'changes requested' | 'commented';
+	summary: string;
+	replies: ThreadReply[];
+}
+
 export interface ConversationSummary {
 	prAuthor: string;
-	reviewers: {
-		reviewer: string;
-		verdict?: 'approved' | 'changes requested' | 'commented';
-		summary: string;
-		replies: { from: 'author' | 'reviewer'; outcome?: string; summary: string }[];
-	}[];
+	reviewers: ReviewerConversation[];
 	authorNotes?: string;
 }
 
@@ -366,8 +376,25 @@ export interface Reuse {
 }
 
 // An agent review as the backend reports it, while running or just ended.
-export type Severity = 'blocker' | 'major' | 'minor' | 'nit';
-export const SEVERITY_ORDER: Severity[] = ['blocker', 'major', 'minor', 'nit'];
+// How much a finding matters, lowest last. "When unsure, the lower one."
+export const SEVERITIES = ['blocker', 'major', 'minor', 'nit'] as const;
+export type Severity = (typeof SEVERITIES)[number];
+
+export interface AgentFinding {
+	id: string;
+	path?: string;
+	startLine?: number;
+	endLine?: number;
+	body: string;
+	// For the reviewer deciding whether to keep it; never posted.
+	rationale?: string;
+	severity?: Severity;
+	// Why the reviewer's own process set it aside (pushed back on, filtered),
+	// when it handed it back anyway for Docent's editor to judge.
+	setAside?: string;
+	// The slice the built-in reviewer found it in; none from the whole-PR pass.
+	slice?: string;
+}
 
 export interface AgentReview {
 	id: string;
@@ -376,7 +403,7 @@ export interface AgentReview {
 	status: 'running' | 'done' | 'failed' | 'stopped';
 	// `waiting` while its next call is queued behind others.
 	progress?: { done: number; total: number; current?: string; waiting?: boolean; finished?: string[] };
-	findings: { id: string; path?: string; startLine?: number; endLine?: number; body: string; rationale?: string; slice?: string; severity?: Severity; setAside?: string }[];
+	findings: AgentFinding[];
 	error?: string;
 	verdict?: { event: ReviewEvent; reason?: string };
 	startedAt: number;

@@ -2,19 +2,8 @@ import { changesBetween } from "./repoCache.server.js";
 import { filesInDiff } from "./diffFiles.js";
 import { gh, mergeBase, pull } from "./gh.server.js";
 
-export interface PrFile {
-  filename: string;
-  status: string;
-  additions: number;
-  deletions: number;
-  patch?: string;
-  previous_filename?: string;
-  // Set for a range of commits; see range.server.
-  inRange?: number[];
-  rangeLines?: { old: number[]; new: number[] };
-  // What the range removed of the PR's own lines, by the line each run sat before.
-  rangeRemoved?: { at: number; lines: string[] }[];
-}
+export type { PrFile, PrMeta } from "../types.js";
+import type { PrFile, PrMeta } from "../types.js";
 
 export async function fetchPrFiles(
   owner: string,
@@ -57,14 +46,6 @@ async function cachedPatches(owner: string, repo: string, number: string, paths:
 async function fetchPrPatches(owner: string, repo: string, number: string): Promise<Map<string, string>> {
   const stdout = await gh(["api", "-H", "Accept: application/vnd.github.diff", `repos/${owner}/${repo}/pulls/${number}`]);
   return new Map(filesInDiff(stdout).flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
-}
-
-export interface PrMeta {
-  title: string;
-  head?: string;
-  body: string | null;
-  htmlUrl: string;
-  author?: string;
 }
 
 export async function fetchPrMeta(owner: string, repo: string, number: string): Promise<PrMeta> {

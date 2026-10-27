@@ -7,38 +7,19 @@ import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff, WHOLE
 import { allReviewers, changeRound, prRef, roundOf } from "../../storage/rounds.server.js";
 import { editRound } from "./editorRuns.server.js";
 import { knownMcpUrl } from "../../api/mcpUrl.server.js";
-import type { PrSummary, Slice } from "../../types.server.js";
+import { SEVERITIES, type AgentFinding, type AgentReview as SharedAgentReview, type PrSummary, type Severity, type Slice } from "../../types.js";
 import { runSession } from "./externalSessions.server.js";
 import { runProviderSession } from "./providerSession.server.js";
 import { emptyUsage, usageScope, type Usage } from "../../models/usage.server.js";
 import type { ExternalReviewer } from "../../storage/settings.server.js";
 import { persistent } from "../../storage/persistent.server.js";
+import { keyFor } from "../../storage/store.server.js";
 import { fetchReviewFiles, rangeNote } from "../../github/range.server.js";
 
 // The agent review of a PR: findings from either Docent's own reviewer or
 // the reviewer's own agent, which submits them over MCP (see mcp/mcp.server.ts). Both
 // land in the same place, which the browser checks in on and copies from,
 // like review preparation. It lives in memory, as long as this process.
-
-export interface Finding {
-  id: string;
-  path?: string;
-  startLine?: number;
-  endLine?: number;
-  body: string;
-  // For the reviewer deciding whether to keep it; never posted.
-  rationale?: string;
-  severity?: Severity;
-  // Why the reviewer's own process set it aside (pushed back on, filtered),
-  // when it handed it back anyway for Docent's editor to judge.
-  setAside?: string;
-  // The slice the built-in reviewer found it in; none from the whole-PR pass.
-  slice?: string;
-}
-
-// How much a finding matters, lowest last. "When unsure, the lower one."
-export const SEVERITIES = ["blocker", "major", "minor", "nit"] as const;
-export type Severity = (typeof SEVERITIES)[number];
 
 // A finding's severity as given, or as its body starts ("Nit: ...").
 export function severityOf(raw: unknown, body: string): Severity | undefined {
@@ -47,24 +28,9 @@ export function severityOf(raw: unknown, body: string): Severity | undefined {
   return lead ? (lead.toLowerCase() as Severity) : undefined;
 }
 
-export interface AgentReview {
-  id: string;
-  source: "builtin" | "external" | "session";
-  // The model Docent's reviewer used.
-  model?: string;
-  status: "running" | "done" | "failed" | "stopped";
-  // The built-in reviewer goes a slice at a time.
-  // `waiting` while its next call is queued behind others; `finished`, the
-  // slices it's done with.
-  progress?: { done: number; total: number; current?: string; waiting?: boolean; finished?: string[] };
-  findings: Finding[];
-  error?: string;
-  startedAt: number;
-  endedAt?: number;
-  // Token use over the review, where the model reports it (Claude Code).
+// As the page has it, with the tokens it took where the model says.
+export interface AgentReview extends SharedAgentReview {
   usage?: Usage;
-  // An external reviewer's overall recommendation, when it makes one.
-  verdict?: { event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT"; reason?: string };
 }
 
 // What Docent knows about the PR that GitHub doesn't: the slices and summary
@@ -90,12 +56,8 @@ const reviews = persistent("agent-reviews", () => new Map<string, Entry>());
 const savers = persistent("agent-reviews.savers", () => new WeakMap<AgentReview, () => void>());
 const contexts = persistent("agent-review.contexts", () => new Map<string, ReviewContext>());
 
-function prKey(owner: string, repo: string, number: string): string {
-  return `${owner}/${repo}/${number}`;
-}
-
 function reviewKey(owner: string, repo: string, number: string, reviewer: string): string {
-  return `${prKey(owner, repo, number)}#${reviewer}`;
+  return `${keyFor(owner, repo, number)}#${reviewer}`;
 }
 
 // The PR's reviewers as saved in its record, in every round, where the
@@ -120,7 +82,7 @@ export function resolveReviewer(owner: string, repo: string, number: string, rev
     if (REVIEWER_RE.test(reviewer.trim())) return reviewer.trim();
     throw new Error(`No reviewer called "${reviewer}" on this PR. Its reviewers: ${saved.map((r) => label(r.id)).join(", ")}.`);
   }
-  const prefix = `${prKey(owner, repo, number)}#`;
+  const prefix = `${keyFor(owner, repo, number)}#`;
   const waiting = [...reviews]
     .filter(([key, entry]) => key.startsWith(prefix) && entry.review.source === "external" && entry.review.status === "running")
     .map(([key]) => key.slice(prefix.length));
@@ -318,7 +280,7 @@ export interface SubmittedFinding {
 // Checks a finding against the PR's files. Lines have to be in the diff,
 // since that's all a review comment can sit on; the error says which lines
 // are, so an agent can correct itself.
-function checkFinding(finding: SubmittedFinding, files: PrFile[]): Finding {
+function checkFinding(finding: SubmittedFinding, files: PrFile[]): AgentFinding {
   const body = finding.body.trim();
   if (!body) throw new Error("A finding needs a body.");
   let { path, startLine, endLine } = finding;
@@ -359,7 +321,7 @@ export async function submitFinding(
   files?: PrFile[],
   reviewer = DEFAULT_REVIEWER,
   slice?: string,
-): Promise<Finding> {
+): Promise<AgentFinding> {
   const recorded = {
     ...checkFinding(finding, files ?? (await fetchReviewFiles(owner, repo, number, roundOf(owner, repo, number, reviewer)))),
     ...(slice ? { slice } : {}),
@@ -381,7 +343,7 @@ export async function submitReview(
   reviewer: string,
 ): Promise<AgentReview> {
   const files = await fetchReviewFiles(owner, repo, number, roundOf(owner, repo, number, reviewer));
-  const checked: Finding[] = [];
+  const checked: AgentFinding[] = [];
   const problems: string[] = [];
   findings.forEach((finding, i) => {
     try {

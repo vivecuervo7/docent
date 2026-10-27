@@ -5,7 +5,7 @@
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import WrapRow from '$lib/features/wrap-up/WrapRow.svelte';
 	import { useSession } from '$lib/session/session.svelte';
-	import { SEVERITY_ORDER, type FeedbackItem } from '$lib/types';
+	import { SEVERITIES, type FeedbackItem } from '$lib/types';
 
 	// Wrap up: confirming what goes into the review. Your threads are drafted
 	// into the comments they'd post as it opens; with the panel's findings,
@@ -27,7 +27,7 @@
 	// The most serious first; findings without a severity after the rest.
 	// Ones the editor suggests skipping come last.
 	const rank = (i: FeedbackItem) =>
-		(i.skipSuggested ? SEVERITY_ORDER.length + 1 : 0) + (i.severity ? SEVERITY_ORDER.indexOf(i.severity) : SEVERITY_ORDER.length);
+		(i.skipSuggested ? SEVERITIES.length + 1 : 0) + (i.severity ? SEVERITIES.indexOf(i.severity) : SEVERITIES.length);
 
 	// Which group something sits in: a slice, by the thread it came from or
 	// the lines it's on, else the PR as a whole.

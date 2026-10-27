@@ -2,7 +2,7 @@ import { personas } from "../../storage/settings.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { roundRecord } from "../../storage/rounds.server.js";
-import type { PrSummary, Slice } from "../../types.server.js";
+import type { PrSummary, Slice } from "../../types.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 
 // "Auto" on the panel: which of the reviewer's personas this PR warrants.

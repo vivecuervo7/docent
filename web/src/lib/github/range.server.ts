@@ -4,7 +4,7 @@ import { changesBetween } from "./repoCache.server.js";
 import { gh, mergeBase } from "./gh.server.js";
 import { parseFilePatch } from "../features/reading/diff/parse.js";
 import { roundRecord } from "../storage/rounds.server.js";
-import type { PrCommit, ReviewRange } from "../types.server.js";
+import type { PrCommit, ReviewRange } from "../types.js";
 
 
 // Reviewing some of a PR's commits: the PR as it stands at the range's last

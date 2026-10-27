@@ -7,7 +7,7 @@ import type {
   ReplyOutcome,
   ReviewerConversation,
   ThreadReply,
-} from "../../types.server.js";
+} from "../../types.js";
 
 const SUMMARY_TOOL = {
   name: "report_summary",
