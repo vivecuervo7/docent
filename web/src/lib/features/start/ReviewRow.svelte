@@ -237,7 +237,7 @@
 	}
 	/* The next round, to begin: dashed, as it isn't one yet. */
 	.badge.next {
-		--tone: #8ab4ff;
+		--tone: var(--state-ready);
 		border: 0;
 		background: none;
 		box-shadow: none;
@@ -291,11 +291,11 @@
 	}
 	.badge.working,
 	.mark.working {
-		--tone: #8ab4ff;
+		--tone: var(--state-ready);
 	}
 	.badge.ready,
 	.mark.ready {
-		--tone: #8ab4ff;
+		--tone: var(--state-ready);
 	}
 	.badge.going,
 	.mark.going {
@@ -303,7 +303,7 @@
 	}
 	.badge.done,
 	.mark.done {
-		--tone: #7fd89b;
+		--tone: var(--state-done);
 	}
 	.badge.bad,
 	.mark.bad {

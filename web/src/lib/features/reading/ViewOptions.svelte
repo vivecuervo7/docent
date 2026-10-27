@@ -76,7 +76,7 @@
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
-			0 24px 60px -20px rgba(0, 0, 0, 0.8);
+			var(--shadow-menu);
 		display: flex;
 		flex-direction: column;
 	}
@@ -94,7 +94,7 @@
 	}
 	input {
 		margin: 2px 0 0;
-		accent-color: #e8e6e1;
+		accent-color: var(--text);
 	}
 	span {
 		display: flex;

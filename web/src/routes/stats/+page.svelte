@@ -291,7 +291,7 @@
 		background: color-mix(in srgb, var(--surface) 94%, transparent);
 		box-shadow:
 			inset 0 0 0 1px var(--line-2),
-			0 12px 32px -12px rgba(0, 0, 0, 0.8);
+			var(--shadow-small);
 		font-size: 12.5px;
 		transform: translate(14px, 14px);
 		pointer-events: none;
@@ -331,7 +331,7 @@
 	}
 	.bar.slice,
 	.swatch.slice {
-		background: #7fd89b;
+		background: var(--state-done);
 	}
 	.bar.slice {
 		left: 2px;
@@ -395,11 +395,11 @@
 	}
 	.kept,
 	.swatch.kept {
-		background: #7fd89b;
+		background: var(--state-done);
 	}
 	.kicked,
 	.swatch.kicked {
-		background: #a87670;
+		background: var(--minus-dull);
 	}
 	/* Skipped as its reviewer suggested, or filtered by the editor: the
 	   tools doing their job, so green too, deepening as it goes. */

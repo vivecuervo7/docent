@@ -315,7 +315,7 @@
 		padding: 0 5px;
 		border-radius: 5px;
 		background: #d8d3c7;
-		color: #141413;
+		color: var(--on-chosen);
 		font-family: var(--mono);
 		font-size: 11.5px;
 	}

@@ -91,7 +91,7 @@
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
-			0 30px 70px -20px rgba(0, 0, 0, 0.7);
+			var(--shadow-float);
 		font-family: var(--sans);
 		white-space: normal;
 		cursor: auto;
@@ -103,7 +103,7 @@
 		background: var(--popover);
 		box-shadow:
 			0 0 0 1px var(--popover-line),
-			0 30px 70px -20px rgba(0, 0, 0, 0.7);
+			var(--shadow-float);
 	}
 	.floating.raised {
 		--bubble: var(--popover-raised);

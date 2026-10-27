@@ -42,8 +42,8 @@
 		box-shadow: none;
 	}
 	button.keep.on {
-		background: #ece8df;
-		color: #1f1c17;
+		background: var(--chosen);
+		color: var(--popover);
 	}
 	button.skip.on {
 		background: rgb(236 232 223 / 0.24);

@@ -182,7 +182,7 @@
 		border: 0;
 		border-radius: 999px;
 		background: #1d1a14;
-		color: #f2d9b0;
+		color: var(--agent-text);
 		font: inherit;
 		font-size: 13.5px;
 		cursor: pointer;
@@ -205,7 +205,7 @@
 		background: var(--popover);
 		box-shadow:
 			0 0 0 1px var(--popover-line),
-			0 30px 70px -20px rgba(0, 0, 0, 0.7);
+			var(--shadow-float);
 	}
 	ul {
 		list-style: none;

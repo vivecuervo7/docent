@@ -67,8 +67,8 @@
 		color: var(--text);
 	}
 	button.on {
-		background: #ece8df;
-		color: #141413;
+		background: var(--chosen);
+		color: var(--on-chosen);
 	}
 	button:disabled {
 		opacity: 0.4;

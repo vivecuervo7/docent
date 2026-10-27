@@ -1,4 +1,4 @@
-/* Mockup A's palette: a warm dark ground, amber for agents, blue for you. */
+/* Docent's palette: a warm dark ground, amber for agents, blue for you. */
 :root {
 	--bg: #121315;
 	--surface: #17181b;
@@ -39,6 +39,16 @@
 	--plus-dull: #6f9679;
 	--minus-dull: #a87670;
 	--selection: rgba(122, 167, 255, 0.16);
+	/* A state's mark: done, and ready or under way. */
+	--state-done: #7fd89b;
+	--state-ready: #8ab4ff;
+	/* What's chosen in a switch: a light fill, dark text. */
+	--chosen: #ece8df;
+	--on-chosen: #141413;
+	/* Shadows under what floats: a popover, a menu, a small card. */
+	--shadow-float: 0 30px 70px -20px rgba(0, 0, 0, 0.7);
+	--shadow-menu: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+	--shadow-small: 0 12px 32px -12px rgba(0, 0, 0, 0.8);
 	--sans: 'IBM Plex Sans', system-ui, sans-serif;
 	--mono: 'IBM Plex Mono', ui-monospace, monospace;
 	--serif: 'Newsreader', Georgia, serif;

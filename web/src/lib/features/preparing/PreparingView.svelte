@@ -170,7 +170,7 @@
 		margin-top: 16px;
 		padding: 16px 18px;
 		border-radius: 12px;
-		background: #2a1c1e;
+		background: var(--del-bg);
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;

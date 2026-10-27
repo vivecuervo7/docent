@@ -183,7 +183,7 @@
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
-			0 30px 70px -20px rgba(0, 0, 0, 0.7);
+			var(--shadow-float);
 	}
 	.strip {
 		padding: 0 18px 10px;

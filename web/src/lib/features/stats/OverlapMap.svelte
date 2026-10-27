@@ -177,7 +177,7 @@
 	}
 	.kept.on {
 		fill: rgba(127, 216, 155, 0.3);
-		stroke: #7fd89b;
+		stroke: var(--state-done);
 	}
 	/* What it wanted posted: kept, and what you kicked back. */
 	.ring {

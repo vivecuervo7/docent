@@ -83,7 +83,7 @@
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
-			0 24px 60px -20px rgba(0, 0, 0, 0.8);
+			var(--shadow-menu);
 		display: flex;
 		flex-direction: column;
 	}
@@ -140,7 +140,7 @@
 		background: #221e17;
 		box-shadow:
 			0 0 0 1px #3a3226,
-			0 24px 60px -20px rgba(0, 0, 0, 0.8);
+			var(--shadow-menu);
 	}
 	.agent button:hover {
 		background: #2e281e;

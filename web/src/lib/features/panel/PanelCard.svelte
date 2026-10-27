@@ -617,11 +617,11 @@
 		transition: transform 0.15s;
 	}
 	.switch[aria-checked='true'] {
-		background: #e8e6e1;
+		background: var(--text);
 	}
 	.switch[aria-checked='true'] span {
 		transform: translateX(16px);
-		background: #141413;
+		background: var(--on-chosen);
 	}
 	.add-row {
 		display: flex;

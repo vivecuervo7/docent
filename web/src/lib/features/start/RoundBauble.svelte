@@ -35,7 +35,7 @@
 	/* As a complete badge: its green edge, its darker green fill, made a
 	   little stronger to read at this size. */
 	.done {
-		color: #7fd89b;
+		color: var(--state-done);
 	}
 	.filled {
 		fill: color-mix(in srgb, currentColor 32%, transparent);
