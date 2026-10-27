@@ -50,6 +50,11 @@ export function parseFilePatch(patch: string): Hunk[] {
 	});
 }
 
+// A hunk as patch text: its header, then each row with its sign.
+export function hunkText(hunk: Hunk): string {
+	return [hunk.header, ...hunk.rows.map((r) => `${r.kind === 'add' ? '+' : r.kind === 'del' ? '-' : ' '}${r.text}`)].join('\n');
+}
+
 export type Range = [start: number, end: number];
 
 // The words that changed within a line, for each removed line paired with

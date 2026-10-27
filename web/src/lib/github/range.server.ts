@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { fetchPrBaseSha, fetchPrFiles, fetchPrHeadSha, type PrFile } from "./github.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
 import { changesBetween } from "./repoCache.server.js";
+import { parseFilePatch } from "../features/reading/diff/parse.js";
 import { roundRecord } from "../storage/rounds.server.js";
 import type { PrCommit, ReviewRange } from "../types.server.js";
 
@@ -155,26 +156,12 @@ function rangeChanges(patch: string): { added: Set<number>; deletedAt: Set<numbe
 type PatchRow = { kind: "add" | "del" | "context"; old: number; new: number; text: string };
 
 function patchHunks(patch: string): PatchRow[][] {
-  const hunks: PatchRow[][] = [];
-  let rows: PatchRow[] | null = null;
-  let oldLine = 0;
-  let newLine = 0;
-  for (const line of patch.split("\n")) {
-    const header = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
-    if (header) {
-      rows = [];
-      hunks.push(rows);
-      oldLine = Number(header[1]);
-      newLine = Number(header[2]);
-    } else if (!rows || line.startsWith("\\")) {
-      continue;
-    } else if (line.startsWith("+")) {
-      rows.push({ kind: "add", old: oldLine, new: newLine++, text: line.slice(1) });
-    } else if (line.startsWith("-")) {
-      rows.push({ kind: "del", old: oldLine++, new: newLine, text: line.slice(1) });
-    } else {
-      rows.push({ kind: "context", old: oldLine++, new: newLine++, text: line.slice(1) });
-    }
-  }
-  return hunks;
+  return parseFilePatch(patch).map((hunk) => {
+    let next = hunk.newStart;
+    return hunk.rows.map((r): PatchRow => {
+      if (r.kind === "del") return { kind: "del", old: r.old!, new: next, text: r.text };
+      next = r.new! + 1;
+      return { kind: r.kind, old: r.old ?? 0, new: r.new!, text: r.text };
+    });
+  });
 }

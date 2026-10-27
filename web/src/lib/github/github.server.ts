@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { changesBetween } from "./repoCache.server.js";
+import { filesInDiff } from "./diffFiles.js";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -68,25 +69,7 @@ async function fetchPrPatches(owner: string, repo: string, number: string): Prom
     ["api", "-H", "Accept: application/vnd.github.diff", `repos/${owner}/${repo}/pulls/${number}`],
     { maxBuffer: 64 * 1024 * 1024 },
   );
-  const patches = new Map<string, string>();
-  for (const section of stdout.split(/^(?=diff --git )/m)) {
-    const lines = section.replace(/\n$/, "").split("\n");
-    const first = lines.findIndex((l) => l.startsWith("@@"));
-    if (first < 0) continue;
-    const header = lines.slice(0, first);
-    const path = pathIn(header, "+++ b/") ?? pathIn(header, "--- a/");
-    if (path) patches.set(path, lines.slice(first).join("\n"));
-  }
-  return patches;
-}
-
-// The path on a "+++ b/..." or "--- a/..." line. Git quotes a path with
-// unusual characters, and ends one with spaces in a tab.
-function pathIn(header: string[], marker: "+++ b/" | "--- a/"): string | undefined {
-  const [sign, side] = marker.split(" ");
-  const line = header.find((l) => l.startsWith(marker) || l.startsWith(`${sign} "${side}`));
-  const path = line?.slice(sign.length + 1).replace(/\t$/, "");
-  return path?.startsWith('"') ? path.slice(side.length + 1, -1) : path?.slice(side.length);
+  return new Map(filesInDiff(stdout).flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
 }
 
 export interface PrMeta {

@@ -5,6 +5,7 @@ import { dataDir } from "../storage/dataDir.server.js";
 import { promisify } from "node:util";
 import { persistent } from "../storage/persistent.server.js";
 import type { PrFile } from "./github.server.js";
+import { filesInDiff } from "./diffFiles.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -102,30 +103,7 @@ export function changesBetween(owner: string, repo: string, from: string, to: st
     // Git's usual context, as GitHub's patches have: a deletion's place is
     // told by the line after it.
     const out = await git(dir, ["-c", "core.quotePath=false", "diff", "--find-renames", "--no-color", from, to]);
-    return out.split(/^diff --git /m).flatMap((part): PrFile[] => {
-      const at = part.search(/^@@ /m);
-      const header = at >= 0 ? part.slice(0, at) : part;
-      const moved = header.match(/^rename from (.+)$/m)?.[1];
-      // A moved file is named by where it went; a deleted one only on its old side.
-      const name =
-        header.match(/^rename to (.+)$/m)?.[1] ??
-        header.match(/^\+\+\+ b\/(.+)$/m)?.[1] ??
-        header.match(/^--- a\/(.+)$/m)?.[1] ??
-        header.match(/^Binary files (?:a\/(.+?)|\/dev\/null) and (?:b\/(.+?)|\/dev\/null) differ$/m)?.slice(1).findLast(Boolean);
-      if (!name || (wanted && !wanted.has(name))) return [];
-      const patch = at >= 0 ? part.slice(at).replace(/\n$/, "") : undefined;
-      const rows = patch?.split("\n") ?? [];
-      return [
-        {
-          filename: name,
-          status: /^new file mode/m.test(header) ? "added" : /^deleted file mode/m.test(header) ? "removed" : moved ? "renamed" : "modified",
-          additions: rows.filter((l) => l.startsWith("+")).length,
-          deletions: rows.filter((l) => l.startsWith("-")).length,
-          ...(patch ? { patch } : {}),
-          ...(moved ? { previous_filename: moved } : {}),
-        },
-      ];
-    });
+    return filesInDiff(out).filter((f) => !wanted || wanted.has(f.filename));
   });
 }
 

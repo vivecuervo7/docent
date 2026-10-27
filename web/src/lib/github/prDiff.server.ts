@@ -1,27 +1,16 @@
 import type { PrFile } from "./github.server.js";
-import { splitPatchIntoHunks } from "../features/preparing/slices.server.js";
+import { parseFilePatch, type Hunk } from "../features/reading/diff/parse.js";
 import type { Slice } from "../types.server.js";
 
 // Diffs as reviewers read them: each line numbered by where it sits in the
 // new file, so a finding can say exactly which lines it's about. Deleted
 // lines have no new-file number.
 
-export function numberedHunk(hunk: string): string {
-  const [header, ...lines] = hunk.split("\n");
-  const match = header.match(/\+(\d+)/);
-  let next = match ? Number(match[1]) : 1;
-  const out = [header];
-  for (const line of lines) {
-    if (line.startsWith("-")) {
-      out.push(`      ${line}`);
-    } else if (line.startsWith("\\")) {
-      out.push(`      ${line}`);
-    } else {
-      out.push(`${String(next).padStart(5)} ${line || " "}`);
-      next++;
-    }
-  }
-  return out.join("\n");
+export function numberedHunk(hunk: Hunk): string {
+  const rows = hunk.rows.map((r) =>
+    r.kind === "del" ? `      -${r.text}` : `${String(r.new).padStart(5)} ${r.kind === "add" ? "+" : " "}${r.text}`,
+  );
+  return [hunk.header, ...rows].join("\n");
 }
 
 // A diff bigger than this isn't sent whole: Docent's reviewer sums it up by
@@ -31,7 +20,7 @@ export const WHOLE_DIFF_LIMIT = 120_000;
 // For a range of commits, only the hunks it touched, unless asked for others.
 export function numberedFileDiff(file: PrFile, hunkIndices = file.inRange): string {
   if (!file.patch) return `${file.filename} (${file.status}, no text diff)`;
-  const hunks = splitPatchIntoHunks(file.patch);
+  const hunks = parseFilePatch(file.patch);
   const shown = hunkIndices ? hunkIndices.map((i) => hunks[i]).filter(Boolean) : hunks;
   return `${file.filename} (${file.status})\n${shown.map(numberedHunk).join("\n")}`;
 }
@@ -39,41 +28,18 @@ export function numberedFileDiff(file: PrFile, hunkIndices = file.inRange): stri
 // New-file lines that appear in a file's diff (added or unchanged context):
 // the only lines a GitHub review comment can sit on.
 export function linesInDiff(file: PrFile): Set<number> {
-  const lines = new Set<number>();
-  if (!file.patch) return lines;
-  for (const hunk of splitPatchIntoHunks(file.patch)) {
-    const [header, ...rest] = hunk.split("\n");
-    const match = header.match(/\+(\d+)/);
-    let next = match ? Number(match[1]) : 1;
-    for (const line of rest) {
-      if (line.startsWith("-") || line.startsWith("\\")) continue;
-      lines.add(next++);
-    }
-  }
-  return lines;
+  const rows = parseFilePatch(file.patch ?? "").flatMap((h) => h.rows);
+  return new Set(rows.flatMap((r) => (r.kind === "del" ? [] : [r.new!])));
 }
 
 // Both sides' lines that appear in a file's diff: a GitHub review comment
 // can sit on a deleted line (the old side) or any other (the new side).
 export function commentableLines(file: PrFile): { old: Set<number>; new: Set<number> } {
-  const lines = { old: new Set<number>(), new: new Set<number>() };
-  if (!file.patch) return lines;
-  for (const hunk of splitPatchIntoHunks(file.patch)) {
-    const [header, ...rest] = hunk.split("\n");
-    const match = header.match(/-(\d+)(?:,\d+)? \+(\d+)/);
-    let oldLine = match ? Number(match[1]) : 1;
-    let newLine = match ? Number(match[2]) : 1;
-    for (const line of rest) {
-      if (line.startsWith("\\")) continue;
-      if (line.startsWith("-")) lines.old.add(oldLine++);
-      else if (line.startsWith("+")) lines.new.add(newLine++);
-      else {
-        lines.old.add(oldLine++);
-        lines.new.add(newLine++);
-      }
-    }
-  }
-  return lines;
+  const rows = parseFilePatch(file.patch ?? "").flatMap((h) => h.rows);
+  return {
+    old: new Set(rows.flatMap((r) => (r.kind === "add" ? [] : [r.old!]))),
+    new: new Set(rows.flatMap((r) => (r.kind === "del" ? [] : [r.new!]))),
+  };
 }
 
 // Ranges of lines, for telling a reviewer which lines are commentable.

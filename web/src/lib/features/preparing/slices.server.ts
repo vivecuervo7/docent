@@ -2,27 +2,7 @@ import { chatWithTool } from "../../models/modelProvider.server.js";
 import type { PrFile } from "../../github/github.server.js";
 import type { Slice } from "../../types.server.js";
 import { noDiffReason } from "../reading/progress.js";
-
-// Splits a unified-diff patch into its hunks purely by the "@@ ... @@"
-// header lines, matching how the web app's diff parser splits hunks, so the
-// indices assigned here line up with its own.
-export function splitPatchIntoHunks(patch: string): string[] {
-  const lines = patch.split("\n");
-  const hunks: string[] = [];
-  let current: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith("@@ ")) {
-      if (current.length) hunks.push(current.join("\n"));
-      current = [line];
-    } else if (current.length) {
-      current.push(line);
-    }
-  }
-  if (current.length) hunks.push(current.join("\n"));
-
-  return hunks;
-}
+import { hunkText, parseFilePatch } from "../reading/diff/parse.js";
 
 function buildHunkRefs(files: PrFile[]): Map<string, string> {
   const refs = new Map<string, string>();
@@ -32,10 +12,10 @@ function buildHunkRefs(files: PrFile[]): Map<string, string> {
       refs.set(`${file.filename}#0`, `(${noDiffReason(file)}.)`);
       continue;
     }
-    splitPatchIntoHunks(file.patch).forEach((hunkText, i) => {
-      if (file.inRange && !file.inRange.includes(i)) return;
-      refs.set(`${file.filename}#${i}`, hunkText);
-    });
+    for (const hunk of parseFilePatch(file.patch)) {
+      if (file.inRange && !file.inRange.includes(hunk.index)) continue;
+      refs.set(`${file.filename}#${hunk.index}`, hunkText(hunk));
+    }
   }
   return refs;
 }
