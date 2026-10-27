@@ -13,7 +13,11 @@
 {#if marks.length}
 	<span class="hidden-marks">
 		{#each marks as m (m.id)}
-			<span class="mark {m.kind}" class:skipped={m.kind === 'finding' && m.included === false} title="{m.kind === 'finding' ? 'A finding' : m.kind === 'github' ? 'A GitHub thread' : 'A thread'} is inside">
+			<span
+				class="mark {m.kind}"
+				class:skipped={m.kind === 'finding' && m.included === false}
+				title="{m.kind === 'finding' ? 'A finding' : m.kind === 'github' ? 'A GitHub thread' : 'A thread'} is inside"
+			>
 				<MarkIcon kind={m.kind} small />
 				{#if unread(m)}<span class="unread" aria-label="New to read"></span>{/if}
 			</span>

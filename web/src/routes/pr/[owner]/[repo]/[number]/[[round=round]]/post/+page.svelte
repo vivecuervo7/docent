@@ -64,11 +64,9 @@
 	// What will go out: comments on lines, comments in the review's text, and
 	// the review's own words.
 	function tally(onLines: number, inText: number, summary: boolean) {
-		const parts = [
-			onLines > 0 && `${plural(onLines, 'comment')} on lines`,
-			inText > 0 && `${inText} in the review’s text`,
-			summary && 'a review body'
-		].filter((p): p is string => !!p);
+		const parts = [onLines > 0 && `${plural(onLines, 'comment')} on lines`, inText > 0 && `${inText} in the review’s text`, summary && 'a review body'].filter(
+			(p): p is string => !!p
+		);
 		if (!parts.length) return 'nothing to post yet';
 		return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
 	}
@@ -102,14 +100,19 @@
 {#snippet editButton(id: string)}
 	{#if !readOnly && !editing[id]}
 		<button class="icon" aria-label="Edit" title="Edit" onclick={() => (editing[id] = true)}>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+				><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg
+			>
 		</button>
 	{/if}
 {/snippet}
 
 <!-- A comment's line, whether it's in the review's body or on its lines. -->
 {#snippet commentHead(comment: ReviewComment)}
-	<span class="where grow">{#if comment.path}<FilePath path={comment.path} lines={comment.start && comment.end ? describeLines(comment.start, comment.end) : undefined} />{:else}About the PR as a whole{/if}</span>
+	<span class="where grow"
+		>{#if comment.path}<FilePath path={comment.path} lines={comment.start && comment.end ? describeLines(comment.start, comment.end) : undefined} />{:else}About
+			the PR as a whole{/if}</span
+	>
 	{@render leaveOut(comment)}
 	{@render editButton(comment.id)}
 {/snippet}
@@ -164,29 +167,29 @@
 
 	{#if !draft}
 		{#if !done}
-		<section class="prompt">
-			<p>
-				{#if post.candidates.length}
-					Put the {plural(counts.yours, 'comment')} of yours and {counts.panel}
-					{counts.panel === 1 ? 'finding' : 'findings'} from the panel you’ve kept into one review. Comments making
-					the same point are merged, and anything already said on the PR is set aside.
-				{:else}
-					Nothing is kept in Wrap up. You can still prepare a review to approve, or to post a summary on its own.
-				{/if}
-			</p>
-			<div>
-				{#if post.prepareStatus.pending}
-					<span class="faint pending"><Spinner size={13} /> Preparing…</span>
-				{:else}
-					<button class="btn primary big" onclick={() => post.prepare()}>Prepare the review</button>
-					{#if !session.record.completedAt}
-						<button class="btn big" title="Finish this review without posting a review to GitHub" onclick={() => post.setComplete(true)}
-							>Done without posting</button
-						>
+			<section class="prompt">
+				<p>
+					{#if post.candidates.length}
+						Put the {plural(counts.yours, 'comment')} of yours and {counts.panel}
+						{counts.panel === 1 ? 'finding' : 'findings'} from the panel you’ve kept into one review. Comments making the same point are merged, and anything already
+						said on the PR is set aside.
+					{:else}
+						Nothing is kept in Wrap up. You can still prepare a review to approve, or to post a summary on its own.
 					{/if}
-				{/if}
-			</div>
-		</section>
+				</p>
+				<div>
+					{#if post.prepareStatus.pending}
+						<span class="faint pending"><Spinner size={13} /> Preparing…</span>
+					{:else}
+						<button class="btn primary big" onclick={() => post.prepare()}>Prepare the review</button>
+						{#if !session.record.completedAt}
+							<button class="btn big" title="Finish this review without posting a review to GitHub" onclick={() => post.setComplete(true)}
+								>Done without posting</button
+							>
+						{/if}
+					{/if}
+				</div>
+			</section>
 		{/if}
 	{:else}
 		{#if draft.posted}
@@ -209,8 +212,7 @@
 			<div class="stale" role="status">
 				<div class="grow">
 					<strong>This review is out of date.</strong>
-					Since it was prepared, {staleChange}. Preparing it again takes that into account, and replaces this draft, including
-					any edits you’ve made to it.
+					Since it was prepared, {staleChange}. Preparing it again takes that into account, and replaces this draft, including any edits you’ve made to it.
 				</div>
 				{#if post.prepareStatus.pending}
 					<span class="faint pending"><Spinner size={13} /> Preparing…</span>
@@ -222,74 +224,74 @@
 
 		<!-- A round done without posting has nothing more to show until it's reopened. -->
 		{#if draft.posted || !done}
-		<div class="review">
-			<section class="card">
-				<header>
-					<span class="viewer">{post.people?.viewer ?? 'You'}</span>
-					<span class="grow faint">{sent.verb}</span>
-					{#if !readOnly && draft.summary.trim()}
-						<button class="link" onclick={() => post.change((d) => ({ ...d, summaryLeftOut: !d.summaryLeftOut }))}>
-							{draft.summaryLeftOut ? 'Include' : 'Leave out'}
-						</button>
-					{/if}
-					{@render editButton('summary')}
-				</header>
-				<div class="card-body">
-					<div class="summary" class:out={draft.summaryLeftOut}>
-					<EditableText
-						bind:editing={editing.summary}
-						value={draft.summary}
-						{readOnly}
-						placeholder="No review body. Add one to say something about the PR overall."
-						onchange={(summary) => post.change((d) => ({ ...d, summary }))}
-					/>
-					</div>
-					{#each inBody as comment (comment.id)}
-						<div class="in-body" class:out={!comment.included}>
-							<div class="row-head">{@render commentHead(comment)}</div>
-							{@render commentText(comment)}
+			<div class="review">
+				<section class="card">
+					<header>
+						<span class="viewer">{post.people?.viewer ?? 'You'}</span>
+						<span class="grow faint">{sent.verb}</span>
+						{#if !readOnly && draft.summary.trim()}
+							<button class="link" onclick={() => post.change((d) => ({ ...d, summaryLeftOut: !d.summaryLeftOut }))}>
+								{draft.summaryLeftOut ? 'Include' : 'Leave out'}
+							</button>
+						{/if}
+						{@render editButton('summary')}
+					</header>
+					<div class="card-body">
+						<div class="summary" class:out={draft.summaryLeftOut}>
+							<EditableText
+								bind:editing={editing.summary}
+								value={draft.summary}
+								{readOnly}
+								placeholder="No review body. Add one to say something about the PR overall."
+								onchange={(summary) => post.change((d) => ({ ...d, summary }))}
+							/>
 						</div>
-					{/each}
-				</div>
-			</section>
-
-			{#if inline.length}
-				<div class="thread">
-					{#each inline as comment (comment.id)}
-						<article class="card" class:out={!comment.included}>
-							<header>{@render commentHead(comment)}</header>
-							{#if comment.path && comment.start && comment.end}
-								<div class="lines"><FindingLines mark={{ path: comment.path, start: comment.start, end: comment.end }} /></div>
-							{/if}
-							<div class="card-body">{@render commentText(comment)}</div>
-						</article>
-					{/each}
-				</div>
-			{/if}
-		</div>
-
-		{#if draft.dropped.length}
-			<section>
-				<Disclosure bind:open={post.showDropped} look="heading" label="Already said on the PR" count={draft.dropped.length} />
-				{#if post.showDropped}
-					<ul class="dropped">
-						{#each draft.dropped as dropped, i (i)}
-							<li>
-								{#each dropped.from as id (id)}
-									{@const item = byId.get(id)}
-									{#if item}<div class="said"><EditableText value={item.body} readOnly placeholder="" onchange={() => {}} /></div>{/if}
-								{/each}
-								<span class="faint">{dropped.reason}</span>
-								{#if !readOnly}<button class="link" onclick={() => post.restoreDropped(i)}>Include anyway</button>{/if}
-							</li>
+						{#each inBody as comment (comment.id)}
+							<div class="in-body" class:out={!comment.included}>
+								<div class="row-head">{@render commentHead(comment)}</div>
+								{@render commentText(comment)}
+							</div>
 						{/each}
-					</ul>
-				{/if}
-			</section>
-		{/if}
+					</div>
+				</section>
 
-		{#if !readOnly}
-			<section class="send">
+				{#if inline.length}
+					<div class="thread">
+						{#each inline as comment (comment.id)}
+							<article class="card" class:out={!comment.included}>
+								<header>{@render commentHead(comment)}</header>
+								{#if comment.path && comment.start && comment.end}
+									<div class="lines"><FindingLines mark={{ path: comment.path, start: comment.start, end: comment.end }} /></div>
+								{/if}
+								<div class="card-body">{@render commentText(comment)}</div>
+							</article>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			{#if draft.dropped.length}
+				<section>
+					<Disclosure bind:open={post.showDropped} look="heading" label="Already said on the PR" count={draft.dropped.length} />
+					{#if post.showDropped}
+						<ul class="dropped">
+							{#each draft.dropped as dropped, i (i)}
+								<li>
+									{#each dropped.from as id (id)}
+										{@const item = byId.get(id)}
+										{#if item}<div class="said"><EditableText value={item.body} readOnly placeholder="" onchange={() => {}} /></div>{/if}
+									{/each}
+									<span class="faint">{dropped.reason}</span>
+									{#if !readOnly}<button class="link" onclick={() => post.restoreDropped(i)}>Include anyway</button>{/if}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
+			{/if}
+
+			{#if !readOnly}
+				<section class="send">
 					<Segmented
 						label="Outcome"
 						value={draft.event}
@@ -323,8 +325,8 @@
 						<button class="btn big" title="Only you see it until you submit it on GitHub" onclick={() => review(true)}>Leave pending</button>
 						<button class="btn primary big" onclick={() => review()}>Post review</button>
 					</div>
-			</section>
-		{/if}
+				</section>
+			{/if}
 		{/if}
 	{/if}
 </main>
@@ -336,11 +338,11 @@
 		<p class="confirm-text">
 			To {session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if post.people}{' '}as {post.people.viewer}{/if}:
 			{#if confirmingPending}
-				a pending review, with {tally(confirming.comments.length, keptInBody, hasSummary)}. Only you see it until you
-				submit it on GitHub, where you choose Comment, Approve or Request changes.
+				a pending review, with {tally(confirming.comments.length, keptInBody, hasSummary)}. Only you see it until you submit it on GitHub, where you choose
+				Comment, Approve or Request changes.
 			{:else}
-				{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, hasSummary)}.
-				It’s visible to everyone on the PR.
+				{EVENTS.find((e) => e.event === confirming?.event)?.label}, with {tally(confirming.comments.length, keptInBody, hasSummary)}. It’s visible to everyone
+				on the PR.
 			{/if}
 		</p>
 		{#if post.stale}
@@ -350,7 +352,8 @@
 		<div class="actions">
 			<button class="btn" disabled={posting} onclick={() => (confirming = null)}>Back</button>
 			<button class="btn primary big" disabled={posting} onclick={send}>
-				{#if posting}<Spinner size={13} />{/if} {confirmingPending ? 'Leave pending on GitHub' : 'Post to GitHub'}
+				{#if posting}<Spinner size={13} />{/if}
+				{confirmingPending ? 'Leave pending on GitHub' : 'Post to GitHub'}
 			</button>
 		</div>
 	</Dialog>

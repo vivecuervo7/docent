@@ -29,7 +29,9 @@
 		{/each}
 	</ol>
 	<a class="all" class:current={allFiles} href="{base}/files" aria-current={allFiles ? 'page' : undefined}>
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5" /></svg>
+		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+			><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5" /></svg
+		>
 		All {session.files.length} files
 	</a>
 </nav>

@@ -35,7 +35,10 @@
 
 	$effect(() => {
 		if (!open) return;
-		return onDismiss(() => (open = false), (target) => !!root?.contains(target));
+		return onDismiss(
+			() => (open = false),
+			(target) => !!root?.contains(target)
+		);
 	});
 </script>
 
@@ -56,7 +59,9 @@
 							onchoose(item.value);
 						}}
 					>
-						<span class="tick">{#if item.value === value}✓{/if}</span>
+						<span class="tick"
+							>{#if item.value === value}✓{/if}</span
+						>
 						<span>{item.label}</span>
 						{#if item.hint}<span class="hint">{item.hint}</span>{/if}
 					</button>

@@ -63,7 +63,13 @@ function mute(color: string | undefined): string | undefined {
 	let out = muted.get(color);
 	if (!out) {
 		const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
-		out = `#${rgb.map((c, i) => Math.round(c * KEEP + BASE[i] * (1 - KEEP)).toString(16).padStart(2, '0')).join('')}`;
+		out = `#${rgb
+			.map((c, i) =>
+				Math.round(c * KEEP + BASE[i] * (1 - KEEP))
+					.toString(16)
+					.padStart(2, '0')
+			)
+			.join('')}`;
 		muted.set(color, out);
 	}
 	return out;
@@ -76,7 +82,12 @@ export async function highlightHunks(hunks: Hunk[], path: string): Promise<Map<s
 	const h = await load(lang);
 	const side = (rows: Row[]) => {
 		const lines = h.codeToTokens(rows.map((r) => r.text).join('\n'), { lang, theme: THEME }).tokens;
-		rows.forEach((row, i) => tokens.set(row.key, (lines[i] ?? []).map((t) => ({ content: t.content, color: mute(t.color) }))));
+		rows.forEach((row, i) =>
+			tokens.set(
+				row.key,
+				(lines[i] ?? []).map((t) => ({ content: t.content, color: mute(t.color) }))
+			)
+		);
 	};
 	for (const hunk of hunks) {
 		// Context lines take their colours from the new side.

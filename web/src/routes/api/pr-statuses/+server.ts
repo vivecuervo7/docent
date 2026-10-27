@@ -10,7 +10,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		return badRequest('invalid PRs');
 	}
 	try {
-		const statuses = await fetchPrStatuses(prs.map((p: Record<string, unknown>) => ({ owner: String(p.owner), repo: String(p.repo), number: String(p.number) })));
+		const statuses = await fetchPrStatuses(
+			prs.map((p: Record<string, unknown>) => ({ owner: String(p.owner), repo: String(p.repo), number: String(p.number) }))
+		);
 		return json({ statuses });
 	} catch (err) {
 		return failed(err);

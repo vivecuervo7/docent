@@ -44,11 +44,14 @@
 		{#if folds}
 			{#each rows.slice(0, first + EDGE) as r (r.key)}{@render line(r)}{/each}
 			<button class="fold-row" aria-expanded={open} onclick={() => (open ? session.openExcerpts.delete(key) : session.openExcerpts.add(key))}>
-				<svg width="9" height="9" viewBox="0 0 24 24" aria-hidden="true" style:transform={open ? 'rotate(90deg)' : ''}><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg>
+				<svg width="9" height="9" viewBox="0 0 24 24" aria-hidden="true" style:transform={open ? 'rotate(90deg)' : ''}
+					><path d="M7 4l12 8-12 8z" fill="currentColor" /></svg
+				>
 				<span>…</span>
 				{#if !open}
 					<span class="changes">
-						{#if added || removed}{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}{:else}{hidden.length} unchanged lines{/if}
+						{#if added || removed}{#if added}<span class="plus">+{added}</span>{/if}
+							{#if removed}<span class="minus">−{removed}</span>{/if}{:else}{hidden.length} unchanged lines{/if}
 					</span>
 				{/if}
 			</button>

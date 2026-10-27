@@ -73,9 +73,7 @@
 			// Blank keeps the saved key when editing.
 			...(draft.clearKey ? { apiKey: null } : draft.apiKey.trim() ? { apiKey: draft.apiKey } : {})
 		};
-		await readOk(
-			await sendJson(p ? `/api/providers/${p.id}` : '/api/providers', body, p ? 'PUT' : 'POST')
-		);
+		await readOk(await sendJson(p ? `/api/providers/${p.id}` : '/api/providers', body, p ? 'PUT' : 'POST'));
 		await load();
 	}
 
@@ -93,7 +91,9 @@
 <main>
 	<div class="head">
 		<h1>Settings</h1>
-		<button class="btn" disabled={loading} onclick={() => load()}>{#if loading}<Spinner size={13} />{/if} Check again</button>
+		<button class="btn" disabled={loading} onclick={() => load()}
+			>{#if loading}<Spinner size={13} />{/if} Check again</button
+		>
 	</div>
 	<p class="lede">Where Docent’s models come from. The model menu at the top picks from whatever here is available.</p>
 
@@ -109,8 +109,7 @@
 						<RunnerConcurrency runner="claude-code" value={setup.claudeCode.concurrency ?? 10} />
 					{:else}
 						<p>
-							Not installed. Install <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> and sign
-							in to use its models.
+							Not installed. Install <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> and sign in to use its models.
 						</p>
 					{/if}
 				</div>
@@ -127,8 +126,8 @@
 				<div class="text">
 					{#if setup.codex.installed}
 						<p>
-							Signed in. Its models ({setup.codex.models.join(', ')}) run on your own login, through <code>codex exec</code> with its
-							tools switched off. Some may be outside your plan; a call to one says so.
+							Signed in. Its models ({setup.codex.models.join(', ')}) run on your own login, through <code>codex exec</code> with its tools switched off. Some may
+							be outside your plan; a call to one says so.
 						</p>
 						<RunnerConcurrency runner="codex" value={setup.codex.concurrency ?? 10} />
 					{:else}
@@ -203,7 +202,10 @@
 
 	<ExternalReviewerSettings />
 
-	<p class="faint note">Saved on this machine{#if setup} in <code>{setup.settingsFile}</code>{/if}. Keys never go back to the browser.</p>
+	<p class="faint note">
+		Saved on this machine{#if setup}
+			in <code>{setup.settingsFile}</code>{/if}. Keys never go back to the browser.
+	</p>
 </main>
 
 <style>

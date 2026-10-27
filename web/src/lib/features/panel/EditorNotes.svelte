@@ -42,13 +42,7 @@
 </script>
 
 {#each notes as n (n.key)}
-	<button
-		class="fold"
-		style:font-size="{fontSize}px"
-		style:color="var(--{tone})"
-		aria-expanded={!!open[n.key]}
-		onclick={() => (open[n.key] = !open[n.key])}
-	>
+	<button class="fold" style:font-size="{fontSize}px" style:color="var(--{tone})" aria-expanded={!!open[n.key]} onclick={() => (open[n.key] = !open[n.key])}>
 		<Icon name="chevron" size={chevron} turned={open[n.key]} />
 		{n.label}
 	</button>

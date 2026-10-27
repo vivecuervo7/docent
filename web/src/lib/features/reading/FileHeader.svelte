@@ -74,63 +74,63 @@
 		<!-- A closed file says only that something in it wants you - findings
 		     to confirm, or something new to read - as the slices do; it opens
 		     on the first. -->
-		{@const label = summary.count
-			? `${plural(summary.count, 'finding')} to confirm`
-			: 'New to read'}
+		{@const label = summary.count ? `${plural(summary.count, 'finding')} to confirm` : 'New to read'}
 		{@const first = summary.first}
 		<button class="notice" aria-label="{label} - open it" title={label} onclick={() => (session.revealing = first.id)}></button>
 	{/if}
 	<!-- The rest of the header opens and closes the file too. -->
 	<button class="toggle rest" tabindex="-1" aria-hidden="true" onclick={() => (collapsed = !collapsed)}>
-		<span class="gist faint">{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span>
+		<span class="gist faint"
+			>{#if note?.note && collapsed}<InlineText text={`${note.kind === 'tests' ? 'Tests · ' : ''}${note.note.replace(/^- /, '').split('\n')[0]}`} />{/if}</span
+		>
 		<span class="stat"><span class="plus">+{counts.added}</span> <span class="minus">−{counts.removed}</span></span>
 	</button>
 	<!-- In the gutter: on an open file, the findings and threads about the
 	     whole file, which have no lines to sit on; then asking about it. -->
 	<span class="pins">
 		{#if !collapsed && (wholeFile.length || fileThreads.length || githubThreads.length)}
-				{#each wholeFile as m (m.id)}
-					<Pin
-						kind="finding"
-						id={m.id}
-						skipped={m.included === false}
-						filtered={!!m.filtered}
-						active={session.openMark === m.id}
-						unread={m.unread}
-						unreadLabel="New answer"
-						label="Finding about the whole file, from {m.who}"
-						title="A finding about the whole file, from {m.who}"
-						onclick={() => (session.openMark = session.openMark === m.id ? null : m.id)}
-					/>
-				{/each}
-				{#each fileThreads as n (n.id)}
-					<Pin
-						kind="note"
-						id={n.id}
-						active={session.openMark === n.id}
-						settled={isConcluded(n)}
-						unread={isUnread(n)}
-						unreadLabel="New reply"
-						label="Your thread on the whole file"
-						title="Your thread on the whole file"
-						onclick={() => (session.openMark = session.openMark === n.id ? null : n.id)}
-					/>
-				{/each}
-				{#each githubThreads as t (t.id)}
-					{@const what = t.outdated ? 'outdated GitHub thread' : 'GitHub thread on the whole file'}
-					{@const yours = session.record.notes.find((n) => n.github === t.id)}
-					<Pin
-						kind="github"
-						id={t.id}
-						active={session.openMark === t.id}
-						settled={!!t.resolved}
-						unread={!!yours && isUnread(yours)}
-						unreadLabel="New reply"
-						label="{t.entries[0]?.author ?? 'Someone'}'s {what}"
-						title="{t.entries[0]?.author ?? 'Someone'}'s {what}"
-						onclick={() => (session.openMark = session.openMark === t.id ? null : t.id)}
-					/>
-				{/each}
+			{#each wholeFile as m (m.id)}
+				<Pin
+					kind="finding"
+					id={m.id}
+					skipped={m.included === false}
+					filtered={!!m.filtered}
+					active={session.openMark === m.id}
+					unread={m.unread}
+					unreadLabel="New answer"
+					label="Finding about the whole file, from {m.who}"
+					title="A finding about the whole file, from {m.who}"
+					onclick={() => (session.openMark = session.openMark === m.id ? null : m.id)}
+				/>
+			{/each}
+			{#each fileThreads as n (n.id)}
+				<Pin
+					kind="note"
+					id={n.id}
+					active={session.openMark === n.id}
+					settled={isConcluded(n)}
+					unread={isUnread(n)}
+					unreadLabel="New reply"
+					label="Your thread on the whole file"
+					title="Your thread on the whole file"
+					onclick={() => (session.openMark = session.openMark === n.id ? null : n.id)}
+				/>
+			{/each}
+			{#each githubThreads as t (t.id)}
+				{@const what = t.outdated ? 'outdated GitHub thread' : 'GitHub thread on the whole file'}
+				{@const yours = session.record.notes.find((n) => n.github === t.id)}
+				<Pin
+					kind="github"
+					id={t.id}
+					active={session.openMark === t.id}
+					settled={!!t.resolved}
+					unread={!!yours && isUnread(yours)}
+					unreadLabel="New reply"
+					label="{t.entries[0]?.author ?? 'Someone'}'s {what}"
+					title="{t.entries[0]?.author ?? 'Someone'}'s {what}"
+					onclick={() => (session.openMark = session.openMark === t.id ? null : t.id)}
+				/>
+			{/each}
 		{/if}
 		<button
 			class="comment-file"

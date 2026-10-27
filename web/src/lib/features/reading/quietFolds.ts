@@ -59,7 +59,7 @@ export function roundPieces(hunk: Hunk, anchor: (row: Row, i: number) => boolean
 		for (let k = Math.max(0, i - ROUND_CONTEXT); k <= Math.min(rows.length - 1, i + ROUND_CONTEXT); k++) near[k] = true;
 	});
 	const out: Piece[] = [];
-	for (let i = 0; i < rows.length; ) {
+	for (let i = 0; i < rows.length;) {
 		if (near[i]) {
 			out.push({ type: 'row', row: rows[i++] });
 			continue;

@@ -145,16 +145,14 @@
 	}
 
 	function loadOld(): Promise<void> {
-		loadingOld ??= fetch(
-				`${prUrl(prRef)}/old-content?path=${encodeURIComponent(file.previous_filename ?? file.filename)}`
-			)
-				.then((res) => (res.ok ? res.json() : { content: null }))
-				.then((data: { content: string | null }) => {
-					oldLines = fileLines(data.content ?? '');
-				})
-				.catch(() => {
-					loadingOld = null;
-				});
+		loadingOld ??= fetch(`${prUrl(prRef)}/old-content?path=${encodeURIComponent(file.previous_filename ?? file.filename)}`)
+			.then((res) => (res.ok ? res.json() : { content: null }))
+			.then((data: { content: string | null }) => {
+				oldLines = fileLines(data.content ?? '');
+			})
+			.catch(() => {
+				loadingOld = null;
+			});
 		return loadingOld ?? Promise.resolve();
 	}
 
@@ -201,30 +199,24 @@
 	// around them in either view.
 	const removedAt = $derived(new Set((file.rangeRemoved ?? []).map((run) => run.at)));
 	const isRoundRow = (r: Row) =>
-		!!r.removed || ((r.kind === 'add' || r.kind === 'del') && !earlier(r)) || (r.kind !== 'del' && r.new !== undefined && (removedAt.has(r.new) || removedAt.has(r.new + 1)));
+		!!r.removed ||
+		((r.kind === 'add' || r.kind === 'del') && !earlier(r)) ||
+		(r.kind !== 'del' && r.new !== undefined && (removedAt.has(r.new) || removedAt.has(r.new + 1)));
 	// A round's hunks fold to its own changes; any other diff folds its quiet code.
-	const piecesOf = $derived(
-		new Map(hunks.map((h) => [h.index, rangeNew ? roundPieces(h, isRoundRow) : quietPieces(h, quietRanges, scenarioLines)]))
-	);
-	const visible = (h: Hunk) =>
-		(piecesOf.get(h.index) ?? []).flatMap((p) => (p.type === 'row' ? [p.row] : openFolds.has(p.id) ? p.rows : []));
+	const piecesOf = $derived(new Map(hunks.map((h) => [h.index, rangeNew ? roundPieces(h, isRoundRow) : quietPieces(h, quietRanges, scenarioLines)])));
+	const visible = (h: Hunk) => (piecesOf.get(h.index) ?? []).flatMap((p) => (p.type === 'row' ? [p.row] : openFolds.has(p.id) ? p.rows : []));
 
 	// The rows on screen, in order: a mark's range and a selection are both
 	// spans of these.
-	const shown = $derived(
-		items.flatMap((item) => (item.type === 'hunk' ? [item.hunk] : item.expanded ? item.hunks : []).flatMap(visible))
-	);
+	const shown = $derived(items.flatMap((item) => (item.type === 'hunk' ? [item.hunk] : item.expanded ? item.hunks : []).flatMap(visible)));
 
 	// Marks on lines a fold is hiding, shown on the fold instead.
-	const matchesRow = (r: Row, ref: LineRef) =>
-		ref.side === 'new' ? r.new === ref.line && r.kind !== 'del' : r.old === ref.line && r.kind !== 'add';
+	const matchesRow = (r: Row, ref: LineRef) => (ref.side === 'new' ? r.new === ref.line && r.kind !== 'del' : r.old === ref.line && r.kind !== 'add');
 	const hiddenMarks = (rows: Row[]) => marks.filter((m) => rows.some((r) => matchesRow(r, m.start)));
 	const position = $derived(new Map(shown.map((r, i) => [r.key, i])));
 
 	function rowAt(ref: LineRef): Row | undefined {
-		return shown.find((r) =>
-			ref.side === 'new' ? r.new === ref.line && r.kind !== 'del' : r.old === ref.line && r.kind !== 'add'
-		);
+		return shown.find((r) => (ref.side === 'new' ? r.new === ref.line && r.kind !== 'del' : r.old === ref.line && r.kind !== 'add'));
 	}
 
 	const placed = $derived(
@@ -237,9 +229,7 @@
 			return [{ mark, from: Math.min(a, b), to: Math.max(a, b), at: start.key }];
 		})
 	);
-	const pinsAt = $derived(
-		placed.reduce((by, p) => by.set(p.at, [...(by.get(p.at) ?? []), p]), new Map<string, typeof placed>())
-	);
+	const pinsAt = $derived(placed.reduce((by, p) => by.set(p.at, [...(by.get(p.at) ?? []), p]), new Map<string, typeof placed>()));
 
 	let hovered = $state<string | null>(null);
 
@@ -391,7 +381,11 @@
 		const id = session.revealing;
 		if (!id) return;
 		untrack(() => {
-			if (wholeFile.some((m) => m.id === id) || fileThreads.some((n) => n.id === id) || looseGitHubThreads(session.githubInReading, file.filename).some((t) => t.id === id)) {
+			if (
+				wholeFile.some((m) => m.id === id) ||
+				fileThreads.some((n) => n.id === id) ||
+				looseGitHubThreads(session.githubInReading, file.filename).some((t) => t.id === id)
+			) {
 				session.revealing = null;
 				collapsed = false;
 				session.openMark = id;
@@ -402,14 +396,10 @@
 			if (!mark) return;
 			session.revealing = null;
 			collapsed = false;
-			for (const list of piecesOf.values())
-				for (const p of list) if (p.type === 'fold' && p.rows.some((r) => matchesRow(r, mark.start))) openFolds.add(p.id);
-			for (const item of items)
-				if (item.type === 'fold' && item.hunks.some((h) => h.rows.some((r) => matchesRow(r, mark.start)))) expanded.add(item.id);
+			for (const list of piecesOf.values()) for (const p of list) if (p.type === 'fold' && p.rows.some((r) => matchesRow(r, mark.start))) openFolds.add(p.id);
+			for (const item of items) if (item.type === 'fold' && item.hunks.some((h) => h.rows.some((r) => matchesRow(r, mark.start)))) expanded.add(item.id);
 			session.openMark = id;
-			requestAnimationFrame(() =>
-				requestAnimationFrame(() => sectionEl?.querySelector(`[data-pin="${id}"]`)?.scrollIntoView({ block: 'center' }))
-			);
+			requestAnimationFrame(() => requestAnimationFrame(() => sectionEl?.querySelector(`[data-pin="${id}"]`)?.scrollIntoView({ block: 'center' })));
 		});
 	});
 
@@ -490,10 +480,7 @@
 			<span class="n" role="presentation" title={SELECT_HINT} onpointerdown={(e) => startSelect(e, pos)}>{r.new ?? ''}</span>
 		{/if}
 		<span class="code"
-			>{#each segments(r.text, tokens.get(r.key), edits.get(r.key)) as s, i (i)}<span
-					class:edit={s.edit}
-					style:color={s.color}>{s.text}</span
-				>{/each}</span
+			>{#each segments(r.text, tokens.get(r.key), edits.get(r.key)) as s, i (i)}<span class:edit={s.edit} style:color={s.color}>{s.text}</span>{/each}</span
 		>
 		<span class="gutter">
 			{#each pins ?? [] as p (p.mark.id)}
@@ -515,7 +502,11 @@
 		</span>
 		{#each pins ?? [] as p (p.mark.id)}
 			{#if session.openMark === p.mark.id}
-				<Floating anchor={openAnchor} label={p.mark.github ? 'GitHub thread' : p.mark.note ? 'Thread' : 'Finding'} tone={p.mark.kind === 'finding' ? 'agent' : 'plain'}>
+				<Floating
+					anchor={openAnchor}
+					label={p.mark.github ? 'GitHub thread' : p.mark.note ? 'Thread' : 'Finding'}
+					tone={p.mark.kind === 'finding' ? 'agent' : 'plain'}
+				>
 					{#if p.mark.github}
 						<GitHubThreadPanel thread={p.mark.github} onclose={() => (session.openMark = null)} />
 					{:else if p.mark.note}
@@ -528,23 +519,23 @@
 		{/each}
 		{#if selection && !dragging && pos === selTo}
 			<Floating anchor={composerAnchor} placement="bottom-start" fallback={['top-start']} pointer={false} label="Ask or comment on {describe(selFrom, selTo)}">
-			<div class="composer">
-				<div class="composer-head">
-					<span class="faint">{describe(selFrom, selTo)}</span>
-					<button class="icon" aria-label="Cancel" title="Cancel" onclick={() => (selection = null)}>
-						<Icon name="close" size={15} />
-					</button>
+				<div class="composer">
+					<div class="composer-head">
+						<span class="faint">{describe(selFrom, selTo)}</span>
+						<button class="icon" aria-label="Cancel" title="Cancel" onclick={() => (selection = null)}>
+							<Icon name="close" size={15} />
+						</button>
+					</div>
+					<Composer
+						bind:value={draft}
+						rows={2}
+						autofocus
+						actionsAlways
+						placeholder="Ask Docent, or write a comment to post as written…"
+						onsend={startThread}
+						onescape={() => (selection = null)}
+					/>
 				</div>
-				<Composer
-					bind:value={draft}
-					rows={2}
-					autofocus
-					actionsAlways
-					placeholder="Ask Docent, or write a comment to post as written…"
-					onsend={startThread}
-					onescape={() => (selection = null)}
-				/>
-			</div>
 			</Floating>
 		{/if}
 	</div>
@@ -555,7 +546,9 @@
 		<span class="hunk-text">{hunk.header}</span>
 		{#if hiddenAbove(hunk.index) > 0}
 			<button class="expand" onclick={() => expand(hunk.index, 'up')}>
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+					><path d="M12 19V5M6 11l6-6 6 6" /></svg
+				>
 				{Math.min(EXPAND_STEP, hiddenAbove(hunk.index))} more lines
 			</button>
 		{/if}
@@ -579,7 +572,9 @@
 	{#if !shownIndices.has(hunk.index + 1) && hiddenBelow(hunk.index) > 0}
 		<div class="hunk-footer">
 			<button class="expand" onclick={() => expand(hunk.index, 'down')}>
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+					><path d="M12 5v14M6 13l6 6 6-6" /></svg
+				>
 				{oldLines ? `${Math.min(EXPAND_STEP, hiddenBelow(hunk.index))} more lines` : 'More lines'}
 			</button>
 		</div>
@@ -616,11 +611,7 @@
 				{#if item.type === 'hunk'}
 					{@render hunkBlock(item.hunk)}
 				{:else}
-					<button
-						class="fold"
-						aria-expanded={item.expanded}
-						onclick={() => (item.expanded ? expanded.delete(item.id) : expanded.add(item.id))}
-					>
+					<button class="fold" aria-expanded={item.expanded} onclick={() => (item.expanded ? expanded.delete(item.id) : expanded.add(item.id))}>
 						<Icon name="chevron" size={14} turned={item.expanded} />
 						{item.expanded ? 'Showing' : 'The same change in'}
 						{item.hunks.length} more places

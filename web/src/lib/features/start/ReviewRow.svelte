@@ -39,7 +39,9 @@
 			{#if r.commits}<span class="faint">{plural(r.commits, 'commit')}{r.dates ? ` · ${r.dates}` : ''}</span>{/if}
 			{#if r.progress || r.findings}
 				<span class="faint">
-					{r.progress ? `${r.progress.done} of ${r.progress.total} slices read` : ''}{r.progress && r.findings ? ' · ' : ''}{r.findings ? plural(r.findings, 'finding') : ''}
+					{r.progress ? `${r.progress.done} of ${r.progress.total} slices read` : ''}{r.progress && r.findings ? ' · ' : ''}{r.findings
+						? plural(r.findings, 'finding')
+						: ''}
 				</span>
 			{/if}
 			{#if r.checking}<span class="faint">{plural(r.checking, 'finding')} being checked</span>{/if}
@@ -87,11 +89,11 @@
 				{#each rounds as r, i (r.n)}
 					<span class="round">
 						{#if !nextFirst && !quiet && i === rounds.length - 1}
-							<a class="badge {r.tone}" href={r.href}>{#if r.tone === 'working'}<Spinner size={11} tone="you" />{/if}{r.label}</a>
-						{:else}
-							<a class="hit" href={r.href} aria-label="Round {r.n} · {r.label}"
-								><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a
+							<a class="badge {r.tone}" href={r.href}
+								>{#if r.tone === 'working'}<Spinner size={11} tone="you" />{/if}{r.label}</a
 							>
+						{:else}
+							<a class="hit" href={r.href} aria-label="Round {r.n} · {r.label}"><RoundBauble done={r.tone === 'done'} working={r.tone === 'working'} /></a>
 						{/if}
 						{@render card(r, several ? `Round ${r.n} · ` : '')}
 					</span>
@@ -118,16 +120,39 @@
 		{/if}
 	</span>
 	<span class="row-actions">
-		<button class="icon" aria-label={pinned ? 'Unpin' : 'Pin to the top'} title={pinned ? 'Unpin' : 'Pin to the top'} onclick={() => page.setPinned(pr, !pinned)}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-				><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /></svg
+		<button
+			class="icon"
+			aria-label={pinned ? 'Unpin' : 'Pin to the top'}
+			title={pinned ? 'Unpin' : 'Pin to the top'}
+			onclick={() => page.setPinned(pr, !pinned)}
+		>
+			<svg
+				width="16"
+				height="16"
+				viewBox="0 0 24 24"
+				fill={pinned ? 'currentColor' : 'none'}
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6Z" /></svg
 			>
 		</button>
-		<button class="icon" aria-label={hidden ? 'Show in the lists again' : 'Hide'} title={hidden ? 'Show in the lists again' : 'Hide'} onclick={() => page.setHidden(pr, !hidden)}>
+		<button
+			class="icon"
+			aria-label={hidden ? 'Show in the lists again' : 'Hide'}
+			title={hidden ? 'Show in the lists again' : 'Hide'}
+			onclick={() => page.setHidden(pr, !hidden)}
+		>
 			{#if hidden}
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+					><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg
+				>
 			{:else}
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17.4 17.4 0 0 1-2.9 3.9M6.6 6.6A17.6 17.6 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+					><path
+						d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17.4 17.4 0 0 1-2.9 3.9M6.6 6.6A17.6 17.6 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"
+					/></svg
+				>
 			{/if}
 		</button>
 		{#if !pr.unsaved}<button class="icon" aria-label="Delete this review" title="Delete this review" onclick={() => page.remove(pr)}>

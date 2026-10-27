@@ -7,9 +7,13 @@
 
 <button class="fold-all" aria-label={label} title={label} onclick={() => onfold(!allOpen)}>
 	{#if allOpen}
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5" /><path d="m7 4 5 5 5-5" /></svg>
+		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+			><path d="m7 20 5-5 5 5" /><path d="m7 4 5 5 5-5" /></svg
+		>
 	{:else}
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
+		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+			><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg
+		>
 	{/if}
 </button>
 

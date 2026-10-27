@@ -15,8 +15,7 @@ export async function startGeneration(ref: PrRef, reuse: Reuse, model?: string):
 }
 
 export async function stopGeneration(ref: PrRef): Promise<Generation | null> {
-	return (await readOk<{ generation: Generation | null }>(await fetch(`${generationUrl(ref)}/stop`, { method: 'POST' })))
-		.generation;
+	return (await readOk<{ generation: Generation | null }>(await fetch(`${generationUrl(ref)}/stop`, { method: 'POST' }))).generation;
 }
 
 export async function dismissGeneration(ref: PrRef): Promise<void> {
@@ -24,6 +23,5 @@ export async function dismissGeneration(ref: PrRef): Promise<void> {
 }
 
 export async function listGenerations(): Promise<(PrRef & { generation: Generation })[]> {
-	return (await readOk<{ generations: (PrRef & { generation: Generation })[] }>(await fetch('/api/generations')))
-		.generations;
+	return (await readOk<{ generations: (PrRef & { generation: Generation })[] }>(await fetch('/api/generations'))).generations;
 }

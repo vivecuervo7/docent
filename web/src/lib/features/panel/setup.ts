@@ -12,10 +12,7 @@ export const sessionId = (value: string | undefined) =>
 // What runs a reviewer: Docent's reviewer on a model, with a persona (none
 // is the default); one of the reviewer's external reviewers, a session of
 // their own tooling; or their own agent, over MCP.
-export type ReviewerSetup =
-	| { mode: 'builtin'; model: string; persona?: string }
-	| { mode: 'external' }
-	| { mode: 'session'; session: string };
+export type ReviewerSetup = { mode: 'builtin'; model: string; persona?: string } | { mode: 'external' } | { mode: 'session'; session: string };
 
 // The persona that picks personas: the ones the PR warrants, beyond those
 // already on the panel, run on the reviewer's model.

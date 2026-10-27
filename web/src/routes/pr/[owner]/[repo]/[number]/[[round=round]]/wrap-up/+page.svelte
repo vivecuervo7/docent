@@ -26,8 +26,7 @@
 
 	// The most serious first; findings without a severity after the rest.
 	// Ones the editor suggests skipping come last.
-	const rank = (i: FeedbackItem) =>
-		(i.skipSuggested ? SEVERITIES.length + 1 : 0) + (i.severity ? SEVERITIES.indexOf(i.severity) : SEVERITIES.length);
+	const rank = (i: FeedbackItem) => (i.skipSuggested ? SEVERITIES.length + 1 : 0) + (i.severity ? SEVERITIES.indexOf(i.severity) : SEVERITIES.length);
 
 	// Which group something sits in: a slice, by the thread it came from or
 	// the lines it's on, else the PR as a whole.
@@ -68,8 +67,7 @@
 	});
 
 	const changed = (item: FeedbackItem) => (item.noteIds ?? []).some((id) => session.yours.changedThreads.has(id));
-	const redraft = (item: FeedbackItem) =>
-		session.yours.draft((item.noteIds ?? []).filter((id) => session.record.notes.some((n) => n.id === id)));
+	const redraft = (item: FeedbackItem) => session.yours.draft((item.noteIds ?? []).filter((id) => session.record.notes.some((n) => n.id === id)));
 
 	// Opens a finding or a thread where it was raised: the slice holding its
 	// lines or file, or for something about the PR as a whole, the Overview.
@@ -197,7 +195,9 @@
 	{/each}
 
 	<div class="next">
-		<span class="faint tally">{kept} kept · {skipped} skipped{#if toDecide}{` · ${toDecide} to decide`}{/if}</span>
+		<span class="faint tally"
+			>{kept} kept · {skipped} skipped{#if toDecide}{` · ${toDecide} to decide`}{/if}</span
+		>
 		<span class="grow"></span>
 		{#if session.post.stale}<span class="faint stale-note">The prepared review is out of date.</span>{/if}
 		<button class="btn primary big" onclick={toPost}>{session.post.draft ? 'On to Post →' : 'Prepare the review →'}</button>

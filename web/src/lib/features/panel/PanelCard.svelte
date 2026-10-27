@@ -117,7 +117,6 @@
 	// Picks whose reason is open.
 	let showWhy = $state<Partial<Record<AgentId, boolean>>>({});
 
-
 	function read() {
 		const next = session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0];
 		if (next) goto(`${base}/slices/${next.id}`);
@@ -145,10 +144,10 @@
 
 	async function remove(r: AgentReviewer) {
 		const n = panel.findings(r.id);
-		if (n > 0 && !(await ask({ title: `Remove ${nameOf(r, panel.reviewers)}?`, body: `Its ${plural(n, 'finding')} will be discarded.`, action: 'Remove' }))) return;
+		if (n > 0 && !(await ask({ title: `Remove ${nameOf(r, panel.reviewers)}?`, body: `Its ${plural(n, 'finding')} will be discarded.`, action: 'Remove' })))
+			return;
 		await panel.remove(r.id);
 	}
-
 
 	let copied = $state<AgentId | null>(null);
 	function copy(r: AgentReviewer) {
@@ -164,239 +163,270 @@
 		<h2>Your review panel</h2>
 		<p class="lede">{foundBy || 'No reviewers ran on this round.'}</p>
 	{:else}
-	{#if !anyRan && !beginning}
-		<span class="kicker">
-			<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor" /></svg>
-			Before you start reading
-		</span>
-	{/if}
-	{#if panel.reviewers.length}
-		<h2>{anyRan || beginning ? 'Your review panel' : 'Start your review panel'}</h2>
-		<p class="lede">
-			{beginning
-				? 'Who reviews it: those switched on start once it’s prepared, with Prepare and review.'
-				: anyRan && !anyRunning
-					? 'What they found is pinned on the code, beside your own notes.'
-					: 'They review while you read. What they find is pinned on the code, beside your own notes.'}
-		</p>
-		<!-- The editor going through what they found before it's shown, as the panel chip says. -->
-		{#if !beginning && panel.checking}
-			<p class="checking faint"><Spinner size={12} /> Checking {plural(panel.checking, 'finding')} before {panel.checking === 1 ? 'it’s' : 'they’re'} shown…</p>
-		{/if}
-	{:else}
-		<h2>No review panel</h2>
-		<p class="lede">Reviewers read the PR while you do, and what they find is pinned on the code. Add one, or review it on your own.</p>
-	{/if}
-
-	<ul>
-		{#each panel.reviewers as r (r.id)}
-			{@const review = panel.reviews[r.id]}
-			{@const setup = setupOf(r)}
-			{@const running = review?.status === 'running'}
-			{@const found = panel.findings(r.id)}
-			<li class:picked={!!r.pickedBy}>
-				<div class="text">
-					<div class="picker">
-						<span class="name">{nameOf(r, panel.reviewers)}</span>
-						<div class="choices">
-						{#if running}
-							<span class="runs faint">{runsWith(r)}</span>
-						{:else}
-							<Menu
-								groups={runOptions}
-								value={setupValue(setup)}
-								onchoose={(v) => choose(r, v)}
-								label="What runs this reviewer"
-								tone="agent"
-								width={292}
-								placement="outside"
-							>
-								{#snippet trigger({ open, toggle })}
-									<button
-										class="trigger"
-										aria-haspopup="menu"
-										aria-label="What runs {nameOf(r, panel.reviewers)}: {runsWith(r)}"
-										aria-expanded={open}
-										onclick={toggle}
-									>
-										{runsWith(r)}
-										<Icon name="down" size={14} />
-									</button>
-								{/snippet}
-							</Menu>
-						{/if}
-						{#if setup.mode === 'builtin' && (panel.personas.length || setup.persona)}
-							<span class="dot faint" aria-hidden="true">·</span>
-							{#if running}
-								<span class="runs faint">{panel.personaName(setup.persona)}</span>
-							{:else}
-								<Menu
-									groups={personaOptions}
-									value={setup.persona ?? ''}
-									onchoose={(v) => choosePersona(r, v || undefined)}
-									label="Persona"
-									tone="agent"
-									width={292}
-									placement="outside"
-								>
-									{#snippet trigger({ open, toggle })}
-										<button
-											class="trigger"
-											aria-haspopup="menu"
-											aria-label="Persona for {nameOf(r, panel.reviewers)}: {panel.personaName(setup.persona)}"
-											aria-expanded={open}
-											onclick={toggle}
-										>
-											{panel.personaName(setup.persona)}
-											<Icon name="down" size={14} />
-										</button>
-									{/snippet}
-								</Menu>
-							{/if}
-						{/if}
-						</div>
-					</div>
-
-					{#if isAuto(r)}
-						{#if panel.picking[r.id]}
-							<span class="status working"><Spinner size={13} /> Picking the personas this PR warrants</span>
-						{:else if panel.errors[r.id]}
-							<span class="status bad">Couldn’t pick: {panel.errors[r.id]}</span>
-						{:else if picksRunning(r)}
-							<span class="status working"><Spinner size={13} /> {plural(picksRunning(r), 'pick')} reviewing</span>
-						{:else if r.picks}
-							<span class="status faint">
-								{r.picks.personas.length
-									? `Picked ${[...(r.picks.general ? ['general'] : []), ...r.picks.personas.map((p) => panel.personaName(p))].join(', ')}`
-									: r.picks.general
-										? 'Picked general: nothing here warrants a specialist'
-										: panel.hasGeneral
-											? 'Picked none: the general reviewer already on the panel covers it'
-											: 'Picked none: nothing here warrants a specialist'}{isTicked(r) ? ' · picks again, replacing them' : ''}
-							</span>
-						{/if}
-					{:else if running && review.source === 'builtin'}
-						<span class="status working">
-							<Spinner size={13} />
-							{!review.progress?.total
-								? 'Starting…'
-								: review.progress.waiting
-									? 'Waiting for its turn'
-									: review.progress.current === 'the whole PR'
-									? 'Reading the whole PR first'
-									: review.progress.current === 'the code around it'
-									? 'Looking up the code around it'
-									: review.progress.current === 'the PR as a whole'
-									? 'Reviewing the PR as a whole'
-									: `Reviewing ${review.progress.current ?? '…'} (${Math.max(1, Math.min(review.progress.done, review.progress.total - 1))} of ${review.progress.total - 1})`}
-							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
-						</span>
-					{:else if running && review.source === 'session'}
-						{@const external = panel.externals.find((e) => `session:${e.id}` === (r.ranWith ?? ''))}
-						<span class="status working">
-							<Spinner size={13} />
-							{external?.runner === 'provider' ? `Reviewing with ${external.model}` : `Reviewing in a ${external?.runner === 'codex' ? 'Codex' : 'Claude Code'} session`}
-							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
-						</span>
-					{:else if running}
-						<span class="status working">
-							<Spinner size={13} />
-							Waiting for your agent{found ? ` · ${found} so far` : ''}
-							<button class="link" onclick={() => panel.end(r.id, 'finish')}>Finish</button>
-							<button class="link" onclick={() => panel.end(r.id, 'stop')}>Cancel</button>
-						</span>
-					{:else if review?.status === 'failed'}
-						<span class="status bad">Stopped with an error: {review.error}</span>
-					{:else if !review && r.lastRun?.status === 'failed'}
-						<span class="status bad">Stopped with an error{r.lastRun.error ? `: ${r.lastRun.error}` : ''}</span>
-					{:else if panel.errors[r.id]}
-						<span class="status bad">Couldn’t start: {panel.errors[r.id]}</span>
-					{:else if found || review}
-						<span class="status faint">
-							{plural(found, 'finding')}{review?.status === 'stopped' ? ' · stopped' : ''}{isTicked(r) ? ' · runs again, replacing them' : ''}
-						</span>
-					{/if}
-					{#if r.pickedBy && r.pickReason}
-						<button class="why" aria-expanded={!!showWhy[r.id]} onclick={() => (showWhy[r.id] = !showWhy[r.id])}>
-							Why was this picked?
-						</button>
-						{#if showWhy[r.id]}<span class="status faint reason">{r.pickReason}</span>{/if}
-					{/if}
-
-					{#if setup.mode === 'external' && (running || isTicked(r))}
-						<span class="tell faint">After your usual review, tell your agent:</span>
-						<span class="command">
-							<span class="sentence">{agentInstruction(session, r)}</span>
-							<button class="icon" aria-label="Copy what to tell your agent" title="Copy what to tell your agent" onclick={() => copy(r)}>
-								{#if copied === r.id}
-									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-								{:else}
-									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
-								{/if}
-							</button>
-						</span>
-					{/if}
-				</div>
-
-				<div class="controls">
-					{#if !running}
-						<button
-							class="switch"
-							role="switch"
-							aria-checked={isTicked(r)}
-							aria-label="Start {nameOf(r, panel.reviewers)}"
-							title={isTicked(r) ? 'Runs when you start the panel' : 'Turn on to run it when you start the panel'}
-							onclick={() => toggle(r)}
-						>
-							<span></span>
-						</button>
-					{/if}
-					<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" title="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
-						<Icon name="close" size={15} />
-					</button>
-				</div>
-			</li>
-		{/each}
-	</ul>
-
-	{#if !panel.reviewers.length}
-		<!-- No reviewers is a fine way to review; adding one stays one click away. -->
-		<button class="add-first" onclick={add}>
-			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-			Add a reviewer
-			<span class="faint">or just read it yourself</span>
-		</button>
-	{/if}
-
-	<div class="add-row" class:empty={!panel.reviewers.length}>
-		{#if panel.reviewers.length}
-			<button class="add" onclick={add}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-				Add a reviewer
-			</button>
-		{/if}
-		{#if defaultModel && !panel.isDefault(defaultModel)}
-			<span class="defaults">
-				{#if panel.canUseDefault(defaultModel)}
-					<button class="link default" onclick={() => panel.useDefault()}>Use my default panel</button>
-					<span class="faint">·</span>
-				{/if}
-				<button class="link default" onclick={() => panel.saveAsDefault(defaultModel)}>Make this my default</button>
+		{#if !anyRan && !beginning}
+			<span class="kicker">
+				<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"
+					><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor" /></svg
+				>
+				Before you start reading
 			</span>
 		{/if}
-	</div>
-
-	{#if !beginning}<div class="actions">
-		{#if toStart.length}
-			<button class="btn primary big" onclick={startAndRead}>
-				<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z" fill="currentColor" /></svg>
-				Start {toStart.length === panel.reviewers.length && toStart.length > 1 ? 'the panel' : toStart.length === 1 ? 'reviewer' : `${toStart.length} reviewers`} and read
-			</button>
-			<button class="btn big" onclick={read}>Just read</button>
+		{#if panel.reviewers.length}
+			<h2>{anyRan || beginning ? 'Your review panel' : 'Start your review panel'}</h2>
+			<p class="lede">
+				{beginning
+					? 'Who reviews it: those switched on start once it’s prepared, with Prepare and review.'
+					: anyRan && !anyRunning
+						? 'What they found is pinned on the code, beside your own notes.'
+						: 'They review while you read. What they find is pinned on the code, beside your own notes.'}
+			</p>
+			<!-- The editor going through what they found before it's shown, as the panel chip says. -->
+			{#if !beginning && panel.checking}
+				<p class="checking faint">
+					<Spinner size={12} /> Checking {plural(panel.checking, 'finding')} before {panel.checking === 1 ? 'it’s' : 'they’re'} shown…
+				</p>
+			{/if}
 		{:else}
-			<button class="btn primary big" onclick={read}>{session.reviewedSlices ? 'Continue reading' : 'Start reading'}</button>
+			<h2>No review panel</h2>
+			<p class="lede">Reviewers read the PR while you do, and what they find is pinned on the code. Add one, or review it on your own.</p>
 		{/if}
-	</div>{/if}
+
+		<ul>
+			{#each panel.reviewers as r (r.id)}
+				{@const review = panel.reviews[r.id]}
+				{@const setup = setupOf(r)}
+				{@const running = review?.status === 'running'}
+				{@const found = panel.findings(r.id)}
+				<li class:picked={!!r.pickedBy}>
+					<div class="text">
+						<div class="picker">
+							<span class="name">{nameOf(r, panel.reviewers)}</span>
+							<div class="choices">
+								{#if running}
+									<span class="runs faint">{runsWith(r)}</span>
+								{:else}
+									<Menu
+										groups={runOptions}
+										value={setupValue(setup)}
+										onchoose={(v) => choose(r, v)}
+										label="What runs this reviewer"
+										tone="agent"
+										width={292}
+										placement="outside"
+									>
+										{#snippet trigger({ open, toggle })}
+											<button
+												class="trigger"
+												aria-haspopup="menu"
+												aria-label="What runs {nameOf(r, panel.reviewers)}: {runsWith(r)}"
+												aria-expanded={open}
+												onclick={toggle}
+											>
+												{runsWith(r)}
+												<Icon name="down" size={14} />
+											</button>
+										{/snippet}
+									</Menu>
+								{/if}
+								{#if setup.mode === 'builtin' && (panel.personas.length || setup.persona)}
+									<span class="dot faint" aria-hidden="true">·</span>
+									{#if running}
+										<span class="runs faint">{panel.personaName(setup.persona)}</span>
+									{:else}
+										<Menu
+											groups={personaOptions}
+											value={setup.persona ?? ''}
+											onchoose={(v) => choosePersona(r, v || undefined)}
+											label="Persona"
+											tone="agent"
+											width={292}
+											placement="outside"
+										>
+											{#snippet trigger({ open, toggle })}
+												<button
+													class="trigger"
+													aria-haspopup="menu"
+													aria-label="Persona for {nameOf(r, panel.reviewers)}: {panel.personaName(setup.persona)}"
+													aria-expanded={open}
+													onclick={toggle}
+												>
+													{panel.personaName(setup.persona)}
+													<Icon name="down" size={14} />
+												</button>
+											{/snippet}
+										</Menu>
+									{/if}
+								{/if}
+							</div>
+						</div>
+
+						{#if isAuto(r)}
+							{#if panel.picking[r.id]}
+								<span class="status working"><Spinner size={13} /> Picking the personas this PR warrants</span>
+							{:else if panel.errors[r.id]}
+								<span class="status bad">Couldn’t pick: {panel.errors[r.id]}</span>
+							{:else if picksRunning(r)}
+								<span class="status working"><Spinner size={13} /> {plural(picksRunning(r), 'pick')} reviewing</span>
+							{:else if r.picks}
+								<span class="status faint">
+									{r.picks.personas.length
+										? `Picked ${[...(r.picks.general ? ['general'] : []), ...r.picks.personas.map((p) => panel.personaName(p))].join(', ')}`
+										: r.picks.general
+											? 'Picked general: nothing here warrants a specialist'
+											: panel.hasGeneral
+												? 'Picked none: the general reviewer already on the panel covers it'
+												: 'Picked none: nothing here warrants a specialist'}{isTicked(r) ? ' · picks again, replacing them' : ''}
+								</span>
+							{/if}
+						{:else if running && review.source === 'builtin'}
+							<span class="status working">
+								<Spinner size={13} />
+								{!review.progress?.total
+									? 'Starting…'
+									: review.progress.waiting
+										? 'Waiting for its turn'
+										: review.progress.current === 'the whole PR'
+											? 'Reading the whole PR first'
+											: review.progress.current === 'the code around it'
+												? 'Looking up the code around it'
+												: review.progress.current === 'the PR as a whole'
+													? 'Reviewing the PR as a whole'
+													: `Reviewing ${review.progress.current ?? '…'} (${Math.max(1, Math.min(review.progress.done, review.progress.total - 1))} of ${review.progress.total - 1})`}
+								<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
+							</span>
+						{:else if running && review.source === 'session'}
+							{@const external = panel.externals.find((e) => `session:${e.id}` === (r.ranWith ?? ''))}
+							<span class="status working">
+								<Spinner size={13} />
+								{external?.runner === 'provider'
+									? `Reviewing with ${external.model}`
+									: `Reviewing in a ${external?.runner === 'codex' ? 'Codex' : 'Claude Code'} session`}
+								<button class="link" onclick={() => panel.end(r.id, 'stop')}>Stop</button>
+							</span>
+						{:else if running}
+							<span class="status working">
+								<Spinner size={13} />
+								Waiting for your agent{found ? ` · ${found} so far` : ''}
+								<button class="link" onclick={() => panel.end(r.id, 'finish')}>Finish</button>
+								<button class="link" onclick={() => panel.end(r.id, 'stop')}>Cancel</button>
+							</span>
+						{:else if review?.status === 'failed'}
+							<span class="status bad">Stopped with an error: {review.error}</span>
+						{:else if !review && r.lastRun?.status === 'failed'}
+							<span class="status bad">Stopped with an error{r.lastRun.error ? `: ${r.lastRun.error}` : ''}</span>
+						{:else if panel.errors[r.id]}
+							<span class="status bad">Couldn’t start: {panel.errors[r.id]}</span>
+						{:else if found || review}
+							<span class="status faint">
+								{plural(found, 'finding')}{review?.status === 'stopped' ? ' · stopped' : ''}{isTicked(r) ? ' · runs again, replacing them' : ''}
+							</span>
+						{/if}
+						{#if r.pickedBy && r.pickReason}
+							<button class="why" aria-expanded={!!showWhy[r.id]} onclick={() => (showWhy[r.id] = !showWhy[r.id])}> Why was this picked? </button>
+							{#if showWhy[r.id]}<span class="status faint reason">{r.pickReason}</span>{/if}
+						{/if}
+
+						{#if setup.mode === 'external' && (running || isTicked(r))}
+							<span class="tell faint">After your usual review, tell your agent:</span>
+							<span class="command">
+								<span class="sentence">{agentInstruction(session, r)}</span>
+								<button class="icon" aria-label="Copy what to tell your agent" title="Copy what to tell your agent" onclick={() => copy(r)}>
+									{#if copied === r.id}
+										<svg
+											width="15"
+											height="15"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="var(--done)"
+											stroke-width="2.4"
+											stroke-linecap="round"
+											stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
+										>
+									{:else}
+										<svg
+											width="15"
+											height="15"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg
+										>
+									{/if}
+								</button>
+							</span>
+						{/if}
+					</div>
+
+					<div class="controls">
+						{#if !running}
+							<button
+								class="switch"
+								role="switch"
+								aria-checked={isTicked(r)}
+								aria-label="Start {nameOf(r, panel.reviewers)}"
+								title={isTicked(r) ? 'Runs when you start the panel' : 'Turn on to run it when you start the panel'}
+								onclick={() => toggle(r)}
+							>
+								<span></span>
+							</button>
+						{/if}
+						<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" title="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
+							<Icon name="close" size={15} />
+						</button>
+					</div>
+				</li>
+			{/each}
+		</ul>
+
+		{#if !panel.reviewers.length}
+			<!-- No reviewers is a fine way to review; adding one stays one click away. -->
+			<button class="add-first" onclick={add}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+					><path d="M12 5v14M5 12h14" /></svg
+				>
+				Add a reviewer
+				<span class="faint">or just read it yourself</span>
+			</button>
+		{/if}
+
+		<div class="add-row" class:empty={!panel.reviewers.length}>
+			{#if panel.reviewers.length}
+				<button class="add" onclick={add}>
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+						><path d="M12 5v14M5 12h14" /></svg
+					>
+					Add a reviewer
+				</button>
+			{/if}
+			{#if defaultModel && !panel.isDefault(defaultModel)}
+				<span class="defaults">
+					{#if panel.canUseDefault(defaultModel)}
+						<button class="link default" onclick={() => panel.useDefault()}>Use my default panel</button>
+						<span class="faint">·</span>
+					{/if}
+					<button class="link default" onclick={() => panel.saveAsDefault(defaultModel)}>Make this my default</button>
+				</span>
+			{/if}
+		</div>
+
+		{#if !beginning}<div class="actions">
+				{#if toStart.length}
+					<button class="btn primary big" onclick={startAndRead}>
+						<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z" fill="currentColor" /></svg>
+						Start {toStart.length === panel.reviewers.length && toStart.length > 1
+							? 'the panel'
+							: toStart.length === 1
+								? 'reviewer'
+								: `${toStart.length} reviewers`} and read
+					</button>
+					<button class="btn big" onclick={read}>Just read</button>
+				{:else}
+					<button class="btn primary big" onclick={read}>{session.reviewedSlices ? 'Continue reading' : 'Start reading'}</button>
+				{/if}
+			</div>{/if}
 	{/if}
 </div>
 

@@ -60,7 +60,13 @@
 	async function deleteLatest() {
 		open = false;
 		const n = spans.length;
-		if (!(await ask({ title: `Delete round ${n}?`, body: 'Its threads, findings and review go with it. The commits it covered can go into a new round.', action: 'Delete' })))
+		if (
+			!(await ask({
+				title: `Delete round ${n}?`,
+				body: 'Its threads, findings and review go with it. The commits it covered can go into a new round.',
+				action: 'Delete'
+			}))
+		)
 			return;
 		await session.dropRound();
 		goto(session.baseFor(null));
@@ -83,13 +89,7 @@
 
 {#if pips.length}
 	<div class="rounds">
-		<button
-			class="pill"
-			class:earlier
-			aria-haspopup="dialog"
-			aria-expanded={open}
-			onclick={() => (open = !open)}
-		>
+		<button class="pill" class:earlier aria-haspopup="dialog" aria-expanded={open} onclick={() => (open = !open)}>
 			<span>Round {numberOf(viewed)}</span>
 		</button>
 		{#if open}
@@ -101,8 +101,7 @@
 						{fills}
 						tones={pips.map((p) => p.state)}
 						titles={pips.map(
-							(p) =>
-								`${p.c.sha.slice(0, 7)} · ${date(p.c.date)} · ${p.c.message}${p.holder ? ` · round ${numberOf(p.holder)}` : ' · not yet reviewed'}`
+							(p) => `${p.c.sha.slice(0, 7)} · ${date(p.c.date)} · ${p.c.message}${p.holder ? ` · round ${numberOf(p.holder)}` : ' · not yet reviewed'}`
 						)}
 						onpip={(i) => pips[i].holder && view(pips[i].holder.index)}
 					/>

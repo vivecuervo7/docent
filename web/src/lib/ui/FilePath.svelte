@@ -7,9 +7,9 @@
 </script>
 
 <span class="file-path" title={path}>
-	{#if cut >= 0}<span class="dir"><span dir="ltr">{path.slice(0, cut + 1)}</span></span>{/if}<span class="base"
-		>{path.slice(cut + 1)}</span
-	>{#if lines}<span class="lines">&nbsp;· {lines}</span>{/if}
+	{#if cut >= 0}<span class="dir"><span dir="ltr">{path.slice(0, cut + 1)}</span></span>{/if}<span class="base">{path.slice(cut + 1)}</span>{#if lines}<span
+			class="lines">&nbsp;· {lines}</span
+		>{/if}
 </span>
 
 <style>

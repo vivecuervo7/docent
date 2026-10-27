@@ -4,11 +4,7 @@
 
 	// A choice from a short list as a form field, drawn in the app's style
 	// rather than the browser's.
-	let {
-		value = $bindable(),
-		options,
-		label
-	}: { value: string; options: { value: string; label: string }[]; label: string } = $props();
+	let { value = $bindable(), options, label }: { value: string; options: { value: string; label: string }[]; label: string } = $props();
 
 	const current = $derived(options.find((o) => o.value === value) ?? options[0]);
 </script>

@@ -53,7 +53,10 @@ const saving = new Map<string, Promise<unknown>>();
 
 function oneAtATime<T>(key: string, work: () => Promise<T>): Promise<T> {
 	const run = (saving.get(key) ?? Promise.resolve()).then(work, work);
-	saving.set(key, run.catch(() => {}));
+	saving.set(
+		key,
+		run.catch(() => {})
+	);
 	return run;
 }
 

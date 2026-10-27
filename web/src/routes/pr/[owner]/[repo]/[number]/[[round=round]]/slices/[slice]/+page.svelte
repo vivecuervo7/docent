@@ -80,7 +80,6 @@
 		if (pending.length) showOpinion(pending, null, true);
 	});
 
-
 	// The panel's editor at work on this slice, and what it filtered out.
 	const reviewing = $derived(sliceId ? session.panel.reviewing(sliceId) : false);
 	const filtered = $derived(sliceId ? session.panel.filteredIn(sliceId) : []);
@@ -181,7 +180,6 @@
 		</div>
 	</Dialog>
 {/if}
-
 
 <style>
 	.page {

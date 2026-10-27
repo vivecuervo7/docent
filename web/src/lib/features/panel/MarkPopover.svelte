@@ -170,7 +170,10 @@
 					</li>
 				{/each}
 				{#if status.pending}
-					<li class="assistant"><span class="role">{mark.who}</span><p class="state"><Spinner size={13} /> Thinking…</p></li>
+					<li class="assistant">
+						<span class="role">{mark.who}</span>
+						<p class="state"><Spinner size={13} /> Thinking…</p>
+					</li>
 				{:else if status.error}
 					<li>
 						<p class="state bad">
@@ -197,8 +200,8 @@
 			<span class="suggested">Filtered: {mark.filtered}</span>
 			<button class="btn primary" onclick={() => mark.reviewer && session.keepFiltered(mark.reviewer, mark.id)}>Show it</button>
 		{:else}
-		{#if item?.skipSuggested && !item.decided}<span class="suggested">Skip suggested: {item.skipSuggested}</span>{/if}
-		<KeepSkip kept={isKept} suggested={!item?.decided} tone="agent" onkeep={() => keep(true)} onskip={() => keep(false)} />
+			{#if item?.skipSuggested && !item.decided}<span class="suggested">Skip suggested: {item.skipSuggested}</span>{/if}
+			<KeepSkip kept={isKept} suggested={!item?.decided} tone="agent" onkeep={() => keep(true)} onskip={() => keep(false)} />
 		{/if}
 	</footer>
 </div>

@@ -64,7 +64,7 @@ export function wordEdits(hunks: Hunk[]): Map<string, Range[]> {
 	const edits = new Map<string, Range[]>();
 	for (const hunk of hunks) {
 		const { rows } = hunk;
-		for (let i = 0; i < rows.length; ) {
+		for (let i = 0; i < rows.length;) {
 			if (rows[i].kind !== 'del') {
 				i++;
 				continue;
@@ -114,9 +114,7 @@ export function changeSignature(hunk: Hunk): string {
 		.join('\n');
 }
 
-export type LayoutItem =
-	| { type: 'hunk'; hunk: Hunk }
-	| { type: 'fold'; id: string; hunks: Hunk[]; expanded: boolean };
+export type LayoutItem = { type: 'hunk'; hunk: Hunk } | { type: 'fold'; id: string; hunks: Hunk[]; expanded: boolean };
 
 export const FOLD_AT = 3;
 
@@ -150,8 +148,7 @@ export function withRemoved(hunk: Hunk, runs: { at: number; lines: string[] }[])
 	const here = runs.filter((run) => run.at >= first && run.at <= last + 1);
 	if (!here.length) return hunk;
 	const rows: Row[] = [];
-	const ghosts = (run: (typeof runs)[number]) =>
-		run.lines.map((text, i): Row => ({ key: `${hunk.index}r${run.at}-${i}`, kind: 'del', text, removed: true }));
+	const ghosts = (run: (typeof runs)[number]) => run.lines.map((text, i): Row => ({ key: `${hunk.index}r${run.at}-${i}`, kind: 'del', text, removed: true }));
 	for (const row of hunk.rows) {
 		if (row.kind !== 'del') for (const run of here) if (run.at === row.new) rows.push(...ghosts(run));
 		rows.push(row);
@@ -168,7 +165,7 @@ const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
 export function hideWhitespace(hunk: Hunk): Hunk {
 	const rows: Row[] = [];
 	const { rows: input } = hunk;
-	for (let i = 0; i < input.length; ) {
+	for (let i = 0; i < input.length;) {
 		if (input[i].kind === 'context') {
 			rows.push(input[i++]);
 			continue;

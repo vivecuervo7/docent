@@ -16,7 +16,8 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 				typeof c.node === 'string' &&
 				/^[A-Za-z0-9_=-]{1,100}$/.test(c.node) &&
 				(c.resolved === undefined || typeof c.resolved === 'boolean') &&
-				(c.reply === undefined || (Number.isInteger(c.reply.comment) && typeof c.reply.body === 'string' && !!c.reply.body.trim() && c.reply.body.length <= 65_000)) &&
+				(c.reply === undefined ||
+					(Number.isInteger(c.reply.comment) && typeof c.reply.body === 'string' && !!c.reply.body.trim() && c.reply.body.length <= 65_000)) &&
 				(c.resolved !== undefined || c.reply !== undefined)
 		);
 	if (!validParams(owner, repo, number) || !valid) return badRequest('invalid thread changes');

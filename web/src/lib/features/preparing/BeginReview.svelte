@@ -50,7 +50,6 @@
 	const last = $derived((commits?.length ?? 1) - 1);
 	const whole = $derived(from === 0 && to === last);
 
-
 	// With `review`, the panel starts as soon as it's prepared.
 	function begin(review: boolean) {
 		if (!commits) return;
@@ -94,27 +93,27 @@
 						fills={[{ from, to, tone: 'in' }]}
 						tones={commits.map((_, i) => (i >= from && i <= to ? 'in' : 'out'))}
 					>
-					<input
-						type="range"
-						min="0"
-						max={last}
-						step="1"
-						aria-label="First commit"
-						class:above={from === last}
-						value={from}
-						oninput={(e) => (from = Math.min(Number(e.currentTarget.value), to))}
-						onchange={(e) => (e.currentTarget.value = String(from))}
-					/>
-					<input
-						type="range"
-						min="0"
-						max={last}
-						step="1"
-						aria-label="Last commit"
-						value={to}
-						oninput={(e) => (to = Math.max(Number(e.currentTarget.value), from))}
-						onchange={(e) => (e.currentTarget.value = String(to))}
-					/>
+						<input
+							type="range"
+							min="0"
+							max={last}
+							step="1"
+							aria-label="First commit"
+							class:above={from === last}
+							value={from}
+							oninput={(e) => (from = Math.min(Number(e.currentTarget.value), to))}
+							onchange={(e) => (e.currentTarget.value = String(from))}
+						/>
+						<input
+							type="range"
+							min="0"
+							max={last}
+							step="1"
+							aria-label="Last commit"
+							value={to}
+							oninput={(e) => (to = Math.max(Number(e.currentTarget.value), from))}
+							onchange={(e) => (e.currentTarget.value = String(to))}
+						/>
 					</CommitTrack>
 				</div>
 			{/if}

@@ -37,7 +37,10 @@
 		{#if round}
 			<span class="changes">{plural(rows.length, 'line')} this round left as they were</span>
 		{:else if added || removed}
-			<span class="changes">{#if added}<span class="plus">+{added}</span>{/if} {#if removed}<span class="minus">−{removed}</span>{/if}</span>
+			<span class="changes"
+				>{#if added}<span class="plus">+{added}</span>{/if}
+				{#if removed}<span class="minus">−{removed}</span>{/if}</span
+			>
 		{:else}
 			<span class="changes">{rows.length} unchanged lines</span>
 		{/if}

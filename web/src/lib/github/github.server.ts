@@ -1,238 +1,209 @@
-import { changesBetween } from "./repoCache.server.js";
-import { filesInDiff } from "./diffFiles.js";
-import { gh, mergeBase, pull } from "./gh.server.js";
+import { changesBetween } from './repoCache.server.js';
+import { filesInDiff } from './diffFiles.js';
+import { gh, mergeBase, pull } from './gh.server.js';
 
-export type { PrFile, PrMeta } from "../types.js";
-import type { PrFile, PrMeta } from "../types.js";
+export type { PrFile, PrMeta } from '../types.js';
+import type { PrFile, PrMeta } from '../types.js';
 
-export async function fetchPrFiles(
-  owner: string,
-  repo: string,
-  number: string,
-): Promise<PrFile[]> {
-  const stdout = await gh([
-    "api",
-    "--paginate",
-    `repos/${owner}/${repo}/pulls/${number}/files?per_page=100`,
-  ]);
+export async function fetchPrFiles(owner: string, repo: string, number: string): Promise<PrFile[]> {
+	const stdout = await gh(['api', '--paginate', `repos/${owner}/${repo}/pulls/${number}/files?per_page=100`]);
 
-  const files = JSON.parse(stdout) as PrFile[];
-  // GitHub leaves a file's patch out of this list when its diff is large,
-  // though the PR's whole diff still has it. A binary file has no lines
-  // changed, and no patch either way.
-  if (files.some((f) => !f.patch && f.additions + f.deletions > 0)) {
-    const patches = await fetchPrPatches(owner, repo, number).catch(() => new Map<string, string>());
-    for (const f of files) if (!f.patch) f.patch = patches.get(f.filename);
-  }
-  // GitHub refuses the whole diff of a very large PR: the rest come from
-  // the repo cache.
-  const missing = files.filter((f) => !f.patch && f.additions + f.deletions > 0);
-  if (missing.length) {
-    const cached = await cachedPatches(owner, repo, number, missing.map((f) => f.filename)).catch(() => new Map<string, string>());
-    for (const f of missing) f.patch = cached.get(f.filename);
-  }
-  return files;
+	const files = JSON.parse(stdout) as PrFile[];
+	// GitHub leaves a file's patch out of this list when its diff is large,
+	// though the PR's whole diff still has it. A binary file has no lines
+	// changed, and no patch either way.
+	if (files.some((f) => !f.patch && f.additions + f.deletions > 0)) {
+		const patches = await fetchPrPatches(owner, repo, number).catch(() => new Map<string, string>());
+		for (const f of files) if (!f.patch) f.patch = patches.get(f.filename);
+	}
+	// GitHub refuses the whole diff of a very large PR: the rest come from
+	// the repo cache.
+	const missing = files.filter((f) => !f.patch && f.additions + f.deletions > 0);
+	if (missing.length) {
+		const cached = await cachedPatches(
+			owner,
+			repo,
+			number,
+			missing.map((f) => f.filename)
+		).catch(() => new Map<string, string>());
+		for (const f of missing) f.patch = cached.get(f.filename);
+	}
+	return files;
 }
 
 async function cachedPatches(owner: string, repo: string, number: string, paths: string[]): Promise<Map<string, string>> {
-  const { base, head } = await pull(owner, repo, number);
-  const files = await changesBetween(owner, repo, await mergeBase(owner, repo, base, head), head, paths);
-  return new Map(files.flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
+	const { base, head } = await pull(owner, repo, number);
+	const files = await changesBetween(owner, repo, await mergeBase(owner, repo, base, head), head, paths);
+	return new Map(files.flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
 }
 
 // Each file's hunks from the PR's whole diff, by its path at the head (or
 // its old path, for a deleted file). GitHub refuses the whole diff for a
 // very large PR, and those files stay without one.
 async function fetchPrPatches(owner: string, repo: string, number: string): Promise<Map<string, string>> {
-  const stdout = await gh(["api", "-H", "Accept: application/vnd.github.diff", `repos/${owner}/${repo}/pulls/${number}`]);
-  return new Map(filesInDiff(stdout).flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
+	const stdout = await gh(['api', '-H', 'Accept: application/vnd.github.diff', `repos/${owner}/${repo}/pulls/${number}`]);
+	return new Map(filesInDiff(stdout).flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
 }
 
 export async function fetchPrMeta(owner: string, repo: string, number: string): Promise<PrMeta> {
-  const { title, body, htmlUrl, author, head } = await pull(owner, repo, number);
-  return { title, body, htmlUrl, ...(author ? { author } : {}), head };
+	const { title, body, htmlUrl, author, head } = await pull(owner, repo, number);
+	return { title, body, htmlUrl, ...(author ? { author } : {}), head };
 }
 
 export interface ConversationEntry {
-  author: string;
-  body: string;
-  createdAt: string;
+	author: string;
+	body: string;
+	createdAt: string;
 }
 
 export interface ReviewEntry extends ConversationEntry {
-  state: string;
+	state: string;
 }
 
 export interface InlineThread {
-  path: string;
-  entries: ConversationEntry[];
+	path: string;
+	entries: ConversationEntry[];
 }
 
 // Everything said on the PR, keeping enough structure (who the PR author is,
 // when things were said, which inline replies belong together) for the model
 // to tell a reviewer's point from the author's response to it.
 export interface PrConversation {
-  prAuthor: string;
-  reviews: ReviewEntry[];
-  comments: ConversationEntry[];
-  threads: InlineThread[];
+	prAuthor: string;
+	reviews: ReviewEntry[];
+	comments: ConversationEntry[];
+	threads: InlineThread[];
 }
 
 // What's been said on a PR, as text for a model to read.
 export function conversationText(conversation: PrConversation): string {
-  const parts = [
-    ...conversation.reviews.filter((r) => r.body).map((r) => `Review by ${r.author} (${r.state}):\n${r.body}`),
-    ...conversation.comments.map((c) => `Comment by ${c.author}:\n${c.body}`),
-    ...conversation.threads.map((t) => `Thread on ${t.path}:\n${t.entries.map((e) => `${e.author}: ${e.body}`).join("\n")}`),
-  ];
-  return parts.length > 0 ? parts.join("\n\n") : "Nothing's been said on this PR yet.";
+	const parts = [
+		...conversation.reviews.filter((r) => r.body).map((r) => `Review by ${r.author} (${r.state}):\n${r.body}`),
+		...conversation.comments.map((c) => `Comment by ${c.author}:\n${c.body}`),
+		...conversation.threads.map((t) => `Thread on ${t.path}:\n${t.entries.map((e) => `${e.author}: ${e.body}`).join('\n')}`)
+	];
+	return parts.length > 0 ? parts.join('\n\n') : "Nothing's been said on this PR yet.";
 }
 
 interface RawUser {
-  login?: string;
+	login?: string;
 }
 
 interface RawReview {
-  user: RawUser | null;
-  body: string | null;
-  state: string;
-  submitted_at: string | null;
+	user: RawUser | null;
+	body: string | null;
+	state: string;
+	submitted_at: string | null;
 }
 
 interface RawInlineComment {
-  id: number;
-  in_reply_to_id?: number;
-  user: RawUser | null;
-  path: string;
-  body: string;
-  created_at: string;
+	id: number;
+	in_reply_to_id?: number;
+	user: RawUser | null;
+	path: string;
+	body: string;
+	created_at: string;
 }
 
 interface RawIssueComment {
-  user: RawUser | null;
-  body: string | null;
-  created_at: string;
+	user: RawUser | null;
+	body: string | null;
+	created_at: string;
 }
 
-export async function fetchPrConversation(
-  owner: string,
-  repo: string,
-  number: string,
-): Promise<PrConversation> {
-  const [prAuthorRes, reviewsRes, inlineRes, issueCommentsRes] = await Promise.all([
-    pull(owner, repo, number).then((p) => p.author ?? ""),
-    gh([
-      "api",
-      "--paginate",
-      `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`,
-    ]),
-    gh([
-      "api",
-      "--paginate",
-      `repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`,
-    ]),
-    gh([
-      "api",
-      "--paginate",
-      `repos/${owner}/${repo}/issues/${number}/comments?per_page=100`,
-    ]),
-  ]);
+export async function fetchPrConversation(owner: string, repo: string, number: string): Promise<PrConversation> {
+	const [prAuthorRes, reviewsRes, inlineRes, issueCommentsRes] = await Promise.all([
+		pull(owner, repo, number).then((p) => p.author ?? ''),
+		gh(['api', '--paginate', `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
+		gh(['api', '--paginate', `repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`]),
+		gh(['api', '--paginate', `repos/${owner}/${repo}/issues/${number}/comments?per_page=100`])
+	]);
 
-  const rawReviews = JSON.parse(reviewsRes) as RawReview[];
-  const rawInline = JSON.parse(inlineRes) as RawInlineComment[];
-  const rawIssueComments = JSON.parse(issueCommentsRes) as RawIssueComment[];
-  const login = (user: RawUser | null) => user?.login ?? "unknown";
+	const rawReviews = JSON.parse(reviewsRes) as RawReview[];
+	const rawInline = JSON.parse(inlineRes) as RawInlineComment[];
+	const rawIssueComments = JSON.parse(issueCommentsRes) as RawIssueComment[];
+	const login = (user: RawUser | null) => user?.login ?? 'unknown';
 
-  // A bare "commented" review with no body is just the envelope GitHub
-  // creates around inline comments, which are captured in threads instead.
-  const reviews: ReviewEntry[] = rawReviews
-    .filter((r) => r.body || (r.state !== "COMMENTED" && r.state !== "PENDING"))
-    .map((r) => ({
-      author: login(r.user),
-      body: r.body ?? "",
-      state: r.state,
-      createdAt: r.submitted_at ?? "",
-    }));
+	// A bare "commented" review with no body is just the envelope GitHub
+	// creates around inline comments, which are captured in threads instead.
+	const reviews: ReviewEntry[] = rawReviews
+		.filter((r) => r.body || (r.state !== 'COMMENTED' && r.state !== 'PENDING'))
+		.map((r) => ({
+			author: login(r.user),
+			body: r.body ?? '',
+			state: r.state,
+			createdAt: r.submitted_at ?? ''
+		}));
 
-  // GitHub points every reply at the thread's first comment, so the root id
-  // groups a whole inline thread.
-  const threadsByRoot = new Map<number, InlineThread>();
-  for (const c of [...rawInline].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
-    const root = c.in_reply_to_id ?? c.id;
-    if (!threadsByRoot.has(root)) threadsByRoot.set(root, { path: c.path, entries: [] });
-    threadsByRoot.get(root)!.entries.push({
-      author: login(c.user),
-      body: c.body,
-      createdAt: c.created_at,
-    });
-  }
+	// GitHub points every reply at the thread's first comment, so the root id
+	// groups a whole inline thread.
+	const threadsByRoot = new Map<number, InlineThread>();
+	for (const c of [...rawInline].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+		const root = c.in_reply_to_id ?? c.id;
+		if (!threadsByRoot.has(root)) threadsByRoot.set(root, { path: c.path, entries: [] });
+		threadsByRoot.get(root)!.entries.push({
+			author: login(c.user),
+			body: c.body,
+			createdAt: c.created_at
+		});
+	}
 
-  const comments: ConversationEntry[] = rawIssueComments
-    .filter((c) => c.body)
-    .map((c) => ({ author: login(c.user), body: c.body ?? "", createdAt: c.created_at }));
+	const comments: ConversationEntry[] = rawIssueComments
+		.filter((c) => c.body)
+		.map((c) => ({ author: login(c.user), body: c.body ?? '', createdAt: c.created_at }));
 
-  return {
-    prAuthor: prAuthorRes,
-    reviews,
-    comments,
-    threads: [...threadsByRoot.values()],
-  };
+	return {
+		prAuthor: prAuthorRes,
+		reviews,
+		comments,
+		threads: [...threadsByRoot.values()]
+	};
 }
 
 export async function fetchPrBaseSha(owner: string, repo: string, number: string): Promise<string> {
-  return (await pull(owner, repo, number)).base;
+	return (await pull(owner, repo, number)).base;
 }
 
 export async function fetchPrHeadSha(owner: string, repo: string, number: string): Promise<string> {
-  return (await pull(owner, repo, number)).head;
+	return (await pull(owner, repo, number)).head;
 }
 
-export async function fetchFileContentAtRef(
-  owner: string,
-  repo: string,
-  ref: string,
-  path: string,
-): Promise<string | null> {
-  const encodedPath = path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+export async function fetchFileContentAtRef(owner: string, repo: string, ref: string, path: string): Promise<string | null> {
+	const encodedPath = path
+		.split('/')
+		.map((segment) => encodeURIComponent(segment))
+		.join('/');
 
-  try {
-    const stdout = await gh([
-      "api",
-      `repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
-    ]);
+	try {
+		const stdout = await gh(['api', `repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`]);
 
-    const data = JSON.parse(stdout) as { content?: string; encoding?: string };
-    if (!data.content) return null;
+		const data = JSON.parse(stdout) as { content?: string; encoding?: string };
+		if (!data.content) return null;
 
-    return Buffer.from(data.content, data.encoding === "base64" ? "base64" : "utf-8").toString(
-      "utf-8",
-    );
-  } catch {
-    return null;
-  }
+		return Buffer.from(data.content, data.encoding === 'base64' ? 'base64' : 'utf-8').toString('utf-8');
+	} catch {
+		return null;
+	}
 }
 
 // An open PR the reviewer is part of: asked to review it, has reviewed it,
 // or wrote it.
 export interface InvolvedPr {
-  owner: string;
-  repo: string;
-  number: string;
-  title: string;
-  url: string;
-  author?: string;
-  updatedAt: string;
-  createdAt: string;
-  isDraft: boolean;
-  // GitHub's verdict so far, and each reviewer's latest review.
-  decision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
-  reviews: { state: string; author?: string }[];
-  mine: boolean;
-  // Its review threads not yet resolved, of the first hundred.
-  unresolved: number;
+	owner: string;
+	repo: string;
+	number: string;
+	title: string;
+	url: string;
+	author?: string;
+	updatedAt: string;
+	createdAt: string;
+	isDraft: boolean;
+	// GitHub's verdict so far, and each reviewer's latest review.
+	decision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+	reviews: { state: string; author?: string }[];
+	mine: boolean;
+	// Its review threads not yet resolved, of the first hundred.
+	unresolved: number;
 }
 
 const PR_FIELDS = `number title url updatedAt createdAt isDraft
@@ -245,138 +216,131 @@ const PR_FIELDS = `number title url updatedAt createdAt isDraft
 // Open PRs the reviewer is asked to review by name (not through a team),
 // has reviewed, or wrote - one query, three searches.
 export async function fetchInvolvedPrs(): Promise<InvolvedPr[]> {
-  const search = (q: string) => `search(query: "${q} archived:false", type: ISSUE, first: 50) { nodes { ... on PullRequest { ${PR_FIELDS} } } }`;
-  const query = `query {
-    requested: ${search("is:pr is:open user-review-requested:@me")}
-    reviewed: ${search("is:pr is:open reviewed-by:@me")}
-    mine: ${search("is:pr is:open author:@me")}
+	const search = (q: string) => `search(query: "${q} archived:false", type: ISSUE, first: 50) { nodes { ... on PullRequest { ${PR_FIELDS} } } }`;
+	const query = `query {
+    requested: ${search('is:pr is:open user-review-requested:@me')}
+    reviewed: ${search('is:pr is:open reviewed-by:@me')}
+    mine: ${search('is:pr is:open author:@me')}
   }`;
-  const stdout = await gh(["api", "graphql", "-f", `query=${query}`]);
-  type Node = {
-    number: number;
-    title: string;
-    url: string;
-    updatedAt: string;
-    createdAt: string;
-    isDraft: boolean;
-    repository: { nameWithOwner: string };
-    author: { login: string } | null;
-    reviewDecision: InvolvedPr["decision"];
-    latestReviews: { nodes: { state: string; author: { login: string } | null }[] };
-    reviewThreads: { nodes: { isResolved: boolean }[] };
-  };
-  const data = JSON.parse(stdout).data ?? {};
-  const byKey = new Map<string, InvolvedPr>();
-  for (const [group, mine] of [["requested", false], ["reviewed", false], ["mine", true]] as const) {
-    for (const n of (data[group]?.nodes ?? []) as Node[]) {
-      if (!n?.repository) continue;
-      const [owner, repo] = n.repository.nameWithOwner.split("/");
-      const key = `${owner}/${repo}/${n.number}`;
-      const existing = byKey.get(key);
-      if (existing) {
-        existing.mine ||= mine;
-        continue;
-      }
-      byKey.set(key, {
-        owner,
-        repo,
-        number: String(n.number),
-        title: n.title,
-        url: n.url,
-        author: n.author?.login,
-        updatedAt: n.updatedAt,
-        createdAt: n.createdAt,
-        isDraft: n.isDraft,
-        decision: n.reviewDecision,
-        reviews: n.latestReviews.nodes.map((r) => ({ state: r.state, author: r.author?.login })),
-        mine,
-        unresolved: n.reviewThreads.nodes.filter((t) => !t.isResolved).length,
-      });
-    }
-  }
-  return [...byKey.values()];
+	const stdout = await gh(['api', 'graphql', '-f', `query=${query}`]);
+	type Node = {
+		number: number;
+		title: string;
+		url: string;
+		updatedAt: string;
+		createdAt: string;
+		isDraft: boolean;
+		repository: { nameWithOwner: string };
+		author: { login: string } | null;
+		reviewDecision: InvolvedPr['decision'];
+		latestReviews: { nodes: { state: string; author: { login: string } | null }[] };
+		reviewThreads: { nodes: { isResolved: boolean }[] };
+	};
+	const data = JSON.parse(stdout).data ?? {};
+	const byKey = new Map<string, InvolvedPr>();
+	for (const [group, mine] of [
+		['requested', false],
+		['reviewed', false],
+		['mine', true]
+	] as const) {
+		for (const n of (data[group]?.nodes ?? []) as Node[]) {
+			if (!n?.repository) continue;
+			const [owner, repo] = n.repository.nameWithOwner.split('/');
+			const key = `${owner}/${repo}/${n.number}`;
+			const existing = byKey.get(key);
+			if (existing) {
+				existing.mine ||= mine;
+				continue;
+			}
+			byKey.set(key, {
+				owner,
+				repo,
+				number: String(n.number),
+				title: n.title,
+				url: n.url,
+				author: n.author?.login,
+				updatedAt: n.updatedAt,
+				createdAt: n.createdAt,
+				isDraft: n.isDraft,
+				decision: n.reviewDecision,
+				reviews: n.latestReviews.nodes.map((r) => ({ state: r.state, author: r.author?.login })),
+				mine,
+				unresolved: n.reviewThreads.nodes.filter((t) => !t.isResolved).length
+			});
+		}
+	}
+	return [...byKey.values()];
 }
 
 export interface PrStatus {
-  owner: string;
-  repo: string;
-  number: string;
-  head: string;
-  createdAt: string;
-  // Any activity on it: commits, comments, reviews.
-  updatedAt: string;
-  author?: string;
-  state: "OPEN" | "CLOSED" | "MERGED";
-  // Its review threads not yet resolved, of the first hundred.
-  unresolved: number;
-  // Its latest hundred commits, oldest first.
-  commits: { sha: string; date: string; merge: boolean }[];
+	owner: string;
+	repo: string;
+	number: string;
+	head: string;
+	createdAt: string;
+	// Any activity on it: commits, comments, reviews.
+	updatedAt: string;
+	author?: string;
+	state: 'OPEN' | 'CLOSED' | 'MERGED';
+	// Its review threads not yet resolved, of the first hundred.
+	unresolved: number;
+	// Its latest hundred commits, oldest first.
+	commits: { sha: string; date: string; merge: boolean }[];
 }
 
 // Where several PRs stand on GitHub now, in one query: for the start page,
 // to order by when each was raised and tell which have had new commits.
 export async function fetchPrStatuses(prs: { owner: string; repo: string; number: string }[]): Promise<PrStatus[]> {
-  if (!prs.length) return [];
-  const fields = prs
-    .map(
-      (pr, i) =>
-        `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid authoredDate parents { totalCount } } } } reviewThreads(first: 100) { nodes { isResolved } } } }`,
-    )
-    .join("\n");
-  const stdout = await gh(["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
-    // A PR that's gone or out of reach fails the whole query; its partial
-    // data still comes back on stdout.
-    if (err?.stdout) return err.stdout as string;
-    throw err;
-  });
-  const data = (JSON.parse(stdout).data ?? {}) as Record<
-    string,
-    {
-      pullRequest: {
-        headRefOid: string;
-        createdAt: string;
-        updatedAt: string;
-        state: PrStatus["state"];
-        author: { login: string } | null;
-        commits: { nodes: { commit: { oid: string; authoredDate: string; parents: { totalCount: number } } }[] };
-        reviewThreads: { nodes: { isResolved: boolean }[] };
-      } | null;
-    } | null
-  >;
-  return prs.flatMap((pr, i) => {
-    const found = data[`p${i}`]?.pullRequest;
-    return found
-      ? [
-          {
-            ...pr,
-            head: found.headRefOid,
-            createdAt: found.createdAt,
-            updatedAt: found.updatedAt,
-            author: found.author?.login,
-            state: found.state,
-            commits: found.commits.nodes.map(({ commit }) => ({ sha: commit.oid, date: commit.authoredDate, merge: commit.parents.totalCount > 1 })),
-            unresolved: found.reviewThreads.nodes.filter((t) => !t.isResolved).length,
-          },
-        ]
-      : [];
-  });
+	if (!prs.length) return [];
+	const fields = prs
+		.map(
+			(pr, i) =>
+				`p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid authoredDate parents { totalCount } } } } reviewThreads(first: 100) { nodes { isResolved } } } }`
+		)
+		.join('\n');
+	const stdout = await gh(['api', 'graphql', '-f', `query=query { ${fields} }`]).catch((err) => {
+		// A PR that's gone or out of reach fails the whole query; its partial
+		// data still comes back on stdout.
+		if (err?.stdout) return err.stdout as string;
+		throw err;
+	});
+	const data = (JSON.parse(stdout).data ?? {}) as Record<
+		string,
+		{
+			pullRequest: {
+				headRefOid: string;
+				createdAt: string;
+				updatedAt: string;
+				state: PrStatus['state'];
+				author: { login: string } | null;
+				commits: { nodes: { commit: { oid: string; authoredDate: string; parents: { totalCount: number } } }[] };
+				reviewThreads: { nodes: { isResolved: boolean }[] };
+			} | null;
+		} | null
+	>;
+	return prs.flatMap((pr, i) => {
+		const found = data[`p${i}`]?.pullRequest;
+		return found
+			? [
+					{
+						...pr,
+						head: found.headRefOid,
+						createdAt: found.createdAt,
+						updatedAt: found.updatedAt,
+						author: found.author?.login,
+						state: found.state,
+						commits: found.commits.nodes.map(({ commit }) => ({ sha: commit.oid, date: commit.authoredDate, merge: commit.parents.totalCount > 1 })),
+						unresolved: found.reviewThreads.nodes.filter((t) => !t.isResolved).length
+					}
+				]
+			: [];
+	});
 }
 
 // Files matching a search across a whole repository, from GitHub's code
 // search - which covers the default branch only, so it's for finding where
 // to look, not what the PR's head says.
 export async function searchRepoCode(owner: string, repo: string, query: string): Promise<string[]> {
-  const stdout = await gh([
-    "api",
-    "-X",
-    "GET",
-    "search/code",
-    "-f",
-    `q=${query} repo:${owner}/${repo}`,
-    "-f",
-    "per_page=50",
-    "--jq",
-    ".items[].path",
-  ]);
-  return stdout.split("\n").filter(Boolean);
+	const stdout = await gh(['api', '-X', 'GET', 'search/code', '-f', `q=${query} repo:${owner}/${repo}`, '-f', 'per_page=50', '--jq', '.items[].path']);
+	return stdout.split('\n').filter(Boolean);
 }

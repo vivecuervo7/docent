@@ -69,8 +69,7 @@
 				e.preventDefault();
 				send(e.metaKey || e.ctrlKey ? modKind : 'ask');
 			} else if (e.key === 'Escape' && onescape) onescape();
-		}}
-	></textarea>
+		}}></textarea>
 	{#if actionsAlways || value.trim()}
 		<div class="foot">
 			<span class="faint">Enter to ask · {MOD}Enter to {secondLabel.toLowerCase()}</span>

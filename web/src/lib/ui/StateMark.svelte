@@ -16,15 +16,8 @@
 	>
 {:else if state === 'now'}
 	<svg width={size} height={size} viewBox="0 0 18 18" aria-hidden="true"
-		><circle cx="9" cy="9" r="8" stroke="var(--text)" stroke-width="2" fill="none" /><circle
-			cx="9"
-			cy="9"
-			r="3.5"
-			fill="var(--text)"
-		/></svg
+		><circle cx="9" cy="9" r="8" stroke="var(--text)" stroke-width="2" fill="none" /><circle cx="9" cy="9" r="3.5" fill="var(--text)" /></svg
 	>
 {:else}
-	<svg width={size} height={size} viewBox="0 0 18 18" aria-hidden="true"
-		><circle cx="9" cy="9" r="8" stroke="var(--todo)" stroke-width="2" fill="none" /></svg
-	>
+	<svg width={size} height={size} viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" stroke="var(--todo)" stroke-width="2" fill="none" /></svg>
 {/if}

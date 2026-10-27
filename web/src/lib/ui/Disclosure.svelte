@@ -3,12 +3,7 @@
 	// A heading that shows or hides what's under it, with how many are there:
 	// small capitals to sit among lists, or a serif heading to lead a section.
 	// The page shows what's under it while `open`.
-	let {
-		open = $bindable(false),
-		label,
-		count,
-		look = 'caps'
-	}: { open?: boolean; label: string; count?: number; look?: 'caps' | 'heading' } = $props();
+	let { open = $bindable(false), label, count, look = 'caps' }: { open?: boolean; label: string; count?: number; look?: 'caps' | 'heading' } = $props();
 </script>
 
 <button class="disclosure {look}" aria-expanded={open} onclick={() => (open = !open)}>

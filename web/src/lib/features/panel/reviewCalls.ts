@@ -2,16 +2,14 @@ import { prUrl, readOk, sendJson } from '../../api/client';
 import type { AgentReview, PrRef } from '../../types';
 
 // The PR's agent reviewers each have their own review on the backend.
-const reviewUrl = (ref: PrRef, reviewer: string, action?: string) =>
-	`${prUrl(ref)}/agent-review${action ? `/${action}` : ''}?reviewer=${reviewer}`;
+const reviewUrl = (ref: PrRef, reviewer: string, action?: string) => `${prUrl(ref)}/agent-review${action ? `/${action}` : ''}?reviewer=${reviewer}`;
 
 export async function getAgentReview(ref: PrRef, reviewer: string): Promise<AgentReview | null> {
 	return (await readOk<{ review: AgentReview | null }>(await fetch(reviewUrl(ref, reviewer)))).review;
 }
 
 export async function endAgentReview(ref: PrRef, reviewer: string, action: 'stop' | 'finish'): Promise<AgentReview | null> {
-	return (await readOk<{ review: AgentReview | null }>(await fetch(reviewUrl(ref, reviewer, action), { method: 'POST' })))
-		.review;
+	return (await readOk<{ review: AgentReview | null }>(await fetch(reviewUrl(ref, reviewer, action), { method: 'POST' }))).review;
 }
 
 // Lets the backend forget a review that's over; `force` stops a running one

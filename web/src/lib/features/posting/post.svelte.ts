@@ -87,28 +87,26 @@ export class ReviewPost {
 		this.#asking = { pending: true };
 		try {
 			const res = await sendJson(this.#url('prepare'), {
-					model: this.#session.record.model,
-					candidates: candidates.map(({ item, source }) => ({
-						id: item.id,
-						source: source === 'yours' ? 'yours' : 'agent',
-						location: item.path
-							? `${item.path}${item.start && item.end ? ` ${describeLines(item.start, item.end)}` : ''}`
-							: 'the PR as a whole',
-						body: item.body,
-						inline: this.isInline(item),
-						...(item.asWritten ? { asWritten: true } : {}),
-						...(item.speculative ? { speculative: item.speculative } : {}),
-						...(item.onPr ? { onPr: item.onPr } : {}),
-						...(item.severity ? { severity: item.severity } : {}),
-						...this.#discussionOf(source, item)
-					})),
-					// External reviewers' own overall recommendations, to weigh.
-					verdicts: this.#session.record.agentReviewers.flatMap((a) =>
-						a.lastRun?.verdict ? [{ who: reviewerName(this.#session.record, a.id), ...a.lastRun.verdict }] : []
-					),
-					input: { candidates: candidates.map(({ item }) => item.id) },
-					...(this.#session.round !== null ? { round: this.#session.round } : {})
-				});
+				model: this.#session.record.model,
+				candidates: candidates.map(({ item, source }) => ({
+					id: item.id,
+					source: source === 'yours' ? 'yours' : 'agent',
+					location: item.path ? `${item.path}${item.start && item.end ? ` ${describeLines(item.start, item.end)}` : ''}` : 'the PR as a whole',
+					body: item.body,
+					inline: this.isInline(item),
+					...(item.asWritten ? { asWritten: true } : {}),
+					...(item.speculative ? { speculative: item.speculative } : {}),
+					...(item.onPr ? { onPr: item.onPr } : {}),
+					...(item.severity ? { severity: item.severity } : {}),
+					...this.#discussionOf(source, item)
+				})),
+				// External reviewers' own overall recommendations, to weigh.
+				verdicts: this.#session.record.agentReviewers.flatMap((a) =>
+					a.lastRun?.verdict ? [{ who: reviewerName(this.#session.record, a.id), ...a.lastRun.verdict }] : []
+				),
+				input: { candidates: candidates.map(({ item }) => item.id) },
+				...(this.#session.round !== null ? { round: this.#session.round } : {})
+			});
 			await readOk(res);
 			await this.#session.reload();
 			this.#asking = {};
@@ -124,81 +122,77 @@ export class ReviewPost {
 		const ids = (job.input as { candidates?: string[] } | undefined)?.candidates ?? [];
 		const candidates = ids.flatMap((id) => this.candidates.filter((c) => c.item.id === id));
 		const prepared = job.result as {
-				comments: { from: string[]; body: string }[];
-				dropped: { from: string[]; reason: string }[];
-				body: string;
-				event?: ReviewEvent;
-				eventReason?: string;
-				also?: { from: string; path: string; startLine: number; endLine: number; body: string }[];
-			};
-			// The suggestion, where GitHub allows it: not approving or requesting
-			// changes on your own PR.
-			const own = !!this.people && this.people.viewer === this.people.author;
-			const suggested = prepared.event ? { event: prepared.event, reason: prepared.eventReason } : undefined;
-			const byId = new Map(candidates.map((c) => [c.item.id, c.item]));
-			const yours = new Set(candidates.filter((c) => c.source === 'yours').map((c) => c.item.id));
-			const place = (item: FeedbackItem | undefined) => ({ path: item?.path, start: item?.start, end: item?.end });
-			const alone = (i: FeedbackItem) => ({ id: crypto.randomUUID(), body: i.body, included: true, from: [i.id], ...place(i) });
-			const comments = prepared.comments.flatMap(({ from, body }) => {
-				const items = from.map((id) => byId.get(id)).filter((i): i is FeedbackItem => !!i);
-				const own = items.find((i) => i.asWritten) ?? items.find((i) => yours.has(i.id));
-				if (!own) {
-					// Sits on the lines of the first item it came from that has any.
-					return [{ id: crypto.randomUUID(), body, included: true, from, ...place(items.find((i) => i.path)) }];
-				}
-				// With one of yours in it, it stays on your lines, whatever the
-				// model listed first. Anything folded in from other lines goes back
-				// to being its own comment there, in its own words.
-				const apart = items.filter((i) => !sameLines(i, own));
-				const kept = items.filter((i) => !apart.includes(i));
-				// Comments you wrote go out in your words: reworded, they're
-				// put back as you wrote them.
-				const written = kept.filter((i) => i.asWritten);
-				const words = written.every((i) => body.includes(i.body)) ? body : written.map((i) => i.body).join('\n\n');
-				return [{ id: crypto.randomUUID(), body: words, included: true, from: kept.map((i) => i.id), ...place(own) }, ...apart.map(alone)];
-			});
-			// A point concluded to apply elsewhere too, raised there as well, in a
-			// file the PR changes.
-			const also = (prepared.also ?? [])
-				.filter((a) => this.#session.files.some((f) => f.filename === a.path))
-				.map((a) => ({
-					id: crypto.randomUUID(),
-					body: a.body,
-					included: true,
-					from: [a.from],
-					path: a.path,
-					start: { side: 'new' as const, line: a.startLine },
-					end: { side: 'new' as const, line: a.endLine }
-				}));
-			// Comments you wrote are never left out, however already said.
-			const placed = new Set(comments.flatMap((c) => c.from));
-			const missed = candidates.filter((c) => c.item.asWritten && !placed.has(c.item.id)).map((c) => c.item);
-			const review: ReviewDraft = {
-				preparedAt: Date.now(),
-				basedOn: candidates.map((c) => c.item.id),
-				comments: [...comments, ...missed.map(alone), ...also],
-				dropped: prepared.dropped
-					.map((d) => ({ ...d, from: d.from.filter((id) => !missed.some((i) => i.id === id)) }))
-					.filter((d) => d.from.length),
-				summary: prepared.body,
-				event: suggested && !(own && suggested.event !== 'COMMENT') ? suggested.event : (this.draft?.event ?? 'COMMENT'),
-				...(suggested ? { suggested } : {}),
-				summaryLeftOut: this.draft?.summaryLeftOut
-			};
-			// Once: another page may have made it its own already.
-			await this.#session.update((r) => {
-				if (r.jobs?.prepare?.status !== 'done' || r.jobs.prepare.startedAt !== job.startedAt) return;
-				r.review = review;
-				delete r.jobs.prepare;
-			});
+			comments: { from: string[]; body: string }[];
+			dropped: { from: string[]; reason: string }[];
+			body: string;
+			event?: ReviewEvent;
+			eventReason?: string;
+			also?: { from: string; path: string; startLine: number; endLine: number; body: string }[];
+		};
+		// The suggestion, where GitHub allows it: not approving or requesting
+		// changes on your own PR.
+		const own = !!this.people && this.people.viewer === this.people.author;
+		const suggested = prepared.event ? { event: prepared.event, reason: prepared.eventReason } : undefined;
+		const byId = new Map(candidates.map((c) => [c.item.id, c.item]));
+		const yours = new Set(candidates.filter((c) => c.source === 'yours').map((c) => c.item.id));
+		const place = (item: FeedbackItem | undefined) => ({ path: item?.path, start: item?.start, end: item?.end });
+		const alone = (i: FeedbackItem) => ({ id: crypto.randomUUID(), body: i.body, included: true, from: [i.id], ...place(i) });
+		const comments = prepared.comments.flatMap(({ from, body }) => {
+			const items = from.map((id) => byId.get(id)).filter((i): i is FeedbackItem => !!i);
+			const own = items.find((i) => i.asWritten) ?? items.find((i) => yours.has(i.id));
+			if (!own) {
+				// Sits on the lines of the first item it came from that has any.
+				return [{ id: crypto.randomUUID(), body, included: true, from, ...place(items.find((i) => i.path)) }];
+			}
+			// With one of yours in it, it stays on your lines, whatever the
+			// model listed first. Anything folded in from other lines goes back
+			// to being its own comment there, in its own words.
+			const apart = items.filter((i) => !sameLines(i, own));
+			const kept = items.filter((i) => !apart.includes(i));
+			// Comments you wrote go out in your words: reworded, they're
+			// put back as you wrote them.
+			const written = kept.filter((i) => i.asWritten);
+			const words = written.every((i) => body.includes(i.body)) ? body : written.map((i) => i.body).join('\n\n');
+			return [{ id: crypto.randomUUID(), body: words, included: true, from: kept.map((i) => i.id), ...place(own) }, ...apart.map(alone)];
+		});
+		// A point concluded to apply elsewhere too, raised there as well, in a
+		// file the PR changes.
+		const also = (prepared.also ?? [])
+			.filter((a) => this.#session.files.some((f) => f.filename === a.path))
+			.map((a) => ({
+				id: crypto.randomUUID(),
+				body: a.body,
+				included: true,
+				from: [a.from],
+				path: a.path,
+				start: { side: 'new' as const, line: a.startLine },
+				end: { side: 'new' as const, line: a.endLine }
+			}));
+		// Comments you wrote are never left out, however already said.
+		const placed = new Set(comments.flatMap((c) => c.from));
+		const missed = candidates.filter((c) => c.item.asWritten && !placed.has(c.item.id)).map((c) => c.item);
+		const review: ReviewDraft = {
+			preparedAt: Date.now(),
+			basedOn: candidates.map((c) => c.item.id),
+			comments: [...comments, ...missed.map(alone), ...also],
+			dropped: prepared.dropped.map((d) => ({ ...d, from: d.from.filter((id) => !missed.some((i) => i.id === id)) })).filter((d) => d.from.length),
+			summary: prepared.body,
+			event: suggested && !(own && suggested.event !== 'COMMENT') ? suggested.event : (this.draft?.event ?? 'COMMENT'),
+			...(suggested ? { suggested } : {}),
+			summaryLeftOut: this.draft?.summaryLeftOut
+		};
+		// Once: another page may have made it its own already.
+		await this.#session.update((r) => {
+			if (r.jobs?.prepare?.status !== 'done' || r.jobs.prepare.startedAt !== job.startedAt) return;
+			r.review = review;
+			delete r.jobs.prepare;
+		});
 	}
 
 	// What was said about a finding: the reviewer's questions and the
 	// answers, and the other reviewers who raised the same point.
 	#discussionOf(source: string, item: FeedbackItem): { discussion?: string } {
-		const talk = (item.messages ?? []).map(
-			(m) => `${m.conclusion ? "Reviewer's conclusion" : m.role === 'user' ? 'Reviewer' : 'Answer'}: ${m.text}`
-		);
+		const talk = (item.messages ?? []).map((m) => `${m.conclusion ? "Reviewer's conclusion" : m.role === 'user' ? 'Reviewer' : 'Answer'}: ${m.text}`);
 		const others = groupsOf(this.#session.record)
 			.membersOf(source, item.id)
 			.map((m) => `Another reviewer raised the same point: ${m.item.body}`);
@@ -228,19 +222,27 @@ export class ReviewPost {
 			if (!anchor || !this.isInline(anchor)) {
 				return { ...d, dropped, summary: [d.summary.trim(), text].filter(Boolean).join('\n\n'), summaryLeftOut: false };
 			}
-			const comment = { id: crypto.randomUUID(), body: text, included: true, from: sources.map((i) => i.id), path: anchor.path, start: anchor.start, end: anchor.end };
+			const comment = {
+				id: crypto.randomUUID(),
+				body: text,
+				included: true,
+				from: sources.map((i) => i.id),
+				path: anchor.path,
+				start: anchor.start,
+				end: anchor.end
+			};
 			return { ...d, dropped, comments: [...d.comments, comment] };
 		});
 	}
 
 	#send(draft: ReviewDraft, dryRun: boolean, pending: boolean) {
 		return sendJson(this.#url('post'), {
-				dryRun,
-				pending,
-				event: draft.event,
-				summary: draft.summaryLeftOut ? '' : draft.summary,
-				comments: draft.comments.filter((c) => c.included && c.body.trim()).map(({ body, path, start, end }) => ({ body, path, start, end }))
-			});
+			dryRun,
+			pending,
+			event: draft.event,
+			summary: draft.summaryLeftOut ? '' : draft.summary,
+			comments: draft.comments.filter((c) => c.included && c.body.trim()).map(({ body, path, start, end }) => ({ body, path, start, end }))
+		});
 	}
 
 	// Exactly what posting would send, without sending it.
@@ -274,11 +276,12 @@ export class ReviewPost {
 		} catch (err) {
 			// The post can succeed and its answer still be lost on the way back.
 			// Only report a failure once GitHub confirms nothing arrived.
-			const found = await (pending
-				? this.#pendingReview()
-				: fetch(`${this.#url('posted-since')}?since=${since}`)
-						.then((res) => readOk<{ url: string | null }>(res))
-						.then((r) => r.url)
+			const found = await (
+				pending
+					? this.#pendingReview()
+					: fetch(`${this.#url('posted-since')}?since=${since}`)
+							.then((res) => readOk<{ url: string | null }>(res))
+							.then((r) => r.url)
 			).catch(() => null);
 			if (!found) throw err;
 			await this.#save({ ...draft, posted: { at: Date.now(), url: found, ...(pending ? { pending } : {}) } });

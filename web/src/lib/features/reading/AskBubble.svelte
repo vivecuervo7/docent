@@ -18,9 +18,7 @@
 
 	const session = useSession();
 	const notes = $derived(
-		session.record.notes
-			.filter((n) => (slice ? n.slice === slice.id : !n.path && !n.slice && !n.github))
-			.sort((a, b) => a.createdAt - b.createdAt)
+		session.record.notes.filter((n) => (slice ? n.slice === slice.id : !n.path && !n.slice && !n.github)).sort((a, b) => a.createdAt - b.createdAt)
 	);
 	const latest = $derived(notes.at(-1));
 	const messages = $derived(notes.flatMap((n) => n.messages));
@@ -80,7 +78,10 @@
 	// Clear asks with.
 	$effect(() => {
 		if (!open) return;
-		return onDismiss(() => (open = false), (target) => !!corner?.contains(target) || !!target.closest('[role="dialog"], [role="alertdialog"], .scrim'));
+		return onDismiss(
+			() => (open = false),
+			(target) => !!corner?.contains(target) || !!target.closest('[role="dialog"], [role="alertdialog"], .scrim')
+		);
 	});
 </script>
 
@@ -116,7 +117,10 @@
 					</li>
 				{/each}
 				{#if status.pending}
-					<li class="assistant"><span class="role">Docent</span><p class="status faint"><Spinner size={13} /> Thinking…</p></li>
+					<li class="assistant">
+						<span class="role">Docent</span>
+						<p class="status faint"><Spinner size={13} /> Thinking…</p>
+					</li>
 				{:else if status.error && latest}
 					<li>
 						<p class="status bad">
@@ -139,7 +143,9 @@
 		</div>
 	{/if}
 	<button class="bubble" class:on={open} aria-expanded={open} aria-label="{title}{unread ? ', new answer' : ''}" {title} onclick={() => (open = !open)}>
-		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z" /></svg>
+		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+			><path d="M4 5h16v11H9l-5 4z" /></svg
+		>
 		{#if unread}<span class="dot"></span>{/if}
 	</button>
 </div>

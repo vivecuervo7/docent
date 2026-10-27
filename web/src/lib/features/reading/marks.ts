@@ -141,4 +141,3 @@ export function githubMarksFrom(comments: GitHubComments | null, record: PrRecor
 export function looseGitHubThreads(comments: GitHubComments | null, path: string): GitHubThread[] {
 	return (comments?.threads ?? []).filter((t) => t.path === path && !t.start);
 }
-

@@ -38,9 +38,10 @@ export class Conversations {
 		const now = Date.now();
 		const message: NoteMessage = { role: 'user', text, at: now, ...(comment ? { comment } : {}), ...(prompt ? { prompt } : {}) };
 		const note: Note = { id: crypto.randomUUID(), ...anchor, messages: [message], createdAt: now, readAt: now };
-		this.#s.update((r) => {
-			r.notes = [...r.notes, note];
-		})
+		this.#s
+			.update((r) => {
+				r.notes = [...r.notes, note];
+			})
 			.then(() => (comment ? undefined : this.#requestReply(note.id)))
 			.catch((err) => (this.#asked[note.id] = { error: (err as Error).message }));
 		return note.id;
@@ -49,9 +50,10 @@ export class Conversations {
 	// A comment or a conclusion asks for no reply.
 	sendNote(id: string, text: string, { comment = false, conclusion = false } = {}) {
 		const message: NoteMessage = { role: 'user', text, at: Date.now(), ...(comment ? { comment } : {}), ...(conclusion ? { conclusion } : {}) };
-		this.#s.update((r) => {
-			r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, message] } : n));
-		})
+		this.#s
+			.update((r) => {
+				r.notes = r.notes.map((n) => (n.id === id ? { ...n, messages: [...n.messages, message] } : n));
+			})
 			.then(() => (comment || conclusion ? undefined : this.#requestReply(id)))
 			.catch((err) => (this.#asked[id] = { error: (err as Error).message }));
 	}
@@ -84,18 +86,22 @@ export class Conversations {
 	}
 
 	removeNote(id: string) {
-		this.#s.update((r) => {
-			r.notes = r.notes.filter((n) => n.id !== id);
-		}).catch(() => {});
+		this.#s
+			.update((r) => {
+				r.notes = r.notes.filter((n) => n.id !== id);
+			})
+			.catch(() => {});
 	}
 
 	markNoteRead(id: string) {
 		const note = this.#s.record.notes.find((n) => n.id === id);
 		if (!note || !isUnread(note)) return;
 		const readAt = Date.now();
-		this.#s.update((r) => {
-			r.notes = r.notes.map((n) => (n.id === id ? { ...n, readAt } : n));
-		}).catch(() => {});
+		this.#s
+			.update((r) => {
+				r.notes = r.notes.map((n) => (n.id === id ? { ...n, readAt } : n));
+			})
+			.catch(() => {});
 	}
 
 	// Every file's changes, as far as they fit, for a question about the PR.
@@ -131,24 +137,24 @@ export class Conversations {
 		this.#asked[id] = { pending: true };
 		try {
 			const res = await sendJson(`${prUrl(this.#s.ref)}/notes/reply`, {
-					context: {
-						path: note.path,
-						lines,
-						code,
-						fileDiff: note.path ? (file?.patch ?? code) : note.slice && slice ? this.#sliceChanges(slice) : this.#allChanges(),
-						...(note.slice ? { wholeSlice: true } : {}),
-						prTitle: this.#s.title,
-						prWhat: this.#s.record.summary?.what,
-						sliceTitle: slice?.title,
-						sliceSummary: slice?.summary,
-						...(file?.rangeLines ? { roundLines: lineRanges(file.rangeLines.new) } : {}),
-						...(note.github ? { github: this.githubText(note.github) } : {})
-					},
-					messages: forModel(note.messages),
-					model: this.#s.record.model,
-					target: { note: id },
-					...(this.#s.round !== null ? { round: this.#s.round } : {})
-				});
+				context: {
+					path: note.path,
+					lines,
+					code,
+					fileDiff: note.path ? (file?.patch ?? code) : note.slice && slice ? this.#sliceChanges(slice) : this.#allChanges(),
+					...(note.slice ? { wholeSlice: true } : {}),
+					prTitle: this.#s.title,
+					prWhat: this.#s.record.summary?.what,
+					sliceTitle: slice?.title,
+					sliceSummary: slice?.summary,
+					...(file?.rangeLines ? { roundLines: lineRanges(file.rangeLines.new) } : {}),
+					...(note.github ? { github: this.githubText(note.github) } : {})
+				},
+				messages: forModel(note.messages),
+				model: this.#s.record.model,
+				target: { note: id },
+				...(this.#s.round !== null ? { round: this.#s.round } : {})
+			});
 			await readOk(res);
 			await this.#s.reload();
 			this.#asked[id] = {};
@@ -178,7 +184,8 @@ export class Conversations {
 
 	askAboutFinding(reviewer: string, id: string, text: string, prompt?: string) {
 		const message = { role: 'user' as const, text, at: Date.now(), ...(prompt ? { prompt } : {}) };
-		this.#s.changeFinding(reviewer, id, (item) => ({ ...item, messages: [...(item.messages ?? []), message] }))
+		this.#s
+			.changeFinding(reviewer, id, (item) => ({ ...item, messages: [...(item.messages ?? []), message] }))
 			.then(() => this.#answerFinding(reviewer, id))
 			.catch((err) => (this.#asked[id] = { error: (err as Error).message }));
 	}
@@ -194,7 +201,6 @@ export class Conversations {
 	retryFinding(reviewer: string, id: string) {
 		this.#answerFinding(reviewer, id);
 	}
-
 
 	async #answerFinding(reviewer: string, id: string) {
 		const item = this.#s.record.feedback[reviewer]?.items.find((i) => i.id === id);
@@ -212,42 +218,44 @@ export class Conversations {
 		this.#asked[id] = { pending: true };
 		try {
 			const res = await sendJson(`${prUrl(this.#s.ref)}/notes/reply`, {
-					context: {
-						path: path ?? '',
-						lines: start && end ? lineSpan(start.line, end.line) : '',
-						code: start ? code || '(unchanged lines outside the diff)' : '',
-						fileDiff: path ? (file?.patch ?? code) : everything,
-						prTitle: this.#s.title,
-						prWhat: this.#s.record.summary?.what,
-						sliceTitle: slice?.title,
-						sliceSummary: slice?.summary,
-						finding: {
-							reviewer: reviewerName(this.#s.record, reviewer),
-							body: item.body,
-							rationale: item.rationale,
-							severity: item.severity,
-							// The other reviewers' versions of the point, and what the
-							// editor found, so the answer can weigh them.
-							others: groupsOf(this.#s.record).membersOf(reviewer, id).map(({ reviewer: r, item: m }) => ({
+				context: {
+					path: path ?? '',
+					lines: start && end ? lineSpan(start.line, end.line) : '',
+					code: start ? code || '(unchanged lines outside the diff)' : '',
+					fileDiff: path ? (file?.patch ?? code) : everything,
+					prTitle: this.#s.title,
+					prWhat: this.#s.record.summary?.what,
+					sliceTitle: slice?.title,
+					sliceSummary: slice?.summary,
+					finding: {
+						reviewer: reviewerName(this.#s.record, reviewer),
+						body: item.body,
+						rationale: item.rationale,
+						severity: item.severity,
+						// The other reviewers' versions of the point, and what the
+						// editor found, so the answer can weigh them.
+						others: groupsOf(this.#s.record)
+							.membersOf(reviewer, id)
+							.map(({ reviewer: r, item: m }) => ({
 								reviewer: reviewerName(this.#s.record, r),
 								body: m.body,
 								severity: m.severity,
 								disputed: m.disputed
 							})),
-							editor: {
-								impact: item.impact,
-								checked: item.checked,
-								speculative: item.speculative,
-								onPr: item.onPr,
-								setAside: item.setAside
-							}
+						editor: {
+							impact: item.impact,
+							checked: item.checked,
+							speculative: item.speculative,
+							onPr: item.onPr,
+							setAside: item.setAside
 						}
-					},
-					messages: forModel(item.messages),
-					model: this.#answeringModel(ranWith),
-					target: { finding: { reviewer, id } },
-					...(this.#s.round !== null ? { round: this.#s.round } : {})
-				});
+					}
+				},
+				messages: forModel(item.messages),
+				model: this.#answeringModel(ranWith),
+				target: { finding: { reviewer, id } },
+				...(this.#s.round !== null ? { round: this.#s.round } : {})
+			});
 			await readOk(res);
 			await this.#s.reload();
 			this.#asked[id] = {};

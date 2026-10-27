@@ -1,129 +1,128 @@
-import { spawn } from "node:child_process";
-import { lineSpan } from "../../types.js";
-import { gh, viewerLogin } from "../../github/gh.server.js";
-import { conversationText, fetchPrConversation, fetchPrFiles } from "../../github/github.server.js";
-import { chatWithTool } from "../../models/modelProvider.server.js";
-import { inLane } from "../../models/lanes.server.js";
-import { commentableLines } from "../../github/prDiff.server.js";
-
+import { spawn } from 'node:child_process';
+import { lineSpan } from '../../types.js';
+import { gh, viewerLogin } from '../../github/gh.server.js';
+import { conversationText, fetchPrConversation, fetchPrFiles } from '../../github/github.server.js';
+import { chatWithTool } from '../../models/modelProvider.server.js';
+import { inLane } from '../../models/lanes.server.js';
+import { commentableLines } from '../../github/prDiff.server.js';
 
 // The last step: combining the comments the reviewer kept into one review,
 // then posting it. Preparing uses the model; posting doesn't.
 
 export interface Candidate {
-  id: string;
-  source: "yours" | "agent";
-  location: string;
-  body: string;
-  // Whether it can be posted on its lines. The rest can only go in the
-  // review's body.
-  inline: boolean;
-  // The reviewer's questions about it and the answers, when they asked.
-  discussion?: string;
-  // The reviewer's own words, to post as written.
-  asWritten?: boolean;
-  // What it assumes, when it rests on something nobody has confirmed.
-  speculative?: string;
-  // The PR thread that already raises its point.
-  onPr?: string;
-  severity?: string;
+	id: string;
+	source: 'yours' | 'agent';
+	location: string;
+	body: string;
+	// Whether it can be posted on its lines. The rest can only go in the
+	// review's body.
+	inline: boolean;
+	// The reviewer's questions about it and the answers, when they asked.
+	discussion?: string;
+	// The reviewer's own words, to post as written.
+	asWritten?: boolean;
+	// What it assumes, when it rests on something nobody has confirmed.
+	speculative?: string;
+	// The PR thread that already raises its point.
+	onPr?: string;
+	severity?: string;
 }
 
 // An external reviewer's own overall recommendation.
 export interface ReviewerVerdict {
-  who: string;
-  event: ReviewEvent;
-  reason?: string;
+	who: string;
+	event: ReviewEvent;
+	reason?: string;
 }
 
 export interface PreparedComment {
-  from: string[];
-  body: string;
+	from: string[];
+	body: string;
 }
 
 // A candidate's point raised again somewhere else, because the reviewer
 // concluded it applies there too.
 export interface AlsoComment {
-  from: string;
-  path: string;
-  startLine: number;
-  endLine: number;
-  body: string;
+	from: string;
+	path: string;
+	startLine: number;
+	endLine: number;
+	body: string;
 }
 
 export interface DroppedComment {
-  from: string[];
-  reason: string;
+	from: string[];
+	reason: string;
 }
 
 export interface PreparedReview {
-  comments: PreparedComment[];
-  dropped: DroppedComment[];
-  // The review's own text: an overall summary, with the points that can't go
-  // on lines written into it.
-  body: string;
-  // The candidates written into the body.
-  inBody: string[];
-  also: AlsoComment[];
-  // How to submit it, and why, as recommended.
-  event?: ReviewEvent;
-  eventReason?: string;
+	comments: PreparedComment[];
+	dropped: DroppedComment[];
+	// The review's own text: an overall summary, with the points that can't go
+	// on lines written into it.
+	body: string;
+	// The candidates written into the body.
+	inBody: string[];
+	also: AlsoComment[];
+	// How to submit it, and why, as recommended.
+	event?: ReviewEvent;
+	eventReason?: string;
 }
 
 const REPORT_REVIEW_TOOL = {
-  name: "report_review",
-  description: "Report the review to post.",
-  parameters: {
-    type: "object",
-    properties: {
-      comments: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            from: { type: "array", items: { type: "string" }, description: "Ids of the candidates it covers." },
-            body: { type: "string" },
-          },
-          required: ["from", "body"],
-        },
-      },
-      dropped: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            from: { type: "array", items: { type: "string" } },
-            reason: { type: "string", description: "Who already raised it, or why it's left out." },
-          },
-          required: ["from", "reason"],
-        },
-      },
-      also: {
-        type: "array",
-        description: "A candidate's point raised again at another place, where the reviewer's conclusion says it applies too.",
-        items: {
-          type: "object",
-          properties: {
-            from: { type: "string", description: "The id of the candidate whose point it is." },
-            path: { type: "string" },
-            start_line: { type: "integer", description: "New-file line number." },
-            end_line: { type: "integer", description: "New-file line number." },
-            body: { type: "string" },
-          },
-          required: ["from", "path", "start_line", "end_line", "body"],
-        },
-      },
-      body: { type: "string" },
-      in_body: {
-        type: "array",
-        items: { type: "string" },
-        description: "Ids of the no-lines candidates written into the body.",
-      },
-      event: { type: "string", enum: ["COMMENT", "APPROVE", "REQUEST_CHANGES"], description: "How to submit the review." },
-      event_reason: { type: "string", description: "What decided it, in a short sentence naming the comment or reviewer." },
-    },
-    required: ["comments", "dropped", "body", "in_body", "event"],
-  },
+	name: 'report_review',
+	description: 'Report the review to post.',
+	parameters: {
+		type: 'object',
+		properties: {
+			comments: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						from: { type: 'array', items: { type: 'string' }, description: 'Ids of the candidates it covers.' },
+						body: { type: 'string' }
+					},
+					required: ['from', 'body']
+				}
+			},
+			dropped: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						from: { type: 'array', items: { type: 'string' } },
+						reason: { type: 'string', description: "Who already raised it, or why it's left out." }
+					},
+					required: ['from', 'reason']
+				}
+			},
+			also: {
+				type: 'array',
+				description: "A candidate's point raised again at another place, where the reviewer's conclusion says it applies too.",
+				items: {
+					type: 'object',
+					properties: {
+						from: { type: 'string', description: 'The id of the candidate whose point it is.' },
+						path: { type: 'string' },
+						start_line: { type: 'integer', description: 'New-file line number.' },
+						end_line: { type: 'integer', description: 'New-file line number.' },
+						body: { type: 'string' }
+					},
+					required: ['from', 'path', 'start_line', 'end_line', 'body']
+				}
+			},
+			body: { type: 'string' },
+			in_body: {
+				type: 'array',
+				items: { type: 'string' },
+				description: 'Ids of the no-lines candidates written into the body.'
+			},
+			event: { type: 'string', enum: ['COMMENT', 'APPROVE', 'REQUEST_CHANGES'], description: 'How to submit the review.' },
+			event_reason: { type: 'string', description: 'What decided it, in a short sentence naming the comment or reviewer.' }
+		},
+		required: ['comments', 'dropped', 'body', 'in_body', 'event']
+	}
 };
 
 const SYSTEM_PROMPT = `You are preparing a code review to post on a pull request. You get the \
@@ -165,100 +164,102 @@ only nits the author can take or leave; COMMENT otherwise. Where other reviewers
 overall verdict, weigh it. Say in event_reason what decided it.`;
 
 export function prepareReview(
-  owner: string,
-  repo: string,
-  number: string,
-  candidates: Candidate[],
-  signal: AbortSignal,
-  model?: string,
-  verdicts: ReviewerVerdict[] = [],
+	owner: string,
+	repo: string,
+	number: string,
+	candidates: Candidate[],
+	signal: AbortSignal,
+	model?: string,
+	verdicts: ReviewerVerdict[] = []
 ): Promise<PreparedReview> {
-  return inLane(async () => {
-    signal.throwIfAborted();
-    const conversation = await fetchPrConversation(owner, repo, number);
-    const listed = candidates
-      .map(
-        (c) =>
-          `Candidate ${c.id} (${c.asWritten ? "the reviewer's, as written" : c.source === "yours" ? "the reviewer's" : "automated review"}${c.severity ? `, ${c.severity}` : ""}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ""}${c.onPr ? `\n\nAlready on the PR: ${c.onPr}` : ""}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ""}`,
-      )
-      .join("\n\n");
-    const call = await chatWithTool(
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Candidate comments:\n\n${listed}\n\nAlready said on the PR:\n\n${conversationText(conversation)}${
-            verdicts.length
-              ? `\n\nOther reviewers' overall verdicts:\n${verdicts.map((v) => `- ${v.who}: ${v.event}${v.reason ? ` - ${v.reason}` : ""}`).join("\n")}`
-              : ""
-          }`,
-        },
-      ],
-      REPORT_REVIEW_TOOL,
-      signal,
-      model,
-    );
-    return settle(candidates, call.arguments as Record<string, unknown>);
-  }, model);
+	return inLane(async () => {
+		signal.throwIfAborted();
+		const conversation = await fetchPrConversation(owner, repo, number);
+		const listed = candidates
+			.map(
+				(c) =>
+					`Candidate ${c.id} (${c.asWritten ? "the reviewer's, as written" : c.source === 'yours' ? "the reviewer's" : 'automated review'}${c.severity ? `, ${c.severity}` : ''}, ${c.inline ? c.location : `no lines - ${c.location}`}):\n${c.body}${c.speculative ? `\n\nSpeculative - it assumes: ${c.speculative}` : ''}${c.onPr ? `\n\nAlready on the PR: ${c.onPr}` : ''}${c.discussion ? `\n\nThe reviewer discussed it:\n${c.discussion}` : ''}`
+			)
+			.join('\n\n');
+		const call = await chatWithTool(
+			[
+				{ role: 'system', content: SYSTEM_PROMPT },
+				{
+					role: 'user',
+					content: `Candidate comments:\n\n${listed}\n\nAlready said on the PR:\n\n${conversationText(conversation)}${
+						verdicts.length
+							? `\n\nOther reviewers' overall verdicts:\n${verdicts.map((v) => `- ${v.who}: ${v.event}${v.reason ? ` - ${v.reason}` : ''}`).join('\n')}`
+							: ''
+					}`
+				}
+			],
+			REPORT_REVIEW_TOOL,
+			signal,
+			model
+		);
+		return settle(candidates, call.arguments as Record<string, unknown>);
+	}, model);
 }
 
 // Holds the model to its instructions: unknown ids are ignored, a candidate
 // can only be used once, and any it didn't mention are kept as they were -
 // nothing the reviewer ticked disappears without a reason shown.
 function settle(candidates: Candidate[], raw: Record<string, unknown>): PreparedReview {
-  const known = new Set(candidates.map((c) => c.id));
-  const used = new Set<string>();
-  const take = (ids: unknown): string[] =>
-    (Array.isArray(ids) ? ids : []).filter((id): id is string => typeof id === "string" && known.has(id) && !used.has(id)).map((id) => {
-      used.add(id);
-      return id;
-    });
+	const known = new Set(candidates.map((c) => c.id));
+	const used = new Set<string>();
+	const take = (ids: unknown): string[] =>
+		(Array.isArray(ids) ? ids : [])
+			.filter((id): id is string => typeof id === 'string' && known.has(id) && !used.has(id))
+			.map((id) => {
+				used.add(id);
+				return id;
+			});
 
-  const inBody = take(raw.in_body).filter((id) => {
-    // Only no-lines candidates belong in the body; anything else stays a
-    // comment on its lines.
-    if (candidates.find((c) => c.id === id)?.inline) {
-      used.delete(id);
-      return false;
-    }
-    return true;
-  });
-  const comments: PreparedComment[] = [];
-  for (const entry of Array.isArray(raw.comments) ? raw.comments : []) {
-    const { from, body } = (entry ?? {}) as { from?: unknown; body?: unknown };
-    const ids = take(from);
-    if (ids.length > 0 && typeof body === "string" && body.trim()) comments.push({ from: ids, body: body.trim() });
-    else ids.forEach((id) => used.delete(id));
-  }
-  const dropped: DroppedComment[] = [];
-  for (const entry of Array.isArray(raw.dropped) ? raw.dropped : []) {
-    const { from, reason } = (entry ?? {}) as { from?: unknown; reason?: unknown };
-    const ids = take(from);
-    if (ids.length > 0) dropped.push({ from: ids, reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Left out." });
-  }
-  // Each names a candidate it repeats and a place; the page checks the
-  // place against the diff.
-  const also: AlsoComment[] = (Array.isArray(raw.also) ? raw.also : []).flatMap((entry): AlsoComment[] => {
-    const { from, path, start_line, end_line, body } = (entry ?? {}) as Record<string, unknown>;
-    if (typeof from !== "string" || !known.has(from) || typeof path !== "string" || !path.trim()) return [];
-    if (!Number.isInteger(start_line) || !Number.isInteger(end_line) || typeof body !== "string" || !body.trim()) return [];
-    const [a, b] = [start_line as number, end_line as number].sort((x, y) => x - y);
-    return [{ from, path: path.trim(), startLine: a, endLine: b, body: body.trim() }];
-  });
-  let body = typeof raw.body === "string" ? raw.body.trim() : "";
-  for (const candidate of candidates) {
-    if (used.has(candidate.id)) continue;
-    // Missed by the model: kept as written, where it can go.
-    if (candidate.inline) {
-      comments.push({ from: [candidate.id], body: candidate.body });
-    } else {
-      body = [body, candidate.body].filter(Boolean).join("\n\n");
-      inBody.push(candidate.id);
-    }
-  }
-  const event = raw.event === "APPROVE" || raw.event === "REQUEST_CHANGES" || raw.event === "COMMENT" ? raw.event : undefined;
-  const eventReason = typeof raw.event_reason === "string" && raw.event_reason.trim() ? raw.event_reason.trim() : undefined;
-  return { comments, dropped, body, inBody, also, ...(event ? { event } : {}), ...(eventReason ? { eventReason } : {}) };
+	const inBody = take(raw.in_body).filter((id) => {
+		// Only no-lines candidates belong in the body; anything else stays a
+		// comment on its lines.
+		if (candidates.find((c) => c.id === id)?.inline) {
+			used.delete(id);
+			return false;
+		}
+		return true;
+	});
+	const comments: PreparedComment[] = [];
+	for (const entry of Array.isArray(raw.comments) ? raw.comments : []) {
+		const { from, body } = (entry ?? {}) as { from?: unknown; body?: unknown };
+		const ids = take(from);
+		if (ids.length > 0 && typeof body === 'string' && body.trim()) comments.push({ from: ids, body: body.trim() });
+		else ids.forEach((id) => used.delete(id));
+	}
+	const dropped: DroppedComment[] = [];
+	for (const entry of Array.isArray(raw.dropped) ? raw.dropped : []) {
+		const { from, reason } = (entry ?? {}) as { from?: unknown; reason?: unknown };
+		const ids = take(from);
+		if (ids.length > 0) dropped.push({ from: ids, reason: typeof reason === 'string' && reason.trim() ? reason.trim() : 'Left out.' });
+	}
+	// Each names a candidate it repeats and a place; the page checks the
+	// place against the diff.
+	const also: AlsoComment[] = (Array.isArray(raw.also) ? raw.also : []).flatMap((entry): AlsoComment[] => {
+		const { from, path, start_line, end_line, body } = (entry ?? {}) as Record<string, unknown>;
+		if (typeof from !== 'string' || !known.has(from) || typeof path !== 'string' || !path.trim()) return [];
+		if (!Number.isInteger(start_line) || !Number.isInteger(end_line) || typeof body !== 'string' || !body.trim()) return [];
+		const [a, b] = [start_line as number, end_line as number].sort((x, y) => x - y);
+		return [{ from, path: path.trim(), startLine: a, endLine: b, body: body.trim() }];
+	});
+	let body = typeof raw.body === 'string' ? raw.body.trim() : '';
+	for (const candidate of candidates) {
+		if (used.has(candidate.id)) continue;
+		// Missed by the model: kept as written, where it can go.
+		if (candidate.inline) {
+			comments.push({ from: [candidate.id], body: candidate.body });
+		} else {
+			body = [body, candidate.body].filter(Boolean).join('\n\n');
+			inBody.push(candidate.id);
+		}
+	}
+	const event = raw.event === 'APPROVE' || raw.event === 'REQUEST_CHANGES' || raw.event === 'COMMENT' ? raw.event : undefined;
+	const eventReason = typeof raw.event_reason === 'string' && raw.event_reason.trim() ? raw.event_reason.trim() : undefined;
+	return { comments, dropped, body, inBody, also, ...(event ? { event } : {}), ...(eventReason ? { eventReason } : {}) };
 }
 
 export const fetchViewer = viewerLogin;
@@ -266,67 +267,56 @@ export const fetchViewer = viewerLogin;
 // The reviewer's latest review on the PR submitted since a time, if any. A
 // post that fails without a clear answer (the connection dropped, say) may
 // still have gone through, and this is how to tell.
-export async function findReviewSince(
-  owner: string,
-  repo: string,
-  number: string,
-  since: number,
-): Promise<string | null> {
-  const [viewer, stdout] = await Promise.all([
-    fetchViewer(),
-    gh(["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
-  ]);
-  const reviews = JSON.parse(stdout) as { user: { login?: string } | null; submitted_at: string | null; html_url: string }[];
-  const mine = reviews
-    .filter((r) => r.user?.login === viewer && r.submitted_at && Date.parse(r.submitted_at) >= since)
-    .sort((a, b) => Date.parse(b.submitted_at!) - Date.parse(a.submitted_at!));
-  return mine[0]?.html_url ?? null;
+export async function findReviewSince(owner: string, repo: string, number: string, since: number): Promise<string | null> {
+	const [viewer, stdout] = await Promise.all([fetchViewer(), gh(['api', '--paginate', `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`])]);
+	const reviews = JSON.parse(stdout) as { user: { login?: string } | null; submitted_at: string | null; html_url: string }[];
+	const mine = reviews
+		.filter((r) => r.user?.login === viewer && r.submitted_at && Date.parse(r.submitted_at) >= since)
+		.sort((a, b) => Date.parse(b.submitted_at!) - Date.parse(a.submitted_at!));
+	return mine[0]?.html_url ?? null;
 }
 
 // The reviewer's pending review on the PR, if they have one. GitHub allows
 // only one at a time, so another can't be left until it's submitted.
 export async function findPendingReview(owner: string, repo: string, number: string): Promise<string | null> {
-  const [viewer, stdout] = await Promise.all([
-    fetchViewer(),
-    gh(["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
-  ]);
-  const reviews = JSON.parse(stdout) as { user: { login?: string } | null; state: string; html_url: string }[];
-  return reviews.find((r) => r.user?.login === viewer && r.state === "PENDING")?.html_url ?? null;
+	const [viewer, stdout] = await Promise.all([fetchViewer(), gh(['api', '--paginate', `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`])]);
+	const reviews = JSON.parse(stdout) as { user: { login?: string } | null; state: string; html_url: string }[];
+	return reviews.find((r) => r.user?.login === viewer && r.state === 'PENDING')?.html_url ?? null;
 }
 
-export type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
+export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
 
 export interface CommentToPost {
-  body: string;
-  path?: string;
-  start?: { side: "old" | "new"; line: number };
-  end?: { side: "old" | "new"; line: number };
+	body: string;
+	path?: string;
+	start?: { side: 'old' | 'new'; line: number };
+	end?: { side: 'old' | 'new'; line: number };
 }
 
 interface InlineComment {
-  path: string;
-  body: string;
-  line: number;
-  side: "LEFT" | "RIGHT";
-  start_line?: number;
-  start_side?: "LEFT" | "RIGHT";
+	path: string;
+	body: string;
+	line: number;
+	side: 'LEFT' | 'RIGHT';
+	start_line?: number;
+	start_side?: 'LEFT' | 'RIGHT';
 }
 
 // Without an event, the review is left pending: only the reviewer sees it,
 // and they submit it on GitHub, choosing the outcome there.
 export interface ReviewPayload {
-  event?: ReviewEvent;
-  body: string;
-  comments: InlineComment[];
+	event?: ReviewEvent;
+	body: string;
+	comments: InlineComment[];
 }
 
-const githubSide = (side: "old" | "new") => (side === "old" ? "LEFT" : "RIGHT");
+const githubSide = (side: 'old' | 'new') => (side === 'old' ? 'LEFT' : 'RIGHT');
 
 function describeLocation(comment: CommentToPost): string {
-  if (!comment.path) return "";
-  if (!comment.start || !comment.end) return `**\`${comment.path}\`:** `;
-  const lines = lineSpan(comment.start.line, comment.end.line);
-  return `**\`${comment.path}\`, ${lines}:** `;
+	if (!comment.path) return '';
+	if (!comment.start || !comment.end) return `**\`${comment.path}\`:** `;
+	const lines = lineSpan(comment.start.line, comment.end.line);
+	return `**\`${comment.path}\`, ${lines}:** `;
 }
 
 // Builds exactly what gets sent. Comments on lines in the diff go inline;
@@ -335,63 +325,58 @@ function describeLocation(comment: CommentToPost): string {
 // the reviewer's own word on the PR, and those on expanded lines or a whole
 // file follow the summary.
 export async function buildReviewPayload(
-  owner: string,
-  repo: string,
-  number: string,
-  event: ReviewEvent | undefined,
-  summary: string,
-  comments: CommentToPost[],
+	owner: string,
+	repo: string,
+	number: string,
+	event: ReviewEvent | undefined,
+	summary: string,
+	comments: CommentToPost[]
 ): Promise<ReviewPayload> {
-  const files = await fetchPrFiles(owner, repo, number);
-  const inline: InlineComment[] = [];
-  const lead: string[] = [];
-  const inBody: string[] = [];
-  for (const comment of comments) {
-    const file = comment.path ? files.find((f) => f.filename === comment.path) : undefined;
-    const { start, end } = comment;
-    if (file && start && end) {
-      const lines = commentableLines(file);
-      if (lines[start.side].has(start.line) && lines[end.side].has(end.line)) {
-        const single = start.side === end.side && start.line === end.line;
-        inline.push({
-          path: file.filename,
-          body: comment.body,
-          line: end.line,
-          side: githubSide(end.side),
-          ...(single ? {} : { start_line: start.line, start_side: githubSide(start.side) }),
-        });
-        continue;
-      }
-    }
-    if (comment.path) inBody.push(`${describeLocation(comment)}${comment.body}`);
-    else lead.push(comment.body);
-  }
-  const body = [...lead, summary.trim(), ...inBody].filter(Boolean).join("\n\n");
-  return { ...(event ? { event } : {}), body, comments: inline };
+	const files = await fetchPrFiles(owner, repo, number);
+	const inline: InlineComment[] = [];
+	const lead: string[] = [];
+	const inBody: string[] = [];
+	for (const comment of comments) {
+		const file = comment.path ? files.find((f) => f.filename === comment.path) : undefined;
+		const { start, end } = comment;
+		if (file && start && end) {
+			const lines = commentableLines(file);
+			if (lines[start.side].has(start.line) && lines[end.side].has(end.line)) {
+				const single = start.side === end.side && start.line === end.line;
+				inline.push({
+					path: file.filename,
+					body: comment.body,
+					line: end.line,
+					side: githubSide(end.side),
+					...(single ? {} : { start_line: start.line, start_side: githubSide(start.side) })
+				});
+				continue;
+			}
+		}
+		if (comment.path) inBody.push(`${describeLocation(comment)}${comment.body}`);
+		else lead.push(comment.body);
+	}
+	const body = [...lead, summary.trim(), ...inBody].filter(Boolean).join('\n\n');
+	return { ...(event ? { event } : {}), body, comments: inline };
 }
 
 // `gh api` with a JSON body on stdin.
 function ghWithInput(args: string[], input: unknown): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn("gh", ["api", ...args, "--input", "-"]);
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => (stdout += chunk));
-    child.stderr.on("data", (chunk) => (stderr += chunk));
-    child.on("error", reject);
-    child.on("close", (code) => (code === 0 ? resolve(stdout) : reject(new Error(stderr.trim() || stdout.trim() || `gh exited with ${code}`))));
-    child.stdin.end(JSON.stringify(input));
-  });
+	return new Promise<string>((resolve, reject) => {
+		const child = spawn('gh', ['api', ...args, '--input', '-']);
+		let stdout = '';
+		let stderr = '';
+		child.stdout.on('data', (chunk) => (stdout += chunk));
+		child.stderr.on('data', (chunk) => (stderr += chunk));
+		child.on('error', reject);
+		child.on('close', (code) => (code === 0 ? resolve(stdout) : reject(new Error(stderr.trim() || stdout.trim() || `gh exited with ${code}`))));
+		child.stdin.end(JSON.stringify(input));
+	});
 }
 
-export async function postReviewPayload(
-  owner: string,
-  repo: string,
-  number: string,
-  payload: ReviewPayload,
-): Promise<{ url: string }> {
-  const created = JSON.parse(await ghWithInput(["--method", "POST", `repos/${owner}/${repo}/pulls/${number}/reviews`], payload)) as {
-    html_url?: string;
-  };
-  return { url: created.html_url ?? `https://github.com/${owner}/${repo}/pull/${number}` };
+export async function postReviewPayload(owner: string, repo: string, number: string, payload: ReviewPayload): Promise<{ url: string }> {
+	const created = JSON.parse(await ghWithInput(['--method', 'POST', `repos/${owner}/${repo}/pulls/${number}/reviews`], payload)) as {
+		html_url?: string;
+	};
+	return { url: created.html_url ?? `https://github.com/${owner}/${repo}/pull/${number}` };
 }

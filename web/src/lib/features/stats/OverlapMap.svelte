@@ -42,10 +42,12 @@
 	// Placed by nudging each pair towards its distance, many times over;
 	// reviewers that never ran together, or share nothing, only keep clear.
 	const layout = $derived.by(() => {
-		const nodes = [...reviewers].sort((a, b) => b.kept - a.kept).map((r, i, all) => {
-			const angle = (i / all.length) * Math.PI * 2;
-			return { ...r, r: radius(r.kept), x: Math.cos(angle), y: Math.sin(angle) };
-		});
+		const nodes = [...reviewers]
+			.sort((a, b) => b.kept - a.kept)
+			.map((r, i, all) => {
+				const angle = (i / all.length) * Math.PI * 2;
+				return { ...r, r: radius(r.kept), x: Math.cos(angle), y: Math.sin(angle) };
+			});
 		const spread = nodes.reduce((a, n) => a + n.r, 0) / 2 || 1;
 		for (const n of nodes) {
 			n.x *= spread;
@@ -97,11 +99,7 @@
 	let pointed = $state<string | null>(null);
 	const focus = $derived(layout.find((n) => n.id === pointed));
 	const partners = $derived(
-		focus
-			? pairs
-					.filter((p) => (p.a === focus.id || p.b === focus.id) && p.aShared + p.bShared > 0)
-					.map((p) => ({ id: p.a === focus.id ? p.b : p.a }))
-			: []
+		focus ? pairs.filter((p) => (p.a === focus.id || p.b === focus.id) && p.aShared + p.bShared > 0).map((p) => ({ id: p.a === focus.id ? p.b : p.a })) : []
 	);
 	const lit = (id: string) => !focus || id === focus.id || partners.some((p) => p.id === id);
 	const share = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);

@@ -27,7 +27,8 @@ export const GET: RequestHandler = async ({ url }) => json(await (url.searchPara
 
 export const POST: RequestHandler = async ({ request, url }) => {
 	const body = await bodyOf(request);
-	if (typeof body.apiKeyCommand === 'string' && body.apiKeyCommand.trim() && !fromThisApp(request, url)) return forbidden('A key command can only be saved from Docent on this machine.');
+	if (typeof body.apiKeyCommand === 'string' && body.apiKeyCommand.trim() && !fromThisApp(request, url))
+		return forbidden('A key command can only be saved from Docent on this machine.');
 	const checked = providerFields(body, false);
 	if ('error' in checked) return json(checked, { status: 400 });
 	return json({ provider: publicProvider(addProvider(checked.fields as Omit<Provider, 'id'>)) });

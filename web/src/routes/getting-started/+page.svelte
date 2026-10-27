@@ -85,8 +85,8 @@
 		</button>
 	</div>
 	<p class="lede">
-		Docent runs on your machine. It reads pull requests and posts your reviews through GitHub’s own CLI, as you, and uses
-		a model you choose for the summaries, slices and reviewers. Those two are all it needs.
+		Docent runs on your machine. It reads pull requests and posts your reviews through GitHub’s own CLI, as you, and uses a model you choose for the summaries,
+		slices and reviewers. Those two are all it needs.
 	</p>
 
 	{#if error}
@@ -107,8 +107,8 @@
 					<p class="status">Installed, but not signed in. Run <code>gh auth login</code>.</p>
 				{:else}
 					<p class="status">
-						Not installed. Get it from <a href="https://cli.github.com" target="_blank" rel="noreferrer">cli.github.com</a>, then
-						run <code>gh auth login</code>.
+						Not installed. Get it from <a href="https://cli.github.com" target="_blank" rel="noreferrer">cli.github.com</a>, then run
+						<code>gh auth login</code>.
 					</p>
 				{/if}
 			</div>
@@ -120,9 +120,9 @@
 				<h3>Have a model available</h3>
 				<p>
 					Any one will do. <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> or
-					<a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a>, installed and signed in,
-					runs its models on your own login; or add an OpenAI-compatible provider, such as a local oMLX server or a LiteLLM
-					proxy, in <a href="/settings">Settings</a>. Pick the model from the menu on the start page.
+					<a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a>, installed and signed in, runs its models on your own
+					login; or add an OpenAI-compatible provider, such as a local oMLX server or a LiteLLM proxy, in <a href="/settings">Settings</a>. Pick the model from
+					the menu on the start page.
 				</p>
 				{#if !sources}
 					<p class="status faint">Checking…</p>
@@ -133,7 +133,6 @@
 				{/if}
 			</div>
 		</li>
-
 	</ol>
 
 	<h2 class="caps">Advanced</h2>
@@ -154,35 +153,54 @@
 					>
 						{#snippet after(key)}{#if check?.mcp[key].added}<StateMark state="done" size={13} />{/if}{/snippet}
 					</Segmented>
-				<div class="command">
-					<code>{command}</code>
-					<button class="icon" aria-label="Copy the command" title="Copy the command" onclick={copy}>
-						{#if copied}
-							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--done)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-						{:else}
-							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
-						{/if}
-					</button>
-				</div>
-				{#if !check}
-					<p class="status faint">Checking…</p>
-				{:else if check.mcp[agent].added}
-					<p class="status ok">Docent’s MCP server is added to {AGENTS[agent].name}.</p>
-				{:else if elsewhere}
-					<p class="status">Added to {AGENTS[agent].name} at <code>{elsewhere}</code>, which isn’t where Docent runs now. The command above replaces it.</p>
-				{:else if check[agent].installed}
-					<p class="status">Not added to {AGENTS[agent].name} yet.</p>
-				{:else}
-					<p class="status">{AGENTS[agent].name} isn’t installed.</p>
-				{/if}
-				<p>
-					Then set a reviewer on the panel to “Connect via MCP”, under Your own agent, and start it. After your usual review, tell your agent the
-					sentence the panel shows, and its findings land on the code as you read.
-					{#if agent === 'claude'}
-						In Claude Code, <code>/mcp__docent__review owner/repo#123</code> also asks it to review a PR, and
-						<code>/mcp__docent__submit owner/repo#123</code> sends a review it has already done.
+					<div class="command">
+						<code>{command}</code>
+						<button class="icon" aria-label="Copy the command" title="Copy the command" onclick={copy}>
+							{#if copied}
+								<svg
+									width="15"
+									height="15"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="var(--done)"
+									stroke-width="2.4"
+									stroke-linecap="round"
+									stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
+								>
+							{:else}
+								<svg
+									width="15"
+									height="15"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg
+								>
+							{/if}
+						</button>
+					</div>
+					{#if !check}
+						<p class="status faint">Checking…</p>
+					{:else if check.mcp[agent].added}
+						<p class="status ok">Docent’s MCP server is added to {AGENTS[agent].name}.</p>
+					{:else if elsewhere}
+						<p class="status">Added to {AGENTS[agent].name} at <code>{elsewhere}</code>, which isn’t where Docent runs now. The command above replaces it.</p>
+					{:else if check[agent].installed}
+						<p class="status">Not added to {AGENTS[agent].name} yet.</p>
+					{:else}
+						<p class="status">{AGENTS[agent].name} isn’t installed.</p>
 					{/if}
-				</p>
+					<p>
+						Then set a reviewer on the panel to “Connect via MCP”, under Your own agent, and start it. After your usual review, tell your agent the sentence the
+						panel shows, and its findings land on the code as you read.
+						{#if agent === 'claude'}
+							In Claude Code, <code>/mcp__docent__review owner/repo#123</code> also asks it to review a PR, and
+							<code>/mcp__docent__submit owner/repo#123</code> sends a review it has already done.
+						{/if}
+					</p>
 				</div>
 				<p class="faint small">Other MCP agents can connect to <code>{MCP_URL}</code>.</p>
 			</div>
@@ -193,8 +211,8 @@
 			<div class="step">
 				<h3>Add external reviewers</h3>
 				<p>
-					Your own review tooling - a prompt or a skill - as a reviewer on the panel, run in an unattended Claude Code or Codex
-					session that reads the PR through Docent. Add them in <a href="/settings">Settings</a>.
+					Your own review tooling - a prompt or a skill - as a reviewer on the panel, run in an unattended Claude Code or Codex session that reads the PR
+					through Docent. Add them in <a href="/settings">Settings</a>.
 				</p>
 				{#if !counts || !check}
 					<p class="status faint">Checking…</p>
@@ -213,8 +231,8 @@
 			<div class="step">
 				<h3>Give Docent’s reviewer personas</h3>
 				<p>
-					A point of view for Docent’s own reviewer, such as security or tests, so a panel can hold more than one. Auto picks
-					the ones a PR warrants. Write them in <a href="/settings">Settings</a>.
+					A point of view for Docent’s own reviewer, such as security or tests, so a panel can hold more than one. Auto picks the ones a PR warrants. Write them
+					in <a href="/settings">Settings</a>.
 				</p>
 				{#if !counts}
 					<p class="status faint">Checking…</p>
@@ -226,7 +244,6 @@
 			</div>
 		</li>
 	</ol>
-
 </main>
 
 <style>

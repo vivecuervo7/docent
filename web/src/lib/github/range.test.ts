@@ -15,11 +15,11 @@ describe('scopeToRange', () => {
 		expect(scoped.rangeLines).toEqual({ old: [], new: [3] });
 	});
 
-	it('leaves out a file the range didn\'t change', () => {
+	it("leaves out a file the range didn't change", () => {
 		expect(scopeToRange([pr], [file('b.ts', '@@ -1 +1 @@\n-x\n+y')])).toEqual([]);
 	});
 
-	it('keeps what the range removed of the PR\'s own lines apart', () => {
+	it("keeps what the range removed of the PR's own lines apart", () => {
 		const range = file('a.ts', ['@@ -2,3 +2,2 @@', ' two', '-gone', ' three'].join('\n'));
 		const [scoped] = scopeToRange([pr], [range]);
 		expect(scoped.rangeRemoved).toEqual([{ at: 3, lines: ['gone'] }]);

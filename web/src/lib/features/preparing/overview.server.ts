@@ -1,26 +1,19 @@
-import { chatWithTool } from "../../models/modelProvider.server.js";
-import type { ConversationEntry, PrConversation, PrMeta } from "../../github/github.server.js";
-import type {
-  ConversationSummary,
-  Slice,
-  PrSummary,
-  ReplyOutcome,
-  ReviewerConversation,
-  ThreadReply,
-} from "../../types.js";
+import { chatWithTool } from '../../models/modelProvider.server.js';
+import type { ConversationEntry, PrConversation, PrMeta } from '../../github/github.server.js';
+import type { ConversationSummary, Slice, PrSummary, ReplyOutcome, ReviewerConversation, ThreadReply } from '../../types.js';
 
 const SUMMARY_TOOL = {
-  name: "report_summary",
-  description: "Report a succinct, accurate What/Why/How summary of the pull request.",
-  parameters: {
-    type: "object",
-    properties: {
-      what: { type: "string" },
-      why: { type: "string" },
-      how: { type: "string" },
-    },
-    required: ["what", "why"],
-  },
+	name: 'report_summary',
+	description: 'Report a succinct, accurate What/Why/How summary of the pull request.',
+	parameters: {
+		type: 'object',
+		properties: {
+			what: { type: 'string' },
+			why: { type: 'string' },
+			how: { type: 'string' }
+		},
+		required: ['what', 'why']
+	}
 };
 
 const SUMMARY_SYSTEM_PROMPT = `You are orienting a reviewer to a pull request. Below is the \
@@ -40,98 +33,91 @@ an empty string.
 Call report_summary with the result.`;
 
 function formatConversationDigest(conversation: ConversationSummary | null): string {
-  if (!conversation || (conversation.reviewers.length === 0 && !conversation.authorNotes)) {
-    return "(no review conversation)";
-  }
-  const lines = conversation.reviewers.map((r) => {
-    const replies = r.replies.map(
-      (reply) =>
-        `  - ${reply.from === "author" ? conversation.prAuthor : r.reviewer}` +
-        `${reply.outcome ? ` (${reply.outcome})` : ""}: ${reply.summary}`,
-    );
-    return [`- ${r.reviewer}${r.verdict ? ` (${r.verdict})` : ""}: ${r.summary}`, ...replies].join("\n");
-  });
-  if (conversation.authorNotes) lines.push(`- ${conversation.prAuthor} (author notes): ${conversation.authorNotes}`);
-  return lines.join("\n");
+	if (!conversation || (conversation.reviewers.length === 0 && !conversation.authorNotes)) {
+		return '(no review conversation)';
+	}
+	const lines = conversation.reviewers.map((r) => {
+		const replies = r.replies.map(
+			(reply) => `  - ${reply.from === 'author' ? conversation.prAuthor : r.reviewer}` + `${reply.outcome ? ` (${reply.outcome})` : ''}: ${reply.summary}`
+		);
+		return [`- ${r.reviewer}${r.verdict ? ` (${r.verdict})` : ''}: ${r.summary}`, ...replies].join('\n');
+	});
+	if (conversation.authorNotes) lines.push(`- ${conversation.prAuthor} (author notes): ${conversation.authorNotes}`);
+	return lines.join('\n');
 }
 
 export async function generateSummary(
-  meta: PrMeta,
-  slices: Slice[],
-  conversation: ConversationSummary | null,
-  signal?: AbortSignal,
-  model?: string,
+	meta: PrMeta,
+	slices: Slice[],
+	conversation: ConversationSummary | null,
+	signal?: AbortSignal,
+	model?: string
 ): Promise<PrSummary> {
-  const slicesText = slices.map((slice) => `- ${slice.title}: ${slice.summary}`).join("\n");
-  const userContent = [
-    `PR description:\nTitle: ${meta.title}\n${meta.body ?? "(no description provided)"}`,
-    `Slices derived from the diff:\n${slicesText || "(none generated)"}`,
-    `Review conversation:\n${formatConversationDigest(conversation)}`,
-  ].join("\n\n");
+	const slicesText = slices.map((slice) => `- ${slice.title}: ${slice.summary}`).join('\n');
+	const userContent = [
+		`PR description:\nTitle: ${meta.title}\n${meta.body ?? '(no description provided)'}`,
+		`Slices derived from the diff:\n${slicesText || '(none generated)'}`,
+		`Review conversation:\n${formatConversationDigest(conversation)}`
+	].join('\n\n');
 
-  const result = await chatWithTool(
-    [
-      { role: "system", content: SUMMARY_SYSTEM_PROMPT },
-      { role: "user", content: userContent },
-    ],
-    SUMMARY_TOOL,
-    signal,
-    model,
-  );
+	const result = await chatWithTool(
+		[
+			{ role: 'system', content: SUMMARY_SYSTEM_PROMPT },
+			{ role: 'user', content: userContent }
+		],
+		SUMMARY_TOOL,
+		signal,
+		model
+	);
 
-  const raw = result.arguments as { what?: unknown; why?: unknown; how?: unknown };
-  const nonEmpty = (v: unknown): string | undefined =>
-    typeof v === "string" && v.trim() ? v.trim() : undefined;
+	const raw = result.arguments as { what?: unknown; why?: unknown; how?: unknown };
+	const nonEmpty = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
 
-  return {
-    what: nonEmpty(raw.what) ?? "",
-    why: nonEmpty(raw.why) ?? "",
-    how: nonEmpty(raw.how),
-  };
+	return {
+		what: nonEmpty(raw.what) ?? '',
+		why: nonEmpty(raw.why) ?? '',
+		how: nonEmpty(raw.how)
+	};
 }
 
-const OUTCOMES: ReplyOutcome[] = ["actioned", "acknowledged", "refuted", "answered", "mixed"];
-type Verdict = NonNullable<ReviewerConversation["verdict"]>;
-const VERDICTS: Verdict[] = [
-  "approved",
-  "changes requested",
-  "commented",
-];
+const OUTCOMES: ReplyOutcome[] = ['actioned', 'acknowledged', 'refuted', 'answered', 'mixed'];
+type Verdict = NonNullable<ReviewerConversation['verdict']>;
+const VERDICTS: Verdict[] = ['approved', 'changes requested', 'commented'];
 
 const CONVERSATION_TOOL = {
-  name: "report_conversation",
-  description: "Summarize the review conversation on a pull request, one entry per reviewer.",
-  parameters: {
-    type: "object",
-    properties: {
-      reviewers: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            reviewer: { type: "string" },
-            verdict: { type: "string", enum: VERDICTS },
-            summary: { type: "string" },
-            replies: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  from: { type: "string", enum: ["author", "reviewer"] },
-                  outcome: { type: "string", enum: OUTCOMES },
-                  summary: { type: "string" },
-                },
-                required: ["from", "summary"],
-              },
-            },
-          },
-          required: ["reviewer", "summary", "replies"],
-        },
-      },
-      authorNotes: { type: "string" },
-    },
-    required: ["reviewers"],
-  },
+	name: 'report_conversation',
+	description: 'Summarize the review conversation on a pull request, one entry per reviewer.',
+	parameters: {
+		type: 'object',
+		properties: {
+			reviewers: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						reviewer: { type: 'string' },
+						verdict: { type: 'string', enum: VERDICTS },
+						summary: { type: 'string' },
+						replies: {
+							type: 'array',
+							items: {
+								type: 'object',
+								properties: {
+									from: { type: 'string', enum: ['author', 'reviewer'] },
+									outcome: { type: 'string', enum: OUTCOMES },
+									summary: { type: 'string' }
+								},
+								required: ['from', 'summary']
+							}
+						}
+					},
+					required: ['reviewer', 'summary', 'replies']
+				}
+			},
+			authorNotes: { type: 'string' }
+		},
+		required: ['reviewers']
+	}
 };
 
 const CONVERSATION_SYSTEM_PROMPT = `You are giving a new reviewer a quick sense of the conversation \
@@ -161,94 +147,84 @@ authorNotes: 1-2 sentences on anything the PR author said that wasn't a response
 (self-review, status updates, extra changes they landed), or an empty string if there was nothing.
 Call report_conversation with the result.`;
 
-function formatEntry(entry: ConversationEntry, suffix = ""): string {
-  const when = entry.createdAt ? `[${entry.createdAt}] ` : "";
-  return `${when}${entry.author}${suffix}: ${entry.body || "(no text)"}`;
+function formatEntry(entry: ConversationEntry, suffix = ''): string {
+	const when = entry.createdAt ? `[${entry.createdAt}] ` : '';
+	return `${when}${entry.author}${suffix}: ${entry.body || '(no text)'}`;
 }
 
 function formatConversation(conversation: PrConversation): string {
-  const sections = [`PR author: ${conversation.prAuthor}`];
-  if (conversation.reviews.length > 0) {
-    sections.push(
-      "## Reviews\n" +
-        conversation.reviews.map((r) => formatEntry(r, ` (${r.state})`)).join("\n\n"),
-    );
-  }
-  if (conversation.comments.length > 0) {
-    sections.push(
-      "## Comments on the PR\n" + conversation.comments.map((c) => formatEntry(c)).join("\n\n"),
-    );
-  }
-  if (conversation.threads.length > 0) {
-    sections.push(
-      "## Inline review threads\n" +
-        conversation.threads
-          .map((t) => `### ${t.path}\n` + t.entries.map((e) => formatEntry(e)).join("\n"))
-          .join("\n\n"),
-    );
-  }
-  return sections.join("\n\n");
+	const sections = [`PR author: ${conversation.prAuthor}`];
+	if (conversation.reviews.length > 0) {
+		sections.push('## Reviews\n' + conversation.reviews.map((r) => formatEntry(r, ` (${r.state})`)).join('\n\n'));
+	}
+	if (conversation.comments.length > 0) {
+		sections.push('## Comments on the PR\n' + conversation.comments.map((c) => formatEntry(c)).join('\n\n'));
+	}
+	if (conversation.threads.length > 0) {
+		sections.push(
+			'## Inline review threads\n' + conversation.threads.map((t) => `### ${t.path}\n` + t.entries.map((e) => formatEntry(e)).join('\n')).join('\n\n')
+		);
+	}
+	return sections.join('\n\n');
 }
 
 // The local model sometimes wraps a summary in stray quotes.
 function cleanSummary(text: string): string {
-  return text.trim().replace(/^["'\u201c\u201d]+|["'\u201c\u201d]+$/g, "").trim();
+	return text
+		.trim()
+		.replace(/^["'\u201c\u201d]+|["'\u201c\u201d]+$/g, '')
+		.trim();
 }
 
 function parseReplies(raw: unknown): ThreadReply[] {
-  if (!Array.isArray(raw)) return [];
-  const replies: ThreadReply[] = [];
-  for (const entry of raw) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const { from, outcome, summary } = entry as Record<string, unknown>;
-    if ((from !== "author" && from !== "reviewer") || typeof summary !== "string" || !summary.trim()) {
-      continue;
-    }
-    replies.push({
-      from,
-      outcome: OUTCOMES.includes(outcome as ReplyOutcome) ? (outcome as ReplyOutcome) : undefined,
-      summary: cleanSummary(summary),
-    });
-  }
-  return replies;
+	if (!Array.isArray(raw)) return [];
+	const replies: ThreadReply[] = [];
+	for (const entry of raw) {
+		if (typeof entry !== 'object' || entry === null) continue;
+		const { from, outcome, summary } = entry as Record<string, unknown>;
+		if ((from !== 'author' && from !== 'reviewer') || typeof summary !== 'string' || !summary.trim()) {
+			continue;
+		}
+		replies.push({
+			from,
+			outcome: OUTCOMES.includes(outcome as ReplyOutcome) ? (outcome as ReplyOutcome) : undefined,
+			summary: cleanSummary(summary)
+		});
+	}
+	return replies;
 }
 
-export async function generateConversationSummary(
-  conversation: PrConversation,
-  signal?: AbortSignal,
-  model?: string,
-): Promise<ConversationSummary> {
-  const empty: ConversationSummary = { prAuthor: conversation.prAuthor, reviewers: [] };
-  const { reviews, comments, threads } = conversation;
-  if (reviews.length + comments.length + threads.length === 0) return empty;
+export async function generateConversationSummary(conversation: PrConversation, signal?: AbortSignal, model?: string): Promise<ConversationSummary> {
+	const empty: ConversationSummary = { prAuthor: conversation.prAuthor, reviewers: [] };
+	const { reviews, comments, threads } = conversation;
+	if (reviews.length + comments.length + threads.length === 0) return empty;
 
-  const result = await chatWithTool(
-    [
-      { role: "system", content: CONVERSATION_SYSTEM_PROMPT },
-      { role: "user", content: formatConversation(conversation) },
-    ],
-    CONVERSATION_TOOL,
-    signal,
-    model,
-  );
+	const result = await chatWithTool(
+		[
+			{ role: 'system', content: CONVERSATION_SYSTEM_PROMPT },
+			{ role: 'user', content: formatConversation(conversation) }
+		],
+		CONVERSATION_TOOL,
+		signal,
+		model
+	);
 
-  const raw = result.arguments as { reviewers?: unknown; authorNotes?: unknown };
-  const reviewers: ReviewerConversation[] = [];
-  for (const entry of Array.isArray(raw.reviewers) ? raw.reviewers : []) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const { reviewer, verdict, summary, replies } = entry as Record<string, unknown>;
-    if (typeof reviewer !== "string" || typeof summary !== "string") continue;
-    // The model occasionally lists the author as a reviewer of their own PR.
-    if (reviewer === conversation.prAuthor) continue;
-    reviewers.push({
-      reviewer,
-      verdict: VERDICTS.includes(verdict as Verdict) ? (verdict as Verdict) : undefined,
-      summary: cleanSummary(summary),
-      replies: parseReplies(replies),
-    });
-  }
+	const raw = result.arguments as { reviewers?: unknown; authorNotes?: unknown };
+	const reviewers: ReviewerConversation[] = [];
+	for (const entry of Array.isArray(raw.reviewers) ? raw.reviewers : []) {
+		if (typeof entry !== 'object' || entry === null) continue;
+		const { reviewer, verdict, summary, replies } = entry as Record<string, unknown>;
+		if (typeof reviewer !== 'string' || typeof summary !== 'string') continue;
+		// The model occasionally lists the author as a reviewer of their own PR.
+		if (reviewer === conversation.prAuthor) continue;
+		reviewers.push({
+			reviewer,
+			verdict: VERDICTS.includes(verdict as Verdict) ? (verdict as Verdict) : undefined,
+			summary: cleanSummary(summary),
+			replies: parseReplies(replies)
+		});
+	}
 
-  const authorNotes =
-    typeof raw.authorNotes === "string" && raw.authorNotes.trim() ? cleanSummary(raw.authorNotes) : undefined;
-  return { prAuthor: conversation.prAuthor, reviewers, authorNotes };
+	const authorNotes = typeof raw.authorNotes === 'string' && raw.authorNotes.trim() ? cleanSummary(raw.authorNotes) : undefined;
+	return { prAuthor: conversation.prAuthor, reviewers, authorNotes };
 }

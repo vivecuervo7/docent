@@ -12,7 +12,23 @@ import { everythingElse, isSliceReviewed, reviewKeys } from '../features/reading
 import { readChoice, readPref, writeChoice, writePref } from '../ui/prefs';
 import { emptyRecord, getRecord, updateRecord } from '../storage/record';
 import { beginRound, dropRound, keepRound, roundView } from '../storage/rounds';
-import { isUnread, type FeedbackItem, type Generation, type GitHubComments, type GitHubThread, type PrCommit, type LineRef, type Note, type NoteMessage, type PrFile, type PrMeta, type PrRecord, type PrRef, type ReviewRange, type StepName } from '../types';
+import {
+	isUnread,
+	type FeedbackItem,
+	type Generation,
+	type GitHubComments,
+	type GitHubThread,
+	type PrCommit,
+	type LineRef,
+	type Note,
+	type NoteMessage,
+	type PrFile,
+	type PrMeta,
+	type PrRecord,
+	type PrRef,
+	type ReviewRange,
+	type StepName
+} from '../types';
 
 // The open PR: its files, its saved review, and preparing it when parts of
 // the review are missing. One per PR, shared with every page under it.
@@ -111,7 +127,11 @@ export class PrSession {
 	readonly roundSpans = $derived(
 		[...(this.#stored.rounds ?? []), this.#stored].map((r, i, all) => {
 			const latest = i === all.length - 1;
-			return { index: latest ? null : i, range: r.range, end: latest && !begun(r as PrRecord) ? undefined : (r.range?.to ?? r.preparedHead ?? this.meta?.head) };
+			return {
+				index: latest ? null : i,
+				range: r.range,
+				end: latest && !begun(r as PrRecord) ? undefined : (r.range?.to ?? r.preparedHead ?? this.meta?.head)
+			};
 		})
 	);
 	// The commit the round being looked at reads up to.
@@ -171,11 +191,7 @@ export class PrSession {
 
 	async open() {
 		try {
-			const [pr, { record }, existing] = await Promise.all([
-				fetchPr(this.ref),
-				getRecord(this.ref),
-				getGeneration(this.ref).catch(() => null)
-			]);
+			const [pr, { record }, existing] = await Promise.all([fetchPr(this.ref), getRecord(this.ref), getGeneration(this.ref).catch(() => null)]);
 			if (this.#closed) return;
 			this.files = pr.files;
 			this.meta = pr.meta;
@@ -346,11 +362,9 @@ export class PrSession {
 	// opening another, in any file, closes it.
 	openMark = $state<string | null>(null);
 
-
 	// Long line excerpts opened out in full, kept here so going to the diff
 	// and back finds them as they were left.
 	readonly openExcerpts = new SvelteSet<string>();
-
 
 	// Saves a change to the review, and shows the record as saved.
 	async update(change: (record: PrRecord) => void): Promise<void> {
@@ -369,8 +383,6 @@ export class PrSession {
 		if (!this.#closed) this.#show(saved);
 	}
 
-
-
 	// Reads the review while the backend's making something for it - an
 	// answer, a draft, a prepared review - until nothing is.
 	#watching: ReturnType<typeof setInterval> | null = null;
@@ -380,9 +392,7 @@ export class PrSession {
 		this.#watching = setInterval(() => {
 			const r = this.record;
 			const awaited = [...r.notes, ...Object.values(r.feedback).flatMap((d) => d?.items ?? [])].some((x) => x.awaiting);
-			const working =
-				Object.values(r.jobs ?? {}).some((job) => job?.status === 'running') ||
-				r.agentReviewers.some((a) => a.picking);
+			const working = Object.values(r.jobs ?? {}).some((job) => job?.status === 'running') || r.agentReviewers.some((a) => a.picking);
 			if ((!awaited && !working) || this.#closed) {
 				clearInterval(this.#watching!);
 				this.#watching = null;
@@ -515,7 +525,9 @@ export class PrSession {
 
 	async #reviewModel(): Promise<string | undefined> {
 		if (this.record.model) return this.record.model;
-		const selected = await listModels().then((m) => m.selected).catch(() => undefined);
+		const selected = await listModels()
+			.then((m) => m.selected)
+			.catch(() => undefined);
 		if (selected) await this.update((r) => (r.model ??= selected)).catch(() => {});
 		return this.record.model ?? selected;
 	}
@@ -599,7 +611,6 @@ export function forModel(messages: NoteMessage[]): { role: NoteMessage['role']; 
 	}
 	return turns;
 }
-
 
 export function emptyGeneration(): Generation {
 	return {

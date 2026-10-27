@@ -80,7 +80,14 @@ export function externalFields(body: unknown, partial: boolean): Checked {
 	const promptLimit = b.runner === 'provider' ? 20000 : 2000;
 	const error =
 		textField(b, 'name', 60, !partial || b.name !== undefined, fields, 'Give it a name, up to 60 characters.') ??
-		textField(b, 'command', promptLimit, !partial || b.command !== undefined, fields, `Give it a prompt to run, up to ${promptLimit.toLocaleString('en-US')} characters.`) ??
+		textField(
+			b,
+			'command',
+			promptLimit,
+			!partial || b.command !== undefined,
+			fields,
+			`Give it a prompt to run, up to ${promptLimit.toLocaleString('en-US')} characters.`
+		) ??
 		textField(b, 'model', 200, false, fields, "That model isn't valid.") ??
 		textField(b, 'tools', 500, false, fields, "Those tools aren't valid.");
 	if (!error && b.runner === 'provider' && !fields.model) return { error: 'Choose a model.' };

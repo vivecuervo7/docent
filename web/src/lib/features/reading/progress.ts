@@ -8,7 +8,10 @@ export function isSliceReviewed(slice: Slice, reviewed: Record<string, boolean>)
 // range of commits those it touched. A file without a diff to show - a
 // binary one, or one too big for GitHub to give - is read whole, as one, so
 // it's still in a slice, and still has to be marked reviewed.
-export function reviewKeys(files: { filename: string; patch?: string; inRange?: number[] }[], hunksOf: (file: { filename: string; patch?: string }) => { index: number }[]): string[] {
+export function reviewKeys(
+	files: { filename: string; patch?: string; inRange?: number[] }[],
+	hunksOf: (file: { filename: string; patch?: string }) => { index: number }[]
+): string[] {
 	return files.flatMap((f) =>
 		f.patch
 			? hunksOf(f)
@@ -29,7 +32,5 @@ export function noDiffReason(file: { status: string; additions: number; deletion
 export function everythingElse(hunkKeys: string[], slices: Slice[]): Slice | null {
 	const claimed = new Set(slices.flatMap((s) => s.hunks));
 	const hunks = hunkKeys.filter((k) => !claimed.has(k));
-	return hunks.length
-		? { id: 'everything-else', title: 'Everything else', summary: 'Changes no slice above covers.', hunks }
-		: null;
+	return hunks.length ? { id: 'everything-else', title: 'Everything else', summary: 'Changes no slice above covers.', hunks } : null;
 }

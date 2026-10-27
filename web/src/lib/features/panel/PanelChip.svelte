@@ -69,16 +69,12 @@
 			return panel.picking[r.id]
 				? { text: 'Picking the personas this PR warrants', working: true }
 				: {
-						text: panel.hasGeneral
-							? 'Picked none: the general reviewer already on the panel covers it'
-							: 'Picked none: nothing here warrants a specialist',
+						text: panel.hasGeneral ? 'Picked none: the general reviewer already on the panel covers it' : 'Picked none: nothing here warrants a specialist',
 						working: false
 					};
 		}
 		const live = panel.reviews[r.id];
-		const run = live
-			? { status: live.status, startedAt: live.startedAt, endedAt: live.endedAt, findings: live.findings.length }
-			: r.lastRun;
+		const run = live ? { status: live.status, startedAt: live.startedAt, endedAt: live.endedAt, findings: live.findings.length } : r.lastRun;
 		if (!run) return { text: 'Not started', working: false };
 		const found = `${plural(run.findings, 'finding')}`;
 		if (run.status === 'running') {
@@ -91,12 +87,12 @@
 				: p.waiting
 					? 'Waiting for its turn'
 					: p.current === 'the whole PR'
-					? 'Reading the whole PR'
-					: p.current === 'the code around it'
-					? 'Looking up the code around it'
-					: p.current === 'the PR as a whole'
-					? 'Reviewing the PR as a whole'
-					: `Slice ${Math.max(1, Math.min(p.done, p.total - 1))} of ${p.total - 1}`;
+						? 'Reading the whole PR'
+						: p.current === 'the code around it'
+							? 'Looking up the code around it'
+							: p.current === 'the PR as a whole'
+								? 'Reviewing the PR as a whole'
+								: `Slice ${Math.max(1, Math.min(p.done, p.total - 1))} of ${p.total - 1}`;
 			return { text: `${where}${elapsed}`, working: true };
 		}
 		const took = run.startedAt && run.endedAt ? ` in ${duration(run.endedAt - run.startedAt)}` : '';
@@ -138,7 +134,9 @@
 								{#if showFacts}
 									<ul class="facts">
 										{#each l.facts as f, i (i)}
-											<li><InlineText text={f.fact} />{#if f.where}<span class="faint where">{f.where}</span>{/if}</li>
+											<li>
+												<InlineText text={f.fact} />{#if f.where}<span class="faint where">{f.where}</span>{/if}
+											</li>
 										{/each}
 									</ul>
 								{/if}

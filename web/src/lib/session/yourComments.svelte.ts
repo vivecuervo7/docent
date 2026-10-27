@@ -16,10 +16,7 @@ export class YourComments {
 	readonly threads = $derived.by(() => {
 		const order = new Map(this.#s.files.map((f, i) => [f.filename, i]));
 		return [...this.#s.record.notes].sort(
-			(a, b) =>
-				(order.get(a.path) ?? -1) - (order.get(b.path) ?? -1) ||
-				(a.hunk ?? -1) - (b.hunk ?? -1) ||
-				(a.start?.line ?? 0) - (b.start?.line ?? 0)
+			(a, b) => (order.get(a.path) ?? -1) - (order.get(b.path) ?? -1) || (a.hunk ?? -1) - (b.hunk ?? -1) || (a.start?.line ?? 0) - (b.start?.line ?? 0)
 		);
 	});
 
@@ -45,9 +42,7 @@ export class YourComments {
 	readonly undrafted = $derived.by(() => {
 		const draft = this.#s.record.feedback.yours;
 		const drawnOn = new Set((draft?.items ?? []).flatMap((i) => i.noteIds ?? []));
-		return this.threads.filter(
-			(n) => !n.awaiting && (draft?.basedOn?.[n.id] === undefined || (this.changedThreads.has(n.id) && !drawnOn.has(n.id)))
-		);
+		return this.threads.filter((n) => !n.awaiting && (draft?.basedOn?.[n.id] === undefined || (this.changedThreads.has(n.id) && !drawnOn.has(n.id))));
 	});
 
 	// A thread with comments of the reviewer's own is drafted as those
@@ -81,19 +76,19 @@ export class YourComments {
 		this.#drafting = { pending: true };
 		try {
 			const res = await sendJson(`${prUrl(this.#s.ref)}/feedback/yours`, {
-					model: this.#s.record.model,
-					prTitle: this.#s.title,
-					threads: rest.map((n) => ({
-						path: n.path,
-						lines: n.slice ? `the slice “${this.#s.slices.find((sl) => sl.id === n.slice)?.title ?? n.slice}” as a whole` : noteWhere(n),
-						code: n.code ?? '',
-						messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
-						...(n.github ? { github: this.#s.conversations.githubText(n.github) } : {})
-					})),
-					earlier,
-					input: { threads: rest.map((n) => n.id), basedOn, scope },
-					...(this.#s.round !== null ? { round: this.#s.round } : {})
-				});
+				model: this.#s.record.model,
+				prTitle: this.#s.title,
+				threads: rest.map((n) => ({
+					path: n.path,
+					lines: n.slice ? `the slice “${this.#s.slices.find((sl) => sl.id === n.slice)?.title ?? n.slice}” as a whole` : noteWhere(n),
+					code: n.code ?? '',
+					messages: n.messages.map(({ role, text, conclusion }) => ({ role, text, ...(conclusion ? { conclusion } : {}) })),
+					...(n.github ? { github: this.#s.conversations.githubText(n.github) } : {})
+				})),
+				earlier,
+				input: { threads: rest.map((n) => n.id), basedOn, scope },
+				...(this.#s.round !== null ? { round: this.#s.round } : {})
+			});
 			await readOk(res);
 			await this.#s.reload();
 			this.#drafting = {};
@@ -157,9 +152,7 @@ export class YourComments {
 			}
 			const before = r.feedback.yours;
 			const exists = new Set(r.notes.map((n) => n.id));
-			const kept = (before?.items ?? []).filter(
-				(i) => !(i.noteIds ?? []).some((id) => inScope.has(id)) && (i.noteIds ?? []).some((id) => exists.has(id))
-			);
+			const kept = (before?.items ?? []).filter((i) => !(i.noteIds ?? []).some((id) => inScope.has(id)) && (i.noteIds ?? []).some((id) => exists.has(id)));
 			// A redraft keeps a skip: on what's written as it was, by its thread,
 			// and on what's drafted, by the earlier comment it says it replaces.
 			const skipped = (before?.items ?? []).filter((i) => !i.included);
@@ -175,10 +168,12 @@ export class YourComments {
 	}
 
 	setIncluded(id: string, included: boolean) {
-		this.#s.update((r) => {
-			const draft = r.feedback.yours;
-			if (draft) r.feedback.yours = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included } : i)) };
-		}).catch(() => {});
+		this.#s
+			.update((r) => {
+				const draft = r.feedback.yours;
+				if (draft) r.feedback.yours = { ...draft, items: draft.items.map((i) => (i.id === id ? { ...i, included } : i)) };
+			})
+			.catch(() => {});
 	}
 }
 

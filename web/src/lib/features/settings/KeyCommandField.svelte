@@ -22,9 +22,7 @@
 		checkedFor = command;
 		checking = true;
 		try {
-			const outcome: Check = await readOk(
-				await sendJson('/api/providers/key-check', { command })
-			);
+			const outcome: Check = await readOk(await sendJson('/api/providers/key-check', { command }));
 			// A reply for a command that's since been changed is for no one.
 			if (checkedFor === command) result = outcome;
 		} catch (err) {

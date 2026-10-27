@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { dataDir } from "./dataDir.server.js";
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { dataDir } from './dataDir.server.js';
 
 // Docent's settings, all in the data folder's settings.json: the model providers
 // (OpenAI-compatible endpoints, keys included, so the file is written
@@ -9,34 +9,34 @@ import { dataDir } from "./dataDir.server.js";
 // the start page, and the review panel a new PR starts with.
 
 // Where they're kept, for the Settings page to say.
-export const settingsFile = dataDir("settings.json");
+export const settingsFile = dataDir('settings.json');
 
 // A model from Claude Code's or Codex's group is saved with its prefix; one
 // from a provider with the provider's id and a colon.
-export const CLAUDE_CODE_PREFIX = "claude-code:";
-export const CODEX_PREFIX = "codex:";
+export const CLAUDE_CODE_PREFIX = 'claude-code:';
+export const CODEX_PREFIX = 'codex:';
 
 export interface Provider {
-  id: string;
-  name: string;
-  // Up to and including /v1.
-  baseUrl: string;
-  apiKey?: string;
-  // A command that prints the key, for a key kept in the reviewer's own
-  // secret store; it takes the place of `apiKey`.
-  apiKeyCommand?: string;
-  // Requests it takes at once: 1 for a local server, which serves one at a
-  // time, so running more only makes each slower.
-  concurrency: number;
+	id: string;
+	name: string;
+	// Up to and including /v1.
+	baseUrl: string;
+	apiKey?: string;
+	// A command that prints the key, for a key kept in the reviewer's own
+	// secret store; it takes the place of `apiKey`.
+	apiKeyCommand?: string;
+	// Requests it takes at once: 1 for a local server, which serves one at a
+	// time, so running more only makes each slower.
+	concurrency: number;
 }
 
 // A persona: Docent's own reviewer with a point of view, given by its
 // instructions ("Security: look for injection, auth gaps..."). A reviewer
 // on the panel runs one on whichever model it's set to.
 export interface Persona {
-  id: string;
-  name: string;
-  instructions: string;
+	id: string;
+	name: string;
+	instructions: string;
 }
 
 // An external reviewer: the reviewer's own prompt or skill, run as an
@@ -44,222 +44,219 @@ export interface Persona {
 // directly on one of a provider's models, which looks through the code with
 // Docent's read tools.
 export interface ExternalReviewer {
-  id: string;
-  name: string;
-  runner: "claude-code" | "codex" | "provider";
-  // What the reviewer would type, with {pr_url}, {owner}, {repo}, {number}.
-  command: string;
-  // The provider's id, for the "provider" runner.
-  provider?: string;
-  model?: string;
-  // Claude Code tools it may use beyond those it always has, space-separated.
-  tools?: string;
+	id: string;
+	name: string;
+	runner: 'claude-code' | 'codex' | 'provider';
+	// What the reviewer would type, with {pr_url}, {owner}, {repo}, {number}.
+	command: string;
+	// The provider's id, for the "provider" runner.
+	provider?: string;
+	model?: string;
+	// Claude Code tools it may use beyond those it always has, space-separated.
+	tools?: string;
 }
 
 // A reviewer in the default panel: what runs it (a model, "external" for
 // the reviewer's own agent, or "session:<id>"), and for Docent's reviewer
 // the persona it takes, and whether it starts switched off.
 export interface PanelEntry {
-  runs: string;
-  persona?: string;
-  off?: boolean;
+	runs: string;
+	persona?: string;
+	off?: boolean;
 }
 
 interface Settings {
-  model?: string;
-  // The panel's editor's model; see editorModel in features/panel/editor.server.ts.
-  editorModel?: string;
-  personas?: Persona[];
-  externalReviewers?: ExternalReviewer[];
-  // PRs kept off the start page's lists, as "owner/repo/number".
-  hiddenPrs?: string[];
-  // PRs kept at the top of the start page, in the order they were pinned.
-  pinnedPrs?: string[];
-  // One-off changes to saved reviews already made, by name.
-  carriedOver?: string[];
-  // Calls run at once through each tool; see laneOf.
-  claudeCodeConcurrency?: number;
-  codexConcurrency?: number;
-  // Plain strings are from before panels had personas.
-  panel?: (string | PanelEntry)[];
-  providers?: Provider[];
+	model?: string;
+	// The panel's editor's model; see editorModel in features/panel/editor.server.ts.
+	editorModel?: string;
+	personas?: Persona[];
+	externalReviewers?: ExternalReviewer[];
+	// PRs kept off the start page's lists, as "owner/repo/number".
+	hiddenPrs?: string[];
+	// PRs kept at the top of the start page, in the order they were pinned.
+	pinnedPrs?: string[];
+	// One-off changes to saved reviews already made, by name.
+	carriedOver?: string[];
+	// Calls run at once through each tool; see laneOf.
+	claudeCodeConcurrency?: number;
+	codexConcurrency?: number;
+	// Plain strings are from before panels had personas.
+	panel?: (string | PanelEntry)[];
+	providers?: Provider[];
 }
 
 function readSettings(): Settings {
-  try {
-    return JSON.parse(readFileSync(settingsFile, "utf8")) as Settings;
-  } catch {
-    return {};
-  }
+	try {
+		return JSON.parse(readFileSync(settingsFile, 'utf8')) as Settings;
+	} catch {
+		return {};
+	}
 }
 
 function writeSettings(change: Settings): void {
-  mkdirSync(dirname(settingsFile), { recursive: true });
-  writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), ...change }, null, 2), { mode: 0o600 });
+	mkdirSync(dirname(settingsFile), { recursive: true });
+	writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), ...change }, null, 2), { mode: 0o600 });
 }
 
 const newProviderId = () => `p${randomUUID().slice(0, 6)}`;
 
 export function providers(): Provider[] {
-  return readSettings().providers ?? [];
+	return readSettings().providers ?? [];
 }
 
-export function addProvider(fields: Omit<Provider, "id">): Provider {
-  const provider = { ...fields, id: newProviderId() };
-  writeSettings({ providers: [...providers(), provider] });
-  return provider;
+export function addProvider(fields: Omit<Provider, 'id'>): Provider {
+	const provider = { ...fields, id: newProviderId() };
+	writeSettings({ providers: [...providers(), provider] });
+	return provider;
 }
 
 // `apiKey: null` clears the key, and `apiKeyCommand: null` the command;
 // leaving either out keeps it.
 export function updateProvider(
-  id: string,
-  change: Partial<Omit<Provider, "id" | "apiKey" | "apiKeyCommand">> & { apiKey?: string | null; apiKeyCommand?: string | null },
+	id: string,
+	change: Partial<Omit<Provider, 'id' | 'apiKey' | 'apiKeyCommand'>> & { apiKey?: string | null; apiKeyCommand?: string | null }
 ): Provider | null {
-  const current = providers().find((p) => p.id === id);
-  if (!current) return null;
-  const { apiKey, apiKeyCommand, ...rest } = change;
-  const next: Provider = { ...current, ...rest };
-  if (apiKey === null) delete next.apiKey;
-  else if (apiKey !== undefined) next.apiKey = apiKey;
-  if (apiKeyCommand === null) delete next.apiKeyCommand;
-  else if (apiKeyCommand !== undefined) next.apiKeyCommand = apiKeyCommand;
-  writeSettings({ providers: providers().map((p) => (p.id === id ? next : p)) });
-  return next;
+	const current = providers().find((p) => p.id === id);
+	if (!current) return null;
+	const { apiKey, apiKeyCommand, ...rest } = change;
+	const next: Provider = { ...current, ...rest };
+	if (apiKey === null) delete next.apiKey;
+	else if (apiKey !== undefined) next.apiKey = apiKey;
+	if (apiKeyCommand === null) delete next.apiKeyCommand;
+	else if (apiKeyCommand !== undefined) next.apiKeyCommand = apiKeyCommand;
+	writeSettings({ providers: providers().map((p) => (p.id === id ? next : p)) });
+	return next;
 }
 
 export function removeProvider(id: string): boolean {
-  const list = providers();
-  if (!list.some((p) => p.id === id)) return false;
-  writeSettings({ providers: list.filter((p) => p.id !== id) });
-  return true;
+	const list = providers();
+	if (!list.some((p) => p.id === id)) return false;
+	writeSettings({ providers: list.filter((p) => p.id !== id) });
+	return true;
 }
 
 // Personas and external reviewers are kept alike: a list in settings,
 // each entry with an id.
-function listIn<T extends { id: string }>(key: "personas" | "externalReviewers", prefix: string) {
-  const list = (): T[] => (readSettings()[key] as T[] | undefined) ?? [];
-  return {
-    list,
-    add(fields: Omit<T, "id">): T {
-      const entry = { ...fields, id: `${prefix}${randomUUID().slice(0, 6)}` } as T;
-      writeSettings({ [key]: [...list(), entry] });
-      return entry;
-    },
-    // A field set to null is cleared.
-    update(id: string, change: Record<string, unknown>): T | null {
-      const current = list().find((e) => e.id === id);
-      if (!current) return null;
-      const merged: Record<string, unknown> = { ...current, ...change };
-      for (const k of Object.keys(merged)) if (merged[k] === undefined || merged[k] === null) delete merged[k];
-      const next = merged as unknown as T;
-      writeSettings({ [key]: list().map((e) => (e.id === id ? next : e)) });
-      return next;
-    },
-    remove(id: string): boolean {
-      if (!list().some((e) => e.id === id)) return false;
-      writeSettings({ [key]: list().filter((e) => e.id !== id) });
-      return true;
-    },
-    // The same entries in a new order; null unless `ids` names each once.
-    reorder(ids: string[]): T[] | null {
-      const current = list();
-      if (ids.length !== current.length || new Set(ids).size !== ids.length) return null;
-      const next = ids.map((id) => current.find((e) => e.id === id));
-      if (next.some((e) => !e)) return null;
-      writeSettings({ [key]: next as T[] });
-      return next as T[];
-    },
-  };
+function listIn<T extends { id: string }>(key: 'personas' | 'externalReviewers', prefix: string) {
+	const list = (): T[] => (readSettings()[key] as T[] | undefined) ?? [];
+	return {
+		list,
+		add(fields: Omit<T, 'id'>): T {
+			const entry = { ...fields, id: `${prefix}${randomUUID().slice(0, 6)}` } as T;
+			writeSettings({ [key]: [...list(), entry] });
+			return entry;
+		},
+		// A field set to null is cleared.
+		update(id: string, change: Record<string, unknown>): T | null {
+			const current = list().find((e) => e.id === id);
+			if (!current) return null;
+			const merged: Record<string, unknown> = { ...current, ...change };
+			for (const k of Object.keys(merged)) if (merged[k] === undefined || merged[k] === null) delete merged[k];
+			const next = merged as unknown as T;
+			writeSettings({ [key]: list().map((e) => (e.id === id ? next : e)) });
+			return next;
+		},
+		remove(id: string): boolean {
+			if (!list().some((e) => e.id === id)) return false;
+			writeSettings({ [key]: list().filter((e) => e.id !== id) });
+			return true;
+		},
+		// The same entries in a new order; null unless `ids` names each once.
+		reorder(ids: string[]): T[] | null {
+			const current = list();
+			if (ids.length !== current.length || new Set(ids).size !== ids.length) return null;
+			const next = ids.map((id) => current.find((e) => e.id === id));
+			if (next.some((e) => !e)) return null;
+			writeSettings({ [key]: next as T[] });
+			return next as T[];
+		}
+	};
 }
 
-export const personas = listIn<Persona>("personas", "s");
-export const externalReviewers = listIn<ExternalReviewer>("externalReviewers", "r");
+export const personas = listIn<Persona>('personas', 's');
+export const externalReviewers = listIn<ExternalReviewer>('externalReviewers', 'r');
 
 // "Personas" used to be Claude Code sessions; those are external reviewers
 // now, moved across once with their ids kept.
 function moveSessionsOnce(): void {
-  const settings = readSettings();
-  if (settings.externalReviewers) return;
-  const old = (settings.personas ?? []) as unknown as Record<string, unknown>[];
-  const sessions = old.filter((p) => typeof p.command === "string");
-  writeSettings({
-    externalReviewers: sessions.map((p) => ({ ...(p as unknown as ExternalReviewer), runner: "claude-code" })),
-    personas: old.filter((p) => typeof p.command !== "string") as unknown as Persona[],
-  });
+	const settings = readSettings();
+	if (settings.externalReviewers) return;
+	const old = (settings.personas ?? []) as unknown as Record<string, unknown>[];
+	const sessions = old.filter((p) => typeof p.command === 'string');
+	writeSettings({
+		externalReviewers: sessions.map((p) => ({ ...(p as unknown as ExternalReviewer), runner: 'claude-code' })),
+		personas: old.filter((p) => typeof p.command !== 'string') as unknown as Persona[]
+	});
 }
 moveSessionsOnce();
 
 // What a saved model id refers to. A bare name, saved before providers had
 // ids, is taken as the first provider's.
-export type ResolvedModel =
-  | { kind: "claude-code"; alias: string }
-  | { kind: "codex"; model: string }
-  | { kind: "provider"; provider: Provider; model: string };
+export type ResolvedModel = { kind: 'claude-code'; alias: string } | { kind: 'codex'; model: string } | { kind: 'provider'; provider: Provider; model: string };
 
 export function resolveModel(id: string): ResolvedModel | null {
-  if (id.startsWith(CLAUDE_CODE_PREFIX)) return { kind: "claude-code", alias: id.slice(CLAUDE_CODE_PREFIX.length) };
-  if (id.startsWith(CODEX_PREFIX)) return { kind: "codex", model: id.slice(CODEX_PREFIX.length) };
-  const list = providers();
-  const colon = id.indexOf(":");
-  const owner = colon > 0 ? list.find((p) => p.id === id.slice(0, colon)) : undefined;
-  if (owner) return { kind: "provider", provider: owner, model: id.slice(colon + 1) };
-  return list[0] ? { kind: "provider", provider: list[0], model: id } : null;
+	if (id.startsWith(CLAUDE_CODE_PREFIX)) return { kind: 'claude-code', alias: id.slice(CLAUDE_CODE_PREFIX.length) };
+	if (id.startsWith(CODEX_PREFIX)) return { kind: 'codex', model: id.slice(CODEX_PREFIX.length) };
+	const list = providers();
+	const colon = id.indexOf(':');
+	const owner = colon > 0 ? list.find((p) => p.id === id.slice(0, colon)) : undefined;
+	if (owner) return { kind: 'provider', provider: owner, model: id.slice(colon + 1) };
+	return list[0] ? { kind: 'provider', provider: list[0], model: id } : null;
 }
 
 // The model picked on the start page.
 export function modelName(): string {
-  return readSettings().model ?? "";
+	return readSettings().model ?? '';
 }
 
 export function setModelName(model: string): void {
-  writeSettings({ model });
+	writeSettings({ model });
 }
 
 export function savedEditorModel(): string | undefined {
-  return readSettings().editorModel;
+	return readSettings().editorModel;
 }
 
 export function setEditorModel(editorModel: string): void {
-  writeSettings({ editorModel });
+	writeSettings({ editorModel });
 }
 
 export function hiddenPrs(): string[] {
-  return readSettings().hiddenPrs ?? [];
+	return readSettings().hiddenPrs ?? [];
 }
 
 export function setHidden(key: string, hidden: boolean): string[] {
-  const list = hiddenPrs().filter((k) => k !== key);
-  writeSettings({ hiddenPrs: hidden ? [...list, key] : list });
-  return hiddenPrs();
+	const list = hiddenPrs().filter((k) => k !== key);
+	writeSettings({ hiddenPrs: hidden ? [...list, key] : list });
+	return hiddenPrs();
 }
 
 // Runs a one-off change to saved reviews the first time it's asked for, and
 // never again, whatever restarts there are.
 export function carryOver(name: string, change: () => void): void {
-  const done = readSettings().carriedOver ?? [];
-  if (done.includes(name)) return;
-  change();
-  writeSettings({ carriedOver: [...done, name] });
+	const done = readSettings().carriedOver ?? [];
+	if (done.includes(name)) return;
+	change();
+	writeSettings({ carriedOver: [...done, name] });
 }
 
 export function pinnedPrs(): string[] {
-  return readSettings().pinnedPrs ?? [];
+	return readSettings().pinnedPrs ?? [];
 }
 
 export function setPinned(key: string, pinned: boolean): string[] {
-  const list = pinnedPrs().filter((k) => k !== key);
-  writeSettings({ pinnedPrs: pinned ? [...list, key] : list });
-  return pinnedPrs();
+	const list = pinnedPrs().filter((k) => k !== key);
+	writeSettings({ pinnedPrs: pinned ? [...list, key] : list });
+	return pinnedPrs();
 }
 
 export function defaultPanel(): PanelEntry[] | null {
-  const panel = readSettings().panel;
-  return panel ? panel.map((e) => (typeof e === "string" ? { runs: e } : e)) : null;
+	const panel = readSettings().panel;
+	return panel ? panel.map((e) => (typeof e === 'string' ? { runs: e } : e)) : null;
 }
 
 export function setDefaultPanel(panel: PanelEntry[]): void {
-  writeSettings({ panel });
+	writeSettings({ panel });
 }
 
 // How much runs at once follows the picked model's provider. Claude Code
@@ -267,35 +264,34 @@ export function setDefaultPanel(panel: PanelEntry[]): void {
 // few, to leave the reviewer's own sessions room. Read on every call, so picking another
 // model applies straight away.
 function selected(): ResolvedModel | null {
-  return resolveModel(modelName());
+	return resolveModel(modelName());
 }
 
 // Claude Code and Codex calls run on the reviewer's own plan and are
 // separate processes here, so how many at once is theirs to choose.
 const RUNNER_DEFAULT = 10;
 
-export function runnerConcurrency(runner: "claude-code" | "codex"): number {
-  const s = readSettings();
-  return (runner === "codex" ? s.codexConcurrency : s.claudeCodeConcurrency) ?? RUNNER_DEFAULT;
+export function runnerConcurrency(runner: 'claude-code' | 'codex'): number {
+	const s = readSettings();
+	return (runner === 'codex' ? s.codexConcurrency : s.claudeCodeConcurrency) ?? RUNNER_DEFAULT;
 }
 
-export function setRunnerConcurrency(runner: "claude-code" | "codex", n: number): void {
-  writeSettings(runner === "codex" ? { codexConcurrency: n } : { claudeCodeConcurrency: n });
+export function setRunnerConcurrency(runner: 'claude-code' | 'codex', n: number): void {
+	writeSettings(runner === 'codex' ? { codexConcurrency: n } : { claudeCodeConcurrency: n });
 }
 
 // The queue a model's calls wait in, and how many run at once: one queue per
 // tool or provider, so a Codex reviewer never waits behind Claude Code calls.
 export function laneOf(model?: string): { key: string; cap: number } {
-  const resolved = resolveModel(model ?? modelName());
-  if (!resolved) return { key: "none", cap: 1 };
-  if (resolved.kind === "provider") return { key: resolved.provider.id, cap: resolved.provider.concurrency };
-  return { key: resolved.kind, cap: runnerConcurrency(resolved.kind) };
+	const resolved = resolveModel(model ?? modelName());
+	if (!resolved) return { key: 'none', cap: 1 };
+	if (resolved.kind === 'provider') return { key: resolved.provider.id, cap: resolved.provider.concurrency };
+	return { key: resolved.kind, cap: runnerConcurrency(resolved.kind) };
 }
 
 // PRs being prepared at once; the rest wait in a queue.
 export function maxConcurrentGenerations(): number {
-  const model = selected();
-  if (!model) return 1;
-  return model.kind === "provider" ? model.provider.concurrency : 3;
+	const model = selected();
+	if (!model) return 1;
+	return model.kind === 'provider' ? model.provider.concurrency : 3;
 }
-

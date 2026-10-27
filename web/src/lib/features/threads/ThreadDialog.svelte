@@ -27,7 +27,12 @@
 	const yours = $derived(session?.record.notes.find((n) => n.github === id));
 
 	// The lines it was left on: the end of GitHub's hunk, which stops at them.
-	const then = $derived(thread?.diffHunk?.split('\n').filter((l) => !l.startsWith('@@')).slice(-8) ?? []);
+	const then = $derived(
+		thread?.diffHunk
+			?.split('\n')
+			.filter((l) => !l.startsWith('@@'))
+			.slice(-8) ?? []
+	);
 	const now = $derived(thread?.now.split('\n').filter(Boolean) ?? []);
 
 	// Long threads show their first and latest comments, the rest folded.

@@ -26,9 +26,7 @@
 		threads.load();
 		return () => threads.close();
 	});
-	const githubUrl = $derived(
-		session.meta?.htmlUrl ?? `https://github.com/${session.ref.owner}/${session.ref.repo}/pull/${session.ref.number}`
-	);
+	const githubUrl = $derived(session.meta?.htmlUrl ?? `https://github.com/${session.ref.owner}/${session.ref.repo}/pull/${session.ref.number}`);
 </script>
 
 {#if session.preparing}

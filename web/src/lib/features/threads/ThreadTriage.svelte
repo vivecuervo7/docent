@@ -17,9 +17,7 @@
 	let { threads: source, base }: { threads: PrThreads; base?: string } = $props();
 
 	// By file, then line.
-	const all = $derived(
-		[...source.threads].sort((a, b) => a.path.localeCompare(b.path) || (a.start?.line ?? 0) - (b.start?.line ?? 0))
-	);
+	const all = $derived([...source.threads].sort((a, b) => a.path.localeCompare(b.path) || (a.start?.line ?? 0) - (b.start?.line ?? 0)));
 	const open = $derived(all.filter((t) => !t.resolved));
 	const resolved = $derived(all.filter((t) => t.resolved));
 	let showResolved = $state(false);
@@ -68,10 +66,7 @@
 	// The thread open for a closer look, and the threads it steps through, in
 	// the order they were listed when it opened. Opened from the diff, by URL.
 	let opened = $state<{ id: string; order: string[] } | null>(null);
-	const listed = $derived([
-		...(anyChecked ? [...VERDICTS.flatMap(({ verdict }) => byVerdict(verdict)), ...rest] : open),
-		...(showResolved ? resolved : [])
-	]);
+	const listed = $derived([...(anyChecked ? [...VERDICTS.flatMap(({ verdict }) => byVerdict(verdict)), ...rest] : open), ...(showResolved ? resolved : [])]);
 	function show(id: string) {
 		opened = { id, order: listed.some((t) => t.id === id) ? listed.map((t) => t.id) : [id] };
 	}
@@ -117,7 +112,9 @@
 		<span class="grow"></span>
 		{#if source.data && open.length}
 			{#if checking.length}
-				<span class="checking faint"><Spinner size={12} /> Checking {checking.length < open.length ? `${checking.length} of ${open.length}` : `all ${open.length}`}…</span>
+				<span class="checking faint"
+					><Spinner size={12} /> Checking {checking.length < open.length ? `${checking.length} of ${open.length}` : `all ${open.length}`}…</span
+				>
 			{:else if anyChecked}
 				{#if unchecked.length}
 					<button class="link" onclick={() => checkAll(unchecked)}>Check {unchecked.length} new</button>
@@ -149,18 +146,24 @@
 				{#if threads.length}
 					<div class="group">
 						<VerdictLabel {verdict} size={13.5}>{label} · {threads.length}</VerdictLabel>
-						<ul>{#each threads as t (t.id)}{@render row(t, verdict === 'addressed')}{/each}</ul>
+						<ul>
+							{#each threads as t (t.id)}{@render row(t, verdict === 'addressed')}{/each}
+						</ul>
 					</div>
 				{/if}
 			{/each}
 			{#if rest.length}
 				<div class="group">
 					<VerdictLabel size={13.5}>Not checked · {rest.length}</VerdictLabel>
-					<ul>{#each rest as t (t.id)}{@render row(t, false)}{/each}</ul>
+					<ul>
+						{#each rest as t (t.id)}{@render row(t, false)}{/each}
+					</ul>
 				</div>
 			{/if}
 		{:else if open.length}
-			<ul>{#each open as t (t.id)}{@render row(t, false)}{/each}</ul>
+			<ul>
+				{#each open as t (t.id)}{@render row(t, false)}{/each}
+			</ul>
 		{:else}
 			<p class="faint">Every thread is resolved.</p>
 		{/if}
@@ -168,10 +171,13 @@
 		<!-- Resolved threads come last, and only on asking. -->
 		{#if resolved.length}
 			<button class="link more" aria-expanded={showResolved} onclick={() => (showResolved = !showResolved)}>
-				{showResolved ? 'Hide' : 'Show'} {resolved.length} resolved
+				{showResolved ? 'Hide' : 'Show'}
+				{resolved.length} resolved
 			</button>
 			{#if showResolved}
-				<ul>{#each resolved as t (t.id)}{@render row(t, false)}{/each}</ul>
+				<ul>
+					{#each resolved as t (t.id)}{@render row(t, false)}{/each}
+				</ul>
 			{/if}
 		{/if}
 		{#if open.length}<p class="faint small">Resolve, reopen and reply act on GitHub straight away.</p>{/if}

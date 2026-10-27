@@ -19,14 +19,9 @@
 	// Wrap up is done once the PR is read and your comments are drafted from
 	// your threads as they stand; the panel's findings already have a choice,
 	// its or yours.
-	const wrappedUp = $derived(
-		allRead &&
-			(!session.yours.threads.length || (!!session.record.feedback.yours && !session.yours.threadsChanged))
-	);
+	const wrappedUp = $derived(allRead && (!session.yours.threads.length || (!!session.record.feedback.yours && !session.yours.threadsChanged)));
 	// Read goes to the first slice not yet reviewed.
-	const readTarget = $derived(
-		(session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0])?.id
-	);
+	const readTarget = $derived((session.slices.find((s) => !isSliceReviewed(s, session.reviewed)) ?? session.slices[0])?.id);
 </script>
 
 <header>

@@ -61,14 +61,13 @@
 			: runs === 'codex'
 				? [{ value: '', label: 'Codex’s default' }, ...codexModels.map((m) => ({ value: m, label: m }))]
 				: [
-					{ value: '', label: 'Claude Code’s default' },
-					{ value: 'opus', label: 'opus' },
-					{ value: 'sonnet', label: 'sonnet' },
-					{ value: 'haiku', label: 'haiku' }
-				];
+						{ value: '', label: 'Claude Code’s default' },
+						{ value: 'opus', label: 'opus' },
+						{ value: 'sonnet', label: 'sonnet' },
+						{ value: 'haiku', label: 'haiku' }
+					];
 
-	const send = (url: string, method: string, body: unknown) =>
-		sendJson(url, body, method).then(readOk);
+	const send = (url: string, method: string, body: unknown) => sendJson(url, body, method).then(readOk);
 
 	// Dragged into a new order, saved as it lands.
 	async function reorder(ids: string[]) {
@@ -133,17 +132,16 @@
 					/>
 				</Field>
 				<Field label="Prompt">
-					<textarea bind:value={draft.command} rows="1" placeholder="Review {'{pr_url}'} for correctness and security issues" required
-					></textarea>
+					<textarea bind:value={draft.command} rows="1" placeholder="Review {'{pr_url}'} for correctness and security issues" required></textarea>
 					{#snippet hint()}
 						{#if providerOf(draft.runs)}
-							The review’s instructions, up to 20,000 characters. Docent sends the model the PR with them, its title, summary and
-							diff, so ask for a review of that, not of a link. The model can look further through Docent’s read tools.
+							The review’s instructions, up to 20,000 characters. Docent sends the model the PR with them, its title, summary and diff, so ask for a review of
+							that, not of a link. The model can look further through Docent’s read tools.
 							<code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>, <code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in.
 						{:else}
 							A prompt or a skill, as you’d type it in Claude Code. <code>{'{pr_url}'}</code>, <code>{'{owner}'}</code>,
-							<code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in. It runs unattended, so include anything it needs to
-							skip questions or posting. Built-in commands like <code>/review</code> can’t hand their findings back.
+							<code>{'{repo}'}</code> and <code>{'{number}'}</code> are filled in. It runs unattended, so include anything it needs to skip questions or
+							posting. Built-in commands like <code>/review</code> can’t hand their findings back.
 						{/if}
 					{/snippet}
 				</Field>
@@ -152,8 +150,8 @@
 				</Field>
 				{#if providerOf(draft.runs)}
 					<p class="note">
-						Calls the model directly. It reviews from the diff and what Docent looked up about the code around it, and can read other files
-						through Docent’s tools before it reports, so the model needs to support tool calls.
+						Calls the model directly. It reviews from the diff and what Docent looked up about the code around it, and can read other files through Docent’s
+						tools before it reports, so the model needs to support tool calls.
 					</p>
 				{:else if draft.runs === 'claude-code'}
 					<Field

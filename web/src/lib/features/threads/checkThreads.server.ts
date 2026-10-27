@@ -1,44 +1,44 @@
-import { canLook, chatWithTool } from "../../models/modelProvider.server.js";
-import { inLane } from "../../models/lanes.server.js";
-import { modelName } from "../../storage/settings.server.js";
-import type { AnswerAccess } from "../reading/threadReplies.server.js";
+import { canLook, chatWithTool } from '../../models/modelProvider.server.js';
+import { inLane } from '../../models/lanes.server.js';
+import { modelName } from '../../storage/settings.server.js';
+import type { AnswerAccess } from '../reading/threadReplies.server.js';
 
 // Whether a thread someone left on GitHub has been dealt with, judged from
 // what's changed in its file since and what's been said on it.
 
 export interface ThreadToCheck {
-  path: string;
-  // Where it sits now, or where it was left when its lines have changed.
-  lines: string;
-  // Its lines as they read now, with +/- markers; empty when they've moved.
-  code: string;
-  // What's changed in its file since it was left; or, `since` unset, the
-  // PR's whole change to the file, the commit it was left on being gone.
-  fileDiff: string;
-  since: boolean;
-  // The thread, as text.
-  github: string;
+	path: string;
+	// Where it sits now, or where it was left when its lines have changed.
+	lines: string;
+	// Its lines as they read now, with +/- markers; empty when they've moved.
+	code: string;
+	// What's changed in its file since it was left; or, `since` unset, the
+	// PR's whole change to the file, the commit it was left on being gone.
+	fileDiff: string;
+	since: boolean;
+	// The thread, as text.
+	github: string;
 }
 
 export interface ThreadVerdict {
-  verdict: "addressed" | "not-yet" | "unclear";
-  reason: string;
-  // A reply the reviewer could post, when it isn't addressed.
-  reply?: string;
+	verdict: 'addressed' | 'not-yet' | 'unclear';
+	reason: string;
+	// A reply the reviewer could post, when it isn't addressed.
+	reply?: string;
 }
 
 const REPORT_CHECK_TOOL = {
-  name: "report_check",
-  description: "Report whether the comment has been addressed.",
-  parameters: {
-    type: "object",
-    properties: {
-      verdict: { type: "string", enum: ["addressed", "not-yet", "unclear"] },
-      reason: { type: "string" },
-      reply: { type: "string" },
-    },
-    required: ["verdict", "reason"],
-  },
+	name: 'report_check',
+	description: 'Report whether the comment has been addressed.',
+	parameters: {
+		type: 'object',
+		properties: {
+			verdict: { type: 'string', enum: ['addressed', 'not-yet', 'unclear'] },
+			reason: { type: 'string' },
+			reply: { type: 'string' }
+		},
+		required: ['verdict', 'reason']
+	}
 };
 
 const SYSTEM_PROMPT = `You are helping someone review a pull request. Someone left a comment on \
@@ -61,33 +61,39 @@ comment's lines have moved or the fix may be elsewhere; answer straight away whe
 enough.`;
 
 function contextOf(thread: ThreadToCheck): string {
-  const parts = [`File: ${thread.path}, ${thread.lines}`, `The thread on GitHub:\n${thread.github}`];
-  if (thread.code) parts.push(`Its lines now:\n\`\`\`diff\n${thread.code}\n\`\`\``);
-  const what = thread.since ? "What's changed in the file since the comment was left" : "The PR's changes to the file";
-  parts.push(thread.fileDiff ? `${what}:\n\`\`\`diff\n${thread.fileDiff}\n\`\`\`` : thread.since ? "Nothing in the file has changed since the comment was left." : "The PR doesn't change this file.");
-  return parts.join("\n\n");
+	const parts = [`File: ${thread.path}, ${thread.lines}`, `The thread on GitHub:\n${thread.github}`];
+	if (thread.code) parts.push(`Its lines now:\n\`\`\`diff\n${thread.code}\n\`\`\``);
+	const what = thread.since ? "What's changed in the file since the comment was left" : "The PR's changes to the file";
+	parts.push(
+		thread.fileDiff
+			? `${what}:\n\`\`\`diff\n${thread.fileDiff}\n\`\`\``
+			: thread.since
+				? 'Nothing in the file has changed since the comment was left.'
+				: "The PR doesn't change this file."
+	);
+	return parts.join('\n\n');
 }
 
 export function checkThread(thread: ThreadToCheck, signal: AbortSignal, model?: string, access?: AnswerAccess): Promise<ThreadVerdict> {
-  return inLane(async () => {
-    signal.throwIfAborted();
-    const looks = !!access && canLook(model ?? modelName());
-    const call = await chatWithTool(
-      [
-        { role: "system", content: SYSTEM_PROMPT + (looks ? LOOK_NOTE(access!.pr) : "") },
-        { role: "user", content: contextOf(thread) },
-      ],
-      REPORT_CHECK_TOOL,
-      signal,
-      model ?? modelName(),
-      looks ? { mcpUrl: access!.mcpUrl, tools: ["read_file", "search_code", "list_files"] } : undefined,
-    );
-    const { verdict, reason, reply } = call.arguments as Record<string, unknown>;
-    if (verdict !== "addressed" && verdict !== "not-yet" && verdict !== "unclear") throw new Error("The check gave no verdict.");
-    return {
-      verdict,
-      reason: typeof reason === "string" ? reason.trim() : "",
-      ...(verdict !== "addressed" && typeof reply === "string" && reply.trim() ? { reply: reply.trim() } : {}),
-    };
-  }, model);
+	return inLane(async () => {
+		signal.throwIfAborted();
+		const looks = !!access && canLook(model ?? modelName());
+		const call = await chatWithTool(
+			[
+				{ role: 'system', content: SYSTEM_PROMPT + (looks ? LOOK_NOTE(access!.pr) : '') },
+				{ role: 'user', content: contextOf(thread) }
+			],
+			REPORT_CHECK_TOOL,
+			signal,
+			model ?? modelName(),
+			looks ? { mcpUrl: access!.mcpUrl, tools: ['read_file', 'search_code', 'list_files'] } : undefined
+		);
+		const { verdict, reason, reply } = call.arguments as Record<string, unknown>;
+		if (verdict !== 'addressed' && verdict !== 'not-yet' && verdict !== 'unclear') throw new Error('The check gave no verdict.');
+		return {
+			verdict,
+			reason: typeof reason === 'string' ? reason.trim() : '',
+			...(verdict !== 'addressed' && typeof reply === 'string' && reply.trim() ? { reply: reply.trim() } : {})
+		};
+	}, model);
 }

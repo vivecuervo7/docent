@@ -4,29 +4,29 @@
 // Kept generic (messages + tool schema in, tool calls out) so callers don't
 // care which. The providers are set on the Settings page (storage/settings.server.ts).
 
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
-import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from "./claudeCode.server.js";
-import { codexAvailable, codexChat, codexChatWithTool, codexModels } from "./codex.server.js";
-import { providerKey } from "./providerKey.server.js";
-import { lastKnown } from "../storage/lastKnown.server.js";
-import { providerChatLoop, providerToolLoop } from "./providerLoop.server.js";
-import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from "../storage/settings.server.js";
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { claudeCodeAvailable, claudeCodeChat, claudeCodeChatWithTool, CLAUDE_CODE_MODELS } from './claudeCode.server.js';
+import { codexAvailable, codexChat, codexChatWithTool, codexModels } from './codex.server.js';
+import { providerKey } from './providerKey.server.js';
+import { lastKnown } from '../storage/lastKnown.server.js';
+import { providerChatLoop, providerToolLoop } from './providerLoop.server.js';
+import { CLAUDE_CODE_PREFIX, CODEX_PREFIX, modelName, providers, resolveModel, type Provider } from '../storage/settings.server.js';
 
 export interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
+	role: 'system' | 'user' | 'assistant';
+	content: string;
 }
 
 export interface ToolDefinition {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
+	name: string;
+	description: string;
+	parameters: Record<string, unknown>;
 }
 
 export interface ToolCall {
-  name: string;
-  arguments: unknown;
+	name: string;
+	arguments: unknown;
 }
 
 // Docent's own read tools, over MCP, for a call that should look at the
@@ -36,177 +36,167 @@ export interface ToolCall {
 // canLook, which models a reply or a thread check may - a provider's model
 // among them, though one that doesn't support tool calls fails the call.
 export interface CodeAccess {
-  mcpUrl: string;
-  tools: string[];
-  // Each look it takes, as it takes it ("Read src/app.ts"), where the tool
-  // reports them (Claude Code).
-  onStep?: (step: string) => void;
+	mcpUrl: string;
+	tools: string[];
+	// Each look it takes, as it takes it ("Read src/app.ts"), where the tool
+	// reports them (Claude Code).
+	onStep?: (step: string) => void;
 }
 
 export function canReadCode(model: string): boolean {
-  const kind = resolveModel(model)?.kind;
-  return kind === "claude-code" || kind === "codex";
+	const kind = resolveModel(model)?.kind;
+	return kind === 'claude-code' || kind === 'codex';
 }
 
 export function canLook(model: string): boolean {
-  return resolveModel(model) !== null;
+	return resolveModel(model) !== null;
 }
 
 async function headers(provider: Provider): Promise<Record<string, string>> {
-  const key = await providerKey(provider);
-  return { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) };
+	const key = await providerKey(provider);
+	return { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) };
 }
 
 // node:http(s) rather than fetch: fetch gives up after five minutes without a
 // response, and a large PR queued behind other work can legitimately take
 // longer. There's no time limit here - a generation ends when it finishes or
 // is stopped through `signal`.
-async function send(
-  provider: Provider,
-  method: "GET" | "POST",
-  path: string,
-  body: unknown,
-  signal?: AbortSignal,
-): Promise<{ status: number; text: string }> {
-  const url = `${provider.baseUrl}${path}`;
-  const request = url.startsWith("https:") ? httpsRequest : httpRequest;
-  const requestHeaders = await headers(provider);
-  return new Promise((resolve, reject) => {
-    const req = request(
-      url,
-      { method, headers: requestHeaders, signal },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") }));
-        res.on("error", reject);
-      },
-    );
-    req.on("error", reject);
-    req.end(body === undefined ? undefined : JSON.stringify(body));
-  });
+async function send(provider: Provider, method: 'GET' | 'POST', path: string, body: unknown, signal?: AbortSignal): Promise<{ status: number; text: string }> {
+	const url = `${provider.baseUrl}${path}`;
+	const request = url.startsWith('https:') ? httpsRequest : httpRequest;
+	const requestHeaders = await headers(provider);
+	return new Promise((resolve, reject) => {
+		const req = request(url, { method, headers: requestHeaders, signal }, (res) => {
+			const chunks: Buffer[] = [];
+			res.on('data', (chunk: Buffer) => chunks.push(chunk));
+			res.on('end', () => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }));
+			res.on('error', reject);
+		});
+		req.on('error', reject);
+		req.end(body === undefined ? undefined : JSON.stringify(body));
+	});
 }
 
-const postJson = (provider: Provider, path: string, body: unknown, signal?: AbortSignal) => send(provider, "POST", path, body, signal);
+const postJson = (provider: Provider, path: string, body: unknown, signal?: AbortSignal) => send(provider, 'POST', path, body, signal);
 
 export interface ModelOption {
-  id: string;
-  label: string;
-  // Where it runs, as the menu groups it: "Claude Code" or a provider's name.
-  source: string;
+	id: string;
+	label: string;
+	// Where it runs, as the menu groups it: "Claude Code" or a provider's name.
+	source: string;
 }
 
 export interface ProviderStatus {
-  models: string[];
-  error?: string;
+	models: string[];
+	error?: string;
 }
 
 // A provider's models, from its OpenAI-style model list. Short on time, so a
 // server that's off doesn't hold up the menu.
 export async function listProviderModels(provider: Provider): Promise<ProviderStatus> {
-  try {
-    const res = await send(provider, "GET", "/models", undefined, AbortSignal.timeout(5000));
-    if (res.status < 200 || res.status >= 300) return { models: [], error: `It answered ${res.status}.` };
-    const data = JSON.parse(res.text) as { data?: { id?: unknown }[] };
-    const models = (data.data ?? []).flatMap((m) => (typeof m.id === "string" ? [m.id] : [])).sort();
-    if (!models.length) return { models, error: "It answered, but listed no models. Does the address end in /v1?" };
-    return { models };
-  } catch (err) {
-    const e = err as Error & { code?: string };
-    return { models: [], error: e.name === "TimeoutError" ? "It didn't answer within 5 seconds." : e.code ? `Couldn't connect (${e.code}).` : e.message };
-  }
+	try {
+		const res = await send(provider, 'GET', '/models', undefined, AbortSignal.timeout(5000));
+		if (res.status < 200 || res.status >= 300) return { models: [], error: `It answered ${res.status}.` };
+		const data = JSON.parse(res.text) as { data?: { id?: unknown }[] };
+		const models = (data.data ?? []).flatMap((m) => (typeof m.id === 'string' ? [m.id] : [])).sort();
+		if (!models.length) return { models, error: 'It answered, but listed no models. Does the address end in /v1?' };
+		return { models };
+	} catch (err) {
+		const e = err as Error & { code?: string };
+		return { models: [], error: e.name === 'TimeoutError' ? "It didn't answer within 5 seconds." : e.code ? `Couldn't connect (${e.code}).` : e.message };
+	}
 }
 
 // Codex's models when it's installed and signed in; `fresh` looks again
 // instead of using what was found a moment ago.
 export async function codexStatus(fresh = false): Promise<{ installed: boolean; models: string[] }> {
-  const installed = await codexAvailable(fresh);
-  return { installed, models: installed ? await codexModels(fresh) : [] };
+	const installed = await codexAvailable(fresh);
+	return { installed, models: installed ? await codexModels(fresh) : [] };
 }
 
 // Everything that can be picked right now: Claude Code's models when
 // `claude` is installed, Codex's when it's signed in, then each provider's
 // that answers.
 export async function listModelOptions(): Promise<ModelOption[]> {
-  const list = providers();
-  const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(), Promise.all(list.map(listProviderModels))]);
-  return [
-    ...(claude ? CLAUDE_CODE_MODELS.map((alias) => ({ id: `${CLAUDE_CODE_PREFIX}${alias}`, label: alias, source: "Claude Code" })) : []),
-    ...codex.models.map((model) => ({ id: `${CODEX_PREFIX}${model}`, label: model, source: "Codex" })),
-    ...list.flatMap((provider, i) => statuses[i].models.map((model) => ({ id: `${provider.id}:${model}`, label: model, source: provider.name }))),
-  ];
+	const list = providers();
+	const [claude, codex, statuses] = await Promise.all([claudeCodeAvailable(), codexStatus(), Promise.all(list.map(listProviderModels))]);
+	return [
+		...(claude ? CLAUDE_CODE_MODELS.map((alias) => ({ id: `${CLAUDE_CODE_PREFIX}${alias}`, label: alias, source: 'Claude Code' })) : []),
+		...codex.models.map((model) => ({ id: `${CODEX_PREFIX}${model}`, label: model, source: 'Codex' })),
+		...list.flatMap((provider, i) => statuses[i].models.map((model) => ({ id: `${provider.id}:${model}`, label: model, source: provider.name })))
+	];
 }
 
 // The models as last listed, for the model menu, listed again behind it.
-export const modelOptions = lastKnown("models", listModelOptions);
+export const modelOptions = lastKnown('models', listModelOptions);
 
 function target(model: string) {
-  const resolved = resolveModel(model);
-  if (!resolved) throw new Error("No model is set up. Add a provider on the Settings page, or install Claude Code or Codex.");
-  return resolved;
+	const resolved = resolveModel(model);
+	if (!resolved) throw new Error('No model is set up. Add a provider on the Settings page, or install Claude Code or Codex.');
+	return resolved;
 }
 
 // `model` picks a model for this call alone - a reviewer entry with its own
 // choice - rather than the one picked on the start page.
 export async function chatWithTool(
-  messages: ChatMessage[],
-  tool: ToolDefinition,
-  signal?: AbortSignal,
-  model = modelName(),
-  access?: CodeAccess,
+	messages: ChatMessage[],
+	tool: ToolDefinition,
+	signal?: AbortSignal,
+	model = modelName(),
+	access?: CodeAccess
 ): Promise<ToolCall> {
-  const resolved = target(model);
-  if (resolved.kind === "claude-code") return claudeCodeChatWithTool(resolved.alias, messages, tool, signal, access);
-  if (resolved.kind === "codex") return codexChatWithTool(resolved.model, messages, tool, signal, access);
-  if (access) return providerToolLoop(resolved.provider, resolved.model, messages, tool, access, signal);
+	const resolved = target(model);
+	if (resolved.kind === 'claude-code') return claudeCodeChatWithTool(resolved.alias, messages, tool, signal, access);
+	if (resolved.kind === 'codex') return codexChatWithTool(resolved.model, messages, tool, signal, access);
+	if (access) return providerToolLoop(resolved.provider, resolved.model, messages, tool, access, signal);
 
-  const res = await postJson(
-    resolved.provider,
-    "/chat/completions",
-    {
-      model: resolved.model,
-      messages,
-      tools: [{ type: "function", function: tool }],
-      tool_choice: "required",
-    },
-    signal,
-  );
+	const res = await postJson(
+		resolved.provider,
+		'/chat/completions',
+		{
+			model: resolved.model,
+			messages,
+			tools: [{ type: 'function', function: tool }],
+			tool_choice: 'required'
+		},
+		signal
+	);
 
-  if (res.status < 200 || res.status >= 300) {
-    throw new Error(`model backend returned ${res.status}`);
-  }
+	if (res.status < 200 || res.status >= 300) {
+		throw new Error(`model backend returned ${res.status}`);
+	}
 
-  const data = JSON.parse(res.text) as {
-    choices?: { message?: { tool_calls?: { function: { name: string; arguments: string } }[] } }[];
-  };
+	const data = JSON.parse(res.text) as {
+		choices?: { message?: { tool_calls?: { function: { name: string; arguments: string } }[] } }[];
+	};
 
-  const call = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) {
-    throw new Error("model did not return a tool call");
-  }
+	const call = data.choices?.[0]?.message?.tool_calls?.[0];
+	if (!call) {
+		throw new Error('model did not return a tool call');
+	}
 
-  return { name: call.function.name, arguments: JSON.parse(call.function.arguments) };
+	return { name: call.function.name, arguments: JSON.parse(call.function.arguments) };
 }
 
 // For free-form replies, where a tool call adds nothing: the model answers
 // in the message content.
 export async function chat(messages: ChatMessage[], signal?: AbortSignal, model = modelName(), access?: CodeAccess): Promise<string> {
-  const resolved = target(model);
-  if (resolved.kind === "claude-code") return claudeCodeChat(resolved.alias, messages, signal, access);
-  if (resolved.kind === "codex") return codexChat(resolved.model, messages, signal, access);
-  if (access) return providerChatLoop(resolved.provider, resolved.model, messages, access, signal);
+	const resolved = target(model);
+	if (resolved.kind === 'claude-code') return claudeCodeChat(resolved.alias, messages, signal, access);
+	if (resolved.kind === 'codex') return codexChat(resolved.model, messages, signal, access);
+	if (access) return providerChatLoop(resolved.provider, resolved.model, messages, access, signal);
 
-  const res = await postJson(resolved.provider, "/chat/completions", { model: resolved.model, messages }, signal);
+	const res = await postJson(resolved.provider, '/chat/completions', { model: resolved.model, messages }, signal);
 
-  if (res.status < 200 || res.status >= 300) {
-    throw new Error(`model backend returned ${res.status}`);
-  }
+	if (res.status < 200 || res.status >= 300) {
+		throw new Error(`model backend returned ${res.status}`);
+	}
 
-  const data = JSON.parse(res.text) as { choices?: { message?: { content?: string } }[] };
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) {
-    throw new Error("model returned an empty reply");
-  }
+	const data = JSON.parse(res.text) as { choices?: { message?: { content?: string } }[] };
+	const content = data.choices?.[0]?.message?.content?.trim();
+	if (!content) {
+		throw new Error('model returned an empty reply');
+	}
 
-  return content;
+	return content;
 }

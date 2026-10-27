@@ -6,7 +6,8 @@ import { bodyOf, forbidden, fromThisApp, noContent, notFound } from '$lib/api/ht
 
 export const PUT: RequestHandler = async ({ params: { id }, request, url }) => {
 	const body = await bodyOf(request);
-	if (typeof body.apiKeyCommand === 'string' && body.apiKeyCommand.trim() && !fromThisApp(request, url)) return forbidden('A key command can only be saved from Docent on this machine.');
+	if (typeof body.apiKeyCommand === 'string' && body.apiKeyCommand.trim() && !fromThisApp(request, url))
+		return forbidden('A key command can only be saved from Docent on this machine.');
 	const checked = providerFields(body, true);
 	if ('error' in checked) return json(checked, { status: 400 });
 	const provider = updateProvider(id, checked.fields);

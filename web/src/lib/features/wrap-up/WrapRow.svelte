@@ -154,7 +154,6 @@
 	{/if}
 </li>
 
-
 <style>
 	.row {
 		display: grid;

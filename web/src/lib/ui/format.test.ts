@@ -18,7 +18,7 @@ describe('timeAgo', () => {
 });
 
 describe('shortDate', () => {
-	it('gives a year only when it isn\'t this one', () => {
+	it("gives a year only when it isn't this one", () => {
 		const thisYear = new Date(new Date().getFullYear(), 0, 5).getTime();
 		expect(shortDate(thisYear)).not.toMatch(/\d{4}/);
 		expect(shortDate(new Date(2020, 0, 5).getTime())).toMatch(/2020/);

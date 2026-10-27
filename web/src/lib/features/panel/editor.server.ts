@@ -1,12 +1,12 @@
-import { claudeCodeAvailable } from "../../models/claudeCode.server.js";
-import { modelName, resolveModel, savedEditorModel } from "../../storage/settings.server.js";
-import { conversationText, fetchPrConversation } from "../../github/github.server.js";
-import { canReadCode, chatWithTool } from "../../models/modelProvider.server.js";
-import { inNamedLane } from "../../models/lanes.server.js";
-import { hunkIndicesByFile, numberedFileDiff } from "../../github/prDiff.server.js";
-import { prRef, roundRecord } from "../../storage/rounds.server.js";
-import type { PrSummary, Slice } from "../../types.js";
-import { fetchReviewFiles } from "../../github/range.server.js";
+import { claudeCodeAvailable } from '../../models/claudeCode.server.js';
+import { modelName, resolveModel, savedEditorModel } from '../../storage/settings.server.js';
+import { conversationText, fetchPrConversation } from '../../github/github.server.js';
+import { canReadCode, chatWithTool } from '../../models/modelProvider.server.js';
+import { inNamedLane } from '../../models/lanes.server.js';
+import { hunkIndicesByFile, numberedFileDiff } from '../../github/prDiff.server.js';
+import { prRef, roundRecord } from '../../storage/rounds.server.js';
+import type { PrSummary, Slice } from '../../types.js';
+import { fetchReviewFiles } from '../../github/range.server.js';
 
 // The panel's editor: with several reviewers on a PR, the same point is
 // often raised more than once, and reviewers seeing only the diff raise
@@ -21,143 +21,141 @@ import { fetchReviewFiles } from "../../github/range.server.js";
 // Code is present - it's a handful of calls per PR, and the judgement the
 // whole review rests on - else Docent's model.
 export async function editorModel(): Promise<string> {
-  const saved = savedEditorModel();
-  if (saved && resolveModel(saved)) return saved;
-  return (await claudeCodeAvailable()) ? "claude-code:opus" : modelName();
+	const saved = savedEditorModel();
+	if (saved && resolveModel(saved)) return saved;
+	return (await claudeCodeAvailable()) ? 'claude-code:opus' : modelName();
 }
 
 // Docent's read tools the editor looks through the code with.
-const EDITOR_TOOLS = ["get_diff", "read_file", "list_files", "search_code"];
+const EDITOR_TOOLS = ['get_diff', 'read_file', 'list_files', 'search_code'];
 
 export interface Editable {
-  id: string;
-  who: string;
-  location: string;
-  body: string;
-  rationale?: string;
-  severity?: string;
-  // Why its reviewer's own process set it aside, when it handed it back anyway.
-  setAside?: string;
+	id: string;
+	who: string;
+	location: string;
+	body: string;
+	rationale?: string;
+	severity?: string;
+	// Why its reviewer's own process set it aside, when it handed it back anyway.
+	setAside?: string;
 }
 
 // A finding from an earlier round of the same review, with what the reviewer
 // decided on it there.
 export interface Earlier {
-  id: string;
-  round: number;
-  decision: "kept" | "skipped";
-  who: string;
-  location: string;
-  body: string;
+	id: string;
+	round: number;
+	decision: 'kept' | 'skipped';
+	who: string;
+	location: string;
+	body: string;
 }
 
 export interface Edit {
-  sameAs?: string;
-  // The earlier round's finding it makes the same point as.
-  earlier?: string;
-  filtered?: string;
-  // For one kept, what checking it against the code showed.
-  checked?: string;
-  // For one kept that rests on something nothing settles, what it assumes.
-  speculative?: string;
-  // For one kept whose reviewer overstated it, the severity it deserves.
-  severity?: string;
-  // For a repeat whose reviewer disagrees with the finding it repeats, on what.
-  disputed?: string;
-  // For an external reviewer's finding the PR's conversation already raised,
-  // which thread.
-  onPr?: string;
-  // For one kept: how likely it is, and what happens when it does, and that
-  // in a word.
-  impact?: string;
-  impactLevel?: "low" | "moderate" | "high";
-  // For one kept, what checking it found, in a word.
-  checkedVerdict?: "confirmed" | "partly" | "unsettled";
-  // For one kept that holds but likely isn't worth posting, why - it starts
-  // out skipped, for the reviewer to keep if they disagree.
-  skip?: string;
+	sameAs?: string;
+	// The earlier round's finding it makes the same point as.
+	earlier?: string;
+	filtered?: string;
+	// For one kept, what checking it against the code showed.
+	checked?: string;
+	// For one kept that rests on something nothing settles, what it assumes.
+	speculative?: string;
+	// For one kept whose reviewer overstated it, the severity it deserves.
+	severity?: string;
+	// For a repeat whose reviewer disagrees with the finding it repeats, on what.
+	disputed?: string;
+	// For an external reviewer's finding the PR's conversation already raised,
+	// which thread.
+	onPr?: string;
+	// For one kept: how likely it is, and what happens when it does, and that
+	// in a word.
+	impact?: string;
+	impactLevel?: 'low' | 'moderate' | 'high';
+	// For one kept, what checking it found, in a word.
+	checkedVerdict?: 'confirmed' | 'partly' | 'unsettled';
+	// For one kept that holds but likely isn't worth posting, why - it starts
+	// out skipped, for the reviewer to keep if they disagree.
+	skip?: string;
 }
 
 const EDIT_TOOL = {
-  name: "report_edits",
-  description: "Report, for each new finding, whether it repeats another and whether it should be filtered out.",
-  parameters: {
-    type: "object",
-    properties: {
-      edits: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            id: { type: "string", description: "A new finding's id." },
-            same_as: {
-              type: "string",
-              description: "The id of the finding - shown or new - making the same point. Leave out when it's a point of its own.",
-            },
-            earlier: {
-              type: "string",
-              description:
-                "The id of a finding from an earlier round that makes the same point, if any - however it's worded. Leave out otherwise.",
-            },
-            filter: {
-              type: "string",
-              description:
-                "Why it's filtered out, in a sentence for someone reading it later: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Refer to another finding or a thread by what it says, never by its id. Leave out to keep it.",
-            },
-            severity: {
-              type: "string",
-              enum: ["blocker", "major", "minor", "nit"],
-              description:
-                "For a finding you keep whose reviewer overstated it, the severity it deserves. Leave out to keep the reviewer's.",
-            },
-            disputed: {
-              type: "string",
-              description:
-                "For a finding that repeats another (same_as) but disagrees with it on what's wrong or how to fix it, what they disagree on, in a sentence. Leave out when they agree.",
-            },
-            impact: {
-              type: "string",
-              description:
-                "For a finding you keep: how likely it is to happen and what happens when it does, in a sentence - what the reviewer would get asking 'how bad is this?'.",
-            },
-            impact_level: {
-              type: "string",
-              enum: ["low", "moderate", "high"],
-              description: "For a finding you keep, its impact in a word.",
-            },
-            checked_verdict: {
-              type: "string",
-              enum: ["confirmed", "partly", "unsettled"],
-              description:
-                "For a finding you keep after checking it: confirmed (the code bears it out), partly (it holds but is overstated or only partly right), or unsettled (the code can't decide it).",
-            },
-            skip: {
-              type: "string",
-              description:
-                "For a finding you keep that holds but likely isn't worth posting - a nit, an unlikely speculative case, a point a PR thread already makes - why, in a few words. Leave out for one worth posting.",
-            },
-            on_pr: {
-              type: "string",
-              description:
-                "For a finding kept from a reviewer who sifted their own, when the PR's conversation already raises its point: which thread, briefly. Leave out otherwise.",
-            },
-            speculative: {
-              type: "string",
-              description:
-                "For a finding you keep that rests on an assumption neither the PR nor the code can settle, what it assumes, in a sentence. Leave out otherwise.",
-            },
-            checked: {
-              type: "string",
-              description:
-                "For a finding you keep, what checking it against the code showed, in a sentence with the file and line - or that the code couldn't settle it, and why.",
-            },
-          },
-          required: ["id"],
-        },
-      },
-    },
-    required: ["edits"],
-  },
+	name: 'report_edits',
+	description: 'Report, for each new finding, whether it repeats another and whether it should be filtered out.',
+	parameters: {
+		type: 'object',
+		properties: {
+			edits: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						id: { type: 'string', description: "A new finding's id." },
+						same_as: {
+							type: 'string',
+							description: "The id of the finding - shown or new - making the same point. Leave out when it's a point of its own."
+						},
+						earlier: {
+							type: 'string',
+							description: "The id of a finding from an earlier round that makes the same point, if any - however it's worded. Leave out otherwise."
+						},
+						filter: {
+							type: 'string',
+							description:
+								"Why it's filtered out, in a sentence for someone reading it later: for one the code disproves, the file and line that shows it; for one settled on the PR, the thread. Refer to another finding or a thread by what it says, never by its id. Leave out to keep it."
+						},
+						severity: {
+							type: 'string',
+							enum: ['blocker', 'major', 'minor', 'nit'],
+							description: "For a finding you keep whose reviewer overstated it, the severity it deserves. Leave out to keep the reviewer's."
+						},
+						disputed: {
+							type: 'string',
+							description:
+								"For a finding that repeats another (same_as) but disagrees with it on what's wrong or how to fix it, what they disagree on, in a sentence. Leave out when they agree."
+						},
+						impact: {
+							type: 'string',
+							description:
+								"For a finding you keep: how likely it is to happen and what happens when it does, in a sentence - what the reviewer would get asking 'how bad is this?'."
+						},
+						impact_level: {
+							type: 'string',
+							enum: ['low', 'moderate', 'high'],
+							description: 'For a finding you keep, its impact in a word.'
+						},
+						checked_verdict: {
+							type: 'string',
+							enum: ['confirmed', 'partly', 'unsettled'],
+							description:
+								"For a finding you keep after checking it: confirmed (the code bears it out), partly (it holds but is overstated or only partly right), or unsettled (the code can't decide it)."
+						},
+						skip: {
+							type: 'string',
+							description:
+								"For a finding you keep that holds but likely isn't worth posting - a nit, an unlikely speculative case, a point a PR thread already makes - why, in a few words. Leave out for one worth posting."
+						},
+						on_pr: {
+							type: 'string',
+							description:
+								"For a finding kept from a reviewer who sifted their own, when the PR's conversation already raises its point: which thread, briefly. Leave out otherwise."
+						},
+						speculative: {
+							type: 'string',
+							description:
+								'For a finding you keep that rests on an assumption neither the PR nor the code can settle, what it assumes, in a sentence. Leave out otherwise.'
+						},
+						checked: {
+							type: 'string',
+							description:
+								"For a finding you keep, what checking it against the code showed, in a sentence with the file and line - or that the code couldn't settle it, and why."
+						}
+					},
+					required: ['id']
+				}
+			}
+		},
+		required: ['edits']
+	}
 };
 
 const BASE_PROMPT = `You're the editor of a code review, in which several reviewers commented \
@@ -211,124 +209,125 @@ finding you keep, say what checking it showed. Check the claims made, briefly; t
 review of the PR.`;
 
 export async function editFindings(
-  owner: string,
-  repo: string,
-  number: string,
-  args: { slice?: string; fresh: Editable[]; shown: Editable[]; earlier?: Earlier[]; filter: boolean; mcpUrl: string; round?: number },
-  signal: AbortSignal,
+	owner: string,
+	repo: string,
+	number: string,
+	args: { slice?: string; fresh: Editable[]; shown: Editable[]; earlier?: Earlier[]; filter: boolean; mcpUrl: string; round?: number },
+	signal: AbortSignal
 ): Promise<Map<string, Edit>> {
-  const model = await editorModel();
-  // Looking through the code is for checking claims - everyone's, even a
-  // reviewer who sifted their own findings: a claim the code disproves isn't
-  // a judgement call.
-  const looks = canReadCode(model);
-  const conversation = conversationText(await fetchPrConversation(owner, repo, number));
-  const record = roundRecord(owner, repo, number, args.round) as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
-  const slice = args.slice ? record.slices?.find((s) => s.id === args.slice) : undefined;
-  const files = slice ? await fetchReviewFiles(owner, repo, number, args.round) : [];
-  const diff = slice
-    ? [...hunkIndicesByFile(slice)]
-        .map(([path, indices]) => {
-          const file = files.find((f) => f.filename === path);
-          return file ? numberedFileDiff(file, indices) : "";
-        })
-        .filter(Boolean)
-        .join("\n\n")
-    : "";
-  const list = (items: Editable[], withWhy: boolean) =>
-    items
-      .map(
-        (f) =>
-          `[${f.id}] ${f.who}${f.severity ? `, ${f.severity}` : ""}, on ${f.location}${f.setAside ? ` - SET ASIDE by its reviewer: ${f.setAside}` : ""}\n${f.body}${withWhy && f.rationale ? `\nReviewer's rationale: ${f.rationale}` : ""}`,
-      )
-      .join("\n\n");
-  const about = [
-    record.title && `PR: ${record.title}`,
-    record.summary && `What it does: ${record.summary.what}\nWhy: ${record.summary.why}`,
-    slice && `This part: ${slice.title}\n${slice.summary}`,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  const task = args.filter
-    ? "For each new finding, say which finding it repeats, if any, and whether to filter it out."
-    : looks
-      ? `These new findings come from a reviewer who has already sifted their own, so don't filter them for being minor, speculative or naming no concrete failure. Check each claim against the code all the same: filter only one the code disproves, starting its reason with "Disproved:" and citing the file and line. The exception is a finding marked SET ASIDE: its reviewer's own process dropped it, so judge it as you would any finding - filter it if it's trivial, unfounded, disproved or settled, keep it if it holds up. Say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).`
-      : "These new findings come from a reviewer who has already sifted their own, so keep them all; only say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).";
+	const model = await editorModel();
+	// Looking through the code is for checking claims - everyone's, even a
+	// reviewer who sifted their own findings: a claim the code disproves isn't
+	// a judgement call.
+	const looks = canReadCode(model);
+	const conversation = conversationText(await fetchPrConversation(owner, repo, number));
+	const record = roundRecord(owner, repo, number, args.round) as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
+	const slice = args.slice ? record.slices?.find((s) => s.id === args.slice) : undefined;
+	const files = slice ? await fetchReviewFiles(owner, repo, number, args.round) : [];
+	const diff = slice
+		? [...hunkIndicesByFile(slice)]
+				.map(([path, indices]) => {
+					const file = files.find((f) => f.filename === path);
+					return file ? numberedFileDiff(file, indices) : '';
+				})
+				.filter(Boolean)
+				.join('\n\n')
+		: '';
+	const list = (items: Editable[], withWhy: boolean) =>
+		items
+			.map(
+				(f) =>
+					`[${f.id}] ${f.who}${f.severity ? `, ${f.severity}` : ''}, on ${f.location}${f.setAside ? ` - SET ASIDE by its reviewer: ${f.setAside}` : ''}\n${f.body}${withWhy && f.rationale ? `\nReviewer's rationale: ${f.rationale}` : ''}`
+			)
+			.join('\n\n');
+	const about = [
+		record.title && `PR: ${record.title}`,
+		record.summary && `What it does: ${record.summary.what}\nWhy: ${record.summary.why}`,
+		slice && `This part: ${slice.title}\n${slice.summary}`
+	]
+		.filter(Boolean)
+		.join('\n\n');
+	const task = args.filter
+		? 'For each new finding, say which finding it repeats, if any, and whether to filter it out.'
+		: looks
+			? `These new findings come from a reviewer who has already sifted their own, so don't filter them for being minor, speculative or naming no concrete failure. Check each claim against the code all the same: filter only one the code disproves, starting its reason with "Disproved:" and citing the file and line. The exception is a finding marked SET ASIDE: its reviewer's own process dropped it, so judge it as you would any finding - filter it if it's trivial, unfounded, disproved or settled, keep it if it holds up. Say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).`
+			: "These new findings come from a reviewer who has already sifted their own, so keep them all; only say which finding each repeats, if any, and when the PR's conversation already raises a finding's point, which thread (on_pr).";
 
-  return inNamedLane("grouping", 2, async () => {
-    signal.throwIfAborted();
-    const call = await chatWithTool(
-      [
-        { role: "system", content: BASE_PROMPT + (looks ? LOOK_PROMPT(prRef(owner, repo, number, args.round)) : "") },
-        {
-          role: "user",
-          content: [
-            about,
-            diff && `The diff of this part:\n\n${diff}`,
-            `Already said on the PR:\n\n${conversation || "(nothing yet)"}`,
-            `Findings already shown:\n\n${list(args.shown, false) || "(none)"}`,
-            args.earlier?.length &&
-              `Findings from earlier rounds of this review, and what the reviewer decided - say which a new finding makes the same point as (earlier):\n\n${args.earlier
-                .map((f) => `[${f.id}] round ${f.round}, ${f.decision}: ${f.who}, on ${f.location}\n${f.body}`)
-                .join("\n\n")}`,
-            `New findings:\n\n${list(args.fresh, true)}`,
-            task,
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
-        },
-      ],
-      EDIT_TOOL,
-      signal,
-      model,
-      looks ? { mcpUrl: args.mcpUrl, tools: EDITOR_TOOLS } : undefined,
-    );
-    const known = new Set([...args.shown, ...args.fresh].map((f) => f.id));
-    const asked = new Set(args.fresh.map((f) => f.id));
-    // Findings a reviewer set aside are the editor's to judge in full.
-    const setAside = new Set(args.fresh.filter((f) => f.setAside).map((f) => f.id));
-    const raw = (call.arguments as { edits?: unknown }).edits;
-    const out = new Map<string, Edit>();
-    for (const e of Array.isArray(raw) ? raw : []) {
-      const { id, same_as, earlier, filter, checked, speculative, severity, disputed, on_pr, impact, skip, impact_level, checked_verdict } = (e ?? {}) as {
-        id?: unknown;
-        same_as?: unknown;
-        earlier?: unknown;
-        filter?: unknown;
-        checked?: unknown;
-        speculative?: unknown;
-        severity?: unknown;
-        disputed?: unknown;
-        on_pr?: unknown;
-        impact?: unknown;
-        skip?: unknown;
-        impact_level?: unknown;
-        checked_verdict?: unknown;
-      };
-      if (typeof id !== "string" || !asked.has(id)) continue;
-      const edit: Edit = {};
-      if (typeof earlier === "string" && args.earlier?.some((f) => f.id === earlier)) edit.earlier = earlier;
-      if (typeof same_as === "string" && same_as !== id && known.has(same_as)) {
-        edit.sameAs = same_as;
-        if (typeof disputed === "string" && disputed.trim()) edit.disputed = disputed.trim();
-      }
-      // A reviewer who sifted their own findings loses only what the code
-      // disproves, whatever else the model says.
-      const reason = typeof filter === "string" ? filter.trim() : "";
-      const judged = args.filter || setAside.has(id);
-      if (reason && (judged || (looks && /^disproved\b/i.test(reason)))) edit.filtered = reason;
-      else {
-        if (!args.filter && typeof on_pr === "string" && on_pr.trim()) edit.onPr = on_pr.trim();
-        if (typeof impact === "string" && impact.trim()) edit.impact = impact.trim();
-        if (impact_level === "low" || impact_level === "moderate" || impact_level === "high") edit.impactLevel = impact_level;
-        if (looks && (checked_verdict === "confirmed" || checked_verdict === "partly" || checked_verdict === "unsettled")) edit.checkedVerdict = checked_verdict;
-        if (typeof skip === "string" && skip.trim()) edit.skip = skip.trim();
-        if (looks && typeof checked === "string" && checked.trim()) edit.checked = checked.trim();
-        if (judged && typeof speculative === "string" && speculative.trim()) edit.speculative = speculative.trim();
-        if (typeof severity === "string" && ["blocker", "major", "minor", "nit"].includes(severity)) edit.severity = severity;
-      }
-      out.set(id, edit);
-    }
-    return out;
-  });
+	return inNamedLane('grouping', 2, async () => {
+		signal.throwIfAborted();
+		const call = await chatWithTool(
+			[
+				{ role: 'system', content: BASE_PROMPT + (looks ? LOOK_PROMPT(prRef(owner, repo, number, args.round)) : '') },
+				{
+					role: 'user',
+					content: [
+						about,
+						diff && `The diff of this part:\n\n${diff}`,
+						`Already said on the PR:\n\n${conversation || '(nothing yet)'}`,
+						`Findings already shown:\n\n${list(args.shown, false) || '(none)'}`,
+						args.earlier?.length &&
+							`Findings from earlier rounds of this review, and what the reviewer decided - say which a new finding makes the same point as (earlier):\n\n${args.earlier
+								.map((f) => `[${f.id}] round ${f.round}, ${f.decision}: ${f.who}, on ${f.location}\n${f.body}`)
+								.join('\n\n')}`,
+						`New findings:\n\n${list(args.fresh, true)}`,
+						task
+					]
+						.filter(Boolean)
+						.join('\n\n')
+				}
+			],
+			EDIT_TOOL,
+			signal,
+			model,
+			looks ? { mcpUrl: args.mcpUrl, tools: EDITOR_TOOLS } : undefined
+		);
+		const known = new Set([...args.shown, ...args.fresh].map((f) => f.id));
+		const asked = new Set(args.fresh.map((f) => f.id));
+		// Findings a reviewer set aside are the editor's to judge in full.
+		const setAside = new Set(args.fresh.filter((f) => f.setAside).map((f) => f.id));
+		const raw = (call.arguments as { edits?: unknown }).edits;
+		const out = new Map<string, Edit>();
+		for (const e of Array.isArray(raw) ? raw : []) {
+			const { id, same_as, earlier, filter, checked, speculative, severity, disputed, on_pr, impact, skip, impact_level, checked_verdict } = (e ?? {}) as {
+				id?: unknown;
+				same_as?: unknown;
+				earlier?: unknown;
+				filter?: unknown;
+				checked?: unknown;
+				speculative?: unknown;
+				severity?: unknown;
+				disputed?: unknown;
+				on_pr?: unknown;
+				impact?: unknown;
+				skip?: unknown;
+				impact_level?: unknown;
+				checked_verdict?: unknown;
+			};
+			if (typeof id !== 'string' || !asked.has(id)) continue;
+			const edit: Edit = {};
+			if (typeof earlier === 'string' && args.earlier?.some((f) => f.id === earlier)) edit.earlier = earlier;
+			if (typeof same_as === 'string' && same_as !== id && known.has(same_as)) {
+				edit.sameAs = same_as;
+				if (typeof disputed === 'string' && disputed.trim()) edit.disputed = disputed.trim();
+			}
+			// A reviewer who sifted their own findings loses only what the code
+			// disproves, whatever else the model says.
+			const reason = typeof filter === 'string' ? filter.trim() : '';
+			const judged = args.filter || setAside.has(id);
+			if (reason && (judged || (looks && /^disproved\b/i.test(reason)))) edit.filtered = reason;
+			else {
+				if (!args.filter && typeof on_pr === 'string' && on_pr.trim()) edit.onPr = on_pr.trim();
+				if (typeof impact === 'string' && impact.trim()) edit.impact = impact.trim();
+				if (impact_level === 'low' || impact_level === 'moderate' || impact_level === 'high') edit.impactLevel = impact_level;
+				if (looks && (checked_verdict === 'confirmed' || checked_verdict === 'partly' || checked_verdict === 'unsettled'))
+					edit.checkedVerdict = checked_verdict;
+				if (typeof skip === 'string' && skip.trim()) edit.skip = skip.trim();
+				if (looks && typeof checked === 'string' && checked.trim()) edit.checked = checked.trim();
+				if (judged && typeof speculative === 'string' && speculative.trim()) edit.speculative = speculative.trim();
+				if (typeof severity === 'string' && ['blocker', 'major', 'minor', 'nit'].includes(severity)) edit.severity = severity;
+			}
+			out.set(id, edit);
+		}
+		return out;
+	});
 }

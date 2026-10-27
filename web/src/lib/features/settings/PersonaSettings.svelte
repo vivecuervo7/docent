@@ -23,8 +23,7 @@
 		load().catch(() => (personas = []));
 	});
 
-	const send = (url: string, method: string, body: unknown) =>
-		sendJson(url, body, method).then(readOk);
+	const send = (url: string, method: string, body: unknown) => sendJson(url, body, method).then(readOk);
 
 	// Dragged into a new order, saved as it lands.
 	async function reorder(ids: string[]) {
@@ -45,10 +44,7 @@
 	}
 </script>
 
-<SettingsSection
-	title="Personas"
-	intro="Docent’s own reviewer with a point of view. On the panel, a reviewer runs a persona on whichever model it’s set to."
->
+<SettingsSection title="Personas" intro="Docent’s own reviewer with a point of view. On the panel, a reviewer runs a persona on whichever model it’s set to.">
 	<SettingsList
 		items={personas ?? []}
 		addLabel="Add a persona"
@@ -72,8 +68,7 @@
 					bind:value={draft.instructions}
 					rows="1"
 					placeholder="Injection, gaps in authorisation, secrets in code or logs, unsafe deserialisation. Ignore style."
-					required
-				></textarea>
+					required></textarea>
 			</Field>
 		{/snippet}
 	</SettingsList>

@@ -46,8 +46,8 @@
 				{:else}
 					<p>
 						Install <a href="https://code.claude.com" target="_blank" rel="noreferrer">Claude Code</a> or
-						<a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a> and sign in, or add an
-						OpenAI-compatible provider, such as a local oMLX server, in <a href="/settings">Settings</a>.
+						<a href="https://developers.openai.com/codex/cli" target="_blank" rel="noreferrer">Codex</a> and sign in, or add an OpenAI-compatible provider, such
+						as a local oMLX server, in <a href="/settings">Settings</a>.
 					</p>
 				{/if}
 			</div>
@@ -58,7 +58,9 @@
 		covers them.
 	</p>
 	<div class="actions">
-		<button class="btn" disabled={checking} onclick={recheck}>{#if checking}<Spinner size={13} />{/if} Check again</button>
+		<button class="btn" disabled={checking} onclick={recheck}
+			>{#if checking}<Spinner size={13} />{/if} Check again</button
+		>
 		<button class="btn primary" onclick={onclose}>{page.ready ? 'Start reviewing' : 'Got it'}</button>
 	</div>
 </Dialog>

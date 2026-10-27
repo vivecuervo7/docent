@@ -22,7 +22,7 @@
 	// biggest PR, just under or past it.
 	const step = (most: number) => {
 		const unit = 10 ** Math.floor(Math.log10(most / 4));
-		return ([1, 1.5, 2, 2.5, 5, 10].map((m) => m * unit).find((m) => m * 4 >= most * 0.9) ?? unit * 10);
+		return [1, 1.5, 2, 2.5, 5, 10].map((m) => m * unit).find((m) => m * 4 >= most * 0.9) ?? unit * 10;
 	};
 	const ticks = (most: number) => [1, 2, 3, 4].map((i) => i * step(most));
 	const height = (n: number, top: number) => (n > 0 ? Math.max(2, (n / top) * 100) : 0);

@@ -231,13 +231,18 @@ export class StartPage {
 	readonly done = $derived((this.saved ?? []).filter((pr) => this.isDone(pr) && !this.isHidden(pr) && !this.isPinned(pr)));
 	readonly checked = $derived(this.gh !== null && this.modelSources !== null);
 	readonly ready = $derived(!!this.gh?.login && !!this.modelSources?.length);
-	readonly anyRunning = $derived(
-		this.generations.some(({ generation }) => isGenerating(generation)) || this.agentReviews.some((r) => r.status === 'running')
-	);
+	readonly anyRunning = $derived(this.generations.some(({ generation }) => isGenerating(generation)) || this.agentReviews.some((r) => r.status === 'running'));
 
 	constructor() {
 		$effect(() => {
-			const cache = { saved: this.saved?.map(trimmed), involved: this.involved, statuses: this.statuses, hidden: this.hiddenKeys, pinned: this.pinnedKeys, login: this.login };
+			const cache = {
+				saved: this.saved?.map(trimmed),
+				involved: this.involved,
+				statuses: this.statuses,
+				hidden: this.hiddenKeys,
+				pinned: this.pinnedKeys,
+				login: this.login
+			};
 			writePref(CACHE_KEY, JSON.stringify(cache));
 		});
 		$effect(() => {
@@ -463,7 +468,12 @@ export class StartPage {
 				tone: state.tone,
 				draft: rounds.length > 1 && latest && !begun(r) && !generation,
 				href: rounds.length > 1 ? `${base}/round-${i + 1}` : base,
-				...(held.length ? { commits: held.length, dates: day(held[0].date) === day(held.at(-1)!.date) ? day(held[0].date) : `${day(held[0].date)} – ${day(held.at(-1)!.date)}` } : {}),
+				...(held.length
+					? {
+							commits: held.length,
+							dates: day(held[0].date) === day(held.at(-1)!.date) ? day(held[0].date) : `${day(held[0].date)} – ${day(held.at(-1)!.date)}`
+						}
+					: {}),
 				...(slices.length ? { progress: { done: slices.filter((sl) => isSliceReviewed(sl, r.reviewed)).length, total: slices.length } } : {}),
 				...(findings ? { findings } : {}),
 				...(unread ? { unread } : {}),
@@ -489,7 +499,14 @@ export class StartPage {
 		const rounds = this.roundsOf(pr);
 		const n = rounds.length;
 		if (n < 2) return;
-		if (!(await ask({ title: `Delete round ${n}?`, body: 'Its threads, findings and review go with it. The commits it covered can go into a new round.', action: 'Delete' }))) return;
+		if (
+			!(await ask({
+				title: `Delete round ${n}?`,
+				body: 'Its threads, findings and review go with it. The commits it covered can go into a new round.',
+				action: 'Delete'
+			}))
+		)
+			return;
 		const generation = this.generationFor(pr);
 		if (isGenerating(generation)) await stopGeneration(pr).catch(() => {});
 		if (generation) await dismissGeneration(pr).catch(() => {});

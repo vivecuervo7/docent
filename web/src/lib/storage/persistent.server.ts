@@ -5,7 +5,7 @@
 // edit mid-run loses nothing. In production nothing reloads, and each is
 // simply made once.
 export function persistent<T>(name: string, init: () => T): T {
-  const store = globalThis as unknown as Record<symbol, T | undefined>;
-  const key = Symbol.for(`docent.${name}`);
-  return (store[key] ??= init());
+	const store = globalThis as unknown as Record<symbol, T | undefined>;
+	const key = Symbol.for(`docent.${name}`);
+	return (store[key] ??= init());
 }

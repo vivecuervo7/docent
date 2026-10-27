@@ -50,17 +50,19 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 		t.awaiting = true;
 		delete t.replyError;
 	});
-	replyToNote(context, messages, new AbortController().signal, model, { pr: `${owner}/${repo}#${number}`, mcpUrl: mcpUrl(url) }).then(
-		(text) =>
-			answer((t) => {
-				t.messages = [...(t.messages ?? []), { role: 'assistant', text, at: Date.now() }];
-				delete t.awaiting;
-			}),
-		(err) =>
-			answer((t) => {
-				delete t.awaiting;
-				t.replyError = (err as Error).message;
-			})
-	).catch((err) => console.error(`[reply] ${(err as Error).message}`));
+	replyToNote(context, messages, new AbortController().signal, model, { pr: `${owner}/${repo}#${number}`, mcpUrl: mcpUrl(url) })
+		.then(
+			(text) =>
+				answer((t) => {
+					t.messages = [...(t.messages ?? []), { role: 'assistant', text, at: Date.now() }];
+					delete t.awaiting;
+				}),
+			(err) =>
+				answer((t) => {
+					delete t.awaiting;
+					t.replyError = (err as Error).message;
+				})
+		)
+		.catch((err) => console.error(`[reply] ${(err as Error).message}`));
 	return json({ asked: true });
 };

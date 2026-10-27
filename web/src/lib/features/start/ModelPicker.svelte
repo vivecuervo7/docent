@@ -61,7 +61,9 @@
 		label="Model"
 		width={252}
 		placement="end"
-		note={hasProviderModels ? 'Outside Claude Code and Codex, follow-ups and thread checks use tool calls. A model that doesn’t support them will error.' : undefined}
+		note={hasProviderModels
+			? 'Outside Claude Code and Codex, follow-ups and thread checks use tool calls. A model that doesn’t support them will error.'
+			: undefined}
 	>
 		{#snippet trigger({ open, toggle })}
 			<button class="trigger" aria-haspopup="menu" aria-expanded={open} onclick={toggle}>

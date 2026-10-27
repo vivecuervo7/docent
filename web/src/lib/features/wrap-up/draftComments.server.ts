@@ -1,66 +1,66 @@
-import { chatWithTool } from "../../models/modelProvider.server.js";
-import { inLane } from "../../models/lanes.server.js";
-import type { NoteMessage } from "../reading/threadReplies.server.js";
+import { chatWithTool } from '../../models/modelProvider.server.js';
+import { inLane } from '../../models/lanes.server.js';
+import type { NoteMessage } from '../reading/threadReplies.server.js';
 
 // Drafting your feedback: review comments worth posting, from the threads
 // you had on selected lines. The panel's reviews are in features/panel.
 
 export interface ThreadForFeedback {
-  path: string;
-  lines: string;
-  code: string;
-  messages: NoteMessage[];
-  // The comment on GitHub it asks about, as text.
-  github?: string;
+	path: string;
+	lines: string;
+	code: string;
+	messages: NoteMessage[];
+	// The comment on GitHub it asks about, as text.
+	github?: string;
 }
 
 export interface DraftedComment {
-  // Indices of the threads it draws on, which place it on their lines.
-  threads: number[];
-  // Somewhere else instead, when a conclusion says the point applies there.
-  at?: { path: string; startLine: number; endLine: number };
-  body: string;
-  rationale?: string;
-  // The earlier comment it's a new version of, by its id.
-  replaces?: string;
+	// Indices of the threads it draws on, which place it on their lines.
+	threads: number[];
+	// Somewhere else instead, when a conclusion says the point applies there.
+	at?: { path: string; startLine: number; endLine: number };
+	body: string;
+	rationale?: string;
+	// The earlier comment it's a new version of, by its id.
+	replaces?: string;
 }
 
 // A comment drafted from the same threads before, which a redraft may
 // carry on.
 export interface EarlierComment {
-  id: string;
-  body: string;
+	id: string;
+	body: string;
 }
 
 const REPORT_FEEDBACK_TOOL = {
-  name: "report_feedback",
-  description: "Report the review comments worth posting on the pull request.",
-  parameters: {
-    type: "object",
-    properties: {
-      comments: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            threads: {
-              type: "array",
-              items: { type: "integer" },
-              description: "The numbers of the threads this comment draws on.",
-            },
-            body: { type: "string" },
-            rationale: { type: "string" },
-            path: { type: "string", description: "Only for a comment placed away from its threads' lines." },
-            start_line: { type: "integer", description: "New-file line number, with path." },
-            end_line: { type: "integer", description: "New-file line number, with path." },
-            replaces: { type: "string", description: "The id of the earlier comment this is a new version of, if any." },
-          },
-          required: ["threads", "body", "rationale"],
-        },
-      },
-    },
-    required: ["comments"],
-  },
+	name: 'report_feedback',
+	description: 'Report the review comments worth posting on the pull request.',
+	parameters: {
+		type: 'object',
+		properties: {
+			comments: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						threads: {
+							type: 'array',
+							items: { type: 'integer' },
+							description: 'The numbers of the threads this comment draws on.'
+						},
+						body: { type: 'string' },
+						rationale: { type: 'string' },
+						path: { type: 'string', description: "Only for a comment placed away from its threads' lines." },
+						start_line: { type: 'integer', description: 'New-file line number, with path.' },
+						end_line: { type: 'integer', description: 'New-file line number, with path.' },
+						replaces: { type: 'string', description: 'The id of the earlier comment this is a new version of, if any.' }
+					},
+					required: ['threads', 'body', 'rationale']
+				}
+			}
+		},
+		required: ['comments']
+	}
 };
 
 const SYSTEM_PROMPT = `You are helping a reviewer turn their notes on a pull request into review \
@@ -89,62 +89,56 @@ their notes it came from and what those showed - say so when you combined severa
 split one. A sentence or two.`;
 
 function threadText(thread: ThreadForFeedback, index: number): string {
-  const code = thread.code
-    .split("\n")
-    .map((line) => `    ${line}`)
-    .join("\n");
-  const messages = thread.messages
-    .map((m) => `${m.conclusion ? "Reviewer's conclusion" : m.role === "user" ? "Reviewer" : "Assistant"}: ${m.text}`)
-    .join("\n");
-  const about = thread.github ? `About this comment someone left on GitHub:\n${thread.github}\n` : "";
-  return `Thread ${index + 1}: ${thread.path}, ${thread.lines}\n${code}\n${about}${messages}`;
+	const code = thread.code
+		.split('\n')
+		.map((line) => `    ${line}`)
+		.join('\n');
+	const messages = thread.messages.map((m) => `${m.conclusion ? "Reviewer's conclusion" : m.role === 'user' ? 'Reviewer' : 'Assistant'}: ${m.text}`).join('\n');
+	const about = thread.github ? `About this comment someone left on GitHub:\n${thread.github}\n` : '';
+	return `Thread ${index + 1}: ${thread.path}, ${thread.lines}\n${code}\n${about}${messages}`;
 }
 
 export function draftYourFeedback(
-  threads: ThreadForFeedback[],
-  prTitle: string | undefined,
-  signal: AbortSignal,
-  model?: string,
-  earlier: EarlierComment[] = [],
+	threads: ThreadForFeedback[],
+	prTitle: string | undefined,
+	signal: AbortSignal,
+	model?: string,
+	earlier: EarlierComment[] = []
 ): Promise<DraftedComment[]> {
-  return inLane(async () => {
-    signal.throwIfAborted();
-    const intro = prTitle ? `PR: ${prTitle}\n\n` : "";
-    const before = earlier.length
-      ? `\n\nEarlier comments drafted from these threads:\n${earlier.map((c) => `[${c.id}] ${c.body}`).join("\n\n")}`
-      : "";
-    const call = await chatWithTool(
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: intro + threads.map(threadText).join("\n\n") + before },
-      ],
-      REPORT_FEEDBACK_TOOL,
-      signal,
-      model,
-    );
-    const raw = (call.arguments as { comments?: unknown }).comments;
-    if (!Array.isArray(raw)) return [];
-    return raw.flatMap((entry): DraftedComment[] => {
-      const { threads: refs, body, rationale, path, start_line, end_line, replaces } = (entry ?? {}) as Record<string, unknown>;
-      if (typeof body !== "string" || !body.trim()) return [];
-      const indices = Array.isArray(refs)
-        ? [...new Set(refs.filter((n): n is number => Number.isInteger(n)).map((n) => n - 1))].filter(
-            (i) => i >= 0 && i < threads.length,
-          )
-        : [];
-      const placed =
-        typeof path === "string" && path.trim() && Number.isInteger(start_line) && Number.isInteger(end_line)
-          ? { path: path.trim(), startLine: Math.min(start_line as number, end_line as number), endLine: Math.max(start_line as number, end_line as number) }
-          : undefined;
-      return [
-        {
-          threads: indices,
-          body: body.trim(),
-          rationale: typeof rationale === "string" && rationale.trim() ? rationale.trim() : undefined,
-          ...(placed ? { at: placed } : {}),
-          ...(typeof replaces === "string" && earlier.some((c) => c.id === replaces) ? { replaces } : {}),
-        },
-      ];
-    });
-  }, model);
+	return inLane(async () => {
+		signal.throwIfAborted();
+		const intro = prTitle ? `PR: ${prTitle}\n\n` : '';
+		const before = earlier.length ? `\n\nEarlier comments drafted from these threads:\n${earlier.map((c) => `[${c.id}] ${c.body}`).join('\n\n')}` : '';
+		const call = await chatWithTool(
+			[
+				{ role: 'system', content: SYSTEM_PROMPT },
+				{ role: 'user', content: intro + threads.map(threadText).join('\n\n') + before }
+			],
+			REPORT_FEEDBACK_TOOL,
+			signal,
+			model
+		);
+		const raw = (call.arguments as { comments?: unknown }).comments;
+		if (!Array.isArray(raw)) return [];
+		return raw.flatMap((entry): DraftedComment[] => {
+			const { threads: refs, body, rationale, path, start_line, end_line, replaces } = (entry ?? {}) as Record<string, unknown>;
+			if (typeof body !== 'string' || !body.trim()) return [];
+			const indices = Array.isArray(refs)
+				? [...new Set(refs.filter((n): n is number => Number.isInteger(n)).map((n) => n - 1))].filter((i) => i >= 0 && i < threads.length)
+				: [];
+			const placed =
+				typeof path === 'string' && path.trim() && Number.isInteger(start_line) && Number.isInteger(end_line)
+					? { path: path.trim(), startLine: Math.min(start_line as number, end_line as number), endLine: Math.max(start_line as number, end_line as number) }
+					: undefined;
+			return [
+				{
+					threads: indices,
+					body: body.trim(),
+					rationale: typeof rationale === 'string' && rationale.trim() ? rationale.trim() : undefined,
+					...(placed ? { at: placed } : {}),
+					...(typeof replaces === 'string' && earlier.some((c) => c.id === replaces) ? { replaces } : {})
+				}
+			];
+		});
+	}, model);
 }

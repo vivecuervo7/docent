@@ -1,44 +1,44 @@
-import { canLook, chat, type ChatMessage } from "../../models/modelProvider.server.js";
-import { modelName } from "../../storage/settings.server.js";
-import { inLane } from "../../models/lanes.server.js";
+import { canLook, chat, type ChatMessage } from '../../models/modelProvider.server.js';
+import { modelName } from '../../storage/settings.server.js';
+import { inLane } from '../../models/lanes.server.js';
 
 // Docent's replies in a thread on selected lines, and its answers to
 // questions about a finding the panel raised.
 
 export interface NoteMessage {
-  role: "user" | "assistant";
-  text: string;
-  // The reviewer's conclusion, closing the thread.
-  conclusion?: boolean;
+	role: 'user' | 'assistant';
+	text: string;
+	// The reviewer's conclusion, closing the thread.
+	conclusion?: boolean;
 }
 
 export interface NoteContext {
-  path: string;
-  lines: string;
-  code: string;
-  fileDiff: string;
-  prTitle?: string;
-  prWhat?: string;
-  sliceTitle?: string;
-  sliceSummary?: string;
-  // About that part of the PR as a whole, rather than a file or the PR:
-  // fileDiff is then its changes.
-  wholeSlice?: boolean;
-  // Reviewing some of the PR's commits: the lines in this file they changed.
-  roundLines?: string;
-  // Set when the thread is about something said on GitHub: that thread, as text.
-  github?: string;
-  // Set when the question is about a finding a reviewer on the panel raised:
-  // with the other reviewers' versions of the same point, and what the
-  // panel's editor found.
-  finding?: {
-    reviewer: string;
-    body: string;
-    rationale?: string;
-    severity?: string;
-    others?: { reviewer: string; body: string; severity?: string; disputed?: string }[];
-    editor?: { impact?: string; checked?: string; speculative?: string; onPr?: string; setAside?: string };
-  };
+	path: string;
+	lines: string;
+	code: string;
+	fileDiff: string;
+	prTitle?: string;
+	prWhat?: string;
+	sliceTitle?: string;
+	sliceSummary?: string;
+	// About that part of the PR as a whole, rather than a file or the PR:
+	// fileDiff is then its changes.
+	wholeSlice?: boolean;
+	// Reviewing some of the PR's commits: the lines in this file they changed.
+	roundLines?: string;
+	// Set when the thread is about something said on GitHub: that thread, as text.
+	github?: string;
+	// Set when the question is about a finding a reviewer on the panel raised:
+	// with the other reviewers' versions of the same point, and what the
+	// panel's editor found.
+	finding?: {
+		reviewer: string;
+		body: string;
+		rationale?: string;
+		severity?: string;
+		others?: { reviewer: string; body: string; severity?: string; disputed?: string }[];
+		editor?: { impact?: string; checked?: string; speculative?: string; onPr?: string; setAside?: string };
+	};
 }
 
 const SYSTEM_PROMPT = `You are helping someone review a pull request. They have selected some \
@@ -65,63 +65,63 @@ say where you land and why. Say so when the code shown isn't enough to be sure.
 Keep replies short - a few sentences - since they're read in a small panel. Use backticks for code.`;
 
 function contextMessage(context: NoteContext): string {
-  const parts: string[] = [];
-  if (context.prTitle) parts.push(`PR: ${context.prTitle}`);
-  if (context.prWhat) parts.push(`What the PR does: ${context.prWhat}`);
-  if (context.sliceTitle) {
-    parts.push(`Part of the PR being reviewed: ${context.sliceTitle}${context.sliceSummary ? ` - ${context.sliceSummary}` : ""}`);
-  }
-  // Without a file, it's about the PR as a whole; without code, the file as a whole.
-  if (context.path) {
-    parts.push(`File: ${context.path}`);
-    parts.push(`All of this PR's changes to the file:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
-  } else if (context.wholeSlice) {
-    parts.push(`This part of the PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
-  } else {
-    parts.push(`All of this PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
-  }
-  if (context.roundLines) {
-    parts.push(`This review covers only some of the PR's commits. In this file they changed lines ${context.roundLines}; the rest of its changes came before.`);
-  }
-  if (context.github) parts.push(`The comment on GitHub the reviewer is asking about:\n${context.github}`);
-  if (context.code) {
-    parts.push(`${context.finding ? "The finding is on" : "Selected"} ${context.lines}:\n\`\`\`diff\n${context.code}\n\`\`\``);
-  } else {
-    // Without lines, a thread or finding is about a whole file, or the PR.
-    const about = context.path ? "the file as a whole" : context.wholeSlice ? "this part of the PR as a whole" : "the PR as a whole";
-    parts.push(context.finding ? `The finding is about ${about}.` : `The reviewer is writing about ${about}, not selected lines.`);
-  }
-  if (context.finding) {
-    const f = context.finding;
-    parts.push(`The finding, from ${f.reviewer}${f.severity ? ` (${f.severity})` : ""}:\n${f.body}`);
-    if (f.rationale) parts.push(`Why it raised it:\n${f.rationale}`);
-    if (f.others?.length) {
-      parts.push(
-        `Other reviewers raised the same point:\n${f.others
-          .map((o) => `- ${o.reviewer}${o.severity ? ` (${o.severity})` : ""}${o.disputed ? ` - disagrees: ${o.disputed}` : ""}: ${o.body}`)
-          .join("\n")}`,
-      );
-    }
-    const e = f.editor;
-    const notes = e
-      ? [
-          e.impact && `Impact: ${e.impact}`,
-          e.checked && `Checked against the code: ${e.checked}`,
-          e.speculative && `Speculative - it assumes: ${e.speculative}`,
-          e.onPr && `Already on the PR: ${e.onPr}`,
-          e.setAside && `Its reviewer had set it aside: ${e.setAside}`,
-        ].filter(Boolean)
-      : [];
-    if (notes.length) parts.push(`What the panel's editor found:\n${notes.join("\n")}`);
-  }
-  return parts.join("\n\n");
+	const parts: string[] = [];
+	if (context.prTitle) parts.push(`PR: ${context.prTitle}`);
+	if (context.prWhat) parts.push(`What the PR does: ${context.prWhat}`);
+	if (context.sliceTitle) {
+		parts.push(`Part of the PR being reviewed: ${context.sliceTitle}${context.sliceSummary ? ` - ${context.sliceSummary}` : ''}`);
+	}
+	// Without a file, it's about the PR as a whole; without code, the file as a whole.
+	if (context.path) {
+		parts.push(`File: ${context.path}`);
+		parts.push(`All of this PR's changes to the file:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
+	} else if (context.wholeSlice) {
+		parts.push(`This part of the PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
+	} else {
+		parts.push(`All of this PR's changes:\n\`\`\`diff\n${context.fileDiff}\n\`\`\``);
+	}
+	if (context.roundLines) {
+		parts.push(`This review covers only some of the PR's commits. In this file they changed lines ${context.roundLines}; the rest of its changes came before.`);
+	}
+	if (context.github) parts.push(`The comment on GitHub the reviewer is asking about:\n${context.github}`);
+	if (context.code) {
+		parts.push(`${context.finding ? 'The finding is on' : 'Selected'} ${context.lines}:\n\`\`\`diff\n${context.code}\n\`\`\``);
+	} else {
+		// Without lines, a thread or finding is about a whole file, or the PR.
+		const about = context.path ? 'the file as a whole' : context.wholeSlice ? 'this part of the PR as a whole' : 'the PR as a whole';
+		parts.push(context.finding ? `The finding is about ${about}.` : `The reviewer is writing about ${about}, not selected lines.`);
+	}
+	if (context.finding) {
+		const f = context.finding;
+		parts.push(`The finding, from ${f.reviewer}${f.severity ? ` (${f.severity})` : ''}:\n${f.body}`);
+		if (f.rationale) parts.push(`Why it raised it:\n${f.rationale}`);
+		if (f.others?.length) {
+			parts.push(
+				`Other reviewers raised the same point:\n${f.others
+					.map((o) => `- ${o.reviewer}${o.severity ? ` (${o.severity})` : ''}${o.disputed ? ` - disagrees: ${o.disputed}` : ''}: ${o.body}`)
+					.join('\n')}`
+			);
+		}
+		const e = f.editor;
+		const notes = e
+			? [
+					e.impact && `Impact: ${e.impact}`,
+					e.checked && `Checked against the code: ${e.checked}`,
+					e.speculative && `Speculative - it assumes: ${e.speculative}`,
+					e.onPr && `Already on the PR: ${e.onPr}`,
+					e.setAside && `Its reviewer had set it aside: ${e.setAside}`
+				].filter(Boolean)
+			: [];
+		if (notes.length) parts.push(`What the panel's editor found:\n${notes.join('\n')}`);
+	}
+	return parts.join('\n\n');
 }
 
 // Where an answer can look beyond the lines it's shown: the whole repo at the
 // PR's head, through Docent's read tools.
 export interface AnswerAccess {
-  pr: string;
-  mcpUrl: string;
+	pr: string;
+	mcpUrl: string;
 }
 
 const LOOK_NOTE = (pr: string) => `
@@ -134,26 +134,18 @@ shown - a type's definition, what a caller expects, another part of the PR - loo
 than guess, and say which file and line you relied on. Answer straight away when what's shown is \
 enough.`;
 
-export function replyToNote(
-  context: NoteContext,
-  messages: NoteMessage[],
-  signal: AbortSignal,
-  model?: string,
-  access?: AnswerAccess,
-): Promise<string> {
-  return inLane(async () => {
-    // Asked while others were ahead of it, then abandoned: skip the model.
-    signal.throwIfAborted();
-    const [first, ...rest] = messages;
-    const looks = !!access && canLook(model ?? modelName());
-    const conversation: ChatMessage[] = [
-      { role: "system", content: (context.finding ? FINDING_PROMPT : SYSTEM_PROMPT) + (looks ? LOOK_NOTE(access!.pr) : "") },
-      { role: "user", content: `${contextMessage(context)}\n\n${context.finding ? "The reviewer asks" : "The reviewer wrote"}:\n${first.text}` },
-      ...rest.map((m): ChatMessage => ({ role: m.role, content: m.text })),
-    ];
-    const tools = looks
-      ? { mcpUrl: access!.mcpUrl, tools: ["get_diff", "read_file", "list_files", "search_code", "get_existing_comments"] }
-      : undefined;
-    return chat(conversation, signal, model ?? modelName(), tools);
-  }, model);
+export function replyToNote(context: NoteContext, messages: NoteMessage[], signal: AbortSignal, model?: string, access?: AnswerAccess): Promise<string> {
+	return inLane(async () => {
+		// Asked while others were ahead of it, then abandoned: skip the model.
+		signal.throwIfAborted();
+		const [first, ...rest] = messages;
+		const looks = !!access && canLook(model ?? modelName());
+		const conversation: ChatMessage[] = [
+			{ role: 'system', content: (context.finding ? FINDING_PROMPT : SYSTEM_PROMPT) + (looks ? LOOK_NOTE(access!.pr) : '') },
+			{ role: 'user', content: `${contextMessage(context)}\n\n${context.finding ? 'The reviewer asks' : 'The reviewer wrote'}:\n${first.text}` },
+			...rest.map((m): ChatMessage => ({ role: m.role, content: m.text }))
+		];
+		const tools = looks ? { mcpUrl: access!.mcpUrl, tools: ['get_diff', 'read_file', 'list_files', 'search_code', 'get_existing_comments'] } : undefined;
+		return chat(conversation, signal, model ?? modelName(), tools);
+	}, model);
 }

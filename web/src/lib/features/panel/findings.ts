@@ -15,8 +15,7 @@ export function raisedBy(who: string, alsoBy: { who: string }[]): string {
 
 // Whether a panel finding is shown: once the editor has been through it,
 // unless it filtered it out.
-export const isShown = (item: Pick<FeedbackItem, 'edited' | 'editFailed' | 'filtered'>) =>
-	(!!item.edited || !!item.editFailed) && !item.filtered;
+export const isShown = (item: Pick<FeedbackItem, 'edited' | 'editFailed' | 'filtered'>) => (!!item.edited || !!item.editFailed) && !item.filtered;
 
 // Findings that joined another as the same point, by the lead they joined;
 // a finding whose lead has gone stands on its own again. Only findings
@@ -33,8 +32,7 @@ export function groupsOf(record: PrRecord) {
 		const key = `${j.reviewer}/${j.id}`;
 		members.set(key, [...(members.get(key) ?? []), x]);
 	}
-	const joined = (reviewer: string, item: { joins?: { reviewer: string; id: string } }) =>
-		!!item.joins && exists(item.joins.reviewer, item.joins.id);
+	const joined = (reviewer: string, item: { joins?: { reviewer: string; id: string } }) => !!item.joins && exists(item.joins.reviewer, item.joins.id);
 	return { membersOf: (reviewer: string, id: string) => members.get(`${reviewer}/${id}`) ?? [], joined, exists };
 }
 

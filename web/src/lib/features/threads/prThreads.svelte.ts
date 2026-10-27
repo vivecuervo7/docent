@@ -55,9 +55,7 @@ export class PrThreads {
 
 	async check(threads: GitHubThread[]) {
 		if (!threads.length) return;
-		await readOk(
-			await sendJson(`${this.#base}/github-threads/check`, { ids: threads.map((t) => t.id), model: this.#model() })
-		);
+		await readOk(await sendJson(`${this.#base}/github-threads/check`, { ids: threads.map((t) => t.id), model: this.#model() }));
 		await this.load();
 	}
 
@@ -67,12 +65,12 @@ export class PrThreads {
 		const sent = changes.filter((c) => c.thread.node);
 		if (!sent.length) return;
 		const res = await sendJson(`${this.#base}/github-threads`, {
-				changes: sent.map(({ thread, resolved, reply }) => ({
-					node: thread.node,
-					...(resolved !== undefined ? { resolved } : {}),
-					...(reply?.trim() ? { reply: { comment: Number(thread.id.slice(1)), body: reply.trim() } } : {})
-				}))
-			});
+			changes: sent.map(({ thread, resolved, reply }) => ({
+				node: thread.node,
+				...(resolved !== undefined ? { resolved } : {}),
+				...(reply?.trim() ? { reply: { comment: Number(thread.id.slice(1)), body: reply.trim() } } : {})
+			}))
+		});
 		const { results } = await readOk<{ results: { node: string; error?: string }[] }>(res);
 		await this.load();
 		this.#onchange();

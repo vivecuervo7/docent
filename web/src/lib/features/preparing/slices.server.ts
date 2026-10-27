@@ -1,23 +1,23 @@
-import { chatWithTool } from "../../models/modelProvider.server.js";
-import type { PrFile } from "../../github/github.server.js";
-import type { Slice } from "../../types.js";
-import { noDiffReason } from "../reading/progress.js";
-import { hunkText, parseFilePatch } from "../reading/diff/parse.js";
+import { chatWithTool } from '../../models/modelProvider.server.js';
+import type { PrFile } from '../../github/github.server.js';
+import type { Slice } from '../../types.js';
+import { noDiffReason } from '../reading/progress.js';
+import { hunkText, parseFilePatch } from '../reading/diff/parse.js';
 
 function buildHunkRefs(files: PrFile[]): Map<string, string> {
-  const refs = new Map<string, string>();
-  for (const file of files) {
-    if (!file.patch) {
-      // Read whole, as the reading view has it.
-      refs.set(`${file.filename}#0`, `(${noDiffReason(file)}.)`);
-      continue;
-    }
-    for (const hunk of parseFilePatch(file.patch)) {
-      if (file.inRange && !file.inRange.includes(hunk.index)) continue;
-      refs.set(`${file.filename}#${hunk.index}`, hunkText(hunk));
-    }
-  }
-  return refs;
+	const refs = new Map<string, string>();
+	for (const file of files) {
+		if (!file.patch) {
+			// Read whole, as the reading view has it.
+			refs.set(`${file.filename}#0`, `(${noDiffReason(file)}.)`);
+			continue;
+		}
+		for (const hunk of parseFilePatch(file.patch)) {
+			if (file.inRange && !file.inRange.includes(hunk.index)) continue;
+			refs.set(`${file.filename}#${hunk.index}`, hunkText(hunk));
+		}
+	}
+	return refs;
 }
 
 // Hints for the model about what a file is, from its name alone. Only
@@ -25,54 +25,52 @@ function buildHunkRefs(files: PrFile[]): Map<string, string> {
 // to do with it.
 const TEST_FILE_RE = /(^|\/)(__tests__|tests?|spec)\/|\.(test|spec)\.[a-z0-9]+$|_test\.(go|py)$|(^|\/)test_[^/]+\.py$/i;
 const GENERATED_FILES = new Set([
-  "package-lock.json",
-  "pnpm-lock.yaml",
-  "yarn.lock",
-  "bun.lockb",
-  "Cargo.lock",
-  "poetry.lock",
-  "Pipfile.lock",
-  "uv.lock",
-  "Gemfile.lock",
-  "composer.lock",
-  "go.sum",
-  "packages.lock.json",
+	'package-lock.json',
+	'pnpm-lock.yaml',
+	'yarn.lock',
+	'bun.lockb',
+	'Cargo.lock',
+	'poetry.lock',
+	'Pipfile.lock',
+	'uv.lock',
+	'Gemfile.lock',
+	'composer.lock',
+	'go.sum',
+	'packages.lock.json'
 ]);
 
 function fileHint(path: string): string {
-  const name = path.split("/").pop() ?? path;
-  if (GENERATED_FILES.has(name)) return " (generated: lockfile)";
-  if (TEST_FILE_RE.test(path)) return " (test file)";
-  return "";
+	const name = path.split('/').pop() ?? path;
+	if (GENERATED_FILES.has(name)) return ' (generated: lockfile)';
+	if (TEST_FILE_RE.test(path)) return ' (test file)';
+	return '';
 }
 
 function buildPrompt(refs: Map<string, string>): string {
-  return [...refs.entries()]
-    .map(([ref, text]) => `### ${ref}${fileHint(ref.slice(0, ref.lastIndexOf("#")))}\n${text}`)
-    .join("\n\n");
+	return [...refs.entries()].map(([ref, text]) => `### ${ref}${fileHint(ref.slice(0, ref.lastIndexOf('#')))}\n${text}`).join('\n\n');
 }
 
 const REPORT_SLICES_TOOL = {
-  name: "report_slices",
-  description: "Report the pull request broken into small, reviewable slices.",
-  parameters: {
-    type: "object",
-    properties: {
-      slices: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            title: { type: "string" },
-            summary: { type: "string" },
-            hunks: { type: "array", items: { type: "string" } },
-          },
-          required: ["title", "hunks"],
-        },
-      },
-    },
-    required: ["slices"],
-  },
+	name: 'report_slices',
+	description: 'Report the pull request broken into small, reviewable slices.',
+	parameters: {
+		type: 'object',
+		properties: {
+			slices: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						title: { type: 'string' },
+						summary: { type: 'string' },
+						hunks: { type: 'array', items: { type: 'string' } }
+					},
+					required: ['title', 'hunks']
+				}
+			}
+		},
+		required: ['slices']
+	}
 };
 
 const SYSTEM_PROMPT = `You are reviewing a pull request. Below are the changed hunks, each labeled with a \
@@ -95,38 +93,38 @@ for review, and the exact hunk references (format "path#index") it covers. Call 
 with the result.`;
 
 export async function generateSlices(files: PrFile[], signal?: AbortSignal, model?: string): Promise<Slice[]> {
-  const refs = buildHunkRefs(files);
-  if (refs.size === 0) return [];
+	const refs = buildHunkRefs(files);
+	if (refs.size === 0) return [];
 
-  const result = await chatWithTool(
-    [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: buildPrompt(refs) },
-    ],
-    REPORT_SLICES_TOOL,
-    signal,
-    model,
-  );
+	const result = await chatWithTool(
+		[
+			{ role: 'system', content: SYSTEM_PROMPT },
+			{ role: 'user', content: buildPrompt(refs) }
+		],
+		REPORT_SLICES_TOOL,
+		signal,
+		model
+	);
 
-  const raw = result.arguments as { slices?: unknown };
-  if (!Array.isArray(raw.slices)) return [];
+	const raw = result.arguments as { slices?: unknown };
+	if (!Array.isArray(raw.slices)) return [];
 
-  const slices: Slice[] = [];
-  raw.slices.forEach((entry, i) => {
-    if (typeof entry !== "object" || entry === null) return;
-    const { title, summary, hunks } = entry as Record<string, unknown>;
-    if (typeof title !== "string" || !Array.isArray(hunks)) return;
+	const slices: Slice[] = [];
+	raw.slices.forEach((entry, i) => {
+		if (typeof entry !== 'object' || entry === null) return;
+		const { title, summary, hunks } = entry as Record<string, unknown>;
+		if (typeof title !== 'string' || !Array.isArray(hunks)) return;
 
-    const validHunks = hunks.filter((h): h is string => typeof h === "string" && refs.has(h));
-    if (validHunks.length === 0) return;
+		const validHunks = hunks.filter((h): h is string => typeof h === 'string' && refs.has(h));
+		if (validHunks.length === 0) return;
 
-    slices.push({
-      id: `slice-${i}`,
-      title,
-      summary: typeof summary === "string" && summary.trim() ? summary.trim() : "",
-      hunks: validHunks,
-    });
-  });
+		slices.push({
+			id: `slice-${i}`,
+			title,
+			summary: typeof summary === 'string' && summary.trim() ? summary.trim() : '',
+			hunks: validHunks
+		});
+	});
 
-  return slices;
+	return slices;
 }

@@ -1,7 +1,22 @@
 import { readOk, sendJson, prUrl } from '../../api/client';
 import { dismissAgentReview, endAgentReview, getAgentReview, getDefaultPanel, setDefaultPanel } from './reviewCalls';
 import { known, reviewerLabel } from './reviewers.svelte';
-import { AUTO_PERSONA, entryOf, isAuto, isDocents, nameAll, reviewerFrom, sessionId, setupFrom, setupOfValue, setupValue, type ExternalReviewer, type PanelEntry, type Persona, type ReviewerSetup } from './setup';
+import {
+	AUTO_PERSONA,
+	entryOf,
+	isAuto,
+	isDocents,
+	nameAll,
+	reviewerFrom,
+	sessionId,
+	setupFrom,
+	setupOfValue,
+	setupValue,
+	type ExternalReviewer,
+	type PanelEntry,
+	type Persona,
+	type ReviewerSetup
+} from './setup';
 export { AUTO_PERSONA, isAuto, modelLabel, nameAll, reviewerFrom, sessionId, setupFrom, setupValue } from './setup';
 export type { ExternalReviewer, PanelEntry, Persona, ReviewerSetup } from './setup';
 import type { PrSession } from '../../session/session.svelte';
@@ -47,9 +62,7 @@ export class Panel {
 	// "auto" reviewers choosing their personas, as the review says.
 	readonly picking = $derived(Object.fromEntries(this.reviewers.map((a) => [a.id, !!a.picking])) as Partial<Record<AgentId, boolean>>);
 	readonly running = $derived.by(() => this.reviewers.filter((r) => this.reviews[r.id]?.status === 'running'));
-	readonly findingCount = $derived.by(() =>
-		this.reviewers.reduce((n, r) => n + (this.#session.record.feedback[r.id]?.items.length ?? 0), 0)
-	);
+	readonly findingCount = $derived.by(() => this.reviewers.reduce((n, r) => n + (this.#session.record.feedback[r.id]?.items.length ?? 0), 0));
 	// Findings the editor hasn't been through yet: the panel's still
 	// reviewing until it has, and they show only once it has.
 	readonly checking = $derived.by(() =>
@@ -92,8 +105,6 @@ export class Panel {
 	close() {
 		this.#stopPolling();
 	}
-
-
 
 	// For a new round: lets the backend forget the last round's reviews, and
 	// forgets them here, so none of their findings land in the new one.
@@ -170,7 +181,10 @@ export class Panel {
 		const session = this.#session;
 		this.errors[id] = undefined;
 		try {
-			const res = await sendJson(`${prUrl(session.ref)}/panel/start?reviewer=${encodeURIComponent(id)}`, { setup, ...(session.round !== null ? { round: session.round } : {}) });
+			const res = await sendJson(`${prUrl(session.ref)}/panel/start?reviewer=${encodeURIComponent(id)}`, {
+				setup,
+				...(session.round !== null ? { round: session.round } : {})
+			});
 			await readOk(res);
 			delete this.#seen[id];
 			delete this.reviews[id];
@@ -192,7 +206,6 @@ export class Panel {
 				.catch(() => {});
 		}
 	}
-
 
 	// Switches a reviewer that hasn't run off or on, remembered with the PR.
 	setOff(id: AgentId, off: boolean) {
@@ -220,7 +233,6 @@ export class Panel {
 	// panel by choice, and runs them in place of its last picks. The general
 	// reviewer always goes in with them, unless one is on the panel by choice
 	// already.
-
 
 	// A general reviewer - Docent's, without a persona - on the panel by choice.
 	get hasGeneral() {
@@ -340,10 +352,7 @@ export class Panel {
 	// Whether the panel is still at work on a slice, so its findings aren't
 	// all shown yet.
 	reviewing(sliceId: string): boolean {
-		return (
-			this.#finishedByRunning().some((finished) => !finished.has(sliceId)) ||
-			this.#waiting().some((w) => w.slices.includes(sliceId))
-		);
+		return this.#finishedByRunning().some((finished) => !finished.has(sliceId)) || this.#waiting().some((w) => w.slices.includes(sliceId));
 	}
 
 	// Findings on a slice the editor filtered out.
@@ -351,9 +360,7 @@ export class Panel {
 		return Object.entries(this.#session.record.feedback)
 			.filter(([key]) => key.startsWith('agent-'))
 			.flatMap(([reviewer, draft]) =>
-				(draft?.items ?? [])
-					.filter((item) => item.filtered && this.#slicesOf(item).includes(sliceId))
-					.map((item) => ({ reviewer, item }))
+				(draft?.items ?? []).filter((item) => item.filtered && this.#slicesOf(item).includes(sliceId)).map((item) => ({ reviewer, item }))
 			);
 	}
 

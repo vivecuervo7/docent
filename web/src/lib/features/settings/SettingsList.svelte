@@ -78,7 +78,9 @@
 		{#if formError}<p class="bad">{formError}</p>{/if}
 		<div class="actions">
 			<button type="button" class="btn" onclick={() => (editing = null)}>Cancel</button>
-			<button type="submit" class="btn primary" disabled={saving}>{#if saving}<Spinner size={13} />{/if} Save</button>
+			<button type="submit" class="btn primary" disabled={saving}
+				>{#if saving}<Spinner size={13} />{/if} Save</button
+			>
 		</div>
 	</form>
 {/snippet}
@@ -108,7 +110,14 @@
 						title="Drag to reorder, or Alt+↑ or ↓"
 						onpointerdown={() => order.arm(item.id)}
 						onkeydown={(e) => order.key(e, item.id)}
-					><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"><circle cx="3.5" cy="3" r="1.4" /><circle cx="8.5" cy="3" r="1.4" /><circle cx="3.5" cy="8" r="1.4" /><circle cx="8.5" cy="8" r="1.4" /><circle cx="3.5" cy="13" r="1.4" /><circle cx="8.5" cy="13" r="1.4" /></svg></button>
+						><svg width="12" height="16" viewBox="0 0 12 16" aria-hidden="true"
+							><circle cx="3.5" cy="3" r="1.4" /><circle cx="8.5" cy="3" r="1.4" /><circle cx="3.5" cy="8" r="1.4" /><circle cx="8.5" cy="8" r="1.4" /><circle
+								cx="3.5"
+								cy="13"
+								r="1.4"
+							/><circle cx="8.5" cy="13" r="1.4" /></svg
+						></button
+					>
 				{/if}
 				<div class="row">
 					{#if mark}<span class="mark">{@render mark(item)}</span>{/if}
@@ -127,7 +136,8 @@
 </ul>
 {#if editing !== 'new'}
 	<button class="add" onclick={() => edit(null)}>
-		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg
+		>
 		{addLabel}
 	</button>
 {/if}

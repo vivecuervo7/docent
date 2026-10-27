@@ -24,7 +24,11 @@ const round = (n: number, sizes: RoundStats['sizes'], extra: Partial<RoundStats>
 describe('summarise', () => {
 	it('sizes a PR by its latest round, and adds up what its rounds read', () => {
 		const s = summarise({
-			rounds: [round(1, { lines: 2000, slices: [1000, 1000], pr: 2000 }), round(2, { lines: 200, slices: [200], pr: 2150 }), round(3, { lines: 200, slices: [200], pr: 2300 })]
+			rounds: [
+				round(1, { lines: 2000, slices: [1000, 1000], pr: 2000 }),
+				round(2, { lines: 200, slices: [200], pr: 2150 }),
+				round(3, { lines: 200, slices: [200], pr: 2300 })
+			]
 		});
 		const [pr] = s.reviewability.prs;
 		expect(pr.size).toBe(2300);
@@ -33,12 +37,12 @@ describe('summarise', () => {
 		expect(pr.rounds).toBe(3);
 	});
 
-	it('falls back to what a round read when its PR size wasn\'t kept', () => {
+	it("falls back to what a round read when its PR size wasn't kept", () => {
 		const s = summarise({ rounds: [round(1, { lines: 500, slices: [500] })] });
 		expect(s.reviewability.prs[0].size).toBe(500);
 	});
 
-	it('counts how reviewers\' kept findings overlap', () => {
+	it("counts how reviewers' kept findings overlap", () => {
 		const ran = [
 			{ id: 'a', name: 'A' },
 			{ id: 'b', name: 'B' }

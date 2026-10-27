@@ -3,13 +3,7 @@
 	// A heading per repo or author on the start page: the repo linking to its
 	// pull requests on GitHub, or the author with their avatar, how many PRs
 	// are under it, and folding them away.
-	let {
-		label,
-		count,
-		byRepo,
-		folded,
-		ontoggle
-	}: { label: string; count: number; byRepo: boolean; folded: boolean; ontoggle: () => void } = $props();
+	let { label, count, byRepo, folded, ontoggle }: { label: string; count: number; byRepo: boolean; folded: boolean; ontoggle: () => void } = $props();
 </script>
 
 <h3 class="group">

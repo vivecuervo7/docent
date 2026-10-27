@@ -15,9 +15,7 @@
 	const session = useSession();
 	let showWhy = $state(false);
 
-	const lines = $derived(
-		!('start' in mark) ? 'the whole file' : lineSpan(mark.start.line, mark.end.line)
-	);
+	const lines = $derived(!('start' in mark) ? 'the whole file' : lineSpan(mark.start.line, mark.end.line));
 	// Kept unless skipped, as in the diff's bubble, and only suggested until
 	// you decide.
 	const isKept = $derived(mark.included ?? true);
@@ -29,7 +27,9 @@
 	<header>
 		<span class="who">{mark.who}</span>
 		<SeverityTag severity={mark.severity} />
-		<span class="where">{#if mark.path}<FilePath path={mark.path} {lines} />{:else}the PR as a whole{/if}</span>
+		<span class="where"
+			>{#if mark.path}<FilePath path={mark.path} {lines} />{:else}the PR as a whole{/if}</span
+		>
 	</header>
 	<div class="body"><NoteText text={mark.body} /></div>
 	<EditorNotes
