@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDismiss } from '$lib/ui/dismiss';
 	import { shortDate } from '$lib/ui/format';
 	import { goto } from '$app/navigation';
 	import { useSession } from '$lib/session/session.svelte';
@@ -74,15 +75,7 @@
 
 	$effect(() => {
 		if (!open) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.rounds')) open = false;
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
+		return onDismiss(() => (open = false), '.rounds');
 	});
 
 	const date = (iso: string) => shortDate(iso);

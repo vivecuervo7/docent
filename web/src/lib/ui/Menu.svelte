@@ -1,5 +1,6 @@
 <script lang="ts" generics="V extends string">
 	import type { Snippet } from 'svelte';
+	import { onDismiss } from './dismiss';
 
 	// A menu of choices under a trigger the caller draws: grouped options, the
 	// current one ticked, each with an optional hint. It closes on a choice, a
@@ -34,15 +35,7 @@
 
 	$effect(() => {
 		if (!open) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !root?.contains(e.target as Node)) open = false;
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
+		return onDismiss(() => (open = false), (target) => !!root?.contains(target));
 	});
 </script>
 

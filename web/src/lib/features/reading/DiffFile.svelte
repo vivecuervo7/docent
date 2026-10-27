@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDismiss } from '$lib/ui/dismiss';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { looseGitHubThreads, type Mark } from './marks';
@@ -412,14 +413,14 @@
 	// A click anywhere but the open thread, finding or composer closes it.
 	$effect(() => {
 		if (!session.openMark && !(selection && !dragging)) return;
-		const close = (e: PointerEvent) => {
-			const el = e.target as Element;
-			if (el.closest('.popover, .composer, .pin, .n, [role="dialog"], .scrim')) return;
-			session.openMark = null;
-			selection = null;
-		};
-		window.addEventListener('pointerdown', close);
-		return () => window.removeEventListener('pointerdown', close);
+		return onDismiss(
+			() => {
+				session.openMark = null;
+				selection = null;
+			},
+			'.popover, .composer, .pin, .n, [role="dialog"], .scrim',
+			{ escape: false }
+		);
 	});
 
 	function startSelect(e: PointerEvent, pos: number) {

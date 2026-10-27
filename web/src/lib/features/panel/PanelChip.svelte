@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDismiss } from '$lib/ui/dismiss';
 	import { isAuto, modelLabel, nameOf } from '$lib/features/panel/panel.svelte';
 	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
 	import { useSession } from '$lib/session/session.svelte';
@@ -34,15 +35,7 @@
 
 	$effect(() => {
 		if (!open) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.chip')) open = false;
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
+		return onDismiss(() => (open = false), '.chip');
 	});
 
 	function duration(ms: number): string {

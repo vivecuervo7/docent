@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDismiss } from '$lib/ui/dismiss';
 	import { tick } from 'svelte';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import NoteText from '$lib/ui/NoteText.svelte';
@@ -78,19 +79,7 @@
 	// Clear asks with.
 	$effect(() => {
 		if (!open) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent) {
-				if (e.key === 'Escape') open = false;
-			} else if (!corner?.contains(e.target as Node) && !(e.target as Element).closest('[role="dialog"], [role="alertdialog"], .scrim')) {
-				open = false;
-			}
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
+		return onDismiss(() => (open = false), (target) => !!corner?.contains(target) || !!target.closest('[role="dialog"], [role="alertdialog"], .scrim'));
 	});
 </script>
 

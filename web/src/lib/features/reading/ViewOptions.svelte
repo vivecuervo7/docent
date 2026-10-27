@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDismiss } from '$lib/ui/dismiss';
 	import { GITHUB_IN_DIFF, useSession } from '$lib/session/session.svelte';
 
 	// How the diffs are shown. Kept in this browser.
@@ -10,15 +11,7 @@
 
 	$effect(() => {
 		if (!open) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.view')) open = false;
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
+		return onDismiss(() => (open = false), '.view');
 	});
 </script>
 

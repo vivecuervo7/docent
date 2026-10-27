@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDismiss } from '$lib/ui/dismiss';
 	import FilePath from '$lib/ui/FilePath.svelte';
 	import Floating from '$lib/ui/Floating.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
@@ -58,11 +59,7 @@
 	}
 	$effect(() => {
 		if (!composing) return;
-		const close = (e: PointerEvent) => {
-			if (!(e.target as Element).closest('.file-composer, .comment-file')) composing = false;
-		};
-		window.addEventListener('pointerdown', close);
-		return () => window.removeEventListener('pointerdown', close);
+		return onDismiss(() => (composing = false), '.file-composer, .comment-file', { escape: false });
 	});
 </script>
 

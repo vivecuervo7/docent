@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDismiss } from '$lib/ui/dismiss';
 	import Floating from '../../ui/Floating.svelte';
 	import InlineText from '../../ui/InlineText.svelte';
 
@@ -37,15 +38,7 @@
 
 	$effect(() => {
 		if (!shown?.pinned) return;
-		const close = (e: Event) => {
-			if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as Element).closest('.verdict')) shown = null;
-		};
-		window.addEventListener('pointerdown', close);
-		window.addEventListener('keydown', close);
-		return () => {
-			window.removeEventListener('pointerdown', close);
-			window.removeEventListener('keydown', close);
-		};
+		return onDismiss(() => (shown = null), '.verdict');
 	});
 </script>
 
