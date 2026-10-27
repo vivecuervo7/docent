@@ -7,6 +7,7 @@
 	import NoteText from '../../ui/NoteText.svelte';
 	import EditorNotes from './EditorNotes.svelte';
 	import SeverityTag from './SeverityTag.svelte';
+	import KeepSkip from '$lib/ui/KeepSkip.svelte';
 
 	// A finding to keep or skip, in a list rather than in the diff.
 	let { mark, onshow }: { mark: Mark | LooseMark; onshow?: () => void } = $props();
@@ -20,8 +21,10 @@
 				? `line ${mark.start.line}`
 				: `lines ${mark.start.line}–${mark.end.line}`
 	);
-	// Kept unless skipped, as in the diff's bubble.
+	// Kept unless skipped, as in the diff's bubble, and only suggested until
+	// you decide.
 	const isKept = $derived(mark.included ?? true);
+	const decided = $derived(!!(mark.reviewer && session.record.feedback[mark.reviewer]?.items.find((i) => i.id === mark.id)?.decided));
 	const decide = (included: boolean) => mark.reviewer && session.setFindingIncluded(mark.reviewer, mark.id, included);
 </script>
 
@@ -49,8 +52,7 @@
 		{#if showWhy}<p class="rationale"><InlineText text={mark.rationale} /></p>{/if}
 	{/if}
 	<footer>
-		<button class="btn" class:primary={isKept} aria-pressed={isKept} onclick={() => decide(true)}>Keep</button>
-		<button class="btn" class:primary={!isKept} aria-pressed={!isKept} onclick={() => decide(false)}>Skip</button>
+		<KeepSkip kept={isKept} suggested={!decided} tone="agent" onkeep={() => decide(true)} onskip={() => decide(false)} />
 		<span class="grow"></span>
 		{#if onshow}<button class="btn" onclick={onshow}>Show in diff</button>{/if}
 	</footer>
