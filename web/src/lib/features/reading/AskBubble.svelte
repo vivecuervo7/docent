@@ -22,7 +22,7 @@
 	);
 	const latest = $derived(notes.at(-1));
 	const messages = $derived(notes.flatMap((n) => n.messages));
-	const status = $derived(latest ? (session.noteStatus[latest.id] ?? {}) : {});
+	const status = $derived(latest ? (session.conversations.noteStatus[latest.id] ?? {}) : {});
 	const unread = $derived(notes.some(isUnread));
 	const title = $derived(slice ? 'About this slice' : 'About the whole PR');
 
@@ -45,19 +45,19 @@
 
 	function send(text: string, kind: SendKind) {
 		const comment = kind === 'comment';
-		if (latest) session.sendNote(latest.id, text, { comment, conclusion: kind === 'conclude' });
-		else session.createNote(slice ? { path: '', slice: slice.id } : { path: '' }, text, { comment });
+		if (latest) session.conversations.sendNote(latest.id, text, { comment, conclusion: kind === 'conclude' });
+		else session.conversations.createNote(slice ? { path: '', slice: slice.id } : { path: '' }, text, { comment });
 	}
 
 	async function clear() {
 		if (!(await ask({ title: 'Clear this conversation?', body: 'What’s been drafted from it in Wrap up goes with it.', action: 'Clear' }))) return;
-		for (const n of notes) session.removeNote(n.id);
+		for (const n of notes) session.conversations.removeNote(n.id);
 	}
 
 	// Read while it's open; the latest message kept in view as it grows.
 	$effect(() => {
 		if (!open) return;
-		for (const n of notes) if (isUnread(n)) session.markNoteRead(n.id);
+		for (const n of notes) if (isUnread(n)) session.conversations.markNoteRead(n.id);
 	});
 	$effect(() => {
 		void messages.length;
@@ -131,7 +131,7 @@
 					<li>
 						<p class="status bad">
 							Couldn’t get a reply: {status.error}
-							<button class="link" onclick={() => session.retryNote(latest.id)}>Try again</button>
+							<button class="link" onclick={() => session.conversations.retryNote(latest.id)}>Try again</button>
 						</p>
 					</li>
 				{/if}

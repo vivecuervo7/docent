@@ -64,7 +64,7 @@
 	}
 
 	let draft = $state('');
-	const ask = (text: string, kind: SendKind) => session?.askAboutGitHub(id, text, { comment: kind === 'comment', thread });
+	const ask = (text: string, kind: SendKind) => session?.conversations.askAboutGitHub(id, text, { comment: kind === 'comment', thread });
 
 	function step(by: number) {
 		const next = order[at + by];

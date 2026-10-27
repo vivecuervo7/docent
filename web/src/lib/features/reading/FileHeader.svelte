@@ -51,7 +51,7 @@
 	let draft = $state('');
 	let commentButton = $state<HTMLElement | null>(null);
 	function startThread(text: string, kind: SendKind) {
-		const id = session.createNote({ path: file.filename }, text, { comment: kind === 'comment' });
+		const id = session.conversations.createNote({ path: file.filename }, text, { comment: kind === 'comment' });
 		composing = false;
 		collapsed = false;
 		session.openMark = id;

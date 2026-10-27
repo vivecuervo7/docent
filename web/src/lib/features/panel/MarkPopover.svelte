@@ -48,14 +48,14 @@
 	// The finding as saved, for its conversation as it grows.
 	const item = $derived(mark.reviewer ? session.record.feedback[mark.reviewer]?.items.find((i) => i.id === mark.id) : undefined);
 	const messages = $derived(item?.messages ?? []);
-	const status = $derived(session.findingStatus[mark.id] ?? {});
+	const status = $derived(session.conversations.findingStatus[mark.id] ?? {});
 	let draft = $state('');
 	let list = $state<HTMLDivElement | null>(null);
 
 	// Reading it here clears it from unread.
 	$effect(() => {
 		void messages.length;
-		if (mark.reviewer) session.markFindingRead(mark.reviewer, mark.id);
+		if (mark.reviewer) session.conversations.markFindingRead(mark.reviewer, mark.id);
 	});
 
 	// The latest answer in view as the conversation grows.
@@ -69,8 +69,8 @@
 	// conclusion about it, which Prepare follows.
 	function send(text: string, kind: SendKind) {
 		if (!mark.reviewer) return;
-		if (kind === 'conclude') session.concludeFinding(mark.reviewer, mark.id, text);
-		else session.askAboutFinding(mark.reviewer, mark.id, text);
+		if (kind === 'conclude') session.conversations.concludeFinding(mark.reviewer, mark.id, text);
+		else session.conversations.askAboutFinding(mark.reviewer, mark.id, text);
 	}
 	// Quick questions, each offered until it's been asked.
 	const QUICK = [
@@ -83,7 +83,7 @@
 
 	function ask(q: (typeof QUICK)[number]) {
 		if (status.pending || !mark.reviewer) return;
-		session.askAboutFinding(mark.reviewer, mark.id, q.label, q.prompt);
+		session.conversations.askAboutFinding(mark.reviewer, mark.id, q.label, q.prompt);
 	}
 	const keep = (value: boolean) => mark.reviewer && session.setFindingIncluded(mark.reviewer, mark.id, value);
 </script>
@@ -174,7 +174,7 @@
 					<li>
 						<p class="state bad">
 							Couldn’t get an answer: {status.error}
-							<button class="link" onclick={() => mark.reviewer && session.retryFinding(mark.reviewer, mark.id)}>Try again</button>
+							<button class="link" onclick={() => mark.reviewer && session.conversations.retryFinding(mark.reviewer, mark.id)}>Try again</button>
 						</p>
 					</li>
 				{/if}

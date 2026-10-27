@@ -329,7 +329,7 @@
 		// Lines a round removed aren't in either file, so there's nothing to anchor to.
 		const rows = shown.slice(selFrom, selTo + 1).filter((r) => !r.removed);
 		const ref = (r: Row): LineRef => (r.kind === 'del' ? { side: 'old', line: r.old! } : { side: 'new', line: r.new! });
-		const id = session.createNote(
+		const id = session.conversations.createNote(
 			{
 				path: file.filename,
 				hunk: parseInt(rows[0].key, 10),

@@ -14,7 +14,7 @@
 	let { note, title, onclose }: { note: Note; title?: string; onclose?: () => void } = $props();
 
 	const session = useSession();
-	const status = $derived(session.noteStatus[note.id] ?? {});
+	const status = $derived(session.conversations.noteStatus[note.id] ?? {});
 	const where = $derived(noteWhere(note));
 	let draft = $state('');
 	// A thread begun with a comment takes more comments; one begun with a
@@ -22,13 +22,13 @@
 	const second = $derived(note.messages[0]?.comment ? 'comment' : 'conclude');
 
 	function send(text: string, kind: SendKind) {
-		session.sendNote(note.id, text, { comment: kind === 'comment', conclusion: kind === 'conclude' });
+		session.conversations.sendNote(note.id, text, { comment: kind === 'comment', conclusion: kind === 'conclude' });
 	}
 	let list = $state<HTMLOListElement | null>(null);
 
 	// Reading it here clears it from unread.
 	$effect(() => {
-		if (note.messages.at(-1)?.role === 'assistant') session.markNoteRead(note.id);
+		if (note.messages.at(-1)?.role === 'assistant') session.conversations.markNoteRead(note.id);
 	});
 
 	// The latest message in view as the thread grows.
@@ -40,7 +40,7 @@
 
 	async function remove() {
 		if (!(await ask({ title: 'Delete this thread?', body: 'Its messages go with it.', action: 'Delete' }))) return;
-		session.removeNote(note.id);
+		session.conversations.removeNote(note.id);
 		onclose?.();
 	}
 </script>
@@ -74,7 +74,7 @@
 			<li>
 				<p class="status bad">
 					Couldn’t get a reply: {status.error}
-					<button class="link" onclick={() => session.retryNote(note.id)}>Try again</button>
+					<button class="link" onclick={() => session.conversations.retryNote(note.id)}>Try again</button>
 				</p>
 			</li>
 		{/if}

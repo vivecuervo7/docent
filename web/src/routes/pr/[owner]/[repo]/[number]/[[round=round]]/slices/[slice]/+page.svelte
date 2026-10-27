@@ -52,7 +52,7 @@
 		// Seen here in full, so they're read.
 		for (const id of ids) {
 			const mark = markById(id);
-			if (mark?.reviewer) session.markFindingRead(mark.reviewer, id);
+			if (mark?.reviewer) session.conversations.markFindingRead(mark.reviewer, id);
 		}
 		opinion = { ids, next, stay };
 	}
