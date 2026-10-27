@@ -1,11 +1,5 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { gh } from "./gh.server.js";
 
-const run = promisify(execFile);
-// A command's output can run well past Node's 1MB default: a big PR's files
-// with their patches, say.
-const execFileAsync = (file: string, args: string[], options: { maxBuffer?: number; timeout?: number } = {}) =>
-  run(file, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
 
 // What people have said on the PR on GitHub, for showing beside the code:
 // inline threads with where they sit, and what was said on the PR as a
@@ -64,8 +58,8 @@ interface RawInline {
   subject_type?: "line" | "file";
 }
 
-const gh = async <T>(path: string): Promise<T> =>
-  JSON.parse((await execFileAsync("gh", ["api", "--paginate", path], { maxBuffer: 64 * 1024 * 1024 })).stdout) as T;
+// Every page of a list.
+const list = async <T>(path: string): Promise<T> => JSON.parse(await gh(["api", "--paginate", path])) as T;
 
 // Each inline thread's GitHub id and whether it's resolved, by the id of
 // its first comment: only GitHub's GraphQL API says.
@@ -81,7 +75,7 @@ async function threadStates(owner: string, repo: string, number: string): Promis
         } } } }`;
     const args = ["api", "graphql", "-f", `query=${query}`, "-F", `owner=${owner}`, "-F", `repo=${repo}`, "-F", `number=${number}`];
     if (after) args.push("-F", `after=${after}`);
-    const { stdout } = await execFileAsync("gh", args, { maxBuffer: 16 * 1024 * 1024 });
+    const stdout = await gh(args);
     const threads = JSON.parse(stdout).data?.repository?.pullRequest?.reviewThreads;
     for (const t of threads?.nodes ?? []) {
       const first = t.comments?.nodes?.[0]?.databaseId;
@@ -105,7 +99,7 @@ export async function changeThreads(
     changes.map(async ({ node, resolved, reply }) => {
       try {
         if (reply) {
-          await execFileAsync("gh", [
+          await gh([
             "api",
             "--method",
             "POST",
@@ -118,7 +112,7 @@ export async function changeThreads(
           const mutation = resolved
             ? "mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }"
             : "mutation($id: ID!) { unresolveReviewThread(input: { threadId: $id }) { thread { id } } }";
-          await execFileAsync("gh", ["api", "graphql", "-f", `query=${mutation}`, "-F", `id=${node}`]);
+          await gh(["api", "graphql", "-f", `query=${mutation}`, "-F", `id=${node}`]);
         }
         return { node };
       } catch (err) {
@@ -131,11 +125,11 @@ export async function changeThreads(
 
 export async function fetchGitHubComments(owner: string, repo: string, number: string): Promise<GitHubComments> {
   const [inline, reviews, issueComments, states] = await Promise.all([
-    gh<RawInline[]>(`repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`),
-    gh<{ id: number; user: { login?: string } | null; body: string | null; state: string; submitted_at: string | null }[]>(
+    list<RawInline[]>(`repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`),
+    list<{ id: number; user: { login?: string } | null; body: string | null; state: string; submitted_at: string | null }[]>(
       `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`,
     ),
-    gh<{ id: number; user: { login?: string } | null; body: string | null; created_at: string }[]>(
+    list<{ id: number; user: { login?: string } | null; body: string | null; created_at: string }[]>(
       `repos/${owner}/${repo}/issues/${number}/comments?per_page=100`,
     ),
     // Without it, threads show without their state, and can't be resolved here.

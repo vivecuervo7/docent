@@ -30,6 +30,8 @@ const github = persistent("repo-cache.github", () => ({ token: null as Promise<s
 // or written into the clone's config.
 async function env(): Promise<NodeJS.ProcessEnv> {
   github.token ??= execFileAsync("gh", ["auth", "token"]).then(({ stdout }) => stdout.trim());
+  // A failed lookup isn't held: signing in again needs no restart.
+  github.token.catch(() => (github.token = null));
   const auth = Buffer.from(`x-access-token:${await github.token}`).toString("base64");
   return {
     ...process.env,

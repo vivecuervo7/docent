@@ -1,15 +1,10 @@
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
+import { spawn } from "node:child_process";
+import { gh, viewerLogin } from "../../github/gh.server.js";
 import { conversationText, fetchPrConversation, fetchPrFiles } from "../../github/github.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { commentableLines } from "../../github/prDiff.server.js";
 
-const run = promisify(execFile);
-// A command's output can run well past Node's 1MB default: a big PR's files
-// with their patches, say.
-const execFileAsync = (file: string, args: string[], options: { maxBuffer?: number; timeout?: number } = {}) =>
-  run(file, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
 
 // The last step: combining the comments the reviewer kept into one review,
 // then posting it. Preparing uses the model; posting doesn't.
@@ -265,10 +260,7 @@ function settle(candidates: Candidate[], raw: Record<string, unknown>): Prepared
   return { comments, dropped, body, inBody, also, ...(event ? { event } : {}), ...(eventReason ? { eventReason } : {}) };
 }
 
-export async function fetchViewer(): Promise<string> {
-  const { stdout } = await execFileAsync("gh", ["api", "user", "--jq", ".login"]);
-  return stdout.trim();
-}
+export const fetchViewer = viewerLogin;
 
 // The reviewer's latest review on the PR submitted since a time, if any. A
 // post that fails without a clear answer (the connection dropped, say) may
@@ -279,9 +271,9 @@ export async function findReviewSince(
   number: string,
   since: number,
 ): Promise<string | null> {
-  const [viewer, { stdout }] = await Promise.all([
+  const [viewer, stdout] = await Promise.all([
     fetchViewer(),
-    execFileAsync("gh", ["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
+    gh(["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
   ]);
   const reviews = JSON.parse(stdout) as { user: { login?: string } | null; submitted_at: string | null; html_url: string }[];
   const mine = reviews
@@ -293,9 +285,9 @@ export async function findReviewSince(
 // The reviewer's pending review on the PR, if they have one. GitHub allows
 // only one at a time, so another can't be left until it's submitted.
 export async function findPendingReview(owner: string, repo: string, number: string): Promise<string | null> {
-  const [viewer, { stdout }] = await Promise.all([
+  const [viewer, stdout] = await Promise.all([
     fetchViewer(),
-    execFileAsync("gh", ["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
+    gh(["api", "--paginate", `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`]),
   ]);
   const reviews = JSON.parse(stdout) as { user: { login?: string } | null; state: string; html_url: string }[];
   return reviews.find((r) => r.user?.login === viewer && r.state === "PENDING")?.html_url ?? null;

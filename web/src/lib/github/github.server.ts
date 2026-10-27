@@ -1,13 +1,6 @@
-import { execFile } from "node:child_process";
 import { changesBetween } from "./repoCache.server.js";
 import { filesInDiff } from "./diffFiles.js";
-import { promisify } from "node:util";
-
-const run = promisify(execFile);
-// A command's output can run well past Node's 1MB default: a big PR's files
-// with their patches, say.
-const execFileAsync = (file: string, args: string[], options: { maxBuffer?: number; timeout?: number } = {}) =>
-  run(file, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
+import { gh, mergeBase, pull } from "./gh.server.js";
 
 export interface PrFile {
   filename: string;
@@ -28,7 +21,7 @@ export async function fetchPrFiles(
   repo: string,
   number: string,
 ): Promise<PrFile[]> {
-  const { stdout } = await execFileAsync("gh", [
+  const stdout = await gh([
     "api",
     "--paginate",
     `repos/${owner}/${repo}/pulls/${number}/files?per_page=100`,
@@ -53,10 +46,8 @@ export async function fetchPrFiles(
 }
 
 async function cachedPatches(owner: string, repo: string, number: string, paths: string[]): Promise<Map<string, string>> {
-  const { stdout } = await execFileAsync("gh", ["api", `repos/${owner}/${repo}/pulls/${number}`, "--jq", "[.base.sha, .head.sha] | join(\" \")"]);
-  const [base, head] = stdout.trim().split(" ");
-  const { stdout: from } = await execFileAsync("gh", ["api", `repos/${owner}/${repo}/compare/${base}...${head}`, "--jq", ".merge_base_commit.sha"]);
-  const files = await changesBetween(owner, repo, from.trim(), head, paths);
+  const { base, head } = await pull(owner, repo, number);
+  const files = await changesBetween(owner, repo, await mergeBase(owner, repo, base, head), head, paths);
   return new Map(files.flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
 }
 
@@ -64,11 +55,7 @@ async function cachedPatches(owner: string, repo: string, number: string, paths:
 // its old path, for a deleted file). GitHub refuses the whole diff for a
 // very large PR, and those files stay without one.
 async function fetchPrPatches(owner: string, repo: string, number: string): Promise<Map<string, string>> {
-  const { stdout } = await execFileAsync(
-    "gh",
-    ["api", "-H", "Accept: application/vnd.github.diff", `repos/${owner}/${repo}/pulls/${number}`],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
+  const stdout = await gh(["api", "-H", "Accept: application/vnd.github.diff", `repos/${owner}/${repo}/pulls/${number}`]);
   return new Map(filesInDiff(stdout).flatMap((f) => (f.patch ? [[f.filename, f.patch] as const] : [])));
 }
 
@@ -81,14 +68,8 @@ export interface PrMeta {
 }
 
 export async function fetchPrMeta(owner: string, repo: string, number: string): Promise<PrMeta> {
-  const { stdout } = await execFileAsync("gh", [
-    "api",
-    `repos/${owner}/${repo}/pulls/${number}`,
-    "--jq",
-    "{title: .title, body: .body, htmlUrl: .html_url, author: .user.login, head: .head.sha}",
-  ]);
-
-  return JSON.parse(stdout) as PrMeta;
+  const { title, body, htmlUrl, author, head } = await pull(owner, repo, number);
+  return { title, body, htmlUrl, ...(author ? { author } : {}), head };
 }
 
 export interface ConversationEntry {
@@ -158,27 +139,27 @@ export async function fetchPrConversation(
   number: string,
 ): Promise<PrConversation> {
   const [prAuthorRes, reviewsRes, inlineRes, issueCommentsRes] = await Promise.all([
-    execFileAsync("gh", ["api", `repos/${owner}/${repo}/pulls/${number}`, "--jq", ".user.login"]),
-    execFileAsync("gh", [
+    pull(owner, repo, number).then((p) => p.author ?? ""),
+    gh([
       "api",
       "--paginate",
       `repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`,
     ]),
-    execFileAsync("gh", [
+    gh([
       "api",
       "--paginate",
       `repos/${owner}/${repo}/pulls/${number}/comments?per_page=100`,
     ]),
-    execFileAsync("gh", [
+    gh([
       "api",
       "--paginate",
       `repos/${owner}/${repo}/issues/${number}/comments?per_page=100`,
     ]),
   ]);
 
-  const rawReviews = JSON.parse(reviewsRes.stdout) as RawReview[];
-  const rawInline = JSON.parse(inlineRes.stdout) as RawInlineComment[];
-  const rawIssueComments = JSON.parse(issueCommentsRes.stdout) as RawIssueComment[];
+  const rawReviews = JSON.parse(reviewsRes) as RawReview[];
+  const rawInline = JSON.parse(inlineRes) as RawInlineComment[];
+  const rawIssueComments = JSON.parse(issueCommentsRes) as RawIssueComment[];
   const login = (user: RawUser | null) => user?.login ?? "unknown";
 
   // A bare "commented" review with no body is just the envelope GitHub
@@ -210,41 +191,19 @@ export async function fetchPrConversation(
     .map((c) => ({ author: login(c.user), body: c.body ?? "", createdAt: c.created_at }));
 
   return {
-    prAuthor: prAuthorRes.stdout.trim(),
+    prAuthor: prAuthorRes,
     reviews,
     comments,
     threads: [...threadsByRoot.values()],
   };
 }
 
-export async function fetchPrBaseSha(
-  owner: string,
-  repo: string,
-  number: string,
-): Promise<string> {
-  const { stdout } = await execFileAsync("gh", [
-    "api",
-    `repos/${owner}/${repo}/pulls/${number}`,
-    "--jq",
-    ".base.sha",
-  ]);
-
-  return stdout.trim();
+export async function fetchPrBaseSha(owner: string, repo: string, number: string): Promise<string> {
+  return (await pull(owner, repo, number)).base;
 }
 
-export async function fetchPrHeadSha(
-  owner: string,
-  repo: string,
-  number: string,
-): Promise<string> {
-  const { stdout } = await execFileAsync("gh", [
-    "api",
-    `repos/${owner}/${repo}/pulls/${number}`,
-    "--jq",
-    ".head.sha",
-  ]);
-
-  return stdout.trim();
+export async function fetchPrHeadSha(owner: string, repo: string, number: string): Promise<string> {
+  return (await pull(owner, repo, number)).head;
 }
 
 export async function fetchFileContentAtRef(
@@ -259,7 +218,7 @@ export async function fetchFileContentAtRef(
     .join("/");
 
   try {
-    const { stdout } = await execFileAsync("gh", [
+    const stdout = await gh([
       "api",
       `repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
     ]);
@@ -311,7 +270,7 @@ export async function fetchInvolvedPrs(): Promise<InvolvedPr[]> {
     reviewed: ${search("is:pr is:open reviewed-by:@me")}
     mine: ${search("is:pr is:open author:@me")}
   }`;
-  const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=${query}`]);
+  const stdout = await gh(["api", "graphql", "-f", `query=${query}`]);
   type Node = {
     number: number;
     title: string;
@@ -383,10 +342,10 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
         `p${i}: repository(owner: ${JSON.stringify(pr.owner)}, name: ${JSON.stringify(pr.repo)}) { pullRequest(number: ${Number(pr.number)}) { headRefOid createdAt updatedAt state author { login } commits(last: 100) { nodes { commit { oid authoredDate parents { totalCount } } } } reviewThreads(first: 100) { nodes { isResolved } } } }`,
     )
     .join("\n");
-  const { stdout } = await execFileAsync("gh", ["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
+  const stdout = await gh(["api", "graphql", "-f", `query=query { ${fields} }`]).catch((err) => {
     // A PR that's gone or out of reach fails the whole query; its partial
     // data still comes back on stdout.
-    if (err?.stdout) return { stdout: err.stdout as string };
+    if (err?.stdout) return err.stdout as string;
     throw err;
   });
   const data = (JSON.parse(stdout).data ?? {}) as Record<
@@ -426,7 +385,7 @@ export async function fetchPrStatuses(prs: { owner: string; repo: string; number
 // search - which covers the default branch only, so it's for finding where
 // to look, not what the PR's head says.
 export async function searchRepoCode(owner: string, repo: string, query: string): Promise<string[]> {
-  const { stdout } = await execFileAsync("gh", [
+  const stdout = await gh([
     "api",
     "-X",
     "GET",

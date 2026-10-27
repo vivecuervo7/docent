@@ -1,17 +1,11 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { fetchPrBaseSha, fetchPrFiles, fetchPrHeadSha, type PrFile } from "./github.server.js";
 import { getRecord, keyFor } from "../storage/store.server.js";
 import { changesBetween } from "./repoCache.server.js";
+import { gh, mergeBase } from "./gh.server.js";
 import { parseFilePatch } from "../features/reading/diff/parse.js";
 import { roundRecord } from "../storage/rounds.server.js";
 import type { PrCommit, ReviewRange } from "../types.server.js";
 
-const run = promisify(execFile);
-// A command's output can run well past Node's 1MB default: a big PR's files
-// with their patches, say.
-const execFileAsync = (file: string, args: string[], options: { maxBuffer?: number; timeout?: number } = {}) =>
-  run(file, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...options });
 
 // Reviewing some of a PR's commits: the PR as it stands at the range's last
 // commit, shown only where the range changed it. That's the end result, not
@@ -26,7 +20,7 @@ const execFileAsync = (file: string, args: string[], options: { maxBuffer?: numb
 // The PR's own commits, oldest first. A merge commit is marked, for the
 // range picker to leave out: it brings in the base branch's work.
 export async function fetchPrCommits(owner: string, repo: string, number: string): Promise<PrCommit[]> {
-  const { stdout } = await execFileAsync("gh", [
+  const stdout = await gh([
     "api",
     "--paginate",
     `repos/${owner}/${repo}/pulls/${number}/commits?per_page=100`,
@@ -85,8 +79,7 @@ export async function fetchReviewHead(owner: string, repo: string, number: strin
 // whose list of files stops at 300.
 async function prFilesAt(owner: string, repo: string, number: string, to: string): Promise<PrFile[]> {
   const base = await fetchPrBaseSha(owner, repo, number);
-  const { stdout } = await execFileAsync("gh", ["api", `repos/${owner}/${repo}/compare/${base}...${to}`, "--jq", ".merge_base_commit.sha"]);
-  return changesBetween(owner, repo, stdout.trim(), to);
+  return changesBetween(owner, repo, await mergeBase(owner, repo, base, to), to);
 }
 
 // Both diffs number new lines as the range's last commit has them, so a PR
