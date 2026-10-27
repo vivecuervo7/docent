@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { sendJson } from '$lib/api/client';
 	// How many of a tool's calls Docent runs at once, changed in place.
 	let { runner, value }: { runner: 'claude-code' | 'codex'; value: number } = $props();
 
@@ -16,11 +17,7 @@
 		}
 		if (n === value) return;
 		saved = 'saving';
-		const res = await fetch(`/api/runners/${runner}`, {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ concurrency: n })
-		}).catch(() => null);
+		const res = await sendJson(`/api/runners/${runner}`, { concurrency: n }, 'PUT').catch(() => null);
 		saved = res?.ok ? 'saved' : 'bad';
 	}
 </script>

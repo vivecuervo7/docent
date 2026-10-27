@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk } from '../../api/client';
+	import { readOk, sendJson } from '../../api/client';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import Field from '$lib/ui/Field.svelte';
 	import MenuSelect from '../../ui/MenuSelect.svelte';
@@ -68,7 +68,7 @@
 				];
 
 	const send = (url: string, method: string, body: unknown) =>
-		fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(readOk);
+		sendJson(url, body, method).then(readOk);
 
 	// Dragged into a new order, saved as it lands.
 	async function reorder(ids: string[]) {

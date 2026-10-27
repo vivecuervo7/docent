@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk } from '../../api/client';
+	import { readOk, sendJson } from '../../api/client';
 	import type { ModelOption } from '$lib/types';
 	import MenuSelect from '../../ui/MenuSelect.svelte';
 
@@ -21,11 +21,7 @@
 	$effect(() => {
 		if (!value || value === saved) return;
 		saved = value;
-		fetch('/api/editor-model', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ model: value })
-		}).catch(() => {});
+		sendJson('/api/editor-model', { model: value }, 'PUT').catch(() => {});
 	});
 </script>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { prUrl } from '$lib/api/client';
 	import Icon from '$lib/ui/Icon.svelte';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import { untrack } from 'svelte';
@@ -145,7 +146,7 @@
 
 	function loadOld(): Promise<void> {
 		loadingOld ??= fetch(
-				`/api/pr/${prRef.owner}/${prRef.repo}/${prRef.number}/old-content?path=${encodeURIComponent(file.previous_filename ?? file.filename)}`
+				`${prUrl(prRef)}/old-content?path=${encodeURIComponent(file.previous_filename ?? file.filename)}`
 			)
 				.then((res) => (res.ok ? res.json() : { content: null }))
 				.then((data: { content: string | null }) => {

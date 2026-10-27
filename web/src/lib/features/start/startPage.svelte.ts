@@ -1,4 +1,4 @@
-import { listModels, readOk } from '$lib/api/client';
+import { listModels, readOk, sendJson } from '$lib/api/client';
 import { shortDate } from '$lib/ui/format';
 import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
 import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
@@ -307,11 +307,7 @@ export class StartPage {
 	#loadStatuses(list: SavedPr[], force = false) {
 		if (!list.length || (!force && Date.now() - this.#statusesAt < 5 * 60_000)) return;
 		this.#statusesAt = Date.now();
-		fetch('/api/pr-statuses', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ prs: list.map(({ owner, repo, number }) => ({ owner, repo, number })) })
-		})
+		sendJson('/api/pr-statuses', { prs: list.map(({ owner, repo, number }) => ({ owner, repo, number })) })
 			.then((res) => readOk<{ statuses: PrStatus[] }>(res))
 			.then((r) => (this.statuses = Object.fromEntries(r.statuses.map((st) => [keyOf(st), st]))))
 			.catch(() => {});
@@ -352,11 +348,7 @@ export class StartPage {
 
 	async setHidden(pr: PrRef, hidden: boolean) {
 		this.hiddenKeys = hidden ? [...this.hiddenKeys, keyOf(pr)] : this.hiddenKeys.filter((k) => k !== keyOf(pr));
-		const res = await fetch('/api/hidden-prs', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ owner: pr.owner, repo: pr.repo, number: pr.number, hidden })
-		}).catch(() => null);
+		const res = await sendJson('/api/hidden-prs', { owner: pr.owner, repo: pr.repo, number: pr.number, hidden }, 'PUT').catch(() => null);
 		if (res?.ok) this.hiddenKeys = (await res.json()).hidden;
 	}
 
@@ -385,11 +377,7 @@ export class StartPage {
 
 	async setPinned(pr: PrRef, pinned: boolean) {
 		this.pinnedKeys = pinned ? [...this.pinnedKeys, keyOf(pr)] : this.pinnedKeys.filter((k) => k !== keyOf(pr));
-		const res = await fetch('/api/pinned-prs', {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ owner: pr.owner, repo: pr.repo, number: pr.number, pinned })
-		}).catch(() => null);
+		const res = await sendJson('/api/pinned-prs', { owner: pr.owner, repo: pr.repo, number: pr.number, pinned }, 'PUT').catch(() => null);
 		if (res?.ok) this.pinnedKeys = (await res.json()).pinned;
 	}
 

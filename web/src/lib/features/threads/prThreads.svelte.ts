@@ -1,4 +1,4 @@
-import { readOk } from '$lib/api/client';
+import { readOk, sendJson, prUrl } from '$lib/api/client';
 import type { GitHubThread, PrRef, ThreadCheck } from '$lib/types';
 
 // A PR's GitHub threads and what checking them found, loaded from the PR
@@ -38,7 +38,7 @@ export class PrThreads {
 	}
 
 	get #base() {
-		return `/api/pr/${this.#ref.owner}/${this.#ref.repo}/${this.#ref.number}`;
+		return `${prUrl(this.#ref)}`;
 	}
 
 	async load() {
@@ -56,11 +56,7 @@ export class PrThreads {
 	async check(threads: GitHubThread[]) {
 		if (!threads.length) return;
 		await readOk(
-			await fetch(`${this.#base}/github-threads/check`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ids: threads.map((t) => t.id), model: this.#model() })
-			})
+			await sendJson(`${this.#base}/github-threads/check`, { ids: threads.map((t) => t.id), model: this.#model() })
 		);
 		await this.load();
 	}
@@ -70,17 +66,13 @@ export class PrThreads {
 	async change(changes: { thread: GitHubThread; resolved?: boolean; reply?: string }[]) {
 		const sent = changes.filter((c) => c.thread.node);
 		if (!sent.length) return;
-		const res = await fetch(`${this.#base}/github-threads`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
+		const res = await sendJson(`${this.#base}/github-threads`, {
 				changes: sent.map(({ thread, resolved, reply }) => ({
 					node: thread.node,
 					...(resolved !== undefined ? { resolved } : {}),
 					...(reply?.trim() ? { reply: { comment: Number(thread.id.slice(1)), body: reply.trim() } } : {})
 				}))
-			})
-		});
+			});
 		const { results } = await readOk<{ results: { node: string; error?: string }[] }>(res);
 		await this.load();
 		this.#onchange();

@@ -1,4 +1,4 @@
-import { readOk } from '../../api/client';
+import { readOk, sendJson, prUrl } from '../../api/client';
 import { groupsOf, isShown, reviewerName } from '../panel/findings';
 import type { Hunk } from '../reading/diff/parse';
 import type { PrSession } from '../../session/session.svelte';
@@ -65,8 +65,7 @@ export class ReviewPost {
 	}
 
 	#url(path: string) {
-		const { owner, repo, number } = this.#session.ref;
-		return `/api/pr/${owner}/${repo}/${number}/review/${path}`;
+		return `${prUrl(this.#session.ref)}/review/${path}`;
 	}
 
 	#save(review: ReviewDraft | undefined) {
@@ -87,10 +86,7 @@ export class ReviewPost {
 		const candidates = this.candidates;
 		this.#asking = { pending: true };
 		try {
-			const res = await fetch(this.#url('prepare'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
+			const res = await sendJson(this.#url('prepare'), {
 					model: this.#session.record.model,
 					candidates: candidates.map(({ item, source }) => ({
 						id: item.id,
@@ -112,8 +108,7 @@ export class ReviewPost {
 					),
 					input: { candidates: candidates.map(({ item }) => item.id) },
 					...(this.#session.round !== null ? { round: this.#session.round } : {})
-				})
-			});
+				});
 			await readOk(res);
 			await this.#session.reload();
 			this.#asking = {};
@@ -239,17 +234,13 @@ export class ReviewPost {
 	}
 
 	#send(draft: ReviewDraft, dryRun: boolean, pending: boolean) {
-		return fetch(this.#url('post'), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
+		return sendJson(this.#url('post'), {
 				dryRun,
 				pending,
 				event: draft.event,
 				summary: draft.summaryLeftOut ? '' : draft.summary,
 				comments: draft.comments.filter((c) => c.included && c.body.trim()).map(({ body, path, start, end }) => ({ body, path, start, end }))
-			})
-		});
+			});
 	}
 
 	// Exactly what posting would send, without sending it.

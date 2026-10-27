@@ -9,6 +9,11 @@ export async function readOk<T>(res: Response): Promise<T> {
 
 export const prUrl = (ref: PrRef) => `/api/pr/${ref.owner}/${ref.repo}/${ref.number}`;
 
+// A request with a JSON body.
+export function sendJson(url: string, body: unknown, method: string = 'POST'): Promise<Response> {
+	return fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+}
+
 // With `round`, an earlier round's files.
 export async function fetchPr(ref: PrRef, round?: number): Promise<{ files: PrFile[]; meta: PrMeta | null }> {
 	const { files, meta } = await readOk<{ files: PrFile[]; meta?: PrMeta }>(await fetch(round === undefined ? prUrl(ref) : `${prUrl(ref)}?round=${round}`));

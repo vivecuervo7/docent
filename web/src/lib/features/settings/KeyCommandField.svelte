@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk } from '$lib/api/client';
+	import { readOk, sendJson } from '$lib/api/client';
 	import Field from '$lib/ui/Field.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 
@@ -23,11 +23,7 @@
 		checking = true;
 		try {
 			const outcome: Check = await readOk(
-				await fetch('/api/providers/key-check', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ command })
-				})
+				await sendJson('/api/providers/key-check', { command })
 			);
 			// A reply for a command that's since been changed is for no one.
 			if (checkedFor === command) result = outcome;

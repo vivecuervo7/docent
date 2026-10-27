@@ -1,4 +1,4 @@
-import { readOk } from '../api/client';
+import { readOk, sendJson, prUrl } from '../api/client';
 import { groupsOf, reviewerName } from '../features/panel/findings';
 import { codeIn, nearestHunk } from '../features/reading/diff/parse';
 import { sessionId } from '../features/panel/setup';
@@ -130,10 +130,7 @@ export class Conversations {
 		const code = note.code ?? '';
 		this.#asked[id] = { pending: true };
 		try {
-			const res = await fetch(`/api/pr/${this.#s.ref.owner}/${this.#s.ref.repo}/${this.#s.ref.number}/notes/reply`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
+			const res = await sendJson(`${prUrl(this.#s.ref)}/notes/reply`, {
 					context: {
 						path: note.path,
 						lines,
@@ -151,8 +148,7 @@ export class Conversations {
 					model: this.#s.record.model,
 					target: { note: id },
 					...(this.#s.round !== null ? { round: this.#s.round } : {})
-				})
-			});
+				});
 			await readOk(res);
 			await this.#s.reload();
 			this.#asked[id] = {};
@@ -215,10 +211,7 @@ export class Conversations {
 		const ranWith = this.#s.record.agentReviewers.find((a) => a.id === reviewer)?.ranWith;
 		this.#asked[id] = { pending: true };
 		try {
-			const res = await fetch(`/api/pr/${this.#s.ref.owner}/${this.#s.ref.repo}/${this.#s.ref.number}/notes/reply`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
+			const res = await sendJson(`${prUrl(this.#s.ref)}/notes/reply`, {
 					context: {
 						path: path ?? '',
 						lines: start && end ? lineSpan(start.line, end.line) : '',
@@ -254,8 +247,7 @@ export class Conversations {
 					model: this.#answeringModel(ranWith),
 					target: { finding: { reviewer, id } },
 					...(this.#s.round !== null ? { round: this.#s.round } : {})
-				})
-			});
+				});
 			await readOk(res);
 			await this.#s.reload();
 			this.#asked[id] = {};

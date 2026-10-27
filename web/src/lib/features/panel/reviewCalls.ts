@@ -1,4 +1,4 @@
-import { prUrl, readOk } from '../../api/client';
+import { prUrl, readOk, sendJson } from '../../api/client';
 import type { AgentReview, PrRef } from '../../types';
 
 // The PR's agent reviewers each have their own review on the backend.
@@ -28,10 +28,6 @@ export async function getDefaultPanel(): Promise<PanelEntry[] | null> {
 }
 
 export async function setDefaultPanel(panel: PanelEntry[]): Promise<PanelEntry[] | null> {
-	const res = await fetch('/api/panel/default', {
-		method: 'PUT',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ panel })
-	});
+	const res = await sendJson('/api/panel/default', { panel }, 'PUT');
 	return (await readOk<{ panel: PanelEntry[] | null }>(res)).panel;
 }

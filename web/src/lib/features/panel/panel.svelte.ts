@@ -1,4 +1,4 @@
-import { readOk } from '../../api/client';
+import { readOk, sendJson, prUrl } from '../../api/client';
 import { dismissAgentReview, endAgentReview, getAgentReview, getDefaultPanel, setDefaultPanel } from './reviewCalls';
 import { known, reviewerLabel } from './reviewers.svelte';
 import { AUTO_PERSONA, entryOf, isAuto, isDocents, nameAll, reviewerFrom, sessionId, setupFrom, setupOfValue, setupValue, type ExternalReviewer, type PanelEntry, type Persona, type ReviewerSetup } from './setup';
@@ -170,12 +170,7 @@ export class Panel {
 		const session = this.#session;
 		this.errors[id] = undefined;
 		try {
-			const { owner, repo, number } = session.ref;
-			const res = await fetch(`/api/pr/${owner}/${repo}/${number}/panel/start?reviewer=${encodeURIComponent(id)}`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ setup, ...(session.round !== null ? { round: session.round } : {}) })
-			});
+			const res = await sendJson(`${prUrl(session.ref)}/panel/start?reviewer=${encodeURIComponent(id)}`, { setup, ...(session.round !== null ? { round: session.round } : {}) });
 			await readOk(res);
 			delete this.#seen[id];
 			delete this.reviews[id];
@@ -363,9 +358,8 @@ export class Panel {
 	}
 
 	#checkLookup() {
-		const { owner, repo, number } = this.#session.ref;
 		const round = this.#session.round;
-		fetch(`/api/pr/${owner}/${repo}/${number}/code-context${round === null ? '' : `?round=${round}`}`)
+		fetch(`${prUrl(this.#session.ref)}/code-context${round === null ? '' : `?round=${round}`}`)
 			.then((res) => readOk<{ lookup: Panel['lookup'] }>(res))
 			.then((r) => (this.lookup = r.lookup))
 			.catch(() => {});

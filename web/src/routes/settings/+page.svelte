@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { plural } from '$lib/ui/format';
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
-	import { readOk } from '$lib/api/client';
+	import { readOk, sendJson } from '$lib/api/client';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import EditorModel from '$lib/features/settings/EditorModel.svelte';
 	import ExternalReviewerSettings from '$lib/features/settings/ExternalReviewerSettings.svelte';
@@ -74,11 +74,7 @@
 			...(draft.clearKey ? { apiKey: null } : draft.apiKey.trim() ? { apiKey: draft.apiKey } : {})
 		};
 		await readOk(
-			await fetch(p ? `/api/providers/${p.id}` : '/api/providers', {
-				method: p ? 'PUT' : 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body)
-			})
+			await sendJson(p ? `/api/providers/${p.id}` : '/api/providers', body, p ? 'PUT' : 'POST')
 		);
 		await load();
 	}

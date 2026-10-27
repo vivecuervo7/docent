@@ -1,6 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
-import { fetchCommits, fetchPr, listModels, readOk } from '../api/client';
+import { fetchCommits, fetchPr, listModels, readOk, prUrl } from '../api/client';
 import { dismissGeneration, getGeneration, startGeneration, stopGeneration } from '../features/preparing/generations';
 import { type LooseMark, type Mark, looseMarksFrom, marksFrom } from '../features/reading/marks';
 import { nearestHunk, parseFilePatch, type Hunk } from '../features/reading/diff/parse';
@@ -190,7 +190,7 @@ export class PrSession {
 			fetchCommits(this.ref)
 				.then((commits) => !this.#closed && (this.commits = commits))
 				.catch(() => {});
-			fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`)
+			fetch(`${prUrl(this.ref)}/github-comments`)
 				.then((res) => readOk<GitHubComments>(res))
 				.then((comments) => !this.#closed && (this.github = comments))
 				.catch(() => {});
@@ -249,7 +249,7 @@ export class PrSession {
 
 	// What's been said on GitHub again, after changing it.
 	async refreshGitHub() {
-		const comments = await readOk<GitHubComments>(await fetch(`/api/pr/${this.ref.owner}/${this.ref.repo}/${this.ref.number}/github-comments`));
+		const comments = await readOk<GitHubComments>(await fetch(`${prUrl(this.ref)}/github-comments`));
 		if (!this.#closed) this.github = comments;
 	}
 

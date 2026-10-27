@@ -1,4 +1,4 @@
-import { readOk } from '../api/client';
+import { readOk, sendJson, prUrl } from '../api/client';
 import { noteWhere, type FeedbackItem, type Job, type Note } from '../types';
 import type { PrSession } from './session.svelte';
 
@@ -80,10 +80,7 @@ export class YourComments {
 			.map(({ id, body }) => ({ id, body }));
 		this.#drafting = { pending: true };
 		try {
-			const res = await fetch(`/api/pr/${this.#s.ref.owner}/${this.#s.ref.repo}/${this.#s.ref.number}/feedback/yours`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
+			const res = await sendJson(`${prUrl(this.#s.ref)}/feedback/yours`, {
 					model: this.#s.record.model,
 					prTitle: this.#s.title,
 					threads: rest.map((n) => ({
@@ -96,8 +93,7 @@ export class YourComments {
 					earlier,
 					input: { threads: rest.map((n) => n.id), basedOn, scope },
 					...(this.#s.round !== null ? { round: this.#s.round } : {})
-				})
-			});
+				});
 			await readOk(res);
 			await this.#s.reload();
 			this.#drafting = {};

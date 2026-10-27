@@ -1,4 +1,4 @@
-import { prUrl, readOk } from '../../api/client';
+import { prUrl, readOk, sendJson } from '../../api/client';
 import type { Generation, PrRef, Reuse } from '../../types';
 
 // Preparing a review (slices, conversation, summary, file notes) runs as a
@@ -10,11 +10,7 @@ export async function getGeneration(ref: PrRef): Promise<Generation | null> {
 }
 
 export async function startGeneration(ref: PrRef, reuse: Reuse, model?: string): Promise<Generation> {
-	const res = await fetch(generationUrl(ref), {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ reuse, model })
-	});
+	const res = await sendJson(generationUrl(ref), { reuse, model });
 	return (await readOk<{ generation: Generation }>(res)).generation;
 }
 

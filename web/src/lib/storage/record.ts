@@ -1,3 +1,4 @@
+import { sendJson } from '$lib/api/client';
 import { FIRST_AGENT, type PrRecord, type PrRef, type SavedPr } from '../types';
 
 // Each PR's review is one record on the backend. Every write names the
@@ -61,11 +62,7 @@ export function updateRecord(ref: PrRef, change: (record: PrRecord) => void): Pr
 		let { record, version } = await getRecord(ref);
 		for (let attempt = 0; attempt < 5; attempt++) {
 			change(record);
-			const res = await fetch(url(ref), {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ record, version })
-			});
+			const res = await sendJson(url(ref), { record, version }, 'PUT');
 			if (res.status === 409) {
 				const current = (await res.json()) as { record: Partial<PrRecord>; version: number };
 				record = normalize(current.record);
