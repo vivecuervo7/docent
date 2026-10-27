@@ -1,6 +1,6 @@
 import { dismissAgentReview, getAgentReview, openExternalReview, startBuiltinReview, startSessionReview, type ReviewContext } from "./agentReviews.server.js";
 import { pickPersonas } from "./auto.server.js";
-import { AUTO_PERSONA, isAuto, nameAll, reviewerFrom, sessionId, setupFrom, setupValue, type ReviewerSetup } from "./panel.svelte.js";
+import { AUTO_PERSONA, isAuto, nameAll, reviewerFrom, sessionId, setupFrom, setupValue, type ReviewerSetup } from "./setup.js";
 import { fetchReviewFiles } from "../../github/range.server.js";
 import { changeRound, roundRecord } from "../../storage/rounds.server.js";
 import { defaultPanel, externalReviewers, modelName, personas } from "../../storage/settings.server.js";

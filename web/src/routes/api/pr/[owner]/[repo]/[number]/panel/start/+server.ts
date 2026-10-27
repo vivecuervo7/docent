@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { startReviewer } from '$lib/features/panel/panelRuns.server.js';
-import type { ReviewerSetup } from '$lib/features/panel/panel.svelte.js';
+import type { ReviewerSetup } from '$lib/features/panel/setup.js';
 import { badRequest, bodyOf, failed, mcpUrl, reviewerParam, validParams } from '$lib/api/http.server.js';
 
 // Starts one of a round's reviewers. Its review, and "auto" choosing its

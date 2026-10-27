@@ -1,4 +1,5 @@
 import type { AgentReviewer } from '../../types';
+import { sessionId } from './setup';
 
 // What reviewers are called: after their persona - "general" when it has
 // none - or external reviewer, so the name says what they look for
@@ -11,11 +12,6 @@ export const known = $state<{ personas: { id: string; name: string }[]; external
 	personas: [],
 	externals: []
 });
-
-// Sessions were saved as "persona:<id>" before personas meant Docent's own
-// reviewer; the ids carried over.
-export const sessionId = (value: string | undefined) =>
-	value?.startsWith('session:') ? value.slice('session:'.length) : value?.startsWith('persona:') ? value.slice('persona:'.length) : null;
 
 const slug = (name: string) =>
 	name
