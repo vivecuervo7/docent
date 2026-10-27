@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import { tick } from 'svelte';
 	import { ask } from '$lib/ui/confirm.svelte';
@@ -94,7 +95,7 @@
 				<span class="grow"></span>
 				{#if notes.length}<button class="clear" onclick={clear}>Clear</button>{/if}
 				<button class="icon" aria-label="Close" title="Close" onclick={() => (open = false)}>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+					<Icon name="close" />
 				</button>
 			</header>
 			<ol class="messages" bind:this={list}>

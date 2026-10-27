@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { untrack } from 'svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
@@ -30,7 +31,7 @@
 		<span class="faint mono">{pr.owner}/{pr.repo} #{pr.number}</span>
 		<span class="title"><InlineText text={title} /></span>
 		<button class="icon close" aria-label="Close" title="Close" onclick={onclose}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+			<Icon name="close" />
 		</button>
 	</header>
 	<ThreadTriage {threads} />

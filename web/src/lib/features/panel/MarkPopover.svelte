@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import Composer, { type SendKind } from '../reading/Composer.svelte';
 	import { raisedBy } from './findings';
 	import type { LooseMark, Mark } from '../reading/marks';
@@ -96,7 +97,7 @@
 		{#if item?.raisedBefore}<span class="again" title="Raised in round {item.raisedBefore} too, and kept: it may not have been fixed">Raised again</span>{/if}
 		<span class="where">{model ?? ''}</span>
 		<button class="icon" aria-label="Close" title="Close" onclick={onclose}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+			<Icon name="close" />
 		</button>
 	</header>
 	<div class="content" bind:this={list}>
@@ -112,7 +113,7 @@
 		/>
 		{#if mark.rationale}
 			<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				<Icon name="chevron" size={14} turned={showWhy} />
 				Why it was raised
 			</button>
 			{#if showWhy}<p class="rationale"><InlineText text={mark.rationale} /></p>{/if}
@@ -128,7 +129,7 @@
 			<div class="also">
 				{#if also.length}
 					<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+						<Icon name="chevron" size={14} turned={showAlso} />
 						{raisedBy(mark.who, also)}{#if mark.disputed?.length}<span class="disputed" title={mark.disputed.join('\n')}>&nbsp;· they disagree</span>{/if}
 					</button>
 				{/if}

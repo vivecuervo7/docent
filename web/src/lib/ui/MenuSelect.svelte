@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import Menu from './Menu.svelte';
 
 	// A choice from a short list as a form field, drawn in the app's style
@@ -16,7 +17,7 @@
 	{#snippet trigger({ open, toggle })}
 		<button type="button" class="trigger" aria-haspopup="menu" aria-expanded={open} aria-label={label} onclick={toggle}>
 			<span>{current?.label}</span>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+			<Icon name="down" size={14} />
 		</button>
 	{/snippet}
 </Menu>
@@ -39,7 +40,7 @@
 		font-size: 14px;
 		cursor: pointer;
 	}
-	.trigger svg {
+	.trigger :global(svg) {
 		color: var(--faint);
 	}
 	.trigger:hover,

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { raisedBy } from '../panel/findings';
 	import FilePath from '../../ui/FilePath.svelte';
 	import Verdicts from './Verdicts.svelte';
@@ -114,7 +115,7 @@
 		{/if}
 		{#if alsoBy.length}
 			<button class="why" aria-expanded={showAlso} onclick={() => (showAlso = !showAlso)}>
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showAlso ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				<Icon name="chevron" size={13} turned={showAlso} />
 				{raisedBy(who ?? 'This reviewer', alsoBy)}
 			</button>
 			{#if showAlso}
@@ -130,7 +131,7 @@
 		{/if}
 		{#if messages.length}
 			<button class="why" aria-expanded={showTalk} onclick={() => (showTalk = !showTalk)}>
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showTalk ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+				<Icon name="chevron" size={13} turned={showTalk} />
 				{messages.length} {messages.length === 1 ? 'message' : 'messages'} about it
 			</button>
 			{#if showTalk}

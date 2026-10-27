@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	// A heading that shows or hides what's under it, with how many are there:
 	// small capitals to sit among lists, or a serif heading to lead a section.
 	// The page shows what's under it while `open`.
@@ -11,15 +12,7 @@
 </script>
 
 <button class="disclosure {look}" aria-expanded={open} onclick={() => (open = !open)}>
-	<svg
-		width={look === 'caps' ? 13 : 14}
-		height={look === 'caps' ? 13 : 14}
-		viewBox="0 0 24 24"
-		fill="none"
-		stroke="currentColor"
-		stroke-width="2"
-		style:transform={open ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg
-	>
+	<Icon name="chevron" size={look === 'caps' ? 13 : 14} turned={open} />
 	{label}
 	{#if count !== undefined}<span class="count">{look === 'caps' ? `(${count})` : count}</span>{/if}
 </button>

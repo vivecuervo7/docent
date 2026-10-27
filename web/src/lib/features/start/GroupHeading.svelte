@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	// A heading per repo or author on the start page: the repo linking to its
 	// pull requests on GitHub, or the author with their avatar, how many PRs
 	// are under it, and folding them away.
@@ -30,7 +31,7 @@
 	{/if}
 	<span class="count">{count}</span>
 	<button class="fold" aria-expanded={!folded} aria-label="{folded ? 'Show' : 'Fold'} {label}" title="{folded ? 'Show' : 'Fold'} {label}" onclick={ontoggle}>
-		<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={folded ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
+		<Icon name="chevron" size={13} turned={!folded} />
 	</button>
 </h3>
 

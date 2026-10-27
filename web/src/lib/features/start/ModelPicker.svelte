@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { onMount } from 'svelte';
 	import { listModels, selectModel } from '../../api/client';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
@@ -66,7 +67,7 @@
 			<button class="trigger" aria-haspopup="menu" aria-expanded={open} onclick={toggle}>
 				<span class="faint">Model</span>
 				<span class="name">{current?.label ?? modelLabel(models!.selected)}</span>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+				<Icon name="down" size={14} />
 			</button>
 		{/snippet}
 	</Menu>

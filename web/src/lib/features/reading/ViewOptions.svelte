@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import { GITHUB_IN_DIFF, useSession } from '$lib/session/session.svelte';
 
@@ -18,7 +19,7 @@
 <div class="view">
 	<button class="btn" aria-haspopup="true" aria-expanded={open} onclick={() => (open = !open)}>
 		View
-		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+		<Icon name="down" size={14} />
 	</button>
 	{#if open}
 		<div class="menu">

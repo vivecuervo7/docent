@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import FilePath from '../../ui/FilePath.svelte';
 	import type { LooseMark, Mark } from '../reading/marks';
 	import { useSession } from '$lib/session/session.svelte';
@@ -42,7 +43,7 @@
 	/>
 	{#if mark.rationale}
 		<button class="why" aria-expanded={showWhy} onclick={() => (showWhy = !showWhy)}>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={showWhy ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+			<Icon name="chevron" size={14} turned={showWhy} />
 			Why it was raised
 		</button>
 		{#if showWhy}<p class="rationale"><InlineText text={mark.rationale} /></p>{/if}

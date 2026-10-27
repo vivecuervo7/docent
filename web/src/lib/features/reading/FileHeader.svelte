@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import FilePath from '$lib/ui/FilePath.svelte';
 	import Floating from '$lib/ui/Floating.svelte';
@@ -65,7 +66,7 @@
 
 <header>
 	<button class="toggle name" aria-expanded={!collapsed} title={file.filename} onclick={() => (collapsed = !collapsed)}>
-		<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={collapsed ? '' : 'rotate(90deg)'}><path d="M9 6l6 6-6 6" /></svg>
+		<Icon name="chevron" class="chevron" turned={!collapsed} />
 		<span class="path"><FilePath path={file.filename} /></span>
 	</button>
 	{#if collapsed && summary}
@@ -211,7 +212,7 @@
 		text-align: left;
 		cursor: pointer;
 	}
-	.chevron {
+	.toggle :global(.chevron) {
 		flex-shrink: 0;
 		color: var(--faint);
 	}
@@ -225,7 +226,7 @@
 		font-size: 12.5px;
 		white-space: nowrap;
 	}
-	.toggle:hover .chevron,
+	.toggle:hover :global(.chevron),
 	.toggle:hover .path {
 		color: #fff;
 	}

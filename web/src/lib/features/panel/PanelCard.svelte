@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { goto } from '$app/navigation';
 	import { ask } from '$lib/ui/confirm.svelte';
 	import { listModels } from '../../api/client';
@@ -218,7 +219,7 @@
 										onclick={toggle}
 									>
 										{runsWith(r)}
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+										<Icon name="down" size={14} />
 									</button>
 								{/snippet}
 							</Menu>
@@ -246,7 +247,7 @@
 											onclick={toggle}
 										>
 											{panel.personaName(setup.persona)}
-											<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+											<Icon name="down" size={14} />
 										</button>
 									{/snippet}
 								</Menu>
@@ -350,7 +351,7 @@
 						</button>
 					{/if}
 					<button class="icon remove" aria-label="Remove {nameOf(r, panel.reviewers)}" title="Remove {nameOf(r, panel.reviewers)}" onclick={() => remove(r)}>
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+						<Icon name="close" size={15} />
 					</button>
 				</div>
 			</li>
@@ -526,7 +527,7 @@
 		font-size: 13px;
 		cursor: pointer;
 	}
-	.trigger svg {
+	.trigger :global(svg) {
 		color: var(--faint);
 	}
 	.trigger:hover,

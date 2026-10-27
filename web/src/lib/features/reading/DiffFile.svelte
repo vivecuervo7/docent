@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -529,7 +530,7 @@
 				<div class="composer-head">
 					<span class="faint">{describe(selFrom, selTo)}</span>
 					<button class="icon" aria-label="Cancel" title="Cancel" onclick={() => (selection = null)}>
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+						<Icon name="close" size={15} />
 					</button>
 				</div>
 				<Composer
@@ -618,7 +619,7 @@
 						aria-expanded={item.expanded}
 						onclick={() => (item.expanded ? expanded.delete(item.id) : expanded.add(item.id))}
 					>
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={item.expanded ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+						<Icon name="chevron" size={14} turned={item.expanded} />
 						{item.expanded ? 'Showing' : 'The same change in'}
 						{item.hunks.length} more places
 						<span class="faint">· lines {foldLines(item)}</span>

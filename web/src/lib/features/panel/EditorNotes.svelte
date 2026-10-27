@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Icon from '$lib/ui/Icon.svelte';
 	import InlineText from '../../ui/InlineText.svelte';
 
 	// What the panel's editor found about a finding, each folded behind its
@@ -48,7 +49,7 @@
 		aria-expanded={!!open[n.key]}
 		onclick={() => (open[n.key] = !open[n.key])}
 	>
-		<svg width={chevron} height={chevron} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style:transform={open[n.key] ? 'rotate(90deg)' : ''}><path d="M9 6l6 6-6 6" /></svg>
+		<Icon name="chevron" size={chevron} turned={open[n.key]} />
 		{n.label}
 	</button>
 	{#if open[n.key]}<p class="text" style:font-size="{fontSize}px" style:padding-left="{chevron + 6}px"><InlineText text={n.text} /></p>{/if}
