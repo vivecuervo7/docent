@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { plural } from '../ui/format.js';
 import * as z from 'zod/v4';
 import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from '../features/panel/agentReviews.server.js';
 import { conversationText, fetchFileContentAtRef, fetchPrBaseSha, fetchPrConversation, fetchPrMeta, searchRepoCode } from '../github/github.server.js';
@@ -260,7 +261,7 @@ export function buildServer(): McpServer {
 					resolveReviewer(owner, repo, number, reviewer)
 				);
 				const count = review.findings.length;
-				return text(`Sent: ${count} ${count === 1 ? 'finding' : 'findings'} are in Docent.`);
+				return text(`Sent: ${plural(count, 'finding')} are in Docent.`);
 			} catch (err) {
 				return failure(err);
 			}
@@ -307,7 +308,7 @@ export function buildServer(): McpServer {
 				const { owner, repo, number } = parsePr(pr);
 				const review = finishAgentReview(owner, repo, number, resolveReviewer(owner, repo, number, reviewer));
 				const count = review?.findings.length ?? 0;
-				return text(review ? `Done: ${count} ${count === 1 ? 'finding' : 'findings'} recorded.` : 'No review was in progress.');
+				return text(review ? `Done: ${plural(count, 'finding')} recorded.` : 'No review was in progress.');
 			} catch (err) {
 				return failure(err);
 			}
