@@ -7,7 +7,8 @@
 	import type { GitHubThread } from '$lib/types';
 	import ThreadDialog from './ThreadDialog.svelte';
 	import type { PrThreads } from './prThreads.svelte';
-	import { VERDICTS, checkOf, gist, threadWhere, type Verdict } from './threads';
+	import { VERDICTS, checkOf, gist, isStale, threadWhere, type Verdict } from './threads';
+	import VerdictLabel from './VerdictLabel.svelte';
 
 	// A PR's GitHub threads, gone through: all checked at once for whether
 	// they've been dealt with, those that look addressed resolved together,
@@ -24,11 +25,7 @@
 	let showResolved = $state(false);
 
 	const checks = $derived(source.checks);
-	// A check made before the latest commits, which may have dealt with more.
-	const stale = (t: GitHubThread) => {
-		const c = check(t);
-		return !!c?.verdict && !!c.head && !!source.head && c.head !== source.head;
-	};
+	const stale = (t: GitHubThread) => isStale(check(t), source.head);
 	const check = (t: GitHubThread) => checkOf(checks, t);
 	const checking = $derived(open.filter((t) => check(t)?.checking));
 	const unchecked = $derived(open.filter((t) => !check(t)));
@@ -151,14 +148,14 @@
 				{@const threads = byVerdict(verdict)}
 				{#if threads.length}
 					<div class="group">
-						<span class="verdict {verdict}">{label} · {threads.length}</span>
+						<VerdictLabel {verdict} size={13.5}>{label} · {threads.length}</VerdictLabel>
 						<ul>{#each threads as t (t.id)}{@render row(t, verdict === 'addressed')}{/each}</ul>
 					</div>
 				{/if}
 			{/each}
 			{#if rest.length}
 				<div class="group">
-					<span class="verdict">Not checked · {rest.length}</span>
+					<VerdictLabel size={13.5}>Not checked · {rest.length}</VerdictLabel>
 					<ul>{#each rest as t (t.id)}{@render row(t, false)}{/each}</ul>
 				</div>
 			{/if}
@@ -222,17 +219,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-	}
-	.verdict {
-		font-size: 13.5px;
-		font-weight: 600;
-		color: var(--muted);
-	}
-	.verdict.addressed {
-		color: var(--done);
-	}
-	.verdict.not-yet {
-		color: var(--agent);
 	}
 	ul {
 		list-style: none;

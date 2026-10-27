@@ -10,7 +10,8 @@
 	import Composer, { type SendKind } from '../reading/Composer.svelte';
 	import ThreadPanel from '../reading/ThreadPanel.svelte';
 	import type { PrThreads } from './prThreads.svelte';
-	import { VERDICTS, checkOf } from './threads';
+	import { VERDICTS, checkOf, isStale } from './threads';
+	import VerdictLabel from './VerdictLabel.svelte';
 
 	// One GitHub thread, looked at closely: the code then and now, all that
 	// was said, what checking it found, asking about it, and replying,
@@ -22,7 +23,7 @@
 	const thread = $derived(threads.threads.find((t) => t.id === id));
 	const at = $derived(order.indexOf(id));
 	const check = $derived(thread ? checkOf(threads.checks, thread) : undefined);
-	const stale = $derived(!!check?.head && !!threads.head && check.head !== threads.head);
+	const stale = $derived(isStale(check, threads.head));
 	const yours = $derived(session?.record.notes.find((n) => n.github === id));
 
 	// The lines it was left on: the end of GitHub's hunk, which stops at them.
@@ -85,9 +86,9 @@
 	{#if thread}
 		<header>
 			{#if check?.verdict}
-				<span class="verdict {check.verdict}">{VERDICTS.find((v) => v.verdict === check.verdict)?.label}</span>
+				<VerdictLabel verdict={check.verdict}>{VERDICTS.find((v) => v.verdict === check.verdict)?.label}</VerdictLabel>
 			{:else if thread.resolved}
-				<span class="verdict addressed">Resolved</span>
+				<VerdictLabel verdict="resolved">Resolved</VerdictLabel>
 			{/if}
 			{#if order.length > 1}<span class="faint">Thread {at + 1} of {order.length}</span>{/if}
 			<span class="grow"></span>
@@ -188,16 +189,6 @@
 	}
 	.grow {
 		flex-grow: 1;
-	}
-	.verdict {
-		font-weight: 600;
-		color: var(--muted);
-	}
-	.verdict.addressed {
-		color: var(--done);
-	}
-	.verdict.not-yet {
-		color: var(--agent);
 	}
 	.keys {
 		font-size: 12px;

@@ -10,6 +10,11 @@ export const VERDICTS: { verdict: Verdict; label: string }[] = [
 	{ verdict: 'unclear', label: 'Unclear if resolved' }
 ];
 
+// A check made before the latest commits, which may have dealt with more.
+export function isStale(check: ThreadCheck | undefined, head: string | undefined): boolean {
+	return !!check?.verdict && !!check.head && !!head && check.head !== head;
+}
+
 // A check still standing: one made since the thread's last reply.
 export function checkOf(checks: Record<string, ThreadCheck> | undefined, thread: GitHubThread): ThreadCheck | undefined {
 	const check = checks?.[thread.id];
