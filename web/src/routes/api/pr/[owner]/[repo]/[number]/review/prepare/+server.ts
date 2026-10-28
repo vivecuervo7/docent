@@ -19,7 +19,7 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 	startJob({ owner, repo, number, round }, 'prepare', body.input ?? null, async () =>
 		candidates.length === 0
 			? { comments: [], dropped: [], body: '', inBody: [], event: 'APPROVE', eventReason: 'Nothing kept to raise.' }
-			: prepareReview(owner, repo, number, candidates, new AbortController().signal, reviewModel(body), verdicts)
+			: prepareReview(owner, repo, number, candidates, new AbortController().signal, reviewModel(body), verdicts, round)
 	);
 	return json({ started: true });
 };

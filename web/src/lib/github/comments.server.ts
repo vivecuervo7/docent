@@ -44,11 +44,14 @@ export interface GitHubComments {
   threads: GitHubThread[];
   // Review bodies and comments on the PR as a whole.
   general: (GitHubEntry & { id: string; state?: string })[];
+  // Every review submitted, with how many inline comments it made.
+  reviews: { id: string; author: string; state: string; createdAt: string; comments: number }[];
 }
 
 interface RawInline {
   id: number;
   in_reply_to_id?: number;
+  pull_request_review_id?: number | null;
   user: { login?: string; avatar_url?: string } | null;
   path: string;
   body: string;
@@ -182,5 +185,19 @@ export async function fetchGitHubComments(owner: string, repo: string, number: s
       .map((c) => ({ id: `c${c.id}`, author: login(c.user), body: c.body!, createdAt: c.created_at })),
   ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-  return { threads: [...byRoot.values()], general };
+  // A reply on its own is a review to GitHub too, with nothing to it but
+  // the reply: only those that said something or started a thread count.
+  const started = (id: number) => inline.some((c) => c.pull_request_review_id === id && !c.in_reply_to_id);
+  const reviewList = reviews
+    .filter((r) => r.state !== "PENDING" && (r.body || started(r.id)))
+    .map((r) => ({
+      id: `r${r.id}`,
+      author: login(r.user),
+      state: r.state,
+      createdAt: r.submitted_at ?? "",
+      comments: inline.filter((c) => c.pull_request_review_id === r.id).length,
+    }))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  return { threads: [...byRoot.values()], general, reviews: reviewList };
 }

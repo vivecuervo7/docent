@@ -135,9 +135,12 @@ export interface ConversationEntry {
   author: string;
   body: string;
   createdAt: string;
+  // The review an inline comment was posted in, as `r<id>`.
+  review?: string;
 }
 
 export interface ReviewEntry extends ConversationEntry {
+  id: string;
   state: string;
 }
 
@@ -156,6 +159,20 @@ export interface PrConversation {
   threads: InlineThread[];
 }
 
+// The conversation without some reviews: each one's body, the threads it
+// started, and its replies in others' threads.
+export function withoutReviews(conversation: PrConversation, leftOut: string[]): PrConversation {
+  if (!leftOut.length) return conversation;
+  const out = (e: ConversationEntry) => !!e.review && leftOut.includes(e.review);
+  return {
+    ...conversation,
+    reviews: conversation.reviews.filter((r) => !leftOut.includes(r.id)),
+    threads: conversation.threads
+      .filter((t) => !(t.entries[0] && out(t.entries[0])))
+      .map((t) => ({ ...t, entries: t.entries.filter((e) => !out(e)) })),
+  };
+}
+
 // What's been said on a PR, as text for a model to read.
 export function conversationText(conversation: PrConversation): string {
   const parts = [
@@ -171,6 +188,7 @@ interface RawUser {
 }
 
 interface RawReview {
+  id: number;
   user: RawUser | null;
   body: string | null;
   state: string;
@@ -180,6 +198,7 @@ interface RawReview {
 interface RawInlineComment {
   id: number;
   in_reply_to_id?: number;
+  pull_request_review_id?: number | null;
   user: RawUser | null;
   path: string;
   body: string;
@@ -226,6 +245,7 @@ export async function fetchPrConversation(
   const reviews: ReviewEntry[] = rawReviews
     .filter((r) => r.body || (r.state !== "COMMENTED" && r.state !== "PENDING"))
     .map((r) => ({
+      id: `r${r.id}`,
       author: login(r.user),
       body: r.body ?? "",
       state: r.state,
@@ -242,6 +262,7 @@ export async function fetchPrConversation(
       author: login(c.user),
       body: c.body,
       createdAt: c.created_at,
+      ...(c.pull_request_review_id ? { review: `r${c.pull_request_review_id}` } : {}),
     });
   }
 

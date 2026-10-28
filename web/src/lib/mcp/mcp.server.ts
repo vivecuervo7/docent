@@ -5,13 +5,13 @@ import {
   conversationText,
   fetchFileContentAtRef,
   fetchPrBaseSha,
-  fetchPrConversation,
   fetchPrMeta,
   searchRepoCode,
 } from "../github/github.server.js";
 import { listFiles, prHead, readFile, searchCode } from "../github/repoCache.server.js";
 import { numberedFileDiff } from "../github/prDiff.server.js";
 import { fetchReviewFiles, rangeNote } from "../github/range.server.js";
+import { roundConversation } from "../github/conversation.server.js";
 
 // Docent over MCP, so a reviewer can run their own agent - any model, any
 // harness - against a PR and have its findings land on the Agent feedback
@@ -238,7 +238,7 @@ export function buildServer(): McpServer {
     async ({ pr }) => {
       try {
         const { owner, repo, number } = parsePr(pr);
-        return text(conversationText(await fetchPrConversation(owner, repo, number)));
+        return text(conversationText(await roundConversation(owner, repo, number)));
       } catch (err) {
         return failure(err);
       }

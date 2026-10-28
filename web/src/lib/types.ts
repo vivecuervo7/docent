@@ -271,6 +271,9 @@ export interface PrRecord {
 	range?: ReviewRange;
 	// Set once the round is done: its review posted, or finished without posting.
 	completedAt?: number;
+	// GitHub reviews this round's review leaves out, by id (`r<id>`): their
+	// bodies and comments aren't taken as said on the PR.
+	leftOutReviews?: string[];
 	lastOpenedAt?: number;
 	// Whether the round addresses each GitHub thread, by thread id.
 	threadChecks?: Record<string, ThreadCheck>;
@@ -322,6 +325,7 @@ export type Round = Partial<
 		| 'review'
 		| 'preparedHead'
 		| 'completedAt'
+		| 'leftOutReviews'
 		| 'jobs'
 		| 'threadChecks'
 	>
@@ -473,4 +477,15 @@ export interface GitHubThread {
 export interface GitHubComments {
 	threads: GitHubThread[];
 	general: (GitHubEntry & { id: string; state?: string })[];
+	// Every review submitted on the PR, oldest first, with how many inline
+	// comments it made: what a round can leave out.
+	reviews?: PrReview[];
+}
+
+export interface PrReview {
+	id: string;
+	author: string;
+	state: string;
+	createdAt: string;
+	comments: number;
 }

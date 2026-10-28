@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { codeContext } from "./codeContext.server.js";
-import { conversationText, fetchPrConversation, type PrFile } from "../../github/github.server.js";
+import { conversationText, type PrFile } from "../../github/github.server.js";
+import { roundConversation } from "../../github/conversation.server.js";
 import { chatWithTool } from "../../models/modelProvider.server.js";
 import { inLane } from "../../models/lanes.server.js";
 import { describeRanges, hunkIndicesByFile, linesInDiff, numberedFileDiff, WHOLE_DIFF_LIMIT } from "../../github/prDiff.server.js";
@@ -556,7 +557,7 @@ async function runBuiltin(
   try {
     const [files, conversation] = await Promise.all([
       fetchReviewFiles(owner, repo, number, round),
-      fetchPrConversation(owner, repo, number).then(conversationText, () => ""),
+      roundConversation(owner, repo, number, round).then(conversationText, () => ""),
     ]);
     // The code around the PR, looked up alongside the whole-PR pass.
     const lookingUp = codeContext(owner, repo, number, mcpUrl, round);
