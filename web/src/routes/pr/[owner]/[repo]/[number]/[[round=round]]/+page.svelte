@@ -76,7 +76,7 @@
 				</div>
 			{/if}
 
-			<ThreadTriage {threads} {base} />
+			<ThreadTriage {threads} {base} leftOut={session.record.leftOutReviews} />
 		</section>
 
 		<aside>

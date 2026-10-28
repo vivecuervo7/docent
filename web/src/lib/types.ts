@@ -457,6 +457,8 @@ export interface GitHubEntry {
 
 export interface GitHubThread {
 	id: string;
+	// The review its first comment was posted in, as `r<id>`.
+	fromReview?: string;
 	path: string;
 	// Where it sits at the PR's head; none when it's outdated or on a whole file.
 	start?: LineRef;

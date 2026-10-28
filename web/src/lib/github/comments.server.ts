@@ -22,6 +22,7 @@ export interface GitHubEntry {
 
 export interface GitHubThread {
   id: string;
+  fromReview?: string;
   path: string;
   // Where it sits at the PR's head; none once the lines it was left on have
   // changed (GitHub calls it outdated), or for a comment on a whole file.
@@ -156,6 +157,7 @@ export async function fetchGitHubComments(owner: string, repo: string, number: s
       const placed = c.line !== null && c.subject_type !== "file";
       thread = {
         id: `t${root}`,
+        ...(c.pull_request_review_id ? { fromReview: `r${c.pull_request_review_id}` } : {}),
         path: c.path,
         outdated: c.line === null && c.subject_type !== "file",
         ...(c.original_line !== null ? { originalLine: c.original_line } : {}),
