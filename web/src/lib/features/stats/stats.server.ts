@@ -241,7 +241,11 @@ function fillPoints() {
 
 // What a save or delete does, set afresh each time this module loads, so a
 // watcher made by an earlier load still runs the latest code.
-const hooks = persistent("stats-hooks", () => ({ saved: (_key: string, _record: Record<string, unknown>) => {}, deleted: (_key: string) => {} }));
+const hooks = persistent("stats-hooks", () => ({
+  saved: (_key: string, _record: Record<string, unknown>) => {},
+  deleted: (_key: string, _at: number) => {},
+  restored: (_key: string, _at: number) => {},
+}));
 hooks.saved = (key, record) => {
   try {
     saveRounds(key, record);
@@ -250,12 +254,19 @@ hooks.saved = (key, record) => {
   }
 };
 // A review deleted keeps its figures, out of the way of a fresh review of
-// the same PR.
-hooks.deleted = (key) => {
-  db.prepare("UPDATE round_stats SET key = ? WHERE key = ?").run(`${key}@${Date.now()}`, key);
+// the same PR, under when it went, and has them back if it's put back.
+hooks.deleted = (key, at) => {
+  db.prepare("UPDATE round_stats SET key = ? WHERE key = ?").run(`${key}@${at}`, key);
 };
-persistent("stats-watcher", () => {
-  onRecordChange({ saved: (key, record) => hooks.saved(key, record), deleted: (key) => hooks.deleted(key) });
+hooks.restored = (key, at) => {
+  db.prepare("UPDATE round_stats SET key = ? WHERE key = ?").run(key, `${key}@${at}`);
+};
+persistent("stats-watcher-v2", () => {
+  onRecordChange({
+    saved: (key, record) => hooks.saved(key, record),
+    deleted: (key, at) => hooks.deleted(key, at),
+    restored: (key, at) => hooks.restored(key, at),
+  });
   return true;
 });
 fillPoints();

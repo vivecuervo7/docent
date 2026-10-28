@@ -8,7 +8,8 @@
 	import { keyOf, StartPage, type Row } from '$lib/features/start/startPage.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
-	import { parsePrUrl } from '$lib/ui/format';
+	import { parsePrUrl, timeAgo } from '$lib/ui/format';
+	import InlineText from '$lib/ui/InlineText.svelte';
 
 	// Opening a PR by its link, and the reviews and PRs you're part of below.
 	const page = new StartPage();
@@ -17,6 +18,7 @@
 	let formError = $state<string | null>(null);
 	let showDone = $state(false);
 	let showHidden = $state(false);
+	let showDeleted = $state(false);
 
 	function open(e: SubmitEvent) {
 		e.preventDefault();
@@ -87,6 +89,18 @@
 			{/if}
 		</form>
 
+		{#if page.justDeleted}
+			{@const d = page.justDeleted}
+			<div class="undo" role="status">
+				<span class="grow">Deleted your review of “<InlineText text={d.title ?? `#${d.number}`} />”.</span>
+				<button class="link" onclick={() => page.restore(d)}>Undo</button>
+				<button class="icon" aria-label="Dismiss" title="Dismiss" onclick={() => (page.justDeleted = null)}>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+				</button>
+			</div>
+		{/if}
+		{#if page.restoreError}<p class="error">{page.restoreError}</p>{/if}
+
 		{#if page.pinned.length || page.active.length || page.mine.length || page.done.length || page.hiddenRows.length}
 			<!-- How every list below is grouped. -->
 			<div class="list-tools">
@@ -141,6 +155,26 @@
 				{#if showHidden}{@render groups(page.hiddenRows, 'hidden', true)}{/if}
 			</section>
 		{/if}
+
+		<!-- Reviews deleted in the last week, kept to be put back. -->
+		{#if page.deleted.length}
+			<section>
+				<Disclosure bind:open={showDeleted} label="Recently deleted" count={page.deleted.length} />
+				{#if showDeleted}
+					<ul class="deleted">
+						{#each page.deleted as d (`${keyOf(d)}@${d.deletedAt}`)}
+							<li>
+								<span class="text">
+									<span class="title"><InlineText text={d.title ?? `#${d.number}`} /></span>
+									<span class="faint meta">{d.owner}/{d.repo} #{d.number} · deleted {timeAgo(d.deletedAt, page.now)}</span>
+								</span>
+								<button class="btn" onclick={() => page.restore(d)}>Restore</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</section>
+		{/if}
 	</main>
 </div>
 
@@ -149,6 +183,47 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
+		font-size: 13px;
+	}
+	.undo {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		margin-bottom: -24px;
+		padding: 12px 14px 12px 18px;
+		border-radius: 12px;
+		background: var(--surface-2);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		font-size: 14px;
+	}
+	.grow {
+		flex-grow: 1;
+	}
+	.deleted {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.deleted li {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding: 16px 0 16px 2px;
+		border-top: 1px solid var(--line);
+	}
+	.deleted .text {
+		flex-grow: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+	}
+	.deleted .title {
+		font-size: 15px;
+		font-weight: 500;
+		opacity: 0.7;
+	}
+	.deleted .meta {
 		font-size: 13px;
 	}
 	.list-tools {
