@@ -316,8 +316,8 @@ export class Panel {
 		if (review.status === 'running') this.#startPolling();
 		else {
 			dismissAgentReview(this.#session.ref, id);
-			if (this.checking) this.#startPolling();
-			else if (!this.running.length) this.#stopPolling();
+			// The editor goes through its findings after it's over.
+			this.#startPolling();
 		}
 	}
 
@@ -388,9 +388,18 @@ export class Panel {
 					})
 					.catch(() => {});
 			}
-			// The editor's results land in the review as it goes.
-			if (this.checking) this.#session.reload().catch(() => {});
-			if (!this.running.length && !this.checking) this.#stopPolling();
+			// The editor's results land in the review as it goes, so the review
+			// is read again until no reviewer is running and nothing's left to
+			// check in what was read - never deciding that on a copy from
+			// before a reviewer's last findings.
+			if (this.running.length) {
+				if (this.checking) this.#session.reload().catch(() => {});
+				return;
+			}
+			this.#session
+				.reload()
+				.then(() => !this.running.length && !this.checking && this.#stopPolling())
+				.catch(() => {});
 		}, 2000);
 	}
 
