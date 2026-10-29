@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { SvelteSet } from 'svelte/reactivity';
 	import InlineText from '$lib/ui/InlineText.svelte';
+	import { plural } from '$lib/ui/format';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import type { GitHubThread } from '$lib/types';
 	import ThreadDialog from './ThreadDialog.svelte';
@@ -13,11 +14,17 @@
 	// A PR's GitHub threads, gone through: all checked at once for whether
 	// they've been dealt with, those that look addressed resolved together,
 	// and any opened to look closer. On a review's Overview, `base` is its
-	// page, which a thread can be opened on by URL.
-	let { threads: source, base }: { threads: PrThreads; base?: string } = $props();
+	// page, which a thread can be opened on by URL, and `leftOut` the reviews
+	// its round leaves out: their threads are set aside unless asked for, and
+	// checking goes through only those shown.
+	let { threads: source, base, leftOut = [] }: { threads: PrThreads; base?: string; leftOut?: string[] } = $props();
 
 	// By file, then line.
-	const all = $derived([...source.threads].sort((a, b) => a.path.localeCompare(b.path) || (a.start?.line ?? 0) - (b.start?.line ?? 0)));
+	const sorted = $derived([...source.threads].sort((a, b) => a.path.localeCompare(b.path) || (a.start?.line ?? 0) - (b.start?.line ?? 0)));
+	const isLeftOut = (t: GitHubThread) => !!t.fromReview && leftOut.includes(t.fromReview);
+	const setAside = $derived(sorted.filter(isLeftOut));
+	let showLeftOut = $state(false);
+	const all = $derived(showLeftOut ? sorted : sorted.filter((t) => !isLeftOut(t)));
 	const open = $derived(all.filter((t) => !t.resolved));
 	const resolved = $derived(all.filter((t) => t.resolved));
 	let showResolved = $state(false);
@@ -135,7 +142,7 @@
 		<p class="bad">Couldn’t read the threads: {source.error}</p>
 	{:else if !source.data}
 		<p class="faint">Reading what’s been said on GitHub…</p>
-	{:else if !all.length}
+	{:else if !sorted.length}
 		<p class="faint">No threads on GitHub yet.</p>
 	{:else}
 		{#if error}<p class="bad">{error}</p>{/if}
@@ -165,10 +172,17 @@
 				{#each open as t (t.id)}{@render row(t, false)}{/each}
 			</ul>
 		{:else}
-			<p class="faint">Every thread is resolved.</p>
+			<p class="faint">{setAside.length && !showLeftOut ? 'Every thread from the reviews included is resolved.' : 'Every thread is resolved.'}</p>
 		{/if}
 
-		<!-- Resolved threads come last, and only on asking. -->
+		<!-- Threads from reviews this round leaves out, and resolved ones, come
+		     last, and only on asking. -->
+		{#if setAside.length}
+			<button class="link more" aria-expanded={showLeftOut} onclick={() => (showLeftOut = !showLeftOut)}>
+				{showLeftOut ? 'Hide' : 'Show'}
+				{plural(setAside.length, 'thread')} from left-out reviews
+			</button>
+		{/if}
 		{#if resolved.length}
 			<button class="link more" aria-expanded={showResolved} onclick={() => (showResolved = !showResolved)}>
 				{showResolved ? 'Hide' : 'Show'}

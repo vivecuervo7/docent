@@ -1,6 +1,7 @@
 import { claudeCodeAvailable } from '../../models/claudeCode.server.js';
 import { modelName, resolveModel, savedEditorModel } from '../../storage/settings.server.js';
-import { conversationText, fetchPrConversation } from '../../github/github.server.js';
+import { conversationText } from '../../github/github.server.js';
+import { roundConversation } from '../../github/conversation.server.js';
 import { canReadCode, chatWithTool } from '../../models/modelProvider.server.js';
 import { inNamedLane } from '../../models/lanes.server.js';
 import { hunkIndicesByFile, numberedFileDiff } from '../../github/prDiff.server.js';
@@ -220,7 +221,7 @@ export async function editFindings(
 	// reviewer who sifted their own findings: a claim the code disproves isn't
 	// a judgement call.
 	const looks = canReadCode(model);
-	const conversation = conversationText(await fetchPrConversation(owner, repo, number));
+	const conversation = conversationText(await roundConversation(owner, repo, number, args.round));
 	const record = roundRecord(owner, repo, number, args.round) as { summary?: PrSummary | null; slices?: Slice[] | null; title?: string };
 	const slice = args.slice ? record.slices?.find((s) => s.id === args.slice) : undefined;
 	const files = slice ? await fetchReviewFiles(owner, repo, number, args.round) : [];

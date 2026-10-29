@@ -33,7 +33,16 @@ const db = persistent('db', () => {
 export const database = () => db;
 
 // Told of each review saved or deleted, by what keeps track of them.
-const watchers = persistent('record-watchers', () => [] as { saved: (key: string, record: Record<string, unknown>) => void; deleted: (key: string) => void }[]);
+// A deleted review is kept a week, for undoing; `at` is when it went.
+const watchers = persistent(
+	'record-watchers',
+	() =>
+		[] as {
+			saved: (key: string, record: Record<string, unknown>) => void;
+			deleted: (key: string, at: number) => void;
+			restored?: (key: string, at: number) => void;
+		}[]
+);
 export function onRecordChange(watcher: (typeof watchers)[number]) {
 	watchers.push(watcher);
 }
@@ -95,7 +104,45 @@ export function listRecords(): { key: string; record: Record<string, unknown> }[
 	return rows.map((row) => ({ key: row.key, record: JSON.parse(row.record) }));
 }
 
+db.exec(`
+	CREATE TABLE IF NOT EXISTS deleted_prs (
+		key TEXT NOT NULL,
+		record TEXT NOT NULL,
+		version INTEGER NOT NULL,
+		deleted_at INTEGER NOT NULL,
+		PRIMARY KEY (key, deleted_at)
+	)
+`);
+
+const KEPT_FOR = 7 * 24 * 60 * 60 * 1000;
+
+// A review deleted is kept aside for a week, so it can be put back.
 export function deleteRecord(key: string): void {
+	const at = Date.now();
+	const row = db.prepare('SELECT record, version FROM prs WHERE key = ?').get(key) as { record: string; version: number } | undefined;
+	if (row) db.prepare('INSERT INTO deleted_prs (key, record, version, deleted_at) VALUES (?, ?, ?, ?)').run(key, row.record, row.version, at);
 	db.prepare('DELETE FROM prs WHERE key = ?').run(key);
-	for (const w of watchers) w.deleted(key);
+	for (const w of watchers) w.deleted(key, at);
+}
+
+// Reviews deleted in the last week, latest first; older ones go for good.
+export function listDeleted(): { key: string; title?: string; deletedAt: number }[] {
+	db.prepare('DELETE FROM deleted_prs WHERE deleted_at < ?').run(Date.now() - KEPT_FOR);
+	const rows = db.prepare('SELECT key, record, deleted_at FROM deleted_prs ORDER BY deleted_at DESC').all() as {
+		key: string;
+		record: string;
+		deleted_at: number;
+	}[];
+	return rows.map((r) => ({ key: r.key, title: (JSON.parse(r.record) as { title?: string }).title, deletedAt: r.deleted_at }));
+}
+
+// Puts a deleted review back, unless the PR has been reviewed afresh since.
+export function restoreRecord(key: string, at: number): void {
+	const row = db.prepare('SELECT record, version FROM deleted_prs WHERE key = ? AND deleted_at = ?').get(key, at) as
+		{ record: string; version: number } | undefined;
+	if (!row) throw new Error('That review is no longer kept.');
+	if (db.prepare('SELECT 1 FROM prs WHERE key = ?').get(key)) throw new Error('This PR has a review again since; delete that one first to put this one back.');
+	db.prepare('INSERT INTO prs (key, record, version) VALUES (?, ?, ?)').run(key, row.record, row.version);
+	db.prepare('DELETE FROM deleted_prs WHERE key = ? AND deleted_at = ?').run(key, at);
+	for (const w of watchers) w.restored?.(key, at);
 }

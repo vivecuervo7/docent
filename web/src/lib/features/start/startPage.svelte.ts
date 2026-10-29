@@ -28,6 +28,12 @@ export interface InvolvedPr extends PrRef {
 	unresolved?: number;
 }
 
+// A review deleted in the last week, which can be put back.
+export interface DeletedPr extends PrRef {
+	title?: string;
+	deletedAt: number;
+}
+
 // Where a saved PR stands on GitHub now.
 interface PrStatus extends PrRef {
 	head: string;
@@ -320,6 +326,7 @@ export class StartPage {
 
 	// Reads saved reviews and the backend's runs together.
 	async refresh() {
+		const deleted = this.#loadDeleted();
 		fetch('/api/agent-reviews')
 			.then((res) => readOk<{ reviews: StartPage['agentReviews'] }>(res))
 			.then(({ reviews }) => (this.agentReviews = reviews))
@@ -337,6 +344,7 @@ export class StartPage {
 		this.saved = list.sort((a, b) => (b.record.lastOpenedAt ?? 0) - (a.record.lastOpenedAt ?? 0));
 		this.#loadStatuses(list);
 		this.generations = listed.filter(({ generation }) => generation.status !== 'done');
+		await deleted;
 	}
 
 	involvedOf(pr: PrRef) {
@@ -355,6 +363,30 @@ export class StartPage {
 		this.hiddenKeys = hidden ? [...this.hiddenKeys, keyOf(pr)] : this.hiddenKeys.filter((k) => k !== keyOf(pr));
 		const res = await sendJson('/api/hidden-prs', { owner: pr.owner, repo: pr.repo, number: pr.number, hidden }, 'PUT').catch(() => null);
 		if (res?.ok) this.hiddenKeys = (await res.json()).hidden;
+	}
+
+	// Reviews deleted in the last week, to put back; the one just deleted is
+	// offered back at once.
+	deleted = $state<DeletedPr[]>([]);
+	justDeleted = $state<DeletedPr | null>(null);
+	restoreError = $state<string | null>(null);
+
+	#loadDeleted() {
+		return fetch('/api/deleted-prs')
+			.then((res) => readOk<{ deleted: DeletedPr[] }>(res))
+			.then((r) => (this.deleted = r.deleted))
+			.catch(() => {});
+	}
+
+	async restore(d: DeletedPr) {
+		this.restoreError = null;
+		try {
+			await readOk(await sendJson('/api/deleted-prs', d));
+			if (this.justDeleted && keyOf(this.justDeleted) === keyOf(d)) this.justDeleted = null;
+		} catch (err) {
+			this.restoreError = (err as Error).message;
+		}
+		await this.refresh();
 	}
 
 	// The PR whose GitHub threads are open to go through, over the list.
@@ -572,5 +604,6 @@ export class StartPage {
 		await dismissGeneration(pr);
 		await deleteSaved(pr);
 		await this.refresh();
+		this.justDeleted = this.deleted.find((d) => keyOf(d) === keyOf(pr)) ?? null;
 	}
 }

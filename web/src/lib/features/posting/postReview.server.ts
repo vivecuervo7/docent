@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import { lineSpan } from '../../types.js';
 import { gh, viewerLogin } from '../../github/gh.server.js';
-import { conversationText, fetchPrConversation, fetchPrFiles } from '../../github/github.server.js';
+import { conversationText, fetchPrFiles } from '../../github/github.server.js';
+import { roundConversation } from '../../github/conversation.server.js';
 import { chatWithTool } from '../../models/modelProvider.server.js';
 import { inLane } from '../../models/lanes.server.js';
 import { commentableLines } from '../../github/prDiff.server.js';
@@ -170,11 +171,12 @@ export function prepareReview(
 	candidates: Candidate[],
 	signal: AbortSignal,
 	model?: string,
-	verdicts: ReviewerVerdict[] = []
+	verdicts: ReviewerVerdict[] = [],
+	round?: number
 ): Promise<PreparedReview> {
 	return inLane(async () => {
 		signal.throwIfAborted();
-		const conversation = await fetchPrConversation(owner, repo, number);
+		const conversation = await roundConversation(owner, repo, number, round);
 		const listed = candidates
 			.map(
 				(c) =>

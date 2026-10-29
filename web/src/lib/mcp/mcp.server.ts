@@ -1,8 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { roundConversation } from '../github/conversation.server.js';
 import { plural } from '../ui/format.js';
 import * as z from 'zod/v4';
 import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from '../features/panel/agentReviews.server.js';
-import { conversationText, fetchFileContentAtRef, fetchPrBaseSha, fetchPrConversation, fetchPrMeta, searchRepoCode } from '../github/github.server.js';
+import { conversationText, fetchFileContentAtRef, fetchPrBaseSha, fetchPrMeta, searchRepoCode } from '../github/github.server.js';
 import { listFiles, prHead, readFile, searchCode } from '../github/repoCache.server.js';
 import { numberedFileDiff } from '../github/prDiff.server.js';
 import { fetchReviewFiles, rangeNote } from '../github/range.server.js';
@@ -224,7 +225,7 @@ export function buildServer(): McpServer {
 		async ({ pr }) => {
 			try {
 				const { owner, repo, number } = parsePr(pr);
-				return text(conversationText(await fetchPrConversation(owner, repo, number)));
+				return text(conversationText(await roundConversation(owner, repo, number)));
 			} catch (err) {
 				return failure(err);
 			}

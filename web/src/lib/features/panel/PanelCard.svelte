@@ -9,6 +9,7 @@
 	import type { AgentId, AgentReviewer, ModelOption } from '$lib/types';
 	import Menu from '$lib/ui/Menu.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
+	import IncludeReviews from './IncludeReviews.svelte';
 
 	// The review panel: the PR's agent reviewers, what each runs with, and
 	// one button to start them and begin reading.
@@ -411,6 +412,8 @@
 				</span>
 			{/if}
 		</div>
+
+		<IncludeReviews />
 
 		{#if !beginning}<div class="actions">
 				{#if toStart.length}

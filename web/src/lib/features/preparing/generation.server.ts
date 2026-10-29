@@ -1,4 +1,5 @@
-import { fetchPrConversation, fetchPrMeta } from '../../github/github.server.js';
+import { fetchPrMeta } from '../../github/github.server.js';
+import { roundConversation } from '../../github/conversation.server.js';
 import { maxConcurrentGenerations } from '../../storage/settings.server.js';
 import { generateConversationSummary, generateSummary } from './overview.server.js';
 import { generateFileNotes } from './fileNotes.server.js';
@@ -179,7 +180,7 @@ async function run(job: Job) {
 				}),
 			reuse.conversation ??
 				step('conversation', async () => {
-					const raw = await fetchPrConversation(owner, repo, number);
+					const raw = await roundConversation(owner, repo, number);
 					const conversation = await generateConversationSummary(raw, signal, model);
 					generation.results.conversation = conversation;
 					save((r) => (r.conversation = conversation));
