@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import { badRequest, bodyOf, mcpUrl, validParams } from '$lib/api/http.server.js';
 import { replyToNote, type NoteContext, type NoteMessage } from '$lib/features/reading/threadReplies.server.js';
 import { changeRound } from '$lib/storage/rounds.server.js';
+import { modelName } from '$lib/storage/settings.server.js';
 
 // Answers a question (or writes up a remark) in one of your threads, or
 // about a finding. The answer is made here and saved into the review - the
@@ -33,7 +34,7 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 	}
 
 	// What's answered: the thread, or the finding; gone if it was deleted meanwhile.
-	type Answered = { messages?: { role: string; text: string; at: number }[]; awaiting?: boolean; replyError?: string };
+	type Answered = { messages?: { role: string; text: string; at: number; model?: string }[]; awaiting?: boolean; replyError?: string };
 	const answer = (change: (target: Answered) => void) =>
 		changeRound(owner, repo, number, round, (record) => {
 			if (note) {
@@ -46,6 +47,8 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 			}
 		});
 
+	// Which model answers, to say beside what it said.
+	const answeredBy = typeof model === 'string' && model ? model : modelName();
 	answer((t) => {
 		t.awaiting = true;
 		delete t.replyError;
@@ -54,7 +57,7 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 		.then(
 			(text) =>
 				answer((t) => {
-					t.messages = [...(t.messages ?? []), { role: 'assistant', text, at: Date.now() }];
+					t.messages = [...(t.messages ?? []), { role: 'assistant', text, at: Date.now(), model: answeredBy }];
 					delete t.awaiting;
 				}),
 			(err) =>

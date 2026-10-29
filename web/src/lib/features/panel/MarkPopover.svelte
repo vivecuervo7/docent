@@ -164,14 +164,16 @@
 						<span class="role"
 							>{#if m.conclusion}Your conclusion <span class="faint">· not posted; Prepare follows it</span>{:else}{m.role === 'user'
 									? 'You'
-									: mark.who}{/if}</span
+									: m.model
+										? modelLabel(m.model)
+										: mark.who}{/if}</span
 						>
 						<div class="text"><NoteText text={m.text} /></div>
 					</li>
 				{/each}
 				{#if status.pending}
 					<li class="assistant">
-						<span class="role">{mark.who}</span>
+						<span class="role">{session.record.model ? modelLabel(session.record.model) : 'Docent'}</span>
 						<p class="state"><Spinner size={13} /> Thinking…</p>
 					</li>
 				{:else if status.error}

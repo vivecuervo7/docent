@@ -1,7 +1,6 @@
 import { readOk, sendJson, prUrl } from '../api/client';
 import { groupsOf, reviewerName } from '../features/panel/findings';
 import { codeIn, nearestHunk } from '../features/reading/diff/parse';
-import { sessionId } from '../features/panel/setup';
 import { isNewFinding, isUnread, lineSpan, noteWhere, type GitHubThread, type LineRef, type Note, type NoteMessage, type Slice } from '../types';
 import { forModel, lineRanges, type PrSession } from './session.svelte';
 
@@ -214,7 +213,6 @@ export class Conversations {
 		// A finding about the whole PR is answered from all of its changes, as
 		// far as they fit.
 		const everything = path ? '' : this.#allChanges();
-		const ranWith = this.#s.record.agentReviewers.find((a) => a.id === reviewer)?.ranWith;
 		this.#asked[id] = { pending: true };
 		try {
 			const res = await sendJson(`${prUrl(this.#s.ref)}/notes/reply`, {
@@ -252,7 +250,9 @@ export class Conversations {
 					}
 				},
 				messages: forModel(item.messages),
-				model: this.#answeringModel(ranWith),
+				// The review's own model, not the reviewer's: a second look at
+				// what it raised, by the model you trust.
+				model: this.#s.record.model,
 				target: { finding: { reviewer, id } },
 				...(this.#s.round !== null ? { round: this.#s.round } : {})
 			});
@@ -263,20 +263,5 @@ export class Conversations {
 		} catch (err) {
 			this.#asked[id] = { error: (err as Error).message };
 		}
-	}
-
-	// Who answers questions about a finding: the model that raised it; an
-	// external reviewer's own model, else the review's; the review's for your
-	// own agent.
-	#answeringModel(ranWith: string | undefined): string | undefined {
-		if (!ranWith || ranWith === 'external') return this.#s.record.model;
-		const id = sessionId(ranWith);
-		if (id) {
-			const external = this.#s.panel.externals.find((e) => e.id === id);
-			if (!external?.model) return this.#s.record.model;
-			if (external.runner === 'provider') return `${external.provider}:${external.model}`;
-			return `${external.runner === 'codex' ? 'codex' : 'claude-code'}:${external.model}`;
-		}
-		return ranWith;
 	}
 }

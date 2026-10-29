@@ -166,6 +166,8 @@ export interface NoteMessage {
 	// The reviewer's conclusion to a conversation, asking for no reply: not
 	// posted, but what drafting and Prepare follow.
 	conclusion?: boolean;
+	// The model that wrote an answer.
+	model?: string;
 }
 
 // A thread on selected lines, or without lines on a whole file, or with no
