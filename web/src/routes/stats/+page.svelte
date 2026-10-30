@@ -7,6 +7,7 @@
 	import type { Analysis, Stats } from '$lib/features/stats/stats';
 	import { summarise } from '$lib/features/stats/summary';
 	import Spinner from '$lib/ui/Spinner.svelte';
+	import { shortDate } from '$lib/ui/format';
 
 	// What reviewing has come to, at a glance: when, how much, how the slices
 	// cut it down, and how the panel's findings fared.
@@ -18,6 +19,11 @@
 		.catch((err) => (error = (err as Error).message));
 
 	const s = $derived(stats ? summarise(stats) : null);
+	// When the first counted round was worked on.
+	const since = $derived.by(() => {
+		const times = (stats?.rounds ?? []).flatMap((r) => [...r.activity, r.posted ?? 0, r.completed ?? 0]).filter((t) => t > 0);
+		return times.length ? Math.min(...times) : null;
+	});
 
 	// The analysis of how the panel performs, run on asking; while it runs,
 	// checked on every couple of seconds.
@@ -60,11 +66,14 @@
 	const short = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k` : `${n}`);
 </script>
 
+<svelte:head><title>Stats · Docent</title></svelte:head>
+
 <SiteHeader />
 
 <main>
 	<div class="head">
 		<h1>Stats</h1>
+		{#if since}<p class="faint since">Since {shortDate(since)}</p>{/if}
 	</div>
 
 	{#if error}
@@ -271,6 +280,10 @@
 	}
 	.reset:hover {
 		color: var(--danger);
+	}
+	.since {
+		margin: -16px 0 0;
+		font-size: 14px;
 	}
 	.loading {
 		display: flex;
