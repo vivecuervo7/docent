@@ -28,7 +28,7 @@ const db = persistent('stats-tables', () => {
 // Who raised a finding, as the stats group reviewers across PRs: their
 // persona or external reviewer, by name and id, else Docent's general
 // reviewer, or your own agent.
-function reviewerOf(r: AgentReviewer | undefined): { name: string; persona?: string; external?: string } {
+export function reviewerOf(r: AgentReviewer | undefined): { name: string; persona?: string; external?: string } {
 	if (!r) return { name: 'Unknown' };
 	const runs = r.ranWith ?? r.planned;
 	if (runs === 'external') return { name: 'Your own agent' };
@@ -42,7 +42,7 @@ function reviewerOf(r: AgentReviewer | undefined): { name: string; persona?: str
 const decided = (i: FeedbackItem) => !!i.decided;
 
 // A reviewer as the stats tell reviewers apart across PRs.
-const idOf = (who: { name: string; persona?: string; external?: string }) => who.persona ?? who.external ?? who.name;
+export const idOf = (who: { name: string; persona?: string; external?: string }) => who.persona ?? who.external ?? who.name;
 
 const fileOf = (hunk: string) => hunk.slice(0, hunk.lastIndexOf('#'));
 
@@ -270,11 +270,15 @@ persistent('stats-watcher-v2', () => {
 });
 fillPoints();
 
-export function readStats(): Stats {
-	// A persona or external reviewer removed takes its figures with it.
+// A persona or external reviewer removed takes its figures with it.
+export function stillListed(): (r: { persona?: string; external?: string }) => boolean {
 	const persona = new Set(personas.list().map((p) => p.id));
 	const external = new Set(externalReviewers.list().map((e) => e.id));
-	const kept = (r: { persona?: string; external?: string }) => (!r.persona || persona.has(r.persona)) && (!r.external || external.has(r.external));
+	return (r) => (!r.persona || persona.has(r.persona)) && (!r.external || external.has(r.external));
+}
+
+export function readStats(): Stats {
+	const kept = stillListed();
 	const rounds = (db.prepare('SELECT stats FROM round_stats').all() as { stats: string }[]).map((r) => JSON.parse(r.stats) as RoundStats);
 	// Their findings too, and whose they were grouped with.
 	const removed = new Set(rounds.flatMap((r) => [...r.reviewers, ...(r.ran ?? [])].filter((v) => !kept(v)).map((v) => v.persona ?? v.external ?? v.name)));

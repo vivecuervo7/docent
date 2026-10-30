@@ -39,3 +39,32 @@ export interface RoundStats {
 export interface Stats {
 	rounds: RoundStats[];
 }
+
+// The broad kinds of feedback, for telling what reviewers raise and what
+// they miss: every finding and comment is put under one.
+export const THEMES = ['correctness', 'reliability', 'security', 'tests', 'design', 'build'] as const;
+export type Theme = (typeof THEMES)[number];
+export const THEME_LABELS: Record<Theme, string> = {
+	correctness: 'Correctness',
+	reliability: 'Reliability',
+	security: 'Security',
+	tests: 'Tests',
+	design: 'Design and clarity',
+	build: 'Build and config'
+};
+
+// What analysing reviewer performance has found so far.
+export interface Analysis {
+	status: { running: boolean; phase?: 'themes' | 'gaps'; done: number; total: number; error?: string; finishedAt?: number };
+	// Findings not yet given a theme, and PRs with comments by others not yet judged.
+	pending: { findings: number };
+	themes: {
+		// Kept findings by theme, across every reviewer, and each reviewer's.
+		overall: Partial<Record<Theme, number>>;
+		byReviewer: Record<string, Partial<Record<Theme, number>>>;
+	};
+	// Points others raised after the panel had reviewed, by theme: raised by
+	// the panel and kept or left to you, raised but set aside by the panel
+	// itself, or missed.
+	gaps: { byTheme: Partial<Record<Theme, { caught: number; setAside: number; missed: number }>> };
+}

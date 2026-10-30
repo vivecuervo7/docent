@@ -2,7 +2,9 @@
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
 	import OverlapMap from '$lib/features/stats/OverlapMap.svelte';
-	import type { Stats } from '$lib/features/stats/stats';
+	import ThemesPie from '$lib/features/stats/ThemesPie.svelte';
+	import GapReport from '$lib/features/stats/GapReport.svelte';
+	import type { Analysis, Stats } from '$lib/features/stats/stats';
 	import { summarise } from '$lib/features/stats/summary';
 	import Spinner from '$lib/ui/Spinner.svelte';
 
@@ -16,6 +18,28 @@
 		.catch((err) => (error = (err as Error).message));
 
 	const s = $derived(stats ? summarise(stats) : null);
+
+	// The analysis of how the panel performs, run on asking; while it runs,
+	// checked on every couple of seconds.
+	let analysis = $state<Analysis | null>(null);
+	let analysisError = $state<string | null>(null);
+	async function readAnalysis(method = 'GET') {
+		try {
+			analysis = await readOk<Analysis>(await fetch('/api/stats/analysis', { method }));
+			analysisError = null;
+		} catch (err) {
+			analysisError = (err as Error).message;
+		}
+		if (analysis?.status.running) setTimeout(readAnalysis, 2000);
+	}
+	readAnalysis();
+	async function reset() {
+		if (!confirm('Reset the analyses? The next run goes over every finding and pull request again, which takes a while and costs model calls.')) return;
+		const res = await fetch('/api/stats/analysis', { method: 'DELETE' });
+		if (!res.ok) analysisError = await res.text();
+		await readAnalysis();
+	}
+	const analysed = $derived(!!analysis && (Object.keys(analysis.themes.overall).length > 0 || Object.keys(analysis.gaps.byTheme).length > 0));
 	const number = (n: number) => n.toLocaleString();
 	const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
 	// The scale: four even steps of a round size, the last at about the
@@ -120,7 +144,23 @@
 
 		{#if s.reviewers.length}
 			<section>
-				<h2>Reviewers</h2>
+				<div class="row">
+					<h2>Reviewers</h2>
+					{#if analysis}
+						<button class="btn" disabled={analysis.status.running} onclick={() => readAnalysis('POST')}>Analyse reviewer performance</button>
+					{/if}
+				</div>
+				{#if analysis?.status.running}
+					<p class="faint loading">
+						<Spinner size={14} />
+						{analysis.status.phase === 'gaps' ? 'Checking what others said' : 'Sorting findings into themes'}… {analysis.status.done} of {analysis.status.total}
+						{analysis.status.phase === 'gaps' ? 'pull requests' : 'findings'}
+					</p>
+				{:else if analysisError || analysis?.status.error}
+					<p class="bad">Couldn’t analyse: {analysisError ?? analysis?.status.error}</p>
+				{:else if analysis && analysed && analysis.pending.findings}
+					<p class="faint">{number(analysis.pending.findings)} findings since the last analysis.</p>
+				{/if}
 				<ul class="reviewers">
 					{#each s.reviewers as r (r.id)}
 						<li>
@@ -142,9 +182,27 @@
 				</div>
 				{#if s.overlap.reviewers.length > 1}
 					<h3>Reviewer alignment</h3>
-					<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} />
+					<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} themes={analysis?.themes.byReviewer} />
+				{/if}
+				{#if analysis && Object.keys(analysis.themes.overall).length}
+					<h3>What the kept findings were about</h3>
+					<ThemesPie counts={analysis.themes.overall} />
 				{/if}
 			</section>
+		{/if}
+
+		{#if analysis && Object.keys(analysis.gaps.byTheme).length}
+			<section>
+				<h2>Panel and others, by theme</h2>
+				<GapReport gaps={analysis.gaps} kept={analysis.themes.overall} />
+			</section>
+		{/if}
+
+		{#if analysed && !analysis?.status.running}
+			<footer>
+				<button class="reset" onclick={reset}>Reset analyses</button>
+				<span class="faint">The next run then goes over everything again: long, and costly.</span>
+			</footer>
 		{/if}
 	{/if}
 </main>
@@ -188,6 +246,31 @@
 		font-family: var(--serif);
 		font-size: 17px;
 		font-weight: 500;
+	}
+	.row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
+	footer {
+		display: flex;
+		align-items: baseline;
+		gap: 12px;
+		font-size: 12.5px;
+	}
+	.reset {
+		border: 0;
+		background: none;
+		padding: 0;
+		color: var(--muted);
+		font: inherit;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		cursor: pointer;
+	}
+	.reset:hover {
+		color: var(--danger);
 	}
 	.loading {
 		display: flex;

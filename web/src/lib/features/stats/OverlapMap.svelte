@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { OverlapPair, OverlapReviewer } from './summary';
+	import { THEME_LABELS, type Theme } from './stats';
 
 	// Reviewers as circles sized by the findings of theirs you kept, set so
 	// each pair overlaps by about how many of the smaller one's kept findings
@@ -7,7 +8,16 @@
 	// other doesn't; one off on its own finds its own. Only reviewers that ran
 	// together are drawn together; pointing at one rings what it wanted
 	// posted, kicked back too, and shows who corroborates it.
-	let { reviewers, pairs }: { reviewers: OverlapReviewer[]; pairs: OverlapPair[] } = $props();
+	let {
+		reviewers,
+		pairs,
+		themes = {}
+	}: {
+		reviewers: OverlapReviewer[];
+		pairs: OverlapPair[];
+		// Each reviewer's kept findings by theme, once analysed.
+		themes?: Record<string, Partial<Record<Theme, number>>>;
+	} = $props();
 
 	const WIDTH = 760;
 	const HEIGHT = 340;
@@ -103,6 +113,7 @@
 	);
 	const lit = (id: string) => !focus || id === focus.id || partners.some((p) => p.id === id);
 	const share = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
+	const topThemes = $derived(focus ? (Object.entries(themes[focus.id] ?? {}) as [Theme, number][]).sort((a, b) => b[1] - a[1]).slice(0, 3) : []);
 </script>
 
 <div class="map">
@@ -147,6 +158,14 @@
 			<dd>{focus.alone} <span class="faint">({share(focus.alone, focus.kept)}%)</span></dd>
 			<dt>Corroborated</dt>
 			<dd>{focus.kept - focus.alone} <span class="faint">({share(focus.kept - focus.alone, focus.kept)}%)</span></dd>
+			{#if topThemes.length}
+				<dt class="section">Top findings</dt>
+				<dd></dd>
+				{#each topThemes as [theme, n] (theme)}
+					<dt>{THEME_LABELS[theme]}</dt>
+					<dd>{n}</dd>
+				{/each}
+			{/if}
 		</dl>
 	{/if}
 	<p class="hint faint">Kept findings, overlapping where reviewers raised the same point. Point at one for its figures.</p>
@@ -227,6 +246,10 @@
 		margin: 0;
 		text-align: right;
 		font-variant-numeric: tabular-nums;
+	}
+	.legend .section {
+		margin-top: 6px;
+		color: var(--text);
 	}
 	.legend .who {
 		color: var(--text);
