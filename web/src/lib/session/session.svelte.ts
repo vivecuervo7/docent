@@ -328,9 +328,7 @@ export class PrSession {
 	readonly looseFindings = $derived.by(() =>
 		looseMarksFrom(this.record).map((mark) => ({ mark, slices: mark.path ? this.slicesOf(mark.path, undefined) : [] }))
 	);
-	// Whether the findings the editor filtered out show in the diff, faintly,
-	// where they were raised.
-	showFiltered = $state(false);
+	// The findings the editor filtered out, shown faintly where they were raised.
 	readonly filteredLoose = $derived(looseMarksFrom(this.record, true).filter((m) => m.filtered));
 	// Every finding shown, with lines or without, and the slices it's in.
 	readonly allFindings = $derived<{ mark: Mark | LooseMark; slices: string[] }[]>([...this.findings, ...this.looseFindings]);

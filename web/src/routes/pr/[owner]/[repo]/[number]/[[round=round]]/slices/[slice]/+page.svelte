@@ -80,14 +80,8 @@
 		if (pending.length) showOpinion(pending, null, true);
 	});
 
-	// The panel's editor at work on this slice, and what it filtered out.
+	// The panel's editor at work on this slice.
 	const reviewing = $derived(sliceId ? session.panel.reviewing(sliceId) : false);
-	const filtered = $derived(sliceId ? session.panel.filteredIn(sliceId) : []);
-	// Filtered findings show faintly where they were raised; the first opens.
-	function toggleFiltered() {
-		session.showFiltered = !session.showFiltered;
-		if (session.showFiltered && filtered[0]) session.revealing = filtered[0].item.id;
-	}
 
 	// The second opinion's Done completes the move it interrupted.
 	function finishOpinion() {
@@ -128,15 +122,8 @@
 			</div>
 			<h1>{slice.title}</h1>
 			<div class="summary"><NoteText text={slice.summary} /></div>
-			{#if reviewing || filtered.length}
-				<div class="editor faint">
-					{#if reviewing}<span>The panel is still reviewing this slice</span>{/if}
-					{#if filtered.length}
-						<button class="link" class:on={session.showFiltered} aria-pressed={session.showFiltered} onclick={toggleFiltered}>
-							{filtered.length} filtered
-						</button>
-					{/if}
-				</div>
+			{#if reviewing}
+				<div class="editor faint">The panel is still reviewing this slice</div>
 			{/if}
 			{#key slice.id}
 				<div class="above-files">
@@ -224,19 +211,6 @@
 		gap: 16px;
 		margin: 12px 0;
 		font-size: 13.5px;
-	}
-	.link.on {
-		color: var(--text);
-	}
-	.link {
-		padding: 0;
-		border: 0;
-		background: none;
-		color: inherit;
-		font: inherit;
-		text-decoration: underline;
-		text-underline-offset: 3px;
-		cursor: pointer;
 	}
 	.done-label {
 		font-size: 11.5px;

@@ -355,15 +355,6 @@ export class Panel {
 		return this.#finishedByRunning().some((finished) => !finished.has(sliceId)) || this.#waiting().some((w) => w.slices.includes(sliceId));
 	}
 
-	// Findings on a slice the editor filtered out.
-	filteredIn(sliceId: string) {
-		return Object.entries(this.#session.record.feedback)
-			.filter(([key]) => key.startsWith('agent-'))
-			.flatMap(([reviewer, draft]) =>
-				(draft?.items ?? []).filter((item) => item.filtered && this.#slicesOf(item).includes(sliceId)).map((item) => ({ reviewer, item }))
-			);
-	}
-
 	#checkLookup() {
 		const round = this.#session.round;
 		fetch(`${prUrl(this.#session.ref)}/code-context${round === null ? '' : `?round=${round}`}`)

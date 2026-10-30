@@ -255,7 +255,7 @@
 	// on its header, open or closed.
 	const wholeFile = $derived([
 		...session.looseFindings.filter((f) => f.mark.path === file.filename).map((f) => f.mark),
-		...(session.showFiltered ? session.filteredLoose.filter((m) => m.path === file.filename) : [])
+		...session.filteredLoose.filter((m) => m.path === file.filename)
 	]);
 	// Your threads on the file as a whole, which sit on its header too.
 	const fileThreads = $derived(session.record.notes.filter((n) => n.path === file.filename && !n.start));
