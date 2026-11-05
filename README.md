@@ -6,7 +6,7 @@ Everything runs on your machine: GitHub is read through the `gh` CLI, and the su
 
 ## Requirements
 
-- Node.js 22.13 or later, for its built-in SQLite
+- Node.js 22.13 or later, for its built-in SQLite. On odd-numbered releases such as 25, `npm install` warns that the test tools don't support them, or stops if npm's `engine-strict` is on; an even release such as 24 or 26 avoids that. `web/.nvmrc` picks 24 for nvm and fnm.
 - [GitHub CLI](https://cli.github.com/), signed in (`gh auth login`) with access to the repos you want to review. Docent reads PRs and posts your reviews through it, as you.
 - A model, from any of:
   - [Claude Code](https://code.claude.com), installed and signed in. Its models run through `claude -p` on your own login, without your settings or MCP servers.
