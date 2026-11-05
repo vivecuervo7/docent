@@ -25,6 +25,8 @@ cd web && npm install && npm run dev    # http://localhost:17321
 
 Open http://localhost:17321 and paste a GitHub PR URL. To run a built copy instead: `npm run build && npm start`, on the same port. Set `DOCENT_PORT` to use another one.
 
+To review PRs on GitHub Enterprise, set `GH_HOST` to its host (for example `GH_HOST=mycompany.ghe.com`) and sign `gh` in to it (`gh auth login --hostname mycompany.ghe.com`). Docent works against one host at a time.
+
 ## Reviewing a PR
 
 A review moves through four steps, shown along the top:

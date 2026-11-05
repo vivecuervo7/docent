@@ -22,10 +22,10 @@ export function elapsed(ms: number): string {
 	return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-// A PR's address from a GitHub link: https://github.com/owner/repo/pull/123
-export function parsePrUrl(input: string): { owner: string; repo: string; number: string } | null {
-	const match = input.trim().match(/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/);
-	return match ? { owner: match[1], repo: match[2], number: match[3] } : null;
+// A PR's address from a link on `host`: https://github.com/owner/repo/pull/123
+export function parsePrUrl(input: string, host: string): { owner: string; repo: string; number: string } | null {
+	const match = input.trim().match(/^(?:https?:\/\/)?([^/\s]+)\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/);
+	return match && match[1].toLowerCase() === host.toLowerCase() ? { owner: match[2], repo: match[3], number: match[4] } : null;
 }
 
 // A count with its noun: "1 finding", "3 findings".

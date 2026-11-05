@@ -1,6 +1,7 @@
 <script lang="ts">
 	import FindingCard from '$lib/features/panel/FindingCard.svelte';
 	import InlineText from '$lib/ui/InlineText.svelte';
+	import { githubUrl } from '$lib/ui/github';
 	import PanelCard from '$lib/features/panel/PanelCard.svelte';
 	import BeginReview from '$lib/features/preparing/BeginReview.svelte';
 	import PreparingView from '$lib/features/preparing/PreparingView.svelte';
@@ -26,7 +27,7 @@
 		threads.load();
 		return () => threads.close();
 	});
-	const githubUrl = $derived(session.meta?.htmlUrl ?? `https://github.com/${session.ref.owner}/${session.ref.repo}/pull/${session.ref.number}`);
+	const githubLink = $derived(session.meta?.htmlUrl ?? githubUrl(`${session.ref.owner}/${session.ref.repo}/pull/${session.ref.number}`));
 </script>
 
 {#if session.preparing}
@@ -41,7 +42,7 @@
 				<p class="byline faint">
 					{session.ref.owner}/{session.ref.repo}#{session.ref.number}{#if session.meta?.author}{' '}by {session.meta.author}{/if}
 					· <ReviewModel /> ·
-					<a href={githubUrl} target="_blank" rel="noreferrer">View on GitHub ↗</a>
+					<a href={githubLink} target="_blank" rel="noreferrer">View on GitHub ↗</a>
 				</p>
 			</div>
 

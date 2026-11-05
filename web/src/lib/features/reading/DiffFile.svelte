@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { prUrl } from '$lib/api/client';
 	import Icon from '$lib/ui/Icon.svelte';
+	import { githubUrl } from '$lib/ui/github';
 	import { onDismiss } from '$lib/ui/dismiss';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -263,7 +264,7 @@
 	// The file on GitHub's view of the PR, for one there's no diff of here:
 	// GitHub anchors each file by its path's SHA-256.
 	let anchor = $state('');
-	const githubFile = $derived(`https://github.com/${prRef.owner}/${prRef.repo}/pull/${prRef.number}/files${anchor}`);
+	const githubFile = $derived(githubUrl(`${prRef.owner}/${prRef.repo}/pull/${prRef.number}/files${anchor}`));
 	$effect(() => {
 		if (file.patch) return;
 		crypto.subtle.digest('SHA-256', new TextEncoder().encode(file.filename)).then((hash) => {

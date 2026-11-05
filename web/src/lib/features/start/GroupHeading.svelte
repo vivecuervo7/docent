@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '$lib/ui/Icon.svelte';
+	import { githubUrl } from '$lib/ui/github';
 	// A heading per repo or author on the start page: the repo linking to its
 	// pull requests on GitHub, or the author with their avatar, how many PRs
 	// are under it, and folding them away.
@@ -8,7 +9,7 @@
 
 <h3 class="group">
 	{#if byRepo}
-		<a class="group-link" href="https://github.com/{label}/pulls" target="_blank" rel="noreferrer" title="{label}’s pull requests on GitHub">
+		<a class="group-link" href={githubUrl(`${label}/pulls`)} target="_blank" rel="noreferrer" title="{label}’s pull requests on GitHub">
 			<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
 				><path
 					fill="currentColor"
@@ -18,7 +19,7 @@
 			{label}
 		</a>
 	{:else if label !== 'Author not known yet'}
-		<img class="avatar" src="https://github.com/{label}.png?size=48" alt="" width="20" height="20" loading="lazy" />
+		<img class="avatar" src={githubUrl(`${label}.png?size=48`)} alt="" width="20" height="20" loading="lazy" />
 		{label}
 	{:else}
 		{label}

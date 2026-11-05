@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import InlineText from '$lib/ui/InlineText.svelte';
 	import { timeAgo, plural } from '$lib/ui/format';
+	import { githubUrl } from '$lib/ui/github';
 	import RoundBauble from './RoundBauble.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import type { RoundBauble as Round, Row, StartPage } from './startPage.svelte';
@@ -28,7 +29,7 @@
 		<span class="text">
 			<a class="title" {href}><InlineText text={pr.record.title ?? `#${pr.number}`} /></a>
 			<span class="faint meta"
-				><a class="github" href="https://github.com/{pr.owner}/{pr.repo}/pull/{pr.number}" target="_blank" rel="noreferrer">{pr.owner}/{pr.repo} #{pr.number}</a
+				><a class="github" href={githubUrl(`${pr.owner}/${pr.repo}/pull/${pr.number}`)} target="_blank" rel="noreferrer">{pr.owner}/{pr.repo} #{pr.number}</a
 				>{author ? ` · ${author}` : ''}{raised ? ` · ${timeAgo(raised, page.now)}` : ''}</span
 			>
 		</span>

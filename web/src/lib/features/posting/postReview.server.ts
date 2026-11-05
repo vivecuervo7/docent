@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { lineSpan } from '../../types.js';
 import { gh, viewerLogin } from '../../github/gh.server.js';
+import { githubHost } from '../../github/host.server.js';
 import { conversationText, fetchPrFiles } from '../../github/github.server.js';
 import { roundConversation } from '../../github/conversation.server.js';
 import { chatWithTool } from '../../models/modelProvider.server.js';
@@ -380,5 +381,5 @@ export async function postReviewPayload(owner: string, repo: string, number: str
 	const created = JSON.parse(await ghWithInput(['--method', 'POST', `repos/${owner}/${repo}/pulls/${number}/reviews`], payload)) as {
 		html_url?: string;
 	};
-	return { url: created.html_url ?? `https://github.com/${owner}/${repo}/pull/${number}` };
+	return { url: created.html_url ?? `https://${githubHost()}/${owner}/${repo}/pull/${number}` };
 }

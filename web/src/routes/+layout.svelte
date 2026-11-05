@@ -1,9 +1,12 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+	import { setGithubHost } from '$lib/ui/github';
 	import '../app.css';
 
-	let { children } = $props();
+	let { data, children } = $props();
+	// svelte-ignore state_referenced_locally
+	setGithubHost(data.githubHost);
 </script>
 
 <svelte:head>

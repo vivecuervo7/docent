@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { persistent } from '../storage/persistent.server.js';
 import type { PrFile } from './github.server.js';
 import { filesInDiff } from './diffFiles.js';
+import { DEFAULT_HOST, githubHost } from './host.server.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,7 +38,7 @@ async function env(): Promise<NodeJS.ProcessEnv> {
 		...process.env,
 		GIT_TERMINAL_PROMPT: '0',
 		GIT_CONFIG_COUNT: '1',
-		GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+		GIT_CONFIG_KEY_0: `http.https://${githubHost()}/.extraheader`,
 		GIT_CONFIG_VALUE_0: `Authorization: Basic ${auth}`
 	};
 }
@@ -56,8 +57,17 @@ async function git(dir: string, args: string[], extraEnv: Record<string, string>
 // over each other.
 const queues = persistent('repo-cache.queues', () => new Map<string, Promise<unknown>>());
 
+// A github.com repo's clone sits at repos/<owner>/<repo>.git, as it always
+// has; another host's under a folder of that host's own, so the same
+// owner/repo on two hosts never shares one. Owners can't have dots in their
+// names, so a host's folder can't be taken for an owner's.
+function repoDir(owner: string, repo: string): string {
+	const host = githubHost();
+	return host === DEFAULT_HOST ? join(root, owner, `${repo}.git`) : join(root, host, owner, `${repo}.git`);
+}
+
 function inRepo<T>(owner: string, repo: string, work: (dir: string) => Promise<T>): Promise<T> {
-	const dir = join(root, owner, `${repo}.git`);
+	const dir = repoDir(owner, repo);
 	const run = (queues.get(dir) ?? Promise.resolve()).catch(() => {}).then(() => work(dir));
 	queues.set(dir, run);
 	return run;
@@ -67,7 +77,7 @@ async function ensureRepo(owner: string, repo: string, dir: string) {
 	if (existsSync(join(dir, 'HEAD'))) return;
 	mkdirSync(dir, { recursive: true });
 	await git(dir, ['init', '--quiet', '--bare']);
-	await git(dir, ['remote', 'add', 'origin', `https://github.com/${owner}/${repo}.git`]);
+	await git(dir, ['remote', 'add', 'origin', `https://${githubHost()}/${owner}/${repo}.git`]);
 	// Contents left out now come from GitHub when something reads them.
 	await git(dir, ['config', 'remote.origin.promisor', 'true']);
 	await git(dir, ['config', 'remote.origin.partialclonefilter', 'blob:none']);

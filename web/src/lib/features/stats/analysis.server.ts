@@ -7,6 +7,7 @@ import { modelName } from '../../storage/settings.server.js';
 import { fetchGitHubComments } from '../../github/comments.server.js';
 import { fetchPrMeta } from '../../github/github.server.js';
 import { viewerLogin } from '../../github/gh.server.js';
+import { githubHost } from '../../github/host.server.js';
 import { idOf, reviewerOf, stillListed } from './stats.server.js';
 import { THEMES, type Analysis, type Theme } from './stats.js';
 import type { FeedbackItem, PrRecord } from '../../types.js';
@@ -174,7 +175,7 @@ and say how much it matters - blocker, major, minor or nit - judging it as a rev
 
 const urlOf = (key: string, id: string) => {
 	const [owner, repo, number] = key.split('/');
-	const base = `https://github.com/${owner}/${repo}/pull/${number}`;
+	const base = `https://${githubHost()}/${owner}/${repo}/pull/${number}`;
 	const n = id.slice(1);
 	return id.startsWith('t') ? `${base}#discussion_r${n}` : id.startsWith('r') ? `${base}#pullrequestreview-${n}` : `${base}#issuecomment-${n}`;
 };

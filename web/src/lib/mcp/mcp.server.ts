@@ -5,6 +5,7 @@ import * as z from 'zod/v4';
 import { finishAgentReview, getReviewContext, resolveReviewer, submitFinding, submitReview } from '../features/panel/agentReviews.server.js';
 import { conversationText, fetchFileContentAtRef, fetchPrBaseSha, fetchPrMeta, searchRepoCode } from '../github/github.server.js';
 import { listFiles, prHead, readFile, searchCode } from '../github/repoCache.server.js';
+import { githubHost } from '../github/host.server.js';
 import { numberedFileDiff } from '../github/prDiff.server.js';
 import { fetchReviewFiles, rangeNote } from '../github/range.server.js';
 
@@ -13,12 +14,15 @@ import { fetchReviewFiles, rangeNote } from '../github/range.server.js';
 // rest of the panel's. Stateless: each request gets a fresh server, and review state lives
 // in features/panel/agentReviews.server.ts.
 
-// "@round1" after the number names an earlier round of Docent's review.
-const PR_REF_RE = /^(?:https:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#|\/)(\d+)(?:@round(\d+))?\/?$/;
+// "@round1" after the number names an earlier round of Docent's review. A
+// link is accepted on Docent's own GitHub host, read on each call rather than
+// once, as the start page's links are.
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const prRefRe = () => new RegExp(`^(?:https?://${escape(githubHost())}/)?([\\w.-]+)/([\\w.-]+)(?:/pull/|#|/)(\\d+)(?:@round(\\d+))?/?$`, 'i');
 
 function parsePr(pr: string): { owner: string; repo: string; number: string; round?: number } {
-	const match = pr.trim().match(PR_REF_RE);
-	if (!match) throw new Error(`Couldn't read "${pr}" as a PR. Use owner/repo#123 or its GitHub URL.`);
+	const match = pr.trim().match(prRefRe());
+	if (!match) throw new Error(`Couldn't read "${pr}" as a PR. Use owner/repo#123 or its link on ${githubHost()}.`);
 	return { owner: match[1], repo: match[2], number: match[3], ...(match[4] ? { round: Number(match[4]) - 1 } : {}) };
 }
 

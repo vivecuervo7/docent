@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { codexSession } from '../../models/codex.server.js';
 import type { ExternalReviewer } from '../../storage/settings.server.js';
 import { prRef } from '../../storage/rounds.server.js';
+import { githubHost } from '../../github/host.server.js';
 
 // An external reviewer: the reviewer's own tooling - a skill, a command, a
 // prompt - run as an unattended Claude Code session. It reads the PR through
@@ -87,7 +88,7 @@ export function verdictOf(out: unknown): SessionResult['verdict'] {
 }
 
 export function fillCommand(command: string, pr: { owner: string; repo: string; number: string; round?: number }): string {
-	const url = `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`;
+	const url = `https://${githubHost()}/${pr.owner}/${pr.repo}/pull/${pr.number}`;
 	return command.replaceAll('{pr_url}', url).replaceAll('{owner}', pr.owner).replaceAll('{repo}', pr.repo).replaceAll('{number}', pr.number);
 }
 

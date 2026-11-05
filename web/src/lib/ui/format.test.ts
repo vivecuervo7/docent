@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shortDate, timeAgo } from './format';
+import { parsePrUrl, shortDate, timeAgo } from './format';
 
 const NOW = new Date(2026, 9, 28, 12, 0).getTime();
 const ago = (ms: number) => timeAgo(NOW - ms, NOW);
@@ -14,6 +14,20 @@ describe('timeAgo', () => {
 
 	it('gives a date past a month', () => {
 		expect(ago(40 * 86_400_000)).toBe(shortDate(NOW - 40 * 86_400_000));
+	});
+});
+
+describe('parsePrUrl', () => {
+	const pr = { owner: 'acme', repo: 'widgets', number: '107' };
+
+	it('reads a link on the host', () => {
+		expect(parsePrUrl('https://github.com/acme/widgets/pull/107/files', 'github.com')).toEqual(pr);
+		expect(parsePrUrl(' https://acme.ghe.com/acme/widgets/pull/107 ', 'acme.ghe.com')).toEqual(pr);
+	});
+
+	it('refuses a link on another host', () => {
+		expect(parsePrUrl('https://acme.ghe.com/acme/widgets/pull/107', 'github.com')).toBeNull();
+		expect(parsePrUrl('https://evil.com/github.com/a/b/pull/1', 'github.com')).toBeNull();
 	});
 });
 

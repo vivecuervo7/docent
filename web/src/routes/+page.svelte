@@ -10,6 +10,7 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import { parsePrUrl, timeAgo } from '$lib/ui/format';
 	import InlineText from '$lib/ui/InlineText.svelte';
+	import { githubHost, githubUrl } from '$lib/ui/github';
 
 	// Opening a PR by its link, and the reviews and PRs you're part of below.
 	const page = new StartPage();
@@ -22,9 +23,9 @@
 
 	function open(e: SubmitEvent) {
 		e.preventDefault();
-		const ref = parsePrUrl(url);
+		const ref = parsePrUrl(url, githubHost());
 		if (!ref) {
-			formError = 'Enter a GitHub PR link, like https://github.com/owner/repo/pull/123';
+			formError = `Enter a GitHub PR link, like ${githubUrl('owner/repo/pull/123')}`;
 			return;
 		}
 		goto(`/pr/${ref.owner}/${ref.repo}/${ref.number}`);
@@ -75,7 +76,7 @@
 				<input
 					type="url"
 					bind:value={url}
-					placeholder="https://github.com/owner/repo/pull/123"
+					placeholder={githubUrl('owner/repo/pull/123')}
 					aria-label="Pull request link"
 					aria-invalid={formError ? 'true' : undefined}
 					oninput={() => (formError = null)}
