@@ -49,22 +49,10 @@
 		}))
 	);
 	const current = $derived(models?.options.find((o) => o.id === models?.selected));
-	// A provider's model looks through the code with tool calls, which not every model supports.
-	const hasProviderModels = $derived((models?.options ?? []).some((o) => o.source !== 'Claude Code' && o.source !== 'Codex'));
 </script>
 
 {#if models?.options.length}
-	<Menu
-		{groups}
-		value={models.selected}
-		onchoose={choose}
-		label="Model"
-		width={252}
-		placement="end"
-		note={hasProviderModels
-			? 'Outside Claude Code and Codex, follow-ups and thread checks use tool calls. A model that doesn’t support them will error.'
-			: undefined}
-	>
+	<Menu {groups} value={models.selected} onchoose={choose} label="Model" filter="Filter models…" width={300} placement="end">
 		{#snippet trigger({ open, toggle })}
 			<button class="trigger" aria-haspopup="menu" aria-expanded={open} onclick={toggle}>
 				<span class="faint">Model</span>
@@ -83,7 +71,7 @@
 		padding: 4px 8px;
 		border: 0;
 		border-radius: 8px;
-		background: none;
+		background: color-mix(in srgb, var(--surface-2) 50%, transparent);
 		color: var(--muted);
 		font: inherit;
 		font-size: 13.5px;

@@ -145,7 +145,10 @@
 		<EditorModel />
 	</SettingsSection>
 
-	<SettingsSection title="Providers" intro="OpenAI-compatible endpoints: a local server such as oMLX, or a hosted proxy such as LiteLLM.">
+	<SettingsSection
+		title="Providers"
+		intro="OpenAI-compatible endpoints: a local server such as oMLX, or a hosted proxy such as LiteLLM. Their models answer follow-ups and check threads with tool calls, so choose ones that support them."
+	>
 		{#if setup}
 			<SettingsList items={setup.providers} addLabel="Add a provider" {blank} {save} {remove}>
 				{#snippet mark(p)}<StateMark state={p.error ? 'todo' : 'done'} />{/snippet}

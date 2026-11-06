@@ -80,9 +80,10 @@
 		else panel.plan(r.id, { mode: 'builtin', model: value, persona });
 	}
 
-	// What can run a reviewer, as its menu lists it.
+	// What can run a reviewer, as its menu lists it: the reviewers set up to
+	// run on their own first, then your own agent, then Docent's reviewer on
+	// each model, grouped by where the model comes from.
 	const runOptions = $derived([
-		{ heading: 'Docent’s reviewer', items: models.map((m) => ({ value: m.id, label: m.label, hint: m.source })) },
 		...(panel.externals.length
 			? [
 					{
@@ -95,7 +96,11 @@
 					}
 				]
 			: []),
-		{ heading: 'Your own agent', items: [{ value: 'external', label: 'Connect via MCP' }] }
+		{ heading: 'Your own agent', items: [{ value: 'external', label: 'Connect via MCP' }] },
+		...Object.entries(Object.groupBy(models, (m) => m.source)).map(([source, list]) => ({
+			heading: source,
+			items: (list ?? []).map((m) => ({ value: m.id, label: m.label }))
+		}))
 	]);
 	const personaOptions = $derived([
 		{
@@ -212,8 +217,9 @@
 										onchoose={(v) => choose(r, v)}
 										label="What runs this reviewer"
 										tone="agent"
-										width={292}
+										width={300}
 										placement="outside"
+										filter="Filter reviewers…"
 									>
 										{#snippet trigger({ open, toggle })}
 											<button

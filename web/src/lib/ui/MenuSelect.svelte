@@ -4,12 +4,17 @@
 
 	// A choice from a short list as a form field, drawn in the app's style
 	// rather than the browser's.
-	let { value = $bindable(), options, label }: { value: string; options: { value: string; label: string }[]; label: string } = $props();
+	let {
+		value = $bindable(),
+		options,
+		label,
+		filter
+	}: { value: string; options: { value: string; label: string }[]; label: string; filter?: string } = $props();
 
 	const current = $derived(options.find((o) => o.value === value) ?? options[0]);
 </script>
 
-<Menu groups={[{ items: options }]} {value} onchoose={(v) => (value = v)} {label} width="trigger">
+<Menu groups={[{ items: options }]} {value} onchoose={(v) => (value = v)} {label} {filter} width="trigger">
 	{#snippet trigger({ open, toggle })}
 		<button type="button" class="trigger" aria-haspopup="menu" aria-expanded={open} aria-label={label} onclick={toggle}>
 			<span>{current?.label}</span>
