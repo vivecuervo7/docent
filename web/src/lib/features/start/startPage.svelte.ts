@@ -212,8 +212,6 @@ export class StartPage {
 	modelSources = $state<string[] | null>(null);
 	// The reviewer's GitHub login, to tell their own PRs apart.
 	login = $state<string | null>(this.#cached.login ?? null);
-	// The setup guide shows once, for someone missing what's needed.
-	setupSeen = $state(readPref('docent.setupSeen', (v) => v === 'true'));
 	// How the lists are grouped, and the groups folded away, kept in this browser.
 	sort = $state<Sort>(readPref('docent.sort', (v) => (v === 'repo' || v === 'author' ? v : 'none')));
 	collapsed = $state<string[]>(readPref('docent.collapsedGroups', (v) => JSON.parse(v ?? '[]')));
@@ -305,11 +303,6 @@ export class StartPage {
 			this.login = setup.gh.login ?? null;
 		}
 		if (models) this.modelSources = [...new Set(models.options.map((o) => o.source))];
-	}
-
-	dismissSetup() {
-		this.setupSeen = true;
-		writePref('docent.setupSeen', 'true');
 	}
 
 	#loadInvolved() {
