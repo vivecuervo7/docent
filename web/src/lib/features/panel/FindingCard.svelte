@@ -20,7 +20,13 @@
 	// you decide.
 	const isKept = $derived(mark.included ?? true);
 	const decided = $derived(!!(mark.reviewer && session.record.feedback[mark.reviewer]?.items.find((i) => i.id === mark.id)?.decided));
-	const decide = (included: boolean) => mark.reviewer && session.setFindingIncluded(mark.reviewer, mark.id, included);
+	// Deciding on a finding reads it, as opening it in the diff would: read
+	// first, as once it's decided it no longer counts as new to read.
+	const decide = (included: boolean) => {
+		if (!mark.reviewer) return;
+		session.conversations.markFindingRead(mark.reviewer, mark.id);
+		session.setFindingIncluded(mark.reviewer, mark.id, included);
+	};
 </script>
 
 <article class="card">
