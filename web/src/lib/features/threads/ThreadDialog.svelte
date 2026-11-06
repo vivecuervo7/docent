@@ -57,7 +57,7 @@
 			error = null;
 		}
 		if (draft && draft !== drafted) {
-			if (untrack(() => !reply || reply === drafted)) reply = draft;
+			if (untrack(() => !reply.trim() || reply === drafted)) reply = draft;
 			drafted = draft;
 		}
 	});
