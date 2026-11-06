@@ -372,6 +372,10 @@
 		align-items: center;
 		gap: 10px;
 	}
+	.buttons .btn:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
 	.small {
 		font-size: 12.5px;
 	}
