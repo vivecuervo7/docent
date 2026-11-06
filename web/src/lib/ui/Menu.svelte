@@ -77,6 +77,14 @@
 		active = -1;
 	});
 	let list = $state<HTMLDivElement | null>(null);
+	// Nothing is lit once the pointer leaves, so a row it left isn't taken for a choice.
+	$effect(() => {
+		if (!list) return;
+		const el = list;
+		const leave = () => (active = -1);
+		el.addEventListener('pointerleave', leave);
+		return () => el.removeEventListener('pointerleave', leave);
+	});
 	function step(by: number) {
 		if (!matches.length) return;
 		// Opened upward, ↑ from the filter starts at the option nearest it, the last.
