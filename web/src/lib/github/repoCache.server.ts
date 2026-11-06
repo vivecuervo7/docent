@@ -7,6 +7,7 @@ import { persistent } from '../storage/persistent.server.js';
 import type { PrFile } from './github.server.js';
 import { filesInDiff } from './diffFiles.js';
 import { DEFAULT_HOST, githubHost } from './host.server.js';
+import { gitFailure } from './gitError.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,6 +25,8 @@ const MAX_LIST = 2000;
 const MAX_FILE_BYTES = 400_000;
 const MAX_SEARCH_FILES = 4000;
 const MAX_SEARCH_LINES = 200;
+
+const GIT_TIMEOUT = 120_000;
 
 const github = persistent('repo-cache.github', () => ({ token: null as Promise<string> | null }));
 
@@ -48,7 +51,7 @@ async function git(dir: string, args: string[], extraEnv: Record<string, string>
 		cwd: dir,
 		env: { ...(await env()), ...extraEnv },
 		maxBuffer: 64 * 1024 * 1024,
-		timeout: 120_000
+		timeout: GIT_TIMEOUT
 	});
 	return stdout;
 }
@@ -145,12 +148,17 @@ export function listFiles(owner: string, repo: string, sha: string, dir = ''): P
 export function readFile(owner: string, repo: string, sha: string, path: string, from?: number, to?: number): Promise<string> {
 	return inRepo(owner, repo, async (repoDir) => {
 		const p = clean(path);
-		let content: string;
-		try {
-			content = await git(repoDir, ['cat-file', 'blob', `${sha}:${p}`]);
-		} catch {
-			throw new Error(`There's no file at ${p} in the PR's head. list_files shows what's there.`);
-		}
+		if (!p) throw new Error("That's the repo's root. list_files shows what's in it.");
+		const read = (args: string[]) =>
+			git(repoDir, args).catch((err) => {
+				throw new Error(gitFailure(err, `reading ${p}`, GIT_TIMEOUT));
+			});
+		// The tree is asked first: it's already here, so a path that isn't there
+		// is told apart from git failing to fetch a file that is.
+		const type = (await read(['ls-tree', sha, '--', p])).split(' ')[1];
+		if (type === 'tree') throw new Error(`${p} is a directory. list_files shows what's in it.`);
+		if (type !== 'blob') throw new Error(`There's no file at ${p} in the PR's head. list_files shows what's there.`);
+		const content = await read(['cat-file', 'blob', `${sha}:${p}`]);
 		const lines = content.split('\n');
 		const start = Math.max(1, from ?? 1);
 		const end = Math.min(lines.length, to ?? lines.length);
@@ -172,7 +180,11 @@ export function readFile(owner: string, repo: string, sha: string, path: string,
 export function searchCode(owner: string, repo: string, sha: string, pattern: string, dir: string): Promise<string> {
 	return inRepo(owner, repo, async (repoDir) => {
 		const d = clean(dir);
-		const tree = await git(repoDir, ['ls-tree', '-r', sha, '--', ...(d ? [d] : [])]);
+		const where = d || 'the repo';
+		const failed = (doing: string) => (err: unknown) => {
+			throw new Error(gitFailure(err, doing, GIT_TIMEOUT));
+		};
+		const tree = await git(repoDir, ['ls-tree', '-r', sha, '--', ...(d ? [d] : [])]).catch(failed(`listing ${where}`));
 		const blobs = [...new Set(tree.split('\n').flatMap((l) => (l.split(/\s+/)[1] === 'blob' ? [l.split(/\s+/)[2]] : [])))];
 		if (blobs.length > MAX_SEARCH_FILES) {
 			throw new Error(`${d || 'The repo'} has ${blobs.length} files; search a narrower directory (at most ${MAX_SEARCH_FILES}).`);
@@ -182,7 +194,10 @@ export function searchCode(owner: string, repo: string, sha: string, pattern: st
 				'git',
 				['cat-file', '--batch-check'],
 				{ cwd: repoDir, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }, maxBuffer: 16 * 1024 * 1024 },
-				(err, stdout) => (err ? reject(err) : resolve(stdout.split('\n').flatMap((l) => (l.endsWith(' missing') ? [l.split(' ')[0]] : []))))
+				(err, stdout) =>
+					err
+						? reject(new Error(gitFailure(err, `checking which files in ${where} are here`, GIT_TIMEOUT)))
+						: resolve(stdout.split('\n').flatMap((l) => (l.endsWith(' missing') ? [l.split(' ')[0]] : [])))
 			);
 			child.stdin?.end(blobs.join('\n') + '\n');
 		});
@@ -197,15 +212,15 @@ export function searchCode(owner: string, repo: string, sha: string, pattern: st
 				'--filter=blob:none',
 				'origin',
 				...missing.slice(i, i + 500)
-			]);
+			]).catch(failed(`fetching files to search ${where}`));
 		}
 		let out: string;
 		try {
 			out = await git(repoDir, ['grep', '-n', '-I', '-E', '-e', pattern, sha, '--', ...(d ? [d] : [])]);
 		} catch (err) {
 			// No match is exit code 1.
-			if ((err as { code?: number }).code === 1) return `No matches for /${pattern}/ in ${d || 'the repo'}.`;
-			throw new Error(`The search failed: ${(err as Error).message.split('\n').find((l) => /fatal|error/i.test(l)) ?? 'bad pattern?'}`);
+			if ((err as { code?: number }).code === 1) return `No matches for /${pattern}/ in ${where}.`;
+			throw new Error(gitFailure(err, `searching for /${pattern}/`, GIT_TIMEOUT));
 		}
 		const lines = out
 			.split('\n')

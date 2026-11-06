@@ -3,7 +3,7 @@
 	import GroupHeading from '$lib/features/start/GroupHeading.svelte';
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import ReviewRow from '$lib/features/start/ReviewRow.svelte';
-	import SetupDialog from '$lib/features/start/SetupDialog.svelte';
+	import SetupNotice from '$lib/features/start/SetupNotice.svelte';
 	import ThreadsDialog from '$lib/features/start/ThreadsDialog.svelte';
 	import { keyOf, StartPage, type Row } from '$lib/features/start/startPage.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
@@ -33,10 +33,6 @@
 </script>
 
 <svelte:head><title>Docent</title></svelte:head>
-
-{#if page.checked && !page.ready && !page.setupSeen}
-	<SetupDialog {page} onclose={() => page.dismissSetup()} />
-{/if}
 
 {#if page.threadsOpen}
 	{@const pr = page.threadsOpen}
@@ -69,7 +65,8 @@
 
 <div class="page">
 	<main>
-		<form onsubmit={open}>
+		{#if page.checked && !page.ready}<SetupNotice {page} />{/if}
+		<form onsubmit={open} class:waiting={page.checked && !page.ready}>
 			<h1>Review a pull request</h1>
 			<p class="faint">Paste a GitHub PR link. It’ll be broken into slices you can review one at a time.</p>
 			<div class="row">
@@ -80,14 +77,11 @@
 					aria-label="Pull request link"
 					aria-invalid={formError ? 'true' : undefined}
 					oninput={() => (formError = null)}
+					disabled={page.checked && !page.ready}
 				/>
-				<button class="btn primary big" type="submit">Open</button>
+				<button class="btn primary big" type="submit" disabled={page.checked && !page.ready}>Open</button>
 			</div>
 			{#if formError}<p class="error">{formError}</p>{/if}
-			{#if page.checked && !page.ready}
-				{@const needs = [!page.gh?.login && 'the GitHub CLI signed in', !page.modelSources?.length && 'a model'].filter(Boolean)}
-				<p class="setup">Docent needs {needs.join(' and ')} first. <a href="/getting-started">Getting started</a> shows how.</p>
-			{/if}
 		</form>
 
 		{#if page.justDeleted}
@@ -260,11 +254,6 @@
 		min-height: 100vh;
 		padding: 0 24px;
 	}
-	.setup {
-		margin: 0;
-		color: var(--agent-text);
-		font-size: 14px;
-	}
 	main {
 		max-width: 760px;
 		margin: 0 auto;
@@ -272,6 +261,10 @@
 		display: flex;
 		flex-direction: column;
 		gap: 56px;
+	}
+	/* Nothing to start until what the notice above asks for is set up. */
+	form.waiting {
+		opacity: 0.4;
 	}
 	form {
 		display: flex;

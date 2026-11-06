@@ -1,5 +1,6 @@
 import type { FileNote } from '$lib/types';
 import type { Hunk, Row } from './diff/parse';
+import type { Mark } from './marks';
 
 // Quiet, not hidden: code only worth skimming folds, and its row says
 // what's inside.
@@ -73,4 +74,18 @@ export function roundPieces(hunk: Hunk, anchor: (row: Row, i: number) => boolean
 		i = j;
 	}
 	return out;
+}
+
+// The findings a fold hides, drawn as one: as the one that matters most to
+// the reader, a kept one over a skipped one over one filtered out. A
+// suggested skip starts out skipped, so it's drawn as its pin draws it.
+export function foldedFinding(marks: Mark[]): { state: 'kept' | 'skipped' | 'filtered'; count: number; unread: boolean } | null {
+	const findings = marks.filter((m) => m.kind === 'finding');
+	if (!findings.length) return null;
+	const states = new Set(findings.map((m) => (m.filtered ? 'filtered' : m.included === false ? 'skipped' : 'kept')));
+	return {
+		state: states.has('kept') ? 'kept' : states.has('skipped') ? 'skipped' : 'filtered',
+		count: findings.length,
+		unread: findings.some((m) => !!m.unread)
+	};
 }

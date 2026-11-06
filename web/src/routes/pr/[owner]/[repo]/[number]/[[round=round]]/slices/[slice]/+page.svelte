@@ -12,6 +12,7 @@
 	import ViewOptions from '$lib/features/reading/ViewOptions.svelte';
 	import AskBubble from '$lib/features/reading/AskBubble.svelte';
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
+	import { isNewFinding } from '$lib/types';
 
 	const session = useSession();
 	let allOpen = $state(false);
@@ -30,10 +31,6 @@
 		return after ?? slices.slice(0, index).find((s) => !isSliceReviewed(s, session.reviewed));
 	});
 
-	function goNext() {
-		goto(next ? `${base}/slices/${next.id}` : `${base}/wrap-up`);
-	}
-
 	const markById = (id: string): Mark | LooseMark | undefined => session.allFindings.find((f) => f.mark.id === id)?.mark;
 
 	function go(target: string | null) {
@@ -41,53 +38,61 @@
 		window.scrollTo(0, 0);
 	}
 
-	// A second opinion: a slice becoming reviewed shows the panel's findings
-	// on it that are still waiting on a keep or skip. After Mark slice
-	// reviewed its Done moves on; after ticking the last file it stays.
-	let opinion = $state<{ ids: string[]; next: string | null; stay?: boolean } | null>(null);
-	// Set while Mark slice reviewed handles the moment itself.
-	let marking = false;
+	// A second opinion: moving on from a slice holding a finding the editor
+	// would keep that you've never opened - which would go out with your
+	// review unseen - first shows the slice's findings still waiting on a
+	// keep or skip, those never opened first. Done moves on and counts them
+	// read; closing it any other way stays and leaves them as they were, and
+	// it's shown again only once there's another such finding.
+	let opinion = $state<{ ids: string[]; next: string | null } | null>(null);
 
-	function showOpinion(ids: string[], next: string | null, stay = false) {
-		// Seen here, so they aren't news when the slice is next opened.
-		// Seen here in full, so they're read.
-		for (const id of ids) {
-			const mark = markById(id);
-			if (mark?.reviewer) session.conversations.markFindingRead(mark.reviewer, id);
-		}
-		opinion = { ids, next, stay };
+	const isNew = (mark: Mark | LooseMark) => {
+		const item = mark.reviewer ? session.record.feedback[mark.reviewer]?.items.find((i) => i.id === mark.id) : undefined;
+		return !!item && isNewFinding(item);
+	};
+
+	// Moves away so far, so a move waiting on a save can tell another came first.
+	let moves = 0;
+
+	// For the slice being left, which a save in between can have moved on from.
+	function leave(target: string | null, from = slice?.id) {
+		moves++;
+		if (!from) return go(target);
+		const undecided = session.undecidedIn(from);
+		const shown = session.opinionShown.get(from) ?? new Set<string>();
+		const unseen = undecided.filter((m) => m.included !== false && isNew(m) && !shown.has(m.id));
+		if (!unseen.length) return go(target);
+		const ids = [...undecided.filter(isNew), ...undecided.filter((m) => !isNew(m))].map((m) => m.id);
+		// Everything it shows, so a suggested skip shown here and later
+		// suggested for keeping isn't taken for something new.
+		session.opinionShown.set(from, new Set([...shown, ...ids]));
+		opinion = { ids, next: target };
 	}
 
 	async function markReviewed() {
 		if (!slice) return;
 		const target = next?.id ?? null;
-		const pending = session.undecidedIn(slice.id).map((m) => m.id);
-		marking = true;
+		const from = slice.id;
+		const at = moves;
 		await session.setReviewed(slice.hunks, true);
-		marking = false;
-		if (pending.length) showOpinion(pending, target);
-		else go(target);
+		// Moved on already while it saved, to another slice or by the button
+		// it shows on this one: that move stands.
+		if (moves !== at || slice?.id !== from) return;
+		leave(target, from);
 	}
-
-	// The slice becoming reviewed any other way: its last file ticked.
-	let wasDone: { slice: string; done: boolean } | null = null;
-	$effect(() => {
-		const now = { slice: sliceId ?? '', done };
-		const before = wasDone;
-		wasDone = now;
-		if (marking || !before || before.slice !== now.slice || before.done || !now.done) return;
-		const pending = session.undecidedIn(now.slice).map((m) => m.id);
-		if (pending.length) showOpinion(pending, null, true);
-	});
 
 	// The panel's editor at work on this slice.
 	const reviewing = $derived(sliceId ? session.panel.reviewing(sliceId) : false);
 
-	// The second opinion's Done completes the move it interrupted.
 	function finishOpinion() {
 		const current = opinion;
 		opinion = null;
-		if (current && !current.stay) go(current.next);
+		if (!current) return;
+		for (const id of current.ids) {
+			const mark = markById(id);
+			if (mark?.reviewer) session.conversations.markFindingRead(mark.reviewer, id);
+		}
+		go(current.next);
 	}
 
 	// Opens a finding where it sits in the diff, through any fold hiding it.
@@ -136,7 +141,7 @@
 			<div class="finish">
 				{#if done}
 					<button class="btn" onclick={() => session.setReviewed(slice.hunks, false)}>Mark not reviewed</button>
-					<button class="btn primary big" onclick={goNext}>{next ? 'Next slice →' : 'Wrap up →'}</button>
+					<button class="btn primary big" onclick={() => leave(next?.id ?? null)}>{next ? 'Next slice →' : 'Wrap up →'}</button>
 				{:else}
 					<button class="btn primary big" onclick={markReviewed}>Mark slice reviewed <kbd>R</kbd></button>
 				{/if}
@@ -150,7 +155,7 @@
 
 {#if opinion}
 	{@const marks = opinion.ids.map(markById).filter((m) => m !== undefined)}
-	<Dialog label="Slice reviewed" onclose={finishOpinion}>
+	<Dialog label="Slice reviewed" onclose={() => (opinion = null)}>
 		<span class="done-label">Slice reviewed</span>
 		<h2>The panel noticed {plural(marks.length, 'thing')} here</h2>
 		{#each marks as mark (mark.id)}

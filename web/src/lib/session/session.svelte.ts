@@ -362,6 +362,9 @@ export class PrSession {
 	undecidedIn(sliceId: string) {
 		return this.allFindings.filter((f) => !f.mark.decided && f.slices.includes(sliceId)).map((f) => f.mark);
 	}
+	// The findings a slice's second opinion has already been shown for, so
+	// it only comes back with something new.
+	readonly opinionShown = new Map<string, Set<string>>();
 
 	// A thread or finding to bring into view and open: its file opens, and so
 	// does any fold hiding it. Cleared by the file that shows it.

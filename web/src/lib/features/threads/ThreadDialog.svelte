@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import Avatar from '$lib/ui/Avatar.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
@@ -40,18 +41,25 @@
 	const entries = $derived(thread?.entries ?? []);
 	const folded = $derived(!showAll && entries.length > 3 ? entries.length - 2 : 0);
 
-	// A reply drafted by the check, to edit, until one's written.
+	// A reply drafted by the check, to edit or clear. The draft can land after
+	// the thread's opened - checking it from here - so it's put in when it
+	// does, once: a later check's new draft replaces it only if it's untouched.
 	let reply = $state('');
 	let replyFor = '';
+	let drafted: string | undefined;
 	$effect(() => {
-		if (replyFor === id) return;
-		replyFor = id;
-		reply = check?.reply ?? '';
-		showAll = false;
-		error = null;
-	});
-	$effect(() => {
-		if (!reply && check?.reply && replyFor === id) reply = check.reply;
+		const draft = check?.reply;
+		if (replyFor !== id) {
+			replyFor = id;
+			drafted = undefined;
+			reply = '';
+			showAll = false;
+			error = null;
+		}
+		if (draft && draft !== drafted) {
+			if (untrack(() => !reply.trim() || reply === drafted)) reply = draft;
+			drafted = draft;
+		}
 	});
 
 	let busy = $state(false);
@@ -173,8 +181,9 @@
 					<span class="faint small">{reply && reply === check?.reply ? 'Drafted from the check. ' : ''}Sent to GitHub straight away.</span>
 					<span class="grow"></span>
 					{#if busy}<Spinner size={13} />{/if}
-					<button class="btn" disabled={busy} onclick={() => act({ resolved: !thread.resolved, ...(reply.trim() ? { reply } : {}) })}>
-						{reply.trim() ? (thread.resolved ? 'Reply and reopen' : 'Reply and resolve') : thread.resolved ? 'Reopen' : 'Resolve'}
+					<button class="btn" disabled={busy} onclick={() => act({ resolved: !thread.resolved })}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
+					<button class="btn" disabled={busy || !reply.trim()} onclick={() => act({ resolved: !thread.resolved, reply })}>
+						{thread.resolved ? 'Reply and reopen' : 'Reply and resolve'}
 					</button>
 					<button class="btn primary" disabled={busy || !reply.trim()} onclick={() => act({ reply })}>Reply</button>
 				</div>
@@ -311,7 +320,8 @@
 		gap: 10px;
 		padding: 14px 16px;
 		border-radius: 12px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
+		background: var(--popover);
+		box-shadow: inset 0 0 0 1px var(--popover-line);
 	}
 	.check span {
 		display: inline-flex;
@@ -361,6 +371,10 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
+	}
+	.buttons .btn:disabled {
+		opacity: 0.4;
+		cursor: default;
 	}
 	.small {
 		font-size: 12.5px;
