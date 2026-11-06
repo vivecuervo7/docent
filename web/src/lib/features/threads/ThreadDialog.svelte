@@ -322,7 +322,8 @@
 		gap: 10px;
 		padding: 14px 16px;
 		border-radius: 12px;
-		box-shadow: inset 0 0 0 1px var(--line-2);
+		background: var(--popover);
+		box-shadow: inset 0 0 0 1px var(--popover-line);
 	}
 	.check span {
 		display: inline-flex;
