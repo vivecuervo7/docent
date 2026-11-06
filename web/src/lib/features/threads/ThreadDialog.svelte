@@ -182,11 +182,9 @@
 					<span class="grow"></span>
 					{#if busy}<Spinner size={13} />{/if}
 					<button class="btn" disabled={busy} onclick={() => act({ resolved: !thread.resolved })}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
-					{#if reply.trim()}
-						<button class="btn" disabled={busy} onclick={() => act({ resolved: !thread.resolved, reply })}>
-							{thread.resolved ? 'Reply and reopen' : 'Reply and resolve'}
-						</button>
-					{/if}
+					<button class="btn" disabled={busy || !reply.trim()} onclick={() => act({ resolved: !thread.resolved, reply })}>
+						{thread.resolved ? 'Reply and reopen' : 'Reply and resolve'}
+					</button>
 					<button class="btn primary" disabled={busy || !reply.trim()} onclick={() => act({ reply })}>Reply</button>
 				</div>
 			</div>
