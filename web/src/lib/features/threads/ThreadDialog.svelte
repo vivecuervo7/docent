@@ -181,9 +181,12 @@
 					<span class="faint small">{reply && reply === check?.reply ? 'Drafted from the check. ' : ''}Sent to GitHub straight away.</span>
 					<span class="grow"></span>
 					{#if busy}<Spinner size={13} />{/if}
-					<button class="btn" disabled={busy} onclick={() => act({ resolved: !thread.resolved, ...(reply.trim() ? { reply } : {}) })}>
-						{reply.trim() ? (thread.resolved ? 'Reply and reopen' : 'Reply and resolve') : thread.resolved ? 'Reopen' : 'Resolve'}
-					</button>
+					<button class="btn" disabled={busy} onclick={() => act({ resolved: !thread.resolved })}>{thread.resolved ? 'Reopen' : 'Resolve'}</button>
+					{#if reply.trim()}
+						<button class="btn" disabled={busy} onclick={() => act({ resolved: !thread.resolved, reply })}>
+							{thread.resolved ? 'Reply and reopen' : 'Reply and resolve'}
+						</button>
+					{/if}
 					<button class="btn primary" disabled={busy || !reply.trim()} onclick={() => act({ reply })}>Reply</button>
 				</div>
 			</div>
