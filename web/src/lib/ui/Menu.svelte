@@ -71,6 +71,11 @@
 
 	const matches = $derived(shown.flatMap((g) => g.items));
 	let active = $state(-1);
+	// An index into the options, so it starts over when they change beneath it.
+	$effect(() => {
+		void groups;
+		active = -1;
+	});
 	let list = $state<HTMLDivElement | null>(null);
 	function step(by: number) {
 		if (!matches.length) return;
@@ -98,12 +103,13 @@
 
 	// As tall as the window has room for, so its end can be scrolled to:
 	// below the trigger, or above it when it doesn't fit below and there's
-	// more room above. Which way is settled on opening, so narrowing the
-	// options with the filter can't flip it; scrolling and resizing change
-	// only how tall it is.
+	// more room above. Which way is settled on opening, and again when the
+	// caller's options change (a long list arriving late), but not as the
+	// filter narrows them; scrolling and resizing change only how tall it is.
 	let room = $state<number | null>(null);
 	let up = $state(false);
 	$effect(() => {
+		void groups;
 		if (!open || !root || !list) return;
 		const el = root;
 		const space = () => {
