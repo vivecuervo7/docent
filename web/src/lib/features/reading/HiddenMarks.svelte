@@ -2,21 +2,36 @@
 	import { isUnread } from '$lib/types';
 	import MarkIcon from './MarkIcon.svelte';
 	import type { Mark } from './marks';
+	import { foldedFinding } from './quietFolds';
 
 	// The marks on lines a fold is hiding, shown on the fold instead so
 	// they're found without opening it. Hangs off the fold's right edge.
-	// Something new to read in one wears the dot its pin would.
+	// Something new to read in one wears the dot its pin would. Its findings
+	// show as one, where the first of them sits.
 	let { marks }: { marks: Mark[] } = $props();
-	const unread = (m: Mark) => (m.kind === 'finding' ? !!m.unread : !!m.note && isUnread(m.note));
+	const finding = $derived(foldedFinding(marks));
+	const first = $derived(marks.find((m) => m.kind === 'finding'));
+	const shown = $derived(marks.filter((m) => m.kind !== 'finding' || m === first));
+	const unread = (m: Mark) => (m.kind === 'finding' ? !!finding?.unread : !!m.note && isUnread(m.note));
+	const findingTitle = $derived(
+		!finding
+			? ''
+			: finding.count > 1
+				? `${finding.count} findings are inside`
+				: finding.state === 'skipped' && first?.skipSuggested && !first.decided
+					? 'A finding suggested for skipping is inside'
+					: `A ${{ kept: '', skipped: 'skipped ', filtered: 'filtered-out ' }[finding.state]}finding is inside`
+	);
 </script>
 
-{#if marks.length}
+{#if shown.length}
 	<span class="hidden-marks">
-		{#each marks as m (m.id)}
+		{#each shown as m (m.id)}
 			<span
 				class="mark {m.kind}"
-				class:skipped={m.kind === 'finding' && m.included === false}
-				title="{m.kind === 'finding' ? 'A finding' : m.kind === 'github' ? 'A GitHub thread' : 'A thread'} is inside"
+				class:skipped={m.kind === 'finding' && finding?.state === 'skipped'}
+				class:filtered={m.kind === 'finding' && finding?.state === 'filtered'}
+				title={m.kind === 'finding' ? findingTitle : `${m.kind === 'github' ? 'A GitHub thread' : 'A thread'} is inside`}
 			>
 				<MarkIcon kind={m.kind} small />
 				{#if unread(m)}<span class="unread" aria-label="New to read"></span>{/if}
@@ -60,6 +75,12 @@
 		stroke: var(--agent);
 		stroke-width: 1.2;
 		opacity: 0.75;
+	}
+	.mark.finding.filtered {
+		fill: none;
+		stroke: var(--faint);
+		stroke-width: 1.2;
+		stroke-dasharray: 2 1.6;
 	}
 	.unread {
 		position: absolute;
