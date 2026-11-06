@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
+	import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
 	import { onDismiss } from './dismiss';
@@ -14,12 +15,12 @@
 		{ href: '/settings', label: 'Settings', icon: 'sliders' }
 	] as const;
 
-	let gh = $state<{ login?: string; name?: string; avatar?: string } | null>(null);
+	// Not known until the setup check first answers, and shown as neither
+	// signed in nor out till then.
+	const loading = $derived(setup.current === undefined);
+	const gh = $derived(setup.current?.gh);
 	$effect(() => {
-		fetch('/api/setup')
-			.then((res) => (res.ok ? res.json() : null))
-			.then((setup) => (gh = setup?.gh ?? null))
-			.catch(() => {});
+		if (loading) checkSetup().catch(() => {});
 	});
 
 	let open = $state(false);
@@ -38,17 +39,26 @@
 	<div class="end">
 		<ModelPicker />
 		<div class="account" bind:this={account}>
-			<button class="trigger" aria-expanded={open} aria-label={gh?.login ? `GitHub as @${gh.login}` : 'Not signed in to GitHub'} onclick={() => (open = !open)}>
-				<Avatar src={gh?.avatar} name={gh?.login ?? '?'} size={34} />
+			<button
+				class="trigger"
+				aria-expanded={open}
+				aria-label={loading ? 'GitHub account' : gh?.login ? `GitHub as @${gh.login}` : 'Not signed in to GitHub'}
+				onclick={() => (open = !open)}
+			>
+				{#if loading}<span class="placeholder"></span>{:else}<Avatar src={gh?.avatar} name={gh?.login ?? '?'} size={34} />{/if}
 			</button>
 			{#if open}
 				<div class="menu" role="menu" aria-label="Docent">
 					<div class="who">
-						<Avatar src={gh?.avatar} name={gh?.login ?? '?'} size={32} />
-						<div>
-							<strong>{gh?.login ? (gh.name ?? gh.login) : 'Not signed in'}</strong>
-							<span class="faint">{gh?.login ? 'Signed in through the' : 'Sign in with the'} <code>gh</code> CLI</span>
-						</div>
+						{#if loading}
+							<span class="faint">Checking the <code>gh</code> CLI…</span>
+						{:else}
+							<Avatar src={gh?.avatar} name={gh?.login ?? '?'} size={32} />
+							<div>
+								<strong>{gh?.login ? (gh.name ?? gh.login) : 'Not signed in'}</strong>
+								<span class="faint">{gh?.login ? 'Signed in through the' : 'Sign in with the'} <code>gh</code> CLI</span>
+							</div>
+						{/if}
 					</div>
 					<hr />
 					{#each links as { href, label, icon } (href)}
@@ -101,6 +111,12 @@
 		border-radius: 50%;
 		background: none;
 		cursor: pointer;
+	}
+	.placeholder {
+		width: 34px;
+		height: 34px;
+		border-radius: 50%;
+		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.menu {
 		position: absolute;

@@ -2,6 +2,7 @@
 	import { plural } from '$lib/ui/format';
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
+	import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
 	import type { ModelOption } from '$lib/types';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
@@ -9,13 +10,6 @@
 
 	// What Docent needs on this machine, then the optional extras, each
 	// checked live.
-	interface SetupCheck {
-		gh: { installed: boolean; login?: string };
-		claude: { installed: boolean; version?: string };
-		codex: { installed: boolean; version?: string };
-		// Added here, or at another address that needs replacing.
-		mcp: Record<Agent, { added: boolean; elsewhere?: string }>;
-	}
 
 	const MCP_URL = `${location.origin}/mcp`;
 	// How each agent adds Docent's MCP server, for all your projects, and
@@ -25,7 +19,7 @@
 		codex: { name: 'Codex', add: `codex mcp add docent --url ${MCP_URL}`, remove: 'codex mcp remove docent' }
 	} as const;
 	type Agent = keyof typeof AGENTS;
-	let check = $state<SetupCheck | null>(null);
+	const check = $derived(setup.current ?? null);
 	// The models available right now, by where they run.
 	let sources = $state<string[] | null>(null);
 	// How many of each optional extra are set up.
@@ -44,11 +38,7 @@
 		if (fresh) checking = true;
 		error = null;
 		try {
-			const [setup, models] = await Promise.all([
-				readOk<SetupCheck>(await fetch(fresh ? '/api/setup?fresh' : '/api/setup')),
-				readOk<{ options: ModelOption[] }>(await fetch(fresh ? '/api/models?fresh' : '/api/models'))
-			]);
-			check = setup;
+			const [, models] = await Promise.all([checkSetup(fresh), readOk<{ options: ModelOption[] }>(await fetch(fresh ? '/api/models?fresh' : '/api/models'))]);
 			sources = [...new Set(models.options.map((o) => o.source))];
 			const [personas, externals] = await Promise.all([
 				readOk<{ items: unknown[] }>(await fetch('/api/personas')),
