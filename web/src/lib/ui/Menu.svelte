@@ -98,22 +98,25 @@
 
 	// As tall as the window has room for, so its end can be scrolled to:
 	// below the trigger, or above it when it doesn't fit below and there's
-	// more room above. Measured again as the page scrolls or the window resizes.
+	// more room above. Which way is settled on opening, so narrowing the
+	// options with the filter can't flip it; scrolling and resizing change
+	// only how tall it is.
 	let room = $state<number | null>(null);
 	let up = $state(false);
 	$effect(() => {
 		if (!open || !root || !list) return;
 		const el = root;
-		const menu = list;
-		const measure = () => {
+		const space = () => {
 			const { top, bottom } = el.getBoundingClientRect();
-			const below = window.innerHeight - bottom - 22;
 			// Clear of the sticky top bar, as Floating keeps.
-			const above = top - 76;
-			// Its own height, or enough of it to be worth scrolling.
-			const needs = Math.min(menu.scrollHeight, 240);
-			const flip = below < needs && above > below;
-			up = flip;
+			return { below: window.innerHeight - bottom - 22, above: top - 76 };
+		};
+		const first = space();
+		// Its own height, or enough of it to be worth scrolling.
+		const flip = first.below < Math.min(list.scrollHeight, 240) && first.above > first.below;
+		up = flip;
+		const measure = () => {
+			const { below, above } = space();
 			room = Math.max(0, Math.min(window.innerHeight * 0.7, flip ? above : below));
 		};
 		measure();
