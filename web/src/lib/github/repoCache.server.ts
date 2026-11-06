@@ -7,6 +7,7 @@ import { persistent } from '../storage/persistent.server.js';
 import type { PrFile } from './github.server.js';
 import { filesInDiff } from './diffFiles.js';
 import { DEFAULT_HOST, githubHost } from './host.server.js';
+import { gitFailure } from './gitError.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,6 +25,8 @@ const MAX_LIST = 2000;
 const MAX_FILE_BYTES = 400_000;
 const MAX_SEARCH_FILES = 4000;
 const MAX_SEARCH_LINES = 200;
+
+const GIT_TIMEOUT = 120_000;
 
 const github = persistent('repo-cache.github', () => ({ token: null as Promise<string> | null }));
 
@@ -48,7 +51,7 @@ async function git(dir: string, args: string[], extraEnv: Record<string, string>
 		cwd: dir,
 		env: { ...(await env()), ...extraEnv },
 		maxBuffer: 64 * 1024 * 1024,
-		timeout: 120_000
+		timeout: GIT_TIMEOUT
 	});
 	return stdout;
 }
@@ -145,12 +148,17 @@ export function listFiles(owner: string, repo: string, sha: string, dir = ''): P
 export function readFile(owner: string, repo: string, sha: string, path: string, from?: number, to?: number): Promise<string> {
 	return inRepo(owner, repo, async (repoDir) => {
 		const p = clean(path);
-		let content: string;
-		try {
-			content = await git(repoDir, ['cat-file', 'blob', `${sha}:${p}`]);
-		} catch {
-			throw new Error(`There's no file at ${p} in the PR's head. list_files shows what's there.`);
-		}
+		if (!p) throw new Error("That's the repo's root. list_files shows what's in it.");
+		const read = (args: string[]) =>
+			git(repoDir, args).catch((err) => {
+				throw new Error(gitFailure(err, `reading ${p}`, GIT_TIMEOUT));
+			});
+		// The tree is asked first: it's already here, so a path that isn't there
+		// is told apart from git failing to fetch a file that is.
+		const type = (await read(['ls-tree', sha, '--', p])).split(' ')[1];
+		if (type === 'tree') throw new Error(`${p} is a directory. list_files shows what's in it.`);
+		if (type !== 'blob') throw new Error(`There's no file at ${p} in the PR's head. list_files shows what's there.`);
+		const content = await read(['cat-file', 'blob', `${sha}:${p}`]);
 		const lines = content.split('\n');
 		const start = Math.max(1, from ?? 1);
 		const end = Math.min(lines.length, to ?? lines.length);
