@@ -42,13 +42,14 @@
 			<button
 				class="trigger"
 				aria-expanded={open}
+				aria-controls="account-menu"
 				aria-label={loading ? 'GitHub account' : gh?.login ? `GitHub as @${gh.login}` : 'Not signed in to GitHub'}
 				onclick={() => (open = !open)}
 			>
 				{#if loading}<span class="placeholder"></span>{:else}<Avatar src={gh?.avatar} name={gh?.login ?? '?'} size={34} />{/if}
 			</button>
 			{#if open}
-				<div class="menu" role="menu" aria-label="Docent">
+				<nav class="menu" id="account-menu" aria-label="Account">
 					<div class="who">
 						{#if loading}
 							<span class="faint">Checking the <code>gh</code> CLI…</span>
@@ -66,7 +67,6 @@
 							class="item"
 							class:current={page.url.pathname === href}
 							aria-current={page.url.pathname === href ? 'page' : undefined}
-							role="menuitem"
 							{href}
 							onclick={() => (open = false)}
 						>
@@ -74,7 +74,7 @@
 							{label}
 						</a>
 					{/each}
-				</div>
+				</nav>
 			{/if}
 		</div>
 	</div>
