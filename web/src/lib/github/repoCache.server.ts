@@ -213,7 +213,7 @@ export function searchCode(owner: string, repo: string, sha: string, pattern: st
 		} catch (err) {
 			// No match is exit code 1.
 			if ((err as { code?: number }).code === 1) return `No matches for /${pattern}/ in ${d || 'the repo'}.`;
-			throw new Error(`The search failed: ${(err as Error).message.split('\n').find((l) => /fatal|error/i.test(l)) ?? 'bad pattern?'}`);
+			throw new Error(gitFailure(err, `searching for /${pattern}/`, GIT_TIMEOUT));
 		}
 		const lines = out
 			.split('\n')
