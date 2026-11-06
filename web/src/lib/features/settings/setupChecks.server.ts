@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 // server added, so the reviewer's own agent can send findings.
 
 export interface SetupCheck {
-	gh: { installed: boolean; login?: string };
+	gh: { installed: boolean; login?: string; name?: string; avatar?: string };
 	claude: { installed: boolean; version?: string };
 	codex: { installed: boolean; version?: string };
 	// Docent's MCP server added to each, for all the reviewer's projects.
@@ -43,12 +43,20 @@ function mcpEntry(out: string | null, mcpUrl: string): McpEntry {
 // address is the one Docent was last reached at.
 export const setupCheck = lastKnown('setup', () => checkSetup(knownMcpUrl()));
 
+function parseUser(out: string | null): { login?: string; avatar_url?: string; name?: string | null } {
+	try {
+		return JSON.parse(out ?? '') ?? {};
+	} catch {
+		return {};
+	}
+}
+
 // The MCP server counts as added only at this address, so an entry left
 // pointing somewhere else isn't taken for a working one.
 export async function checkSetup(mcpUrl: string): Promise<SetupCheck> {
-	const [ghVersion, login, claudeVersion, codexVersion] = await Promise.all([
+	const [ghVersion, user, claudeVersion, codexVersion] = await Promise.all([
 		run('gh', ['--version']),
-		run('gh', ['api', 'user', '--jq', '.login']),
+		run('gh', ['api', 'user', '--jq', '{login, avatar_url, name}']),
 		run('claude', ['--version']),
 		run('codex', ['--version'])
 	]);
@@ -56,8 +64,9 @@ export async function checkSetup(mcpUrl: string): Promise<SetupCheck> {
 		claudeVersion !== null ? run('claude', ['mcp', 'get', 'docent']).then((out) => mcpEntry(out, mcpUrl)) : { added: false },
 		codexVersion !== null ? run('codex', ['mcp', 'get', 'docent']).then((out) => mcpEntry(out, mcpUrl)) : { added: false }
 	]);
+	const { login, avatar_url: avatar, name } = parseUser(user);
 	return {
-		gh: { installed: ghVersion !== null, login: login || undefined },
+		gh: { installed: ghVersion !== null, login: login || undefined, name: name || undefined, avatar: avatar || undefined },
 		claude: { installed: claudeVersion !== null, version: claudeVersion?.split(' ')[0] },
 		codex: { installed: codexVersion !== null, version: codexVersion?.split(' ').at(-1) },
 		mcp: { claude: claudeMcp, codex: codexMcp }
