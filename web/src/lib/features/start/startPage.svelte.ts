@@ -1,4 +1,5 @@
 import { listModels, readOk, sendJson } from '$lib/api/client';
+import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
 import { shortDate } from '$lib/ui/format';
 import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
 import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
@@ -207,7 +208,7 @@ export class StartPage {
 	statuses = $state<Record<string, PrStatus>>(this.#cached.statuses ?? {});
 	// What Docent needs before it can do anything: the GitHub CLI signed in,
 	// and a model to use. Null until checked.
-	gh = $state<{ installed: boolean; login?: string } | null>(null);
+	readonly gh = $derived(setup.current?.gh ?? null);
 	// Where the available models come from: "Claude Code", "Codex", a provider.
 	modelSources = $state<string[] | null>(null);
 	// The reviewer's GitHub login, to tell their own PRs apart.
@@ -267,8 +268,20 @@ export class StartPage {
 				.then((r) => (this.pinnedKeys = r.pinned))
 				.catch(() => {});
 		});
+		// What was last found shows at once, and is checked again now if it
+		// says Docent isn't ready, as it locks starting a review.
 		$effect(() => {
-			this.recheck();
+			this.recheck().then(() => {
+				if (!this.ready) this.recheck(true);
+			});
+		});
+		// Setting up happens elsewhere, in a terminal or an app's sign-in, so
+		// coming back to the page checks again until it's done.
+		$effect(() => {
+			if (!this.checked || this.ready) return;
+			const again = () => this.recheck(true);
+			window.addEventListener('focus', again);
+			return () => window.removeEventListener('focus', again);
 		});
 		$effect(() => {
 			this.refresh();
@@ -290,18 +303,10 @@ export class StartPage {
 		});
 	}
 
-	// What's set up on this machine, checked again on asking.
-	async recheck() {
-		const [setup, models] = await Promise.all([
-			fetch('/api/setup')
-				.then((res) => readOk<{ gh: { installed: boolean; login?: string } }>(res))
-				.catch(() => null),
-			listModels().catch(() => null)
-		]);
-		if (setup) {
-			this.gh = setup.gh;
-			this.login = setup.gh.login ?? null;
-		}
+	// What's set up on this machine, as last found, or `fresh`, checked again now.
+	async recheck(fresh = false) {
+		const [, models] = await Promise.all([checkSetup(fresh).catch(() => {}), listModels(fresh).catch(() => null)]);
+		if (setup.current) this.login = setup.current.gh.login ?? null;
 		if (models) this.modelSources = [...new Set(models.options.map((o) => o.source))];
 	}
 
