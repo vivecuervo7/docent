@@ -180,7 +180,11 @@ export function readFile(owner: string, repo: string, sha: string, path: string,
 export function searchCode(owner: string, repo: string, sha: string, pattern: string, dir: string): Promise<string> {
 	return inRepo(owner, repo, async (repoDir) => {
 		const d = clean(dir);
-		const tree = await git(repoDir, ['ls-tree', '-r', sha, '--', ...(d ? [d] : [])]);
+		const where = d || 'the repo';
+		const failed = (doing: string) => (err: unknown) => {
+			throw new Error(gitFailure(err, doing, GIT_TIMEOUT));
+		};
+		const tree = await git(repoDir, ['ls-tree', '-r', sha, '--', ...(d ? [d] : [])]).catch(failed(`listing ${where}`));
 		const blobs = [...new Set(tree.split('\n').flatMap((l) => (l.split(/\s+/)[1] === 'blob' ? [l.split(/\s+/)[2]] : [])))];
 		if (blobs.length > MAX_SEARCH_FILES) {
 			throw new Error(`${d || 'The repo'} has ${blobs.length} files; search a narrower directory (at most ${MAX_SEARCH_FILES}).`);
@@ -190,7 +194,10 @@ export function searchCode(owner: string, repo: string, sha: string, pattern: st
 				'git',
 				['cat-file', '--batch-check'],
 				{ cwd: repoDir, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }, maxBuffer: 16 * 1024 * 1024 },
-				(err, stdout) => (err ? reject(err) : resolve(stdout.split('\n').flatMap((l) => (l.endsWith(' missing') ? [l.split(' ')[0]] : []))))
+				(err, stdout) =>
+					err
+						? reject(new Error(gitFailure(err, `checking which files in ${where} are here`, GIT_TIMEOUT)))
+						: resolve(stdout.split('\n').flatMap((l) => (l.endsWith(' missing') ? [l.split(' ')[0]] : [])))
 			);
 			child.stdin?.end(blobs.join('\n') + '\n');
 		});
@@ -205,14 +212,14 @@ export function searchCode(owner: string, repo: string, sha: string, pattern: st
 				'--filter=blob:none',
 				'origin',
 				...missing.slice(i, i + 500)
-			]);
+			]).catch(failed(`fetching files to search ${where}`));
 		}
 		let out: string;
 		try {
 			out = await git(repoDir, ['grep', '-n', '-I', '-E', '-e', pattern, sha, '--', ...(d ? [d] : [])]);
 		} catch (err) {
 			// No match is exit code 1.
-			if ((err as { code?: number }).code === 1) return `No matches for /${pattern}/ in ${d || 'the repo'}.`;
+			if ((err as { code?: number }).code === 1) return `No matches for /${pattern}/ in ${where}.`;
 			throw new Error(gitFailure(err, `searching for /${pattern}/`, GIT_TIMEOUT));
 		}
 		const lines = out
