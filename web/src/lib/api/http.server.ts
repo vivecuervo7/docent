@@ -16,10 +16,10 @@ export const notFound = (error: string) => Response.json({ error }, { status: 40
 export const noContent = () => new Response(null, { status: 204 });
 export const forbidden = (error: string) => Response.json({ error }, { status: 403 });
 
-// Whether a request came from one of Docent's own pages, for the routes that
-// save or run a command: those take no request from other tools on this
-// machine either, only from someone at Docent's own Settings. The hook in
-// hooks.server.ts has already refused other machines' names.
+// Whether a request says it came from one of Docent's own pages, for the
+// routes that save or run a command: a page on any other site, and an agent,
+// which sends no Origin, are refused. The hook in hooks.server.ts has already
+// refused other machines' names.
 export const fromThisApp = (request: Request, url: URL) => request.headers.get('origin') === url.origin;
 
 // A failure from GitHub or a model, reported to the page.

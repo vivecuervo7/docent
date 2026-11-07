@@ -22,18 +22,29 @@ describe('refusal', () => {
 		expect(refusal(request('GET', { host: 'local host' }), url)).not.toBeNull();
 	});
 
-	it('lets a change through from its own page, or from a tool that sends no Origin', () => {
-		expect(refusal(request('POST', { host: 'localhost:17321', origin: 'http://localhost:17321' }), url)).toBeNull();
-		expect(refusal(request('DELETE', { host: 'localhost:17321' }), url)).toBeNull();
+	it('lets a change through from its own page, by any method', () => {
+		for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+			expect(refusal(request(method, { host: 'localhost:17321', origin: 'http://localhost:17321' }), url)).toBeNull();
+		}
+	});
+
+	// SvelteKit itself still refuses a bodiless one in a built Docent; an
+	// agent's JSON request, like /mcp's, goes through.
+	it('leaves a change with no Origin to the route, as agents send none', () => {
+		expect(refusal(request('POST', { host: 'localhost:17321' }), url)).toBeNull();
 	});
 
 	it('refuses a change from another origin, including an opaque one', () => {
 		for (const origin of ['http://evil.test', 'https://localhost:17321', 'http://localhost:9999', 'null']) {
-			expect(refusal(request('POST', { host: 'localhost:17321', origin }), url)).not.toBeNull();
+			for (const method of ['POST', 'PUT', 'DELETE']) {
+				expect(refusal(request(method, { host: 'localhost:17321', origin }), url)).not.toBeNull();
+			}
 		}
 	});
 
 	it('lets a read through whatever its Origin, as reads change nothing', () => {
-		expect(refusal(request('GET', { host: 'localhost:17321', origin: 'http://evil.test' }), url)).toBeNull();
+		for (const method of ['GET', 'HEAD', 'OPTIONS']) {
+			expect(refusal(request(method, { host: 'localhost:17321', origin: 'http://evil.test' }), url)).toBeNull();
+		}
 	});
 });

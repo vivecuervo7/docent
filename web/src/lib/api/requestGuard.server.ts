@@ -8,8 +8,10 @@
 //   server's, and the server's is worked out from that same Host. Refusing
 //   any Host but this machine's is what stops it.
 // - By sending a request straight to localhost, where its Origin gives it
-//   away. Agents and other local tools send no Origin, so a change is refused
-//   only when an Origin says it came from somewhere else.
+//   away. Agents send no Origin, so a change is refused here only when an
+//   Origin says it came from somewhere else. (In a built Docent, SvelteKit
+//   itself still refuses a bodiless change with no Origin before this runs;
+//   agents' JSON requests are unaffected.)
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 const UNCHANGING = new Set(['GET', 'HEAD', 'OPTIONS']);
