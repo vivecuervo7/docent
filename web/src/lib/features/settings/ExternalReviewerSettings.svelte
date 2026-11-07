@@ -146,7 +146,7 @@
 					{/snippet}
 				</Field>
 				<Field label="Model" element="div">
-					{#key draft.runs}<MenuSelect bind:value={draft.model} label="Model" options={modelOptions(draft.runs)} />{/key}
+					{#key draft.runs}<MenuSelect bind:value={draft.model} label="Model" filter="Filter models…" options={modelOptions(draft.runs)} />{/key}
 				</Field>
 				{#if providerOf(draft.runs)}
 					<p class="note">

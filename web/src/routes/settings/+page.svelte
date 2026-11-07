@@ -3,7 +3,9 @@
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk, sendJson } from '$lib/api/client';
 	import { ask } from '$lib/ui/confirm.svelte';
+	import DocentModel from '$lib/features/settings/DocentModel.svelte';
 	import EditorModel from '$lib/features/settings/EditorModel.svelte';
+	import { loadModels } from '$lib/features/settings/models.svelte';
 	import ExternalReviewerSettings from '$lib/features/settings/ExternalReviewerSettings.svelte';
 	import KeyCommandField from '$lib/features/settings/KeyCommandField.svelte';
 	import PersonaSettings from '$lib/features/settings/PersonaSettings.svelte';
@@ -55,6 +57,8 @@
 		if (fresh) loading = true;
 		try {
 			setup = await readOk(await fetch(fresh ? '/api/providers?fresh' : '/api/providers'));
+			// A provider added, changed or found again can change what there is to choose from.
+			if (fresh) loadModels(true);
 		} finally {
 			if (fresh) loading = false;
 		}
@@ -95,7 +99,7 @@
 			>{#if loading}<Spinner size={13} />{/if} Check again</button
 		>
 	</div>
-	<p class="lede">Where Docent’s models come from. The model menu at the top picks from whatever here is available.</p>
+	<p class="lede">Where Docent’s models come from, then which of them it uses for what.</p>
 
 	<SettingsSection title="Claude Code">
 		{#if !setup}
@@ -141,11 +145,10 @@
 		{/if}
 	</SettingsSection>
 
-	<SettingsSection title="Editor" intro="Groups the panel's findings and checks them against the code before they're shown.">
-		<EditorModel />
-	</SettingsSection>
-
-	<SettingsSection title="Providers" intro="OpenAI-compatible endpoints: a local server such as oMLX, or a hosted proxy such as LiteLLM.">
+	<SettingsSection
+		title="Providers"
+		intro="OpenAI-compatible endpoints: a local server such as oMLX, or a hosted proxy such as LiteLLM. Their models answer follow-ups and check threads with tool calls, so choose ones that support them."
+	>
 		{#if setup}
 			<SettingsList items={setup.providers} addLabel="Add a provider" {blank} {save} {remove}>
 				{#snippet mark(p)}<StateMark state={p.error ? 'todo' : 'done'} />{/snippet}
@@ -196,6 +199,23 @@
 				{/snippet}
 			</SettingsList>
 		{/if}
+	</SettingsSection>
+
+	<SettingsSection title="Models" intro="Which of the models above Docent uses for what.">
+		<Field
+			label="Docent's model"
+			element="div"
+			hint="Prepares the slices, answers your questions, and runs Docent's reviewer unless a reviewer chooses its own. The same as the menu at the top."
+		>
+			<DocentModel />
+		</Field>
+		<Field
+			label="The editor's model"
+			element="div"
+			hint="Groups the panel's findings and checks them against the code before they're shown. Uses opus when Claude Code is available, until you choose another."
+		>
+			<EditorModel />
+		</Field>
 	</SettingsSection>
 
 	<PersonaSettings />

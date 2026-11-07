@@ -1,74 +1,31 @@
 <script lang="ts">
 	import Icon from '$lib/ui/Icon.svelte';
 	import { onMount } from 'svelte';
-	import { listModels, selectModel } from '../../api/client';
 	import { modelLabel } from '$lib/features/panel/panel.svelte';
-	import type { ModelOption } from '$lib/types';
+	import { chooseModel, loadModels, models } from '$lib/features/settings/models.svelte';
 	import Menu from '$lib/ui/Menu.svelte';
 
 	// Which model Docent uses, from those available right now. Anything wrong
 	// with a provider shows on the Settings page, not here.
-
-	// The menu as last seen in this browser, so it's there from the first
-	// paint rather than appearing once the models are listed.
-	const KEPT = 'docent.models';
-	let models = $state<{ options: ModelOption[]; selected: string } | null>(kept());
-
-	function kept() {
-		try {
-			return JSON.parse(localStorage.getItem(KEPT) ?? 'null');
-		} catch {
-			return null;
-		}
-	}
-
 	onMount(() => {
-		listModels()
-			.then((s) => {
-				models = s;
-				try {
-					localStorage.setItem(KEPT, JSON.stringify(s));
-				} catch {
-					// Not kept: the menu waits for the list next time.
-				}
-			})
-			.catch(() => {});
+		loadModels();
 	});
 
-	async function choose(model: string) {
-		if (!models || model === models.selected) return;
-		const previous = models.selected;
-		models.selected = model;
-		models.selected = await selectModel(model).catch(() => previous);
-	}
-
 	const groups = $derived(
-		Object.entries(Object.groupBy(models?.options ?? [], (o) => o.source)).map(([heading, options]) => ({
+		Object.entries(Object.groupBy(models.current?.options ?? [], (o) => o.source)).map(([heading, options]) => ({
 			heading,
 			items: (options ?? []).map((o) => ({ value: o.id, label: o.label }))
 		}))
 	);
-	const current = $derived(models?.options.find((o) => o.id === models?.selected));
-	// A provider's model looks through the code with tool calls, which not every model supports.
-	const hasProviderModels = $derived((models?.options ?? []).some((o) => o.source !== 'Claude Code' && o.source !== 'Codex'));
+	const current = $derived(models.current?.options.find((o) => o.id === models.current?.selected));
 </script>
 
-{#if models?.options.length}
-	<Menu
-		{groups}
-		value={models.selected}
-		onchoose={choose}
-		label="Model"
-		width={252}
-		placement="end"
-		note={hasProviderModels
-			? 'Outside Claude Code and Codex, follow-ups and thread checks use tool calls. A model that doesn’t support them will error.'
-			: undefined}
-	>
+{#if models.current?.options.length}
+	<Menu {groups} value={models.current.selected} onchoose={chooseModel} label="Model" filter="Filter models…" width={300} placement="end">
 		{#snippet trigger({ open, toggle })}
 			<button class="trigger" aria-haspopup="menu" aria-expanded={open} onclick={toggle}>
 				<span class="faint">Model</span>
-				<span class="name">{current?.label ?? modelLabel(models!.selected)}</span>
+				<span class="name">{current?.label ?? modelLabel(models.current?.selected ?? '')}</span>
 				<Icon name="down" size={14} />
 			</button>
 		{/snippet}
@@ -83,7 +40,7 @@
 		padding: 4px 8px;
 		border: 0;
 		border-radius: 8px;
-		background: none;
+		background: color-mix(in srgb, var(--surface-2) 50%, transparent);
 		color: var(--muted);
 		font: inherit;
 		font-size: 13.5px;
