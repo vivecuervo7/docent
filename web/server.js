@@ -14,8 +14,13 @@ const { handler } = await import('./build/handler.js');
 const host = process.env.HOST ?? 'localhost';
 const port = Number(process.env.PORT ?? 17321);
 
+// Responses under way, so live ones can be ended when Docent stops.
+const responding = new Set();
+
 const server = http.createServer((req, res) => {
 	req.headers[PROTOCOL_HEADER] = 'http';
+	responding.add(res);
+	res.on('close', () => responding.delete(res));
 	handler(req, res, () => {
 		res.statusCode = 404;
 		res.end();
@@ -29,11 +34,16 @@ server.on('error', (err) => {
 server.listen(port, host, () => console.log(`Listening on http://${host}:${port}`));
 
 // Finishes the requests under way, then stops; any still going after half a
-// minute are cut off.
+// minute are cut off. A live stream, which an open page holds for as long as
+// it's open, never finishes by itself, so it's ended straight away: the page
+// reconnects once Docent is back.
 for (const signal of ['SIGINT', 'SIGTERM']) {
 	process.once(signal, () => {
 		server.close(() => process.exit(0));
 		server.closeIdleConnections();
+		for (const res of responding) {
+			if (String(res.getHeader('content-type')).startsWith('text/event-stream')) res.destroy();
+		}
 		setTimeout(() => server.closeAllConnections(), 30_000).unref();
 	});
 }
