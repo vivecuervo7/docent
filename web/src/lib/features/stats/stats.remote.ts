@@ -12,8 +12,11 @@ export const getStats = query(async () => readStats());
 export const getAnalysis = query.live(async function* () {
 	const { signal } = getRequestEvent().request;
 	while (!signal.aborted) {
+		// Listening before reading, so a change made while this value is on
+		// its way isn't missed.
+		const changed = analysis.nextChange(signal);
 		yield analysis.readAnalysis();
-		await analysis.nextChange(signal);
+		await changed;
 	}
 });
 
@@ -24,6 +27,7 @@ export const resetAnalysis = command(async () => {
 	try {
 		analysis.resetAnalysis();
 	} catch (err) {
-		error(409, (err as Error).message);
+		if (err instanceof analysis.AnalysisRunning) error(409, err.message);
+		throw err;
 	}
 });

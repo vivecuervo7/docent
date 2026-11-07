@@ -46,16 +46,17 @@ const db = persistent('analysis-tables', () => {
 // Those waiting for the analysis to change, told whenever its state does.
 const waiting = persistent('analysis-waiting', () => new Set<() => void>());
 
-const state = persistent(
-	'analysis-state',
-	() =>
-		new Proxy({ running: false, done: 0, total: 0 } as Analysis['status'], {
-			set(target, key, value) {
-				Reflect.set(target, key, value);
-				for (const wake of waiting) wake();
-				return true;
-			}
-		})
+// The state is kept across reloads in dev, and wrapped afresh each time this
+// module loads, so it tells those waiting even after an edit here.
+const state = new Proxy(
+	persistent('analysis-state', () => ({ running: false, done: 0, total: 0 }) as Analysis['status']),
+	{
+		set(target, key, value) {
+			Reflect.set(target, key, value);
+			for (const wake of waiting) wake();
+			return true;
+		}
+	}
 );
 
 // Resolves a moment after the analysis next changes, so a burst of progress
@@ -305,8 +306,15 @@ export function startAnalysis(): void {
 		.catch(() => {});
 }
 
+// Resetting while an analysis runs: the one way a reset can be refused.
+export class AnalysisRunning extends Error {
+	constructor() {
+		super('An analysis is running; wait for it to finish.');
+	}
+}
+
 export function resetAnalysis(): void {
-	if (state.running) throw new Error('An analysis is running; wait for it to finish.');
+	if (state.running) throw new AnalysisRunning();
 	db.exec('DELETE FROM finding_themes; DELETE FROM gap_comments;');
 	Object.assign(state, { done: 0, total: 0, error: undefined, finishedAt: undefined });
 }
