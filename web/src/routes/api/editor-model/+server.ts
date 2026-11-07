@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { resolveModel, setEditorModel } from '$lib/storage/settings.server.js';
-import { editorModel } from '$lib/features/panel/editor.server.js';
-import { badRequest, bodyOf } from '$lib/api/http.server.js';
+import { resolveModel, setEditorModel } from '#lib/storage/settings.server.js';
+import { editorModel } from '#lib/features/panel/editor.server.js';
+import { badRequest, bodyOf } from '#lib/api/http.server.js';
 
 // The model the panel's editor uses. Settings lists the models it could from
 // /api/models, so this answers quickly.

@@ -1,21 +1,21 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
-	import SiteHeader from '$lib/ui/SiteHeader.svelte';
-	import { readOk, sendJson } from '$lib/api/client';
-	import { ask } from '$lib/ui/confirm.svelte';
-	import DocentModel from '$lib/features/settings/DocentModel.svelte';
-	import EditorModel from '$lib/features/settings/EditorModel.svelte';
-	import { loadModels } from '$lib/features/settings/models.svelte';
-	import ExternalReviewerSettings from '$lib/features/settings/ExternalReviewerSettings.svelte';
-	import KeyCommandField from '$lib/features/settings/KeyCommandField.svelte';
-	import PersonaSettings from '$lib/features/settings/PersonaSettings.svelte';
-	import RunnerConcurrency from '$lib/features/settings/RunnerConcurrency.svelte';
-	import SettingsList from '$lib/features/settings/SettingsList.svelte';
-	import SettingsSection from '$lib/features/settings/SettingsSection.svelte';
-	import { CLEAR_WARNING, sendsKeyInTheClear } from '$lib/features/settings/unencrypted';
-	import Field from '$lib/ui/Field.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import StateMark from '$lib/ui/StateMark.svelte';
+	import { plural } from '#lib/ui/format.js';
+	import SiteHeader from '#lib/ui/SiteHeader.svelte';
+	import { readOk, sendJson } from '#lib/api/client.js';
+	import { ask } from '#lib/ui/confirm.svelte.js';
+	import DocentModel from '#lib/features/settings/DocentModel.svelte';
+	import EditorModel from '#lib/features/settings/EditorModel.svelte';
+	import { loadModels } from '#lib/features/settings/models.svelte.js';
+	import ExternalReviewerSettings from '#lib/features/settings/ExternalReviewerSettings.svelte';
+	import KeyCommandField from '#lib/features/settings/KeyCommandField.svelte';
+	import PersonaSettings from '#lib/features/settings/PersonaSettings.svelte';
+	import RunnerConcurrency from '#lib/features/settings/RunnerConcurrency.svelte';
+	import SettingsList from '#lib/features/settings/SettingsList.svelte';
+	import SettingsSection from '#lib/features/settings/SettingsSection.svelte';
+	import { CLEAR_WARNING, sendsKeyInTheClear } from '#lib/features/settings/unencrypted.js';
+	import Field from '#lib/ui/Field.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import StateMark from '#lib/ui/StateMark.svelte';
 
 	// Where Docent's models come from: Claude Code, Codex, and any number of
 	// OpenAI-compatible providers; personas and external reviewers. The model menu at the top picks from

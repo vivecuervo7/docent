@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
-	import Icon from '$lib/ui/Icon.svelte';
-	import { onDismiss } from '$lib/ui/dismiss';
-	import FilePath from '$lib/ui/FilePath.svelte';
-	import Floating from '$lib/ui/Floating.svelte';
-	import InlineText from '$lib/ui/InlineText.svelte';
-	import StateMark from '$lib/ui/StateMark.svelte';
+	import { plural } from '#lib/ui/format.js';
+	import Icon from '#lib/ui/Icon.svelte';
+	import { onDismiss } from '#lib/ui/dismiss.js';
+	import FilePath from '#lib/ui/FilePath.svelte';
+	import Floating from '#lib/ui/Floating.svelte';
+	import InlineText from '#lib/ui/InlineText.svelte';
+	import StateMark from '#lib/ui/StateMark.svelte';
 	import MarkPopover from '../panel/MarkPopover.svelte';
-	import { isConcluded, useSession } from '$lib/session/session.svelte';
-	import { isUnread, type FileNote, type Note, type PrFile } from '$lib/types';
+	import { isConcluded, useSession } from '#lib/session/session.svelte.js';
+	import { isUnread, type FileNote, type Note, type PrFile } from '#lib/types.js';
 	import Composer, { type SendKind } from './Composer.svelte';
 	import { looseGitHubThreads, type LooseMark, type Mark } from './marks';
 	import GitHubThreadPanel from './GitHubThreadPanel.svelte';

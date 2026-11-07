@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { pinnedPrs, setPinned } from '$lib/storage/settings.server.js';
-import { badRequest, bodyOf, validParams } from '$lib/api/http.server.js';
-import { keyFor } from '$lib/storage/store.server.js';
+import { pinnedPrs, setPinned } from '#lib/storage/settings.server.js';
+import { badRequest, bodyOf, validParams } from '#lib/api/http.server.js';
+import { keyFor } from '#lib/storage/store.server.js';
 
 // PRs pinned to the top of the start page, whatever state they're in.
 export const GET: RequestHandler = () => json({ pinned: pinnedPrs() });

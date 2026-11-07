@@ -1,4 +1,4 @@
-import type { FileNote } from '$lib/types';
+import type { FileNote } from '#lib/types.js';
 import type { Hunk, Row } from './diff/parse';
 import type { Mark } from './marks';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import ModelPicker from '$lib/features/start/ModelPicker.svelte';
-	import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
+	import ModelPicker from '#lib/features/start/ModelPicker.svelte';
+	import { checkSetup, setup } from '#lib/features/settings/setup.svelte.js';
 	import Avatar from './Avatar.svelte';
 	import Icon from './Icon.svelte';
 	import { onDismiss } from './dismiss';

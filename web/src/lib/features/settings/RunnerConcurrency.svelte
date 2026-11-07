@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { sendJson } from '$lib/api/client';
+	import { sendJson } from '#lib/api/client.js';
 	// How many of a tool's calls Docent runs at once, changed in place.
 	let { runner, value }: { runner: 'claude-code' | 'codex'; value: number } = $props();
 

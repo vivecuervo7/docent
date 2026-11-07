@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Severity } from '$lib/types';
+	import type { Severity } from '#lib/types.js';
 
 	// How much a finding matters, in a word; the two that could hold a PR
 	// stand out.

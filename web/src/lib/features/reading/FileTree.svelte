@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
-	import { useSession } from '$lib/session/session.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
+	import { useSession } from '#lib/session/session.svelte.js';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { fileTree, treeOrder, type TreeNode } from './fileTree';
 

@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { draftYourFeedback, type EarlierComment, type ThreadForFeedback } from '$lib/features/wrap-up/draftComments.server.js';
-import { badRequest, bodyOf, reviewModel, validParams } from '$lib/api/http.server.js';
-import { startJob } from '$lib/storage/jobs.server.js';
+import { draftYourFeedback, type EarlierComment, type ThreadForFeedback } from '#lib/features/wrap-up/draftComments.server.js';
+import { badRequest, bodyOf, reviewModel, validParams } from '#lib/api/http.server.js';
+import { startJob } from '#lib/storage/jobs.server.js';
 
 // Drafts review comments from the reviewer's threads, as a job on the round:
 // answers at once, and the draft lands in the review when it's made.

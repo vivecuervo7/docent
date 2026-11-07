@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, failed, validParams } from '$lib/api/http.server.js';
-import { keyFor, listDeleted, restoreRecord } from '$lib/storage/store.server.js';
+import { badRequest, bodyOf, failed, validParams } from '#lib/api/http.server.js';
+import { keyFor, listDeleted, restoreRecord } from '#lib/storage/store.server.js';
 
 // Reviews deleted in the last week, and putting one back.
 export const GET: RequestHandler = () =>

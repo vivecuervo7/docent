@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { pull } from '$lib/github/gh.server.js';
-import { badRequest, failed, validParams } from '$lib/api/http.server.js';
-import { fetchViewer } from '$lib/features/posting/postReview.server.js';
+import { pull } from '#lib/github/gh.server.js';
+import { badRequest, failed, validParams } from '#lib/api/http.server.js';
+import { fetchViewer } from '#lib/features/posting/postReview.server.js';
 
 // Who's reviewing: GitHub won't let you approve or request changes on your
 // own PR. And whether auto-merge is on, which approving can set off.

@@ -1,13 +1,13 @@
 <script lang="ts">
-	import SiteHeader from '$lib/ui/SiteHeader.svelte';
-	import { readOk } from '$lib/api/client';
-	import OverlapMap from '$lib/features/stats/OverlapMap.svelte';
-	import ThemesPie from '$lib/features/stats/ThemesPie.svelte';
-	import GapReport from '$lib/features/stats/GapReport.svelte';
-	import type { Analysis, Stats } from '$lib/features/stats/stats';
-	import { summarise } from '$lib/features/stats/summary';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import { shortDate } from '$lib/ui/format';
+	import SiteHeader from '#lib/ui/SiteHeader.svelte';
+	import { readOk } from '#lib/api/client.js';
+	import OverlapMap from '#lib/features/stats/OverlapMap.svelte';
+	import ThemesPie from '#lib/features/stats/ThemesPie.svelte';
+	import GapReport from '#lib/features/stats/GapReport.svelte';
+	import type { Analysis, Stats } from '#lib/features/stats/stats.js';
+	import { summarise } from '#lib/features/stats/summary.js';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import { shortDate } from '#lib/ui/format.js';
 
 	// What reviewing has come to, at a glance: when, how much, how the slices
 	// cut it down, and how the panel's findings fared.

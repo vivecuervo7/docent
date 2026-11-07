@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDismiss } from '$lib/ui/dismiss';
+	import { onDismiss } from '#lib/ui/dismiss.js';
 	import Floating from '../../ui/Floating.svelte';
 	import InlineText from '../../ui/InlineText.svelte';
 

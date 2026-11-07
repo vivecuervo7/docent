@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { answer, question } from '$lib/ui/confirm.svelte';
+	import { answer, question } from '#lib/ui/confirm.svelte.js';
 	import Dialog from './Dialog.svelte';
 
 	// The one confirmation dialog, shown whenever `ask` is waiting.

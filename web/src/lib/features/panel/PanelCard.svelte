@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
-	import Icon from '$lib/ui/Icon.svelte';
+	import { plural } from '#lib/ui/format.js';
+	import Icon from '#lib/ui/Icon.svelte';
 	import { goto } from '$app/navigation';
-	import { ask } from '$lib/ui/confirm.svelte';
+	import { ask } from '#lib/ui/confirm.svelte.js';
 	import { listModels } from '../../api/client';
-	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, setupValue, type ReviewerSetup } from '$lib/features/panel/panel.svelte';
-	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
-	import type { AgentId, AgentReviewer, ModelOption } from '$lib/types';
-	import Menu from '$lib/ui/Menu.svelte';
+	import { agentInstruction, AUTO_PERSONA, isAuto, modelLabel, nameOf, setupFrom, setupValue, type ReviewerSetup } from '#lib/features/panel/panel.svelte.js';
+	import { isSliceReviewed, useSession } from '#lib/session/session.svelte.js';
+	import type { AgentId, AgentReviewer, ModelOption } from '#lib/types.js';
+	import Menu from '#lib/ui/Menu.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 	import IncludeReviews from './IncludeReviews.svelte';
 

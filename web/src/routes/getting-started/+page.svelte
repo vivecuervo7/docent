@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
-	import SiteHeader from '$lib/ui/SiteHeader.svelte';
-	import { readOk } from '$lib/api/client';
-	import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
-	import { loadModels } from '$lib/features/settings/models.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import Segmented from '$lib/ui/Segmented.svelte';
-	import StateMark from '$lib/ui/StateMark.svelte';
+	import { plural } from '#lib/ui/format.js';
+	import SiteHeader from '#lib/ui/SiteHeader.svelte';
+	import { readOk } from '#lib/api/client.js';
+	import { checkSetup, setup } from '#lib/features/settings/setup.svelte.js';
+	import { loadModels } from '#lib/features/settings/models.svelte.js';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import Segmented from '#lib/ui/Segmented.svelte';
+	import StateMark from '#lib/ui/StateMark.svelte';
 
 	// What Docent needs on this machine, then the optional extras, each
 	// checked live.

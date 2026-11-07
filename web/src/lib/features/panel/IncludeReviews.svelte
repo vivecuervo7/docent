@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { useSession } from '$lib/session/session.svelte';
-	import { timeAgo } from '$lib/ui/format';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import { timeAgo } from '#lib/ui/format.js';
 
 	// The reviews on GitHub this round's review reads as already said, all of
 	// them unless one's unticked: its body and comments are then left out, for

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import TopBar from '$lib/session/TopBar.svelte';
-	import { PrSession, provideSession } from '$lib/session/session.svelte';
+	import TopBar from '#lib/session/TopBar.svelte';
+	import { PrSession, provideSession } from '#lib/session/session.svelte.js';
 
 	let { children } = $props();
 

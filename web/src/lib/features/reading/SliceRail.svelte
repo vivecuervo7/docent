@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
+	import { isSliceReviewed, useSession } from '#lib/session/session.svelte.js';
 	import StateMark from '../../ui/StateMark.svelte';
 	import FileTree from './FileTree.svelte';
 

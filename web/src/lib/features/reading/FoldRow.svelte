@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
+	import { plural } from '#lib/ui/format.js';
 	import HiddenMarks from './HiddenMarks.svelte';
 	import type { Row } from './diff/parse';
 	import type { Mark } from './marks';

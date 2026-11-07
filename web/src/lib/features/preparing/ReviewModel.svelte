@@ -1,11 +1,11 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
 	import { onMount } from 'svelte';
 	import { listModels } from '../../api/client';
-	import { modelLabel } from '$lib/features/panel/panel.svelte';
-	import { useSession } from '$lib/session/session.svelte';
-	import type { ModelOption } from '$lib/types';
-	import Menu from '$lib/ui/Menu.svelte';
+	import { modelLabel } from '#lib/features/panel/panel.svelte.js';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import type { ModelOption } from '#lib/types.js';
+	import Menu from '#lib/ui/Menu.svelte';
 
 	// This review's model, changeable for it alone. Until it's first prepared
 	// it follows the start page's.

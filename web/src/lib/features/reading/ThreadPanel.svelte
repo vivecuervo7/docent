@@ -1,8 +1,8 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
-	import { ask } from '$lib/ui/confirm.svelte';
-	import { useSession } from '$lib/session/session.svelte';
-	import { noteWhere, type Note } from '$lib/types';
+	import Icon from '#lib/ui/Icon.svelte';
+	import { ask } from '#lib/ui/confirm.svelte.js';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import { noteWhere, type Note } from '#lib/types.js';
 	import NoteText from '../../ui/NoteText.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 	import Composer, { type SendKind } from './Composer.svelte';

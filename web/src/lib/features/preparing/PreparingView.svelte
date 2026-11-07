@@ -1,10 +1,10 @@
 <script lang="ts">
 	import InlineText from '../../ui/InlineText.svelte';
-	import { modelLabel } from '$lib/features/panel/panel.svelte';
+	import { modelLabel } from '#lib/features/panel/panel.svelte.js';
 	import ReviewModel from './ReviewModel.svelte';
-	import { elapsed, plural } from '$lib/ui/format';
-	import { isGenerating, useSession } from '$lib/session/session.svelte';
-	import type { StepName } from '$lib/types';
+	import { elapsed, plural } from '#lib/ui/format.js';
+	import { isGenerating, useSession } from '#lib/session/session.svelte.js';
+	import type { StepName } from '#lib/types.js';
 	import Spinner from '../../ui/Spinner.svelte';
 	import StateMark from '../../ui/StateMark.svelte';
 

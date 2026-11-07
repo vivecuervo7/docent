@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { readOk, sendJson } from '$lib/api/client';
-	import Field from '$lib/ui/Field.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
+	import { readOk, sendJson } from '#lib/api/client.js';
+	import Field from '#lib/ui/Field.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
 
 	// A provider's key command, checked when it's typed and on request. The
 	// check runs the command on this machine and says whether it gave a key;

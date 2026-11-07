@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
-	import { onDismiss } from '$lib/ui/dismiss';
-	import { isAuto, modelLabel, nameOf } from '$lib/features/panel/panel.svelte';
-	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
-	import { useSession } from '$lib/session/session.svelte';
-	import type { AgentReviewer } from '$lib/types';
+	import { plural } from '#lib/ui/format.js';
+	import { onDismiss } from '#lib/ui/dismiss.js';
+	import { isAuto, modelLabel, nameOf } from '#lib/features/panel/panel.svelte.js';
+	import { namedByKind } from '#lib/features/panel/reviewers.svelte.js';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import type { AgentReviewer } from '#lib/types.js';
 	import InlineText from '../../ui/InlineText.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 	import StateMark from '../../ui/StateMark.svelte';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { readOk, sendJson } from '../../api/client';
-	import { ask } from '$lib/ui/confirm.svelte';
-	import Field from '$lib/ui/Field.svelte';
+	import { ask } from '#lib/ui/confirm.svelte.js';
+	import Field from '#lib/ui/Field.svelte';
 	import MenuSelect from '../../ui/MenuSelect.svelte';
 	import SettingsList from './SettingsList.svelte';
 	import SettingsSection from './SettingsSection.svelte';

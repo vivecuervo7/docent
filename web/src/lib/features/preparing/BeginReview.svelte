@@ -5,9 +5,9 @@
 	import Spinner from '../../ui/Spinner.svelte';
 	import PanelCard from '../panel/PanelCard.svelte';
 	import CommitTrack from '../rounds/CommitTrack.svelte';
-	import { fetchCommits } from '$lib/api/client';
-	import { useSession } from '$lib/session/session.svelte';
-	import type { PrCommit } from '$lib/types';
+	import { fetchCommits } from '#lib/api/client.js';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import type { PrCommit } from '#lib/types.js';
 
 	// Before anything's prepared: which of the PR's commits to review, and
 	// the panel to review them. Both ends of the range snap to commits; a day

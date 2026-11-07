@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { hiddenPrs, setHidden } from '$lib/storage/settings.server.js';
-import { badRequest, bodyOf, validParams } from '$lib/api/http.server.js';
-import { keyFor } from '$lib/storage/store.server.js';
+import { hiddenPrs, setHidden } from '#lib/storage/settings.server.js';
+import { badRequest, bodyOf, validParams } from '#lib/api/http.server.js';
+import { keyFor } from '#lib/storage/store.server.js';
 
 // PRs hidden from the start page's lists: old ones that can't be closed.
 export const GET: RequestHandler = () => json({ hidden: hiddenPrs() });

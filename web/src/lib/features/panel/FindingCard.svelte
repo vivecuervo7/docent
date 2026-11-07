@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { lineSpan } from '$lib/types';
-	import Icon from '$lib/ui/Icon.svelte';
+	import { lineSpan } from '#lib/types.js';
+	import Icon from '#lib/ui/Icon.svelte';
 	import FilePath from '../../ui/FilePath.svelte';
 	import type { LooseMark, Mark } from '../reading/marks';
-	import { useSession } from '$lib/session/session.svelte';
+	import { useSession } from '#lib/session/session.svelte.js';
 	import InlineText from '../../ui/InlineText.svelte';
 	import NoteText from '../../ui/NoteText.svelte';
 	import EditorNotes from './EditorNotes.svelte';
 	import SeverityTag from './SeverityTag.svelte';
-	import KeepSkip from '$lib/ui/KeepSkip.svelte';
+	import KeepSkip from '#lib/ui/KeepSkip.svelte';
 
 	// A finding to keep or skip, in a list rather than in the diff.
 	let { mark, onshow }: { mark: Mark | LooseMark; onshow?: () => void } = $props();

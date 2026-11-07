@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { shortDate } from '$lib/ui/format';
+	import { shortDate } from '#lib/ui/format.js';
 	import type { Snippet } from 'svelte';
 
 	// A PR's commits along a line, oldest first: a pip for each, stretches of

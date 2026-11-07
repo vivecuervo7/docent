@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { isUnread } from '$lib/types';
+	import { isUnread } from '#lib/types.js';
 	import MarkIcon from './MarkIcon.svelte';
 	import type { Mark } from './marks';
 	import { foldedFinding } from './quietFolds';

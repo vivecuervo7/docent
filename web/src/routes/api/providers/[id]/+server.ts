@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { removeProvider, updateProvider } from '$lib/storage/settings.server.js';
-import { providerFields, publicProvider } from '$lib/features/settings/fields.server.js';
-import { bodyOf, forbidden, fromThisApp, noContent, notFound } from '$lib/api/http.server.js';
+import { removeProvider, updateProvider } from '#lib/storage/settings.server.js';
+import { providerFields, publicProvider } from '#lib/features/settings/fields.server.js';
+import { bodyOf, forbidden, fromThisApp, noContent, notFound } from '#lib/api/http.server.js';
 
 export const PUT: RequestHandler = async ({ params: { id }, request, url }) => {
 	const body = await bodyOf(request);

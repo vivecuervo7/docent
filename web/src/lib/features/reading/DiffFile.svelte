@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { prUrl } from '$lib/api/client';
-	import Icon from '$lib/ui/Icon.svelte';
-	import { githubUrl } from '$lib/ui/github';
-	import { onDismiss } from '$lib/ui/dismiss';
+	import { prUrl } from '#lib/api/client.js';
+	import Icon from '#lib/ui/Icon.svelte';
+	import { githubUrl } from '#lib/ui/github.js';
+	import { onDismiss } from '#lib/ui/dismiss.js';
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { looseGitHubThreads, type Mark } from './marks';
-	import type { FileNote, LineRef, PrFile, PrRef } from '$lib/types';
-	import { lineSpan } from '$lib/types';
-	import { highlightHunks, segments, type Token } from '$lib/features/reading/diff/highlight';
+	import type { FileNote, LineRef, PrFile, PrRef } from '#lib/types.js';
+	import { lineSpan } from '#lib/types.js';
+	import { highlightHunks, segments, type Token } from '#lib/features/reading/diff/highlight.js';
 	import {
 		EXPAND_STEP,
 		expandHunk,
@@ -24,7 +24,7 @@
 		type Expansion,
 		type Hunk,
 		type Row
-	} from '$lib/features/reading/diff/parse';
+	} from '#lib/features/reading/diff/parse.js';
 	import InlineText from '../../ui/InlineText.svelte';
 	import Composer, { type SendKind } from './Composer.svelte';
 	import FileHeader from './FileHeader.svelte';
@@ -32,12 +32,12 @@
 	import HiddenMarks from './HiddenMarks.svelte';
 	import Pin from './Pin.svelte';
 	import { quietPieces, roundPieces } from './quietFolds';
-	import { isConcluded, useSession } from '$lib/session/session.svelte';
-	import { isUnread } from '$lib/types';
+	import { isConcluded, useSession } from '#lib/session/session.svelte.js';
+	import { isUnread } from '#lib/types.js';
 	import type { ReferenceElement } from '@floating-ui/dom';
 	import Floating from '../../ui/Floating.svelte';
 	import MarkPopover from '../panel/MarkPopover.svelte';
-	import { testTitleLines } from '$lib/features/reading/testTitles';
+	import { testTitleLines } from '#lib/features/reading/testTitles.js';
 	import ThreadPanel from './ThreadPanel.svelte';
 	import GitHubThreadPanel from './GitHubThreadPanel.svelte';
 	import NoteText from '../../ui/NoteText.svelte';

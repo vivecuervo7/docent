@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { fetchPrMeta } from '$lib/github/github.server.js';
-import { badRequest, failed, validParams } from '$lib/api/http.server.js';
-import { fetchReviewFiles } from '$lib/github/range.server.js';
+import { fetchPrMeta } from '#lib/github/github.server.js';
+import { badRequest, failed, validParams } from '#lib/api/http.server.js';
+import { fetchReviewFiles } from '#lib/github/range.server.js';
 
 // With `round`, an earlier round's files.
 export const GET: RequestHandler = async ({ params: { owner, repo, number }, url }) => {

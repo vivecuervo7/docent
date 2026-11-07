@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, failed, mcpUrl, reviewModel, validParams } from '$lib/api/http.server.js';
-import { startChecks } from '$lib/features/threads/threadChecks.server.js';
+import { badRequest, bodyOf, failed, mcpUrl, reviewModel, validParams } from '#lib/api/http.server.js';
+import { startChecks } from '#lib/features/threads/threadChecks.server.js';
 
 // Checks whether GitHub threads have been dealt with, each saved for the PR
 // as it's made, so the checks land whether or not the page is still open.

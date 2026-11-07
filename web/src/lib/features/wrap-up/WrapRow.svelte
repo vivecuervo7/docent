@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
-	import Icon from '$lib/ui/Icon.svelte';
+	import { plural } from '#lib/ui/format.js';
+	import Icon from '#lib/ui/Icon.svelte';
 	import { raisedBy } from '../panel/findings';
 	import FilePath from '../../ui/FilePath.svelte';
 	import Verdicts from './Verdicts.svelte';
 	import KeepSkip from '../../ui/KeepSkip.svelte';
 	import SeverityTag from '../panel/SeverityTag.svelte';
-	import type { Severity } from '$lib/types';
-	import { lineSpan } from '$lib/types';
-	import type { LineRef } from '$lib/types';
-	import type { NoteMessage } from '$lib/types';
+	import type { Severity } from '#lib/types.js';
+	import { lineSpan } from '#lib/types.js';
+	import type { LineRef } from '#lib/types.js';
+	import type { NoteMessage } from '#lib/types.js';
 	import NoteText from '../../ui/NoteText.svelte';
 
 	// One thing that could go into the review: an agent's finding or one of

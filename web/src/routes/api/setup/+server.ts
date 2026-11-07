@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { mcpUrl } from '$lib/api/http.server.js';
-import { setupCheck } from '$lib/features/settings/setupChecks.server.js';
+import { mcpUrl } from '#lib/api/http.server.js';
+import { setupCheck } from '#lib/features/settings/setupChecks.server.js';
 
 // What's set up on this machine, as last checked unless `?fresh` asks for it
 // checked again now.

@@ -1,12 +1,12 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
-	import { onDismiss } from '$lib/ui/dismiss';
+	import Icon from '#lib/ui/Icon.svelte';
+	import { onDismiss } from '#lib/ui/dismiss.js';
 	import { tick } from 'svelte';
-	import { ask } from '$lib/ui/confirm.svelte';
-	import NoteText from '$lib/ui/NoteText.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import { useSession } from '$lib/session/session.svelte';
-	import { isUnread, type Slice } from '$lib/types';
+	import { ask } from '#lib/ui/confirm.svelte.js';
+	import NoteText from '#lib/ui/NoteText.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import { isUnread, type Slice } from '#lib/types.js';
 	import Composer, { type SendKind } from './Composer.svelte';
 
 	// One running conversation about the page's subject as a whole - the

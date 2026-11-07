@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-	import { MOD } from '$lib/ui/keys';
+	import { MOD } from '#lib/ui/keys.js';
 
 	// Where the reviewer writes in a conversation. Ask sends it to Docent
 	// for a reply. The second action depends on the conversation: Comment

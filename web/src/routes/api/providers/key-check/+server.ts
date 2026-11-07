@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, forbidden, fromThisApp } from '$lib/api/http.server.js';
-import { checkKeyCommand } from '$lib/models/providerKey.server.js';
+import { badRequest, bodyOf, forbidden, fromThisApp } from '#lib/api/http.server.js';
+import { checkKeyCommand } from '#lib/models/providerKey.server.js';
 
 // Whether a key command gives a key, for Settings; the key itself stays here.
 export const POST: RequestHandler = async ({ request, url }) => {

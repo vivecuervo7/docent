@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, failed, validParams } from '$lib/api/http.server.js';
-import { pull } from '$lib/github/gh.server.js';
-import { buildReviewPayload, postReviewPayload, type CommentToPost, type ReviewEvent } from '$lib/features/posting/postReview.server.js';
+import { badRequest, bodyOf, failed, validParams } from '#lib/api/http.server.js';
+import { pull } from '#lib/github/gh.server.js';
+import { buildReviewPayload, postReviewPayload, type CommentToPost, type ReviewEvent } from '#lib/features/posting/postReview.server.js';
 
 // With dryRun, returns exactly what would be sent without sending it. With
 // pending, the review is left for the reviewer to submit on GitHub.

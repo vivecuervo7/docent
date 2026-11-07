@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { badRequest, failed, validParams } from '$lib/api/http.server.js';
-import { checksOf, prThreads } from '$lib/features/threads/threadChecks.server.js';
-import { keyFor } from '$lib/storage/store.server.js';
+import { badRequest, failed, validParams } from '#lib/api/http.server.js';
+import { checksOf, prThreads } from '#lib/features/threads/threadChecks.server.js';
+import { keyFor } from '#lib/storage/store.server.js';
 
 // Every GitHub thread on the PR, with what checking them found: needs no
 // review of it. `?checks` reads just the checks, while some are under way.

@@ -1,14 +1,14 @@
 import { json, type Handle } from '@sveltejs/kit';
 // Keeps the stats from the start, so no review saved before they're first
 // opened goes unrecorded.
-import '$lib/features/stats/stats.server.js';
-import { persistent } from '$lib/storage/persistent.server.js';
+import '#lib/features/stats/stats.server.js';
+import { persistent } from '#lib/storage/persistent.server.js';
 // Marks work left under way by the last run as interrupted.
-import '$lib/storage/interrupted.server.js';
+import '#lib/storage/interrupted.server.js';
 // Marks rounds posted before posting marked them done.
-import '$lib/storage/postedDone.server.js';
-import { modelOptions } from '$lib/models/modelProvider.server.js';
-import { setupCheck } from '$lib/features/settings/setupChecks.server.js';
+import '#lib/storage/postedDone.server.js';
+import { modelOptions } from '#lib/models/modelProvider.server.js';
+import { setupCheck } from '#lib/features/settings/setupChecks.server.js';
 
 // What's installed and which models there are, looked at once the server
 // starts, so the first page to ask has an answer waiting.
