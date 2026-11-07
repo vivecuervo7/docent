@@ -1,7 +1,7 @@
 <script lang="ts" generics="T extends { id: string; name: string }, D extends Record<string, unknown>">
 	import type { Snippet } from 'svelte';
-	import { Reorder } from '$lib/ui/reorder.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
+	import { Reorder } from '#lib/ui/reorder.svelte.js';
+	import Spinner from '#lib/ui/Spinner.svelte';
 
 	// A list kept in settings - providers, personas, external reviewers -
 	// each row changed in place: Edit opens its form where it sits, and the

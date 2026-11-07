@@ -1,4 +1,4 @@
-import { readOk } from '$lib/api/client';
+import { readOk } from '#lib/api/client.js';
 
 // What's set up on this machine, as last checked: one answer every page
 // shares, so the header and Getting started agree, and moving between pages

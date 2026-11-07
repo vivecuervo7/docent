@@ -1,4 +1,4 @@
-import { prUrl, readOk, sendJson } from '../../api/client';
+import { prUrl, readOk, sendJson, sendWithoutBody } from '../../api/client';
 import type { AgentReview, PrRef } from '../../types';
 
 // The PR's agent reviewers each have their own review on the backend.
@@ -9,13 +9,13 @@ export async function getAgentReview(ref: PrRef, reviewer: string): Promise<Agen
 }
 
 export async function endAgentReview(ref: PrRef, reviewer: string, action: 'stop' | 'finish'): Promise<AgentReview | null> {
-	return (await readOk<{ review: AgentReview | null }>(await fetch(reviewUrl(ref, reviewer, action), { method: 'POST' }))).review;
+	return (await readOk<{ review: AgentReview | null }>(await sendWithoutBody(reviewUrl(ref, reviewer, action), 'POST'))).review;
 }
 
 // Lets the backend forget a review that's over; `force` stops a running one
 // first, for a reviewer being removed.
 export async function dismissAgentReview(ref: PrRef, reviewer: string, force = false): Promise<void> {
-	await fetch(`${reviewUrl(ref, reviewer)}${force ? '&force=1' : ''}`, { method: 'DELETE' }).catch(() => {});
+	await sendWithoutBody(`${reviewUrl(ref, reviewer)}${force ? '&force=1' : ''}`, 'DELETE').catch(() => {});
 }
 
 // The review panel a new PR starts with: a model or "external" per reviewer,

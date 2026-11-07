@@ -1,8 +1,7 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, failed, validParams } from '$lib/api/http.server.js';
-import { pull } from '$lib/github/gh.server.js';
-import { buildReviewPayload, postReviewPayload, type CommentToPost, type ReviewEvent } from '$lib/features/posting/postReview.server.js';
+import { badRequest, bodyOf, failed, validParams } from '#lib/api/http.server.js';
+import { pull } from '#lib/github/gh.server.js';
+import { buildReviewPayload, postReviewPayload, type CommentToPost, type ReviewEvent } from '#lib/features/posting/postReview.server.js';
 
 // With dryRun, returns exactly what would be sent without sending it. With
 // pending, the review is left for the reviewer to submit on GitHub.
@@ -20,9 +19,9 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 		// been turned on since the page loaded.
 		if (body.dryRun) {
 			const autoMerge = payload.event === 'APPROVE' ? (await pull(owner, repo, number).catch(() => null))?.autoMerge : null;
-			return json({ payload, autoMerge: autoMerge ?? null });
+			return Response.json({ payload, autoMerge: autoMerge ?? null });
 		}
-		return json({ payload, ...(await postReviewPayload(owner, repo, number, payload)) });
+		return Response.json({ payload, ...(await postReviewPayload(owner, repo, number, payload)) });
 	} catch (err) {
 		return failed(err);
 	}

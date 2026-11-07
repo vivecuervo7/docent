@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
 	import Menu from './Menu.svelte';
 
 	// A choice from a list as a form field, drawn in the app's style rather

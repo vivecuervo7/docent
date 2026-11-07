@@ -1,5 +1,5 @@
-import { readOk, sendJson, prUrl } from '$lib/api/client';
-import type { GitHubThread, PrRef, ThreadCheck } from '$lib/types';
+import { readOk, sendJson, prUrl } from '#lib/api/client.js';
+import type { GitHubThread, PrRef, ThreadCheck } from '#lib/types.js';
 
 // A PR's GitHub threads and what checking them found, loaded from the PR
 // alone: the Overview goes through them, and so can the start page, for a

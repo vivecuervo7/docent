@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
 	// A heading that shows or hides what's under it, with how many are there:
 	// small capitals to sit among lists, or a serif heading to lead a section.
 	// The page shows what's under it while `open`.

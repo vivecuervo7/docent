@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { onDismiss } from '$lib/ui/dismiss';
-	import { shortDate, plural } from '$lib/ui/format';
+	import { onDismiss } from '#lib/ui/dismiss.js';
+	import { shortDate, plural } from '#lib/ui/format.js';
 	import { goto } from '$app/navigation';
-	import { useSession } from '$lib/session/session.svelte';
+	import { useSession } from '#lib/session/session.svelte.js';
 	import CommitTrack from './CommitTrack.svelte';
 	import { spanOf } from './coverage';
-	import { ask } from '$lib/ui/confirm.svelte';
+	import { ask } from '#lib/ui/confirm.svelte.js';
 
 	// The commits this review covers, from any page: a quiet chip naming the
 	// round, that opens to every round - each opened from its commits - and,

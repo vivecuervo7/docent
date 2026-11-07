@@ -1,16 +1,15 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
-import { resolveModel, setEditorModel } from '$lib/storage/settings.server.js';
-import { editorModel } from '$lib/features/panel/editor.server.js';
-import { badRequest, bodyOf } from '$lib/api/http.server.js';
+import { resolveModel, setEditorModel } from '#lib/storage/settings.server.js';
+import { editorModel } from '#lib/features/panel/editor.server.js';
+import { badRequest, bodyOf } from '#lib/api/http.server.js';
 
 // The model the panel's editor uses. Settings lists the models it could from
 // /api/models, so this answers quickly.
-export const GET: RequestHandler = async () => json({ selected: await editorModel() });
+export const GET: RequestHandler = async () => Response.json({ selected: await editorModel() });
 
 export const PUT: RequestHandler = async ({ request }) => {
 	const model = (await bodyOf(request)).model;
 	if (typeof model !== 'string' || !model.trim() || !resolveModel(model.trim())) return badRequest('invalid model');
 	setEditorModel(model.trim());
-	return json({ selected: model.trim() });
+	return Response.json({ selected: model.trim() });
 };

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import FileDiffs from '$lib/features/reading/FileDiffs.svelte';
-	import FoldAll from '$lib/features/reading/FoldAll.svelte';
-	import SliceRail from '$lib/features/reading/SliceRail.svelte';
-	import ViewOptions from '$lib/features/reading/ViewOptions.svelte';
-	import { useSession } from '$lib/session/session.svelte';
+	import FileDiffs from '#lib/features/reading/FileDiffs.svelte';
+	import FoldAll from '#lib/features/reading/FoldAll.svelte';
+	import SliceRail from '#lib/features/reading/SliceRail.svelte';
+	import ViewOptions from '#lib/features/reading/ViewOptions.svelte';
+	import { useSession } from '#lib/session/session.svelte.js';
 
 	// Every file in the PR, whole, outside the slices.
 	const session = useSession();

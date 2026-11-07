@@ -1,7 +1,6 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
-import { modelName, setModelName } from '$lib/storage/settings.server.js';
-import { modelOptions } from '$lib/models/modelProvider.server.js';
+import { modelName, setModelName } from '#lib/storage/settings.server.js';
+import { modelOptions } from '#lib/models/modelProvider.server.js';
 
 // The models that can be picked right now, and which one Docent uses. When
 // the picked one isn't among them (its provider was removed, or none was
@@ -14,5 +13,5 @@ export const GET: RequestHandler = async ({ url }) => {
 		selected = options[0].id;
 		setModelName(selected);
 	}
-	return json({ options, selected });
+	return Response.json({ options, selected });
 };

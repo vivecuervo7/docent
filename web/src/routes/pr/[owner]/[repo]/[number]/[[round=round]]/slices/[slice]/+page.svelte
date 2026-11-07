@@ -1,18 +1,18 @@
 <script lang="ts">
-	import { plural } from '$lib/ui/format';
+	import { plural } from '#lib/ui/format.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import type { LooseMark, Mark } from '$lib/features/reading/marks';
-	import Dialog from '$lib/ui/Dialog.svelte';
-	import FileDiffs from '$lib/features/reading/FileDiffs.svelte';
-	import FindingCard from '$lib/features/panel/FindingCard.svelte';
-	import FoldAll from '$lib/features/reading/FoldAll.svelte';
-	import NoteText from '$lib/ui/NoteText.svelte';
-	import SliceRail from '$lib/features/reading/SliceRail.svelte';
-	import ViewOptions from '$lib/features/reading/ViewOptions.svelte';
-	import AskBubble from '$lib/features/reading/AskBubble.svelte';
-	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
-	import { isNewFinding } from '$lib/types';
+	import type { LooseMark, Mark } from '#lib/features/reading/marks.js';
+	import Dialog from '#lib/ui/Dialog.svelte';
+	import FileDiffs from '#lib/features/reading/FileDiffs.svelte';
+	import FindingCard from '#lib/features/panel/FindingCard.svelte';
+	import FoldAll from '#lib/features/reading/FoldAll.svelte';
+	import NoteText from '#lib/ui/NoteText.svelte';
+	import SliceRail from '#lib/features/reading/SliceRail.svelte';
+	import ViewOptions from '#lib/features/reading/ViewOptions.svelte';
+	import AskBubble from '#lib/features/reading/AskBubble.svelte';
+	import { isSliceReviewed, useSession } from '#lib/session/session.svelte.js';
+	import { isNewFinding } from '#lib/types.js';
 
 	const session = useSession();
 	let allOpen = $state(false);

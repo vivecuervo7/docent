@@ -1,15 +1,15 @@
-import { readOk, sendJson } from '$lib/api/client';
-import { loadModels } from '$lib/features/settings/models.svelte';
-import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
-import { shortDate } from '$lib/ui/format';
-import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
-import { isGenerating, isSliceReviewed } from '$lib/session/session.svelte';
-import { deleteSaved, listSaved, normalize, updateRecord } from '$lib/storage/record';
-import { ask } from '$lib/ui/confirm.svelte';
-import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '$lib/types';
-import { beginRound, dropRound, roundView } from '$lib/storage/rounds';
-import { dismissAgentReview } from '$lib/features/panel/reviewCalls';
-import { coverage } from '$lib/features/rounds/coverage';
+import { readOk, sendJson } from '#lib/api/client.js';
+import { loadModels } from '#lib/features/settings/models.svelte.js';
+import { checkSetup, setup } from '#lib/features/settings/setup.svelte.js';
+import { shortDate } from '#lib/ui/format.js';
+import { dismissGeneration, listGenerations, stopGeneration } from '#lib/features/preparing/generations.js';
+import { isGenerating, isSliceReviewed } from '#lib/session/session.svelte.js';
+import { deleteSaved, listSaved, normalize, updateRecord } from '#lib/storage/record.js';
+import { ask } from '#lib/ui/confirm.svelte.js';
+import { isUnread, type Generation, type NoteMessage, type PrRecord, type PrRef, type SavedPr } from '#lib/types.js';
+import { beginRound, dropRound, roundView } from '#lib/storage/rounds.js';
+import { dismissAgentReview } from '#lib/features/panel/reviewCalls.js';
+import { coverage } from '#lib/features/rounds/coverage.js';
 
 // The start page's lists: saved reviews, and open PRs you're part of on
 // GitHub, with where each stands. Created once per visit to the page; its

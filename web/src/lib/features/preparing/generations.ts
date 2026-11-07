@@ -1,4 +1,4 @@
-import { prUrl, readOk, sendJson } from '../../api/client';
+import { prUrl, readOk, sendJson, sendWithoutBody } from '../../api/client';
 import type { Generation, PrRef, Reuse } from '../../types';
 
 // Preparing a review (slices, conversation, summary, file notes) runs as a
@@ -15,11 +15,11 @@ export async function startGeneration(ref: PrRef, reuse: Reuse, model?: string):
 }
 
 export async function stopGeneration(ref: PrRef): Promise<Generation | null> {
-	return (await readOk<{ generation: Generation | null }>(await fetch(`${generationUrl(ref)}/stop`, { method: 'POST' }))).generation;
+	return (await readOk<{ generation: Generation | null }>(await sendWithoutBody(`${generationUrl(ref)}/stop`, 'POST'))).generation;
 }
 
 export async function dismissGeneration(ref: PrRef): Promise<void> {
-	await fetch(generationUrl(ref), { method: 'DELETE' }).catch(() => {});
+	await sendWithoutBody(generationUrl(ref), 'DELETE').catch(() => {});
 }
 
 export async function listGenerations(): Promise<(PrRef & { generation: Generation })[]> {

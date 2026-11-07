@@ -1,7 +1,6 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { buildServer } from '$lib/mcp/mcp.server.js';
+import { buildServer } from '#lib/mcp/mcp.server.js';
 
 // MCP, for the reviewer's own agent and external reviewers' sessions. Local
 // only: hooks.server.ts refuses other hosts, so sites the browser has open
@@ -20,10 +19,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		await server.close();
 		return response;
 	} catch {
-		return json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null }, { status: 500 });
+		return Response.json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null }, { status: 500 });
 	}
 };
 
-const notAllowed: RequestHandler = () => json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null }, { status: 405 });
+const notAllowed: RequestHandler = () => Response.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null }, { status: 405 });
 export const GET = notAllowed;
 export const DELETE = notAllowed;

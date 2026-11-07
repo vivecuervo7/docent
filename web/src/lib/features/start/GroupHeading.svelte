@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
-	import { githubUrl } from '$lib/ui/github';
+	import Icon from '#lib/ui/Icon.svelte';
+	import { githubUrl } from '#lib/ui/github.js';
 	// A heading per repo or author on the start page: the repo linking to its
 	// pull requests on GitHub, or the author with their avatar, how many PRs
 	// are under it, and folding them away.

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { readOk, sendJson } from '../../api/client';
-	import { ask } from '$lib/ui/confirm.svelte';
-	import Field from '$lib/ui/Field.svelte';
+	import { readOk, sendJson, sendWithoutBody } from '../../api/client';
+	import { ask } from '#lib/ui/confirm.svelte.js';
+	import Field from '#lib/ui/Field.svelte';
 	import MenuSelect from '../../ui/MenuSelect.svelte';
 	import SettingsList from './SettingsList.svelte';
 	import SettingsSection from './SettingsSection.svelte';
@@ -98,7 +98,7 @@
 
 	async function remove(p: Reviewer) {
 		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Reviewers set to it will need something else to run them.', action: 'Remove' }))) return;
-		await fetch(`/api/external-reviewers/${p.id}`, { method: 'DELETE' });
+		await sendWithoutBody(`/api/external-reviewers/${p.id}`, 'DELETE');
 		await load();
 	}
 </script>

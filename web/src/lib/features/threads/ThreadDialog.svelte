@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import Icon from '$lib/ui/Icon.svelte';
-	import Avatar from '$lib/ui/Avatar.svelte';
-	import Dialog from '$lib/ui/Dialog.svelte';
-	import InlineText from '$lib/ui/InlineText.svelte';
-	import NoteText from '$lib/ui/NoteText.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import { timeAgo } from '$lib/ui/format';
-	import { useSession } from '$lib/session/session.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
+	import Avatar from '#lib/ui/Avatar.svelte';
+	import Dialog from '#lib/ui/Dialog.svelte';
+	import InlineText from '#lib/ui/InlineText.svelte';
+	import NoteText from '#lib/ui/NoteText.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import { timeAgo } from '#lib/ui/format.js';
+	import { useSession } from '#lib/session/session.svelte.js';
 	import Composer, { type SendKind } from '../reading/Composer.svelte';
 	import ThreadPanel from '../reading/ThreadPanel.svelte';
 	import type { PrThreads } from './prThreads.svelte';

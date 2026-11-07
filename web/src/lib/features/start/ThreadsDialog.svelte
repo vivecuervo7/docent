@@ -1,11 +1,11 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
 	import { untrack } from 'svelte';
-	import Dialog from '$lib/ui/Dialog.svelte';
-	import InlineText from '$lib/ui/InlineText.svelte';
-	import ThreadTriage from '$lib/features/threads/ThreadTriage.svelte';
-	import { PrThreads } from '$lib/features/threads/prThreads.svelte';
-	import type { PrRef } from '$lib/types';
+	import Dialog from '#lib/ui/Dialog.svelte';
+	import InlineText from '#lib/ui/InlineText.svelte';
+	import ThreadTriage from '#lib/features/threads/ThreadTriage.svelte';
+	import { PrThreads } from '#lib/features/threads/prThreads.svelte.js';
+	import type { PrRef } from '#lib/types.js';
 
 	// A PR's GitHub threads gone through from the start page, without opening
 	// - or starting - a review of it. What's checked here is the PR's, so its

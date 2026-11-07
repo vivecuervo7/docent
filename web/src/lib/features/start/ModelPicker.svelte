@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
 	import { onMount } from 'svelte';
-	import { modelLabel } from '$lib/features/panel/panel.svelte';
-	import { chooseModel, loadModels, models } from '$lib/features/settings/models.svelte';
-	import Menu from '$lib/ui/Menu.svelte';
+	import { modelLabel } from '#lib/features/panel/panel.svelte.js';
+	import { chooseModel, loadModels, models } from '#lib/features/settings/models.svelte.js';
+	import Menu from '#lib/ui/Menu.svelte';
 
 	// Which model Docent uses, from those available right now. Anything wrong
 	// with a provider shows on the Settings page, not here.

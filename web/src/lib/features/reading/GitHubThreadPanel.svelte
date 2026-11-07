@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
-	import type { GitHubThread } from '$lib/types';
-	import { lineSpan } from '$lib/types';
-	import { useSession } from '$lib/session/session.svelte';
-	import { timeAgo } from '$lib/ui/format';
+	import Icon from '#lib/ui/Icon.svelte';
+	import type { GitHubThread } from '#lib/types.js';
+	import { lineSpan } from '#lib/types.js';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import { timeAgo } from '#lib/ui/format.js';
 	import Avatar from '../../ui/Avatar.svelte';
 	import NoteText from '../../ui/NoteText.svelte';
 	import ThreadPanel from './ThreadPanel.svelte';

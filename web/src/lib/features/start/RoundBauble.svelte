@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Spinner from '$lib/ui/Spinner.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
 
 	// A round at a glance, in one of two marks: a ring while it's open, filled
 	// once it's done (posted, or finished without posting); dashed while it's being set up, a

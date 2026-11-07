@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import GroupHeading from '$lib/features/start/GroupHeading.svelte';
-	import SiteHeader from '$lib/ui/SiteHeader.svelte';
-	import ReviewRow from '$lib/features/start/ReviewRow.svelte';
-	import SetupNotice from '$lib/features/start/SetupNotice.svelte';
-	import ThreadsDialog from '$lib/features/start/ThreadsDialog.svelte';
-	import { keyOf, StartPage, type Row } from '$lib/features/start/startPage.svelte';
-	import Disclosure from '$lib/ui/Disclosure.svelte';
-	import Segmented from '$lib/ui/Segmented.svelte';
-	import { parsePrUrl, timeAgo } from '$lib/ui/format';
-	import InlineText from '$lib/ui/InlineText.svelte';
-	import { githubHost, githubUrl } from '$lib/ui/github';
+	import GroupHeading from '#lib/features/start/GroupHeading.svelte';
+	import SiteHeader from '#lib/ui/SiteHeader.svelte';
+	import ReviewRow from '#lib/features/start/ReviewRow.svelte';
+	import SetupNotice from '#lib/features/start/SetupNotice.svelte';
+	import ThreadsDialog from '#lib/features/start/ThreadsDialog.svelte';
+	import { keyOf, StartPage, type Row } from '#lib/features/start/startPage.svelte.js';
+	import Disclosure from '#lib/ui/Disclosure.svelte';
+	import Segmented from '#lib/ui/Segmented.svelte';
+	import { parsePrUrl, timeAgo } from '#lib/ui/format.js';
+	import InlineText from '#lib/ui/InlineText.svelte';
+	import { githubHost, githubUrl } from '#lib/ui/github.js';
 
 	// Opening a PR by its link, and the reviews and PRs you're part of below.
 	const page = new StartPage();

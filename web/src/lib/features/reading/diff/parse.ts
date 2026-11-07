@@ -1,5 +1,5 @@
 import { diffArrays, diffWordsWithSpace, parsePatch } from 'diff';
-import type { LineRef } from '$lib/types';
+import type { LineRef } from '#lib/types.js';
 
 // A file's diff as rows we render ourselves, parsed from the patch GitHub
 // returns. Hunks keep their position in the patch, which is how slices refer

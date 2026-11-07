@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
 	import InlineText from '../../ui/InlineText.svelte';
 
 	// What the panel's editor found about a finding, each folded behind its

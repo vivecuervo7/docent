@@ -1,16 +1,16 @@
 <script lang="ts">
-	import FindingCard from '$lib/features/panel/FindingCard.svelte';
-	import InlineText from '$lib/ui/InlineText.svelte';
-	import { githubUrl } from '$lib/ui/github';
-	import PanelCard from '$lib/features/panel/PanelCard.svelte';
-	import BeginReview from '$lib/features/preparing/BeginReview.svelte';
-	import PreparingView from '$lib/features/preparing/PreparingView.svelte';
-	import ReviewModel from '$lib/features/preparing/ReviewModel.svelte';
-	import StateMark from '$lib/ui/StateMark.svelte';
-	import AskBubble from '$lib/features/reading/AskBubble.svelte';
-	import ThreadTriage from '$lib/features/threads/ThreadTriage.svelte';
-	import { PrThreads } from '$lib/features/threads/prThreads.svelte';
-	import { isGenerating, isSliceReviewed, useSession } from '$lib/session/session.svelte';
+	import FindingCard from '#lib/features/panel/FindingCard.svelte';
+	import InlineText from '#lib/ui/InlineText.svelte';
+	import { githubUrl } from '#lib/ui/github.js';
+	import PanelCard from '#lib/features/panel/PanelCard.svelte';
+	import BeginReview from '#lib/features/preparing/BeginReview.svelte';
+	import PreparingView from '#lib/features/preparing/PreparingView.svelte';
+	import ReviewModel from '#lib/features/preparing/ReviewModel.svelte';
+	import StateMark from '#lib/ui/StateMark.svelte';
+	import AskBubble from '#lib/features/reading/AskBubble.svelte';
+	import ThreadTriage from '#lib/features/threads/ThreadTriage.svelte';
+	import { PrThreads } from '#lib/features/threads/prThreads.svelte.js';
+	import { isGenerating, isSliceReviewed, useSession } from '#lib/session/session.svelte.js';
 
 	// The Overview: what the PR is, its slices, and the review panel to start
 	// before reading. Kept plain on purpose. The conversation summary is saved

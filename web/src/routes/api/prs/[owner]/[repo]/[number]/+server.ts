@@ -1,13 +1,12 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, noContent, validParams } from '$lib/api/http.server.js';
-import { deleteRecord, getRecord, keyFor, putRecord, VersionConflict } from '$lib/storage/store.server.js';
+import { badRequest, bodyOf, noContent, validParams } from '#lib/api/http.server.js';
+import { deleteRecord, getRecord, keyFor, putRecord, VersionConflict } from '#lib/storage/store.server.js';
 
 const invalid = () => badRequest('invalid owner, repo, or PR number');
 
 export const GET: RequestHandler = ({ params: { owner, repo, number } }) => {
 	if (!validParams(owner, repo, number)) return invalid();
-	return json(getRecord(keyFor(owner, repo, number)));
+	return Response.json(getRecord(keyFor(owner, repo, number)));
 };
 
 // The version is the one the change was made from; a stale one gets a 409
@@ -18,9 +17,9 @@ export const PUT: RequestHandler = async ({ params: { owner, repo, number }, req
 		return badRequest('invalid record');
 	}
 	try {
-		return json({ version: putRecord(keyFor(owner, repo, number), record, version) });
+		return Response.json({ version: putRecord(keyFor(owner, repo, number), record, version) });
 	} catch (err) {
-		if (err instanceof VersionConflict) return json(err.current, { status: 409 });
+		if (err instanceof VersionConflict) return Response.json(err.current, { status: 409 });
 		throw err;
 	}
 };

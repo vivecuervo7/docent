@@ -2,8 +2,8 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { githubMarksFrom, marksFrom } from './marks';
 	import { fileTree, treeOrder } from './fileTree';
-	import { useSession } from '$lib/session/session.svelte';
-	import type { FileNote } from '$lib/types';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import type { FileNote } from '#lib/types.js';
 	import DiffFile from './DiffFile.svelte';
 
 	// Files as they're read: each with the hunks shown here, its note, its

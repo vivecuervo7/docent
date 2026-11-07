@@ -1,8 +1,7 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
-import { startReviewer } from '$lib/features/panel/panelRuns.server.js';
-import type { ReviewerSetup } from '$lib/features/panel/setup.js';
-import { badRequest, bodyOf, failed, mcpUrl, reviewerParam, validParams } from '$lib/api/http.server.js';
+import { startReviewer } from '#lib/features/panel/panelRuns.server.js';
+import type { ReviewerSetup } from '#lib/features/panel/setup.js';
+import { badRequest, bodyOf, failed, mcpUrl, reviewerParam, validParams } from '#lib/api/http.server.js';
 
 // Starts one of a round's reviewers. Its review, and "auto" choosing its
 // personas, go on here and save into the review; this answers once it's begun.
@@ -19,7 +18,7 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 	if (!validParams(owner, repo, number) || !reviewer || !valid) return badRequest('invalid reviewer or setup');
 	try {
 		await startReviewer({ owner, repo, number, round }, reviewer, setup, mcpUrl(url));
-		return json({ started: true });
+		return Response.json({ started: true });
 	} catch (err) {
 		return failed(err);
 	}

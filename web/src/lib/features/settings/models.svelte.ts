@@ -1,5 +1,5 @@
-import { listModels, selectModel } from '$lib/api/client';
-import type { ModelOption } from '$lib/types';
+import { listModels, selectModel } from '#lib/api/client.js';
+import type { ModelOption } from '#lib/types.js';
 
 // The models Docent can use and the one it does: one answer the menu at the
 // top and Settings share, so choosing in either shows in both. The list as

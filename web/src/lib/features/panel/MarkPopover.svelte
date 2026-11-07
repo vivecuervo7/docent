@@ -1,14 +1,14 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
 	import Composer, { type SendKind } from '../reading/Composer.svelte';
 	import { raisedBy } from './findings';
 	import type { LooseMark, Mark } from '../reading/marks';
-	import { modelLabel } from '$lib/features/panel/panel.svelte';
-	import { namedByKind } from '$lib/features/panel/reviewers.svelte';
-	import { useSession } from '$lib/session/session.svelte';
+	import { modelLabel } from '#lib/features/panel/panel.svelte.js';
+	import { namedByKind } from '#lib/features/panel/reviewers.svelte.js';
+	import { useSession } from '#lib/session/session.svelte.js';
 	import EditorNotes from './EditorNotes.svelte';
 	import NoteText from '../../ui/NoteText.svelte';
-	import KeepSkip from '$lib/ui/KeepSkip.svelte';
+	import KeepSkip from '#lib/ui/KeepSkip.svelte';
 	import SeverityTag from './SeverityTag.svelte';
 	import Spinner from '../../ui/Spinner.svelte';
 	import InlineText from '../../ui/InlineText.svelte';

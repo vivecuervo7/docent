@@ -1,7 +1,7 @@
 <script lang="ts">
-	import favicon from '$lib/assets/favicon.svg';
-	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
-	import { setGithubHost } from '$lib/ui/github';
+	import favicon from '#lib/assets/favicon.svg';
+	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
+	import { setGithubHost } from '#lib/ui/github.js';
 	import '../app.css';
 
 	let { data, children } = $props();

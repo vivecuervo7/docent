@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { shortDate, plural } from '$lib/ui/format';
-	import Dialog from '$lib/ui/Dialog.svelte';
-	import Disclosure from '$lib/ui/Disclosure.svelte';
-	import Segmented from '$lib/ui/Segmented.svelte';
-	import EditableText from '$lib/ui/EditableText.svelte';
-	import FilePath from '$lib/ui/FilePath.svelte';
-	import FindingLines from '$lib/features/posting/FindingLines.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import { describeLines } from '$lib/features/posting/post.svelte';
-	import { useSession } from '$lib/session/session.svelte';
-	import type { AutoMerge, ReviewComment, ReviewEvent, ReviewPayload } from '$lib/types';
+	import { shortDate, plural } from '#lib/ui/format.js';
+	import Dialog from '#lib/ui/Dialog.svelte';
+	import Disclosure from '#lib/ui/Disclosure.svelte';
+	import Segmented from '#lib/ui/Segmented.svelte';
+	import EditableText from '#lib/ui/EditableText.svelte';
+	import FilePath from '#lib/ui/FilePath.svelte';
+	import FindingLines from '#lib/features/posting/FindingLines.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import { describeLines } from '#lib/features/posting/post.svelte.js';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import type { AutoMerge, ReviewComment, ReviewEvent, ReviewPayload } from '#lib/types.js';
 
 	// The last look before posting: the review laid out the way the author
 	// will see it on GitHub, the review's own text first and the comments on

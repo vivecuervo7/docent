@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Icon from '$lib/ui/Icon.svelte';
-	import { onDismiss } from '$lib/ui/dismiss';
-	import { GITHUB_IN_DIFF, useSession } from '$lib/session/session.svelte';
+	import Icon from '#lib/ui/Icon.svelte';
+	import { onDismiss } from '#lib/ui/dismiss.js';
+	import { GITHUB_IN_DIFF, useSession } from '#lib/session/session.svelte.js';
 
 	// How the diffs are shown. Kept in this browser.
 	const session = useSession();

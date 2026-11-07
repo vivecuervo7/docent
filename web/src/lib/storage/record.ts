@@ -1,4 +1,4 @@
-import { sendJson } from '$lib/api/client';
+import { sendJson, sendWithoutBody } from '#lib/api/client.js';
 import { FIRST_AGENT, type PrRecord, type PrRef, type SavedPr } from '../types';
 
 // Each PR's review is one record on the backend. Every write names the
@@ -87,5 +87,5 @@ export async function listSaved(): Promise<SavedPr[]> {
 }
 
 export async function deleteSaved(ref: PrRef): Promise<void> {
-	await fetch(url(ref), { method: 'DELETE' });
+	await sendWithoutBody(url(ref), 'DELETE');
 }

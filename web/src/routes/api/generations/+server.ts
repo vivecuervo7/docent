@@ -1,7 +1,6 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
-import { listGenerations } from '$lib/features/preparing/generation.server.js';
+import { listGenerations } from '#lib/features/preparing/generation.server.js';
 
 // Preparing a PR's review (slices, conversation, summary) runs as a
 // background generation; see features/preparing/generation.server.ts.
-export const GET: RequestHandler = () => json({ generations: listGenerations() });
+export const GET: RequestHandler = () => Response.json({ generations: listGenerations() });

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import InlineText from '../ui/InlineText.svelte';
 	import { page } from '$app/state';
-	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
+	import { isSliceReviewed, useSession } from '#lib/session/session.svelte.js';
 	import PanelChip from '../features/panel/PanelChip.svelte';
 	import RoundChip from '../features/rounds/RoundChip.svelte';
 	import StateMark from '../ui/StateMark.svelte';

@@ -1,13 +1,13 @@
 <script lang="ts">
-	import SiteHeader from '$lib/ui/SiteHeader.svelte';
-	import { readOk } from '$lib/api/client';
-	import OverlapMap from '$lib/features/stats/OverlapMap.svelte';
-	import ThemesPie from '$lib/features/stats/ThemesPie.svelte';
-	import GapReport from '$lib/features/stats/GapReport.svelte';
-	import type { Analysis, Stats } from '$lib/features/stats/stats';
-	import { summarise } from '$lib/features/stats/summary';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import { shortDate } from '$lib/ui/format';
+	import SiteHeader from '#lib/ui/SiteHeader.svelte';
+	import { readOk, sendWithoutBody } from '#lib/api/client.js';
+	import OverlapMap from '#lib/features/stats/OverlapMap.svelte';
+	import ThemesPie from '#lib/features/stats/ThemesPie.svelte';
+	import GapReport from '#lib/features/stats/GapReport.svelte';
+	import type { Analysis, Stats } from '#lib/features/stats/stats.js';
+	import { summarise } from '#lib/features/stats/summary.js';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import { shortDate } from '#lib/ui/format.js';
 
 	// What reviewing has come to, at a glance: when, how much, how the slices
 	// cut it down, and how the panel's findings fared.
@@ -29,9 +29,9 @@
 	// checked on every couple of seconds.
 	let analysis = $state<Analysis | null>(null);
 	let analysisError = $state<string | null>(null);
-	async function readAnalysis(method = 'GET') {
+	async function readAnalysis(method: 'GET' | 'POST' = 'GET') {
 		try {
-			analysis = await readOk<Analysis>(await fetch('/api/stats/analysis', { method }));
+			analysis = await readOk<Analysis>(await (method === 'POST' ? sendWithoutBody('/api/stats/analysis', 'POST') : fetch('/api/stats/analysis')));
 			analysisError = null;
 		} catch (err) {
 			analysisError = (err as Error).message;
@@ -41,7 +41,7 @@
 	readAnalysis();
 	async function reset() {
 		if (!confirm('Reset the analyses? The next run goes over every finding and pull request again, which takes a while and costs model calls.')) return;
-		const res = await fetch('/api/stats/analysis', { method: 'DELETE' });
+		const res = await sendWithoutBody('/api/stats/analysis', 'DELETE');
 		if (!res.ok) analysisError = await res.text();
 		await readAnalysis();
 	}

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
-	import { groupsOf, isShown, reviewerName } from '$lib/features/panel/findings';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import WrapRow from '$lib/features/wrap-up/WrapRow.svelte';
-	import { useSession } from '$lib/session/session.svelte';
-	import { SEVERITIES, type FeedbackItem } from '$lib/types';
+	import { groupsOf, isShown, reviewerName } from '#lib/features/panel/findings.js';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import WrapRow from '#lib/features/wrap-up/WrapRow.svelte';
+	import { useSession } from '#lib/session/session.svelte.js';
+	import { SEVERITIES, type FeedbackItem } from '#lib/types.js';
 
 	// Wrap up: confirming what goes into the review. Your threads are drafted
 	// into the comments they'd post as it opens; with the panel's findings,

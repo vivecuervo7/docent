@@ -1,9 +1,8 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
-import { badRequest, bodyOf, mcpUrl, validParams } from '$lib/api/http.server.js';
-import { replyToNote, type NoteContext, type NoteMessage } from '$lib/features/reading/threadReplies.server.js';
-import { changeRound } from '$lib/storage/rounds.server.js';
-import { modelName } from '$lib/storage/settings.server.js';
+import { badRequest, bodyOf, mcpUrl, validParams } from '#lib/api/http.server.js';
+import { replyToNote, type NoteContext, type NoteMessage } from '#lib/features/reading/threadReplies.server.js';
+import { changeRound } from '#lib/storage/rounds.server.js';
+import { modelName } from '#lib/storage/settings.server.js';
 
 // Answers a question (or writes up a remark) in one of your threads, or
 // about a finding. The answer is made here and saved into the review - the
@@ -67,5 +66,5 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 				})
 		)
 		.catch((err) => console.error(`[reply] ${(err as Error).message}`));
-	return json({ asked: true });
+	return Response.json({ asked: true });
 };

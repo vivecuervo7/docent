@@ -2,10 +2,10 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { SvelteSet } from 'svelte/reactivity';
-	import InlineText from '$lib/ui/InlineText.svelte';
-	import { plural } from '$lib/ui/format';
-	import Spinner from '$lib/ui/Spinner.svelte';
-	import type { GitHubThread } from '$lib/types';
+	import InlineText from '#lib/ui/InlineText.svelte';
+	import { plural } from '#lib/ui/format.js';
+	import Spinner from '#lib/ui/Spinner.svelte';
+	import type { GitHubThread } from '#lib/types.js';
 	import ThreadDialog from './ThreadDialog.svelte';
 	import type { PrThreads } from './prThreads.svelte';
 	import { VERDICTS, checkOf, gist, isStale, threadWhere, type Verdict } from './threads';
@@ -81,7 +81,7 @@
 		const id = base && page.url.searchParams.get('thread');
 		if (base && id && all.some((t) => t.id === id) && opened?.id !== id) {
 			show(id);
-			goto(base, { replaceState: true, noScroll: true, keepFocus: true });
+			goto(base, { replace: true, reset: false });
 		}
 	});
 </script>

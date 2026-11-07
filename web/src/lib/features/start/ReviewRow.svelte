@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import InlineText from '$lib/ui/InlineText.svelte';
-	import { timeAgo, plural } from '$lib/ui/format';
-	import { githubUrl } from '$lib/ui/github';
+	import InlineText from '#lib/ui/InlineText.svelte';
+	import { timeAgo, plural } from '#lib/ui/format.js';
+	import { githubUrl } from '#lib/ui/github.js';
 	import RoundBauble from './RoundBauble.svelte';
-	import Spinner from '$lib/ui/Spinner.svelte';
+	import Spinner from '#lib/ui/Spinner.svelte';
 	import type { RoundBauble as Round, Row, StartPage } from './startPage.svelte';
 
 	// One PR on the start page: its title and where it's from, then its
