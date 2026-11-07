@@ -3,7 +3,7 @@
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk } from '$lib/api/client';
 	import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
-	import type { ModelOption } from '$lib/types';
+	import { loadModels } from '$lib/features/settings/models.svelte';
 	import Spinner from '$lib/ui/Spinner.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import StateMark from '$lib/ui/StateMark.svelte';
@@ -38,7 +38,8 @@
 		if (fresh) checking = true;
 		error = null;
 		try {
-			const [, models] = await Promise.all([checkSetup(fresh), readOk<{ options: ModelOption[] }>(await fetch(fresh ? '/api/models?fresh' : '/api/models'))]);
+			const [, models] = await Promise.all([checkSetup(fresh), loadModels(fresh)]);
+			if (!models) throw new Error('Couldn’t list the models');
 			sources = [...new Set(models.options.map((o) => o.source))];
 			const [personas, externals] = await Promise.all([
 				readOk<{ items: unknown[] }>(await fetch('/api/personas')),
