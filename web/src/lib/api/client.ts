@@ -14,14 +14,6 @@ export function sendJson(url: string, body: unknown, method: string = 'POST'): P
 	return fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-// A request that changes something but has no body, marked as JSON all the
-// same: SvelteKit refuses a change with no content type whose Origin isn't
-// its own, and the built server takes itself to be https, so this page's
-// http Origin never matches it.
-export function sendWithoutBody(url: string, method: 'POST' | 'DELETE'): Promise<Response> {
-	return fetch(url, { method, headers: { 'Content-Type': 'application/json' } });
-}
-
 // With `round`, an earlier round's files.
 export async function fetchPr(ref: PrRef, round?: number): Promise<{ files: PrFile[]; meta: PrMeta | null }> {
 	const { files, meta } = await readOk<{ files: PrFile[]; meta?: PrMeta }>(await fetch(round === undefined ? prUrl(ref) : `${prUrl(ref)}?round=${round}`));

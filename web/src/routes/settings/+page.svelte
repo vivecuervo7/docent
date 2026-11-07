@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { plural } from '#lib/ui/format.js';
 	import SiteHeader from '#lib/ui/SiteHeader.svelte';
-	import { readOk, sendJson, sendWithoutBody } from '#lib/api/client.js';
+	import { readOk, sendJson } from '#lib/api/client.js';
 	import { ask } from '#lib/ui/confirm.svelte.js';
 	import DocentModel from '#lib/features/settings/DocentModel.svelte';
 	import EditorModel from '#lib/features/settings/EditorModel.svelte';
@@ -83,7 +83,7 @@
 
 	async function remove(p: Provider) {
 		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Anything set to its models uses the first available model instead.', action: 'Remove' }))) return;
-		await sendWithoutBody(`/api/providers/${p.id}`, 'DELETE');
+		await fetch(`/api/providers/${p.id}`, { method: 'DELETE' });
 		await load();
 	}
 </script>
