@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readOk, sendJson, sendWithoutBody } from '../../api/client';
+	import { readOk, sendJson } from '../../api/client';
 	import { ask } from '#lib/ui/confirm.svelte.js';
 	import Field from '#lib/ui/Field.svelte';
 	import SettingsList from './SettingsList.svelte';
@@ -39,7 +39,7 @@
 
 	async function remove(p: Persona) {
 		if (!(await ask({ title: `Remove ${p.name}?`, body: 'Reviewers with it go back to the general persona.', action: 'Remove' }))) return;
-		await sendWithoutBody(`/api/personas/${p.id}`, 'DELETE');
+		await fetch(`/api/personas/${p.id}`, { method: 'DELETE' });
 		await load();
 	}
 </script>
