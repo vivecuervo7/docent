@@ -1,2 +1,4 @@
 # Formatting only: skipped by git blame (git config blame.ignoreRevsFile .git-blame-ignore-revs).
 7a0374d3cb93a90afa8a846e5b03bd651efc1027
+# $lib to #lib import rewrite for SvelteKit 3, no other change.
+357ff134e40e079d002d65b9be7b0863a474483e
