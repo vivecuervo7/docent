@@ -46,7 +46,7 @@
 		color: var(--popover);
 	}
 	button.skip.on {
-		background: rgb(236 232 223 / 0.24);
+		background: var(--chosen-soft);
 		color: var(--text);
 	}
 	button.on.suggested {

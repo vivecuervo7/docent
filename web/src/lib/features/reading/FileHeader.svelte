@@ -229,7 +229,7 @@
 	}
 	.toggle:hover :global(.chevron),
 	.toggle:hover .path {
-		color: #fff;
+		color: var(--text-strong);
 	}
 	.path {
 		display: flex;
@@ -333,6 +333,6 @@
 		color: var(--faint);
 	}
 	.review:hover {
-		background: rgba(255, 255, 255, 0.04);
+		background: var(--wash);
 	}
 </style>

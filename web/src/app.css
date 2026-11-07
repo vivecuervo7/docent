@@ -1,30 +1,78 @@
-/* Docent's palette: a warm dark ground, amber for agents, blue for you. */
+/* Docent's palette: a warm dark ground, amber for agents, blue for you.
+   Every colour the app uses is named here, so a component never writes one. */
 :root {
+	/* Ground and text. */
 	--bg: #121315;
 	--surface: #17181b;
 	--surface-2: #1b1c20;
-	--line: #202226;
-	--line-2: #2e3035;
 	--text: #e8e6e1;
+	/* Text brightened under the pointer. */
+	--text-strong: #fff;
 	--muted: #b0aea6;
 	--faint: #8d8b83;
+	--danger: #f08a7e;
+	--danger-text: #f1d3d0;
+
+	/* Lines, and the light washes laid over the ground. */
+	--line: #202226;
+	--line-2: #2e3035;
+	--control-line: #3a3c42;
+	--wash: rgba(255, 255, 255, 0.04);
+	--wash-strong: rgba(255, 255, 255, 0.05);
+	--inline-code-bg: rgba(255, 255, 255, 0.06);
+	--row-hover: #202127;
+	--scrim: rgba(12, 13, 15, 0.72);
+	--switch-off: #34363c;
+	--selection: rgba(122, 167, 255, 0.16);
+
+	/* What's chosen in a switch: a light fill, dark text. */
+	--chosen: #ece8df;
+	--chosen-soft: rgb(236 232 223 / 0.24);
+	--chosen-dim: #d8d3c7;
+	--on-chosen: #141413;
+
+	/* Agents: amber, and the browns their cards and menus sit on. */
 	--agent: #f0a94b;
 	--agent-text: #f2d9b0;
 	--agent-chip: #3a2f1d;
 	--agent-tint: rgba(240, 169, 75, 0.08);
+	--agent-card: #1b1813;
+	--agent-card-line: #2e281d;
+	--agent-divider: #2a261f;
+	--agent-hover: #26221a;
+	--agent-pill: #1d1a14;
+	--agent-pill-hover: #262118;
+	--agent-menu: #221e17;
+	--agent-menu-line: #3a3226;
+	--agent-menu-active: #2e281e;
+	--agent-quote: #14120e;
+	--agent-quote-text: #e6d6b8;
 	--popover: #1f1c17;
 	--popover-line: #342d21;
 	/* A lighter brown, for a card raised over brown or near-brown. */
 	--popover-raised: #2b261f;
 	--popover-raised-line: #4a4030;
+
+	/* You: blue. */
 	--you: #7aa7ff;
 	--you-text: #c3d7ff;
 	--you-chip: #1c2740;
 	--you-tint: rgba(122, 167, 255, 0.07);
+	/* A GitHub thread's lines. */
+	--github-tint: rgba(255, 255, 255, 0.035);
+
+	/* States. */
 	--done: #8fb39a;
 	--done-bg: #2b3a30;
 	--todo: #44464c;
-	--danger: #f08a7e;
+	/* A state's mark: done, ready, under way, new, or gone wrong. */
+	--state-done: #7fd89b;
+	--state-ready: #8ab4ff;
+	--state-going: #ffb85c;
+	--state-new: #c8a8ff;
+	--state-bad: #ff8a7a;
+
+	/* Code and the diff. */
 	--code-bg: #17181c;
 	--hunk-bg: #1b1c21;
 	--hunk-text: #8aa7d6;
@@ -38,17 +86,27 @@
 	--minus: #e3a19b;
 	--plus-dull: #6f9679;
 	--minus-dull: #a87670;
-	--selection: rgba(122, 167, 255, 0.16);
-	/* A state's mark: done, and ready or under way. */
-	--state-done: #7fd89b;
-	--state-ready: #8ab4ff;
-	/* What's chosen in a switch: a light fill, dark text. */
-	--chosen: #ece8df;
-	--on-chosen: #141413;
-	/* Shadows under what floats: a popover, a menu, a small card. */
+
+	/* Stats: greens deepening from what the panel kept, and a colour per theme. */
+	--chart-green-soft: #627566;
+	--chart-green-deep: #44534a;
+	--chart-correctness: #6f9679;
+	--chart-reliability: #687c9c;
+	--chart-security: #a87670;
+	--chart-tests: #9a8660;
+	--chart-design: #7e7598;
+	--chart-build: #5f6168;
+
+	/* Shadows under what floats, and the amber glow under the panel's card. */
 	--shadow-float: 0 30px 70px -20px rgba(0, 0, 0, 0.7);
+	--shadow-raised: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
 	--shadow-menu: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
 	--shadow-small: 0 12px 32px -12px rgba(0, 0, 0, 0.8);
+	--shadow-tip: 0 20px 40px -16px rgba(0, 0, 0, 0.7);
+	--shadow-bubble: 0 32px 80px -24px rgba(0, 0, 0, 0.85);
+	--shadow-dialog: 0 40px 90px -30px rgba(0, 0, 0, 0.8);
+	--shadow-agent-glow: 0 24px 60px -30px rgba(240, 169, 75, 0.25);
+
 	--sans: 'IBM Plex Sans', system-ui, sans-serif;
 	--mono: 'IBM Plex Mono', ui-monospace, monospace;
 	--serif: 'Newsreader', Georgia, serif;
@@ -73,7 +131,7 @@ code {
 	font-size: 0.88em;
 	padding: 1px 4px;
 	border-radius: 4px;
-	background: rgba(255, 255, 255, 0.06);
+	background: var(--inline-code-bg);
 }
 
 a {
@@ -94,7 +152,7 @@ a {
 	border-radius: 9px;
 	background: transparent;
 	color: var(--text);
-	box-shadow: inset 0 0 0 1px #3a3c42;
+	box-shadow: inset 0 0 0 1px var(--control-line);
 	font: inherit;
 	font-size: 13px;
 	font-weight: 500;
@@ -102,8 +160,8 @@ a {
 }
 
 .btn.primary {
-	background: #ece8df;
-	color: #141413;
+	background: var(--chosen);
+	color: var(--on-chosen);
 	box-shadow: none;
 }
 

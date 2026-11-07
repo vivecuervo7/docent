@@ -90,7 +90,7 @@
 		cursor: pointer;
 	}
 	label:hover {
-		background: rgba(255, 255, 255, 0.04);
+		background: var(--wash);
 	}
 	input {
 		margin: 2px 0 0;

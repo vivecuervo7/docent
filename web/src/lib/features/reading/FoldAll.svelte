@@ -32,6 +32,6 @@
 	}
 	.fold-all:hover {
 		color: var(--text);
-		background: rgba(255, 255, 255, 0.05);
+		background: var(--wash-strong);
 	}
 </style>

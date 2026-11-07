@@ -177,7 +177,7 @@
 		font-size: 15px;
 	}
 	.slices a:hover {
-		color: #fff;
+		color: var(--text-strong);
 	}
 	aside {
 		position: sticky;

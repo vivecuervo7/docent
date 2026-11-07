@@ -180,6 +180,6 @@
 		margin: 0;
 		font-size: 14px;
 		line-height: 1.5;
-		color: #f1d3d0;
+		color: var(--danger-text);
 	}
 </style>

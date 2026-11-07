@@ -275,7 +275,7 @@
 		cursor: pointer;
 	}
 	.open:hover .gist {
-		color: #fff;
+		color: var(--text-strong);
 	}
 	.meta {
 		font-size: 12.5px;

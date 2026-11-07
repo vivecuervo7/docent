@@ -715,7 +715,7 @@
 		cursor: pointer;
 	}
 	.expand:hover {
-		background: rgba(255, 255, 255, 0.05);
+		background: var(--wash-strong);
 		color: var(--text);
 	}
 	.diff > .hunk-header:first-child {
@@ -755,7 +755,7 @@
 		background-image: linear-gradient(var(--you-tint), var(--you-tint));
 	}
 	.row.tint-github .code {
-		background-image: linear-gradient(rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.035));
+		background-image: linear-gradient(var(--github-tint), var(--github-tint));
 	}
 	.row.tint-github.tint-active .code {
 		box-shadow: inset 2px 0 0 var(--muted);

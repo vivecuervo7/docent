@@ -187,13 +187,13 @@
 		overflow: visible;
 	}
 	.kept {
-		fill: rgba(127, 216, 155, 0.16);
-		stroke: rgba(127, 216, 155, 0.7);
+		fill: color-mix(in srgb, var(--state-done) 16%, transparent);
+		stroke: color-mix(in srgb, var(--state-done) 70%, transparent);
 		stroke-width: 1.2;
 		transition: opacity 120ms;
 	}
 	.kept.on {
-		fill: rgba(127, 216, 155, 0.3);
+		fill: color-mix(in srgb, var(--state-done) 30%, transparent);
 		stroke: var(--state-done);
 	}
 	/* What it wanted posted: kept, and what you kicked back. */

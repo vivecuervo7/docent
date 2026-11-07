@@ -6,12 +6,12 @@
 
 	// Muted, as the page's other bars are.
 	const COLOURS: Record<Theme, string> = {
-		correctness: '#6f9679',
-		reliability: '#687c9c',
-		security: '#a87670',
-		tests: '#9a8660',
-		design: '#7e7598',
-		build: '#5f6168'
+		correctness: 'var(--chart-correctness)',
+		reliability: 'var(--chart-reliability)',
+		security: 'var(--chart-security)',
+		tests: 'var(--chart-tests)',
+		design: 'var(--chart-design)',
+		build: 'var(--chart-build)'
 	};
 	const R = 52;
 	const C = 2 * Math.PI * R;
@@ -38,7 +38,7 @@
 				cx="70"
 				cy="70"
 				r={R}
-				stroke={COLOURS[s.theme]}
+				style:stroke={COLOURS[s.theme]}
 				stroke-dasharray="{s.share * C} {C}"
 				stroke-dashoffset={-s.offset * C}
 				class:dim={pointed && pointed !== s.theme}

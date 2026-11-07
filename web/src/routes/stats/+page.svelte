@@ -501,11 +501,11 @@
 	   tools doing their job, so green too, deepening as it goes. */
 	.suggested,
 	.swatch.suggested {
-		background: #627566;
+		background: var(--chart-green-soft);
 	}
 	.filtered,
 	.swatch.filtered {
-		background: #44534a;
+		background: var(--chart-green-deep);
 	}
 	@media (max-width: 700px) {
 		.figures {
