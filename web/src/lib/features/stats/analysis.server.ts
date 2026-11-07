@@ -43,7 +43,38 @@ const db = persistent('analysis-tables', () => {
 	return opened;
 });
 
-const state = persistent('analysis-state', () => ({ running: false, done: 0, total: 0 }) as Analysis['status']);
+// Those waiting for the analysis to change, told whenever its state does.
+const waiting = persistent('analysis-waiting', () => new Set<() => void>());
+
+const state = persistent(
+	'analysis-state',
+	() =>
+		new Proxy({ running: false, done: 0, total: 0 } as Analysis['status'], {
+			set(target, key, value) {
+				Reflect.set(target, key, value);
+				for (const wake of waiting) wake();
+				return true;
+			}
+		})
+);
+
+// Resolves a moment after the analysis next changes, so a burst of progress
+// is read once, or straight away when `signal` aborts.
+export function nextChange(signal: AbortSignal): Promise<void> {
+	return new Promise((resolve) => {
+		let settling: ReturnType<typeof setTimeout> | undefined;
+		const done = () => {
+			waiting.delete(wake);
+			signal.removeEventListener('abort', done);
+			clearTimeout(settling);
+			resolve();
+		};
+		const wake = () => (settling ??= setTimeout(done, 250));
+		if (signal.aborted) return resolve();
+		waiting.add(wake);
+		signal.addEventListener('abort', done, { once: true });
+	});
+}
 
 const SEVERITIES = ['blocker', 'major', 'minor', 'nit'] as const;
 // What each theme takes in, for the model sorting points into them.
