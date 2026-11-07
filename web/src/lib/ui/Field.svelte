@@ -43,7 +43,7 @@
 		height: 36px;
 		padding: 0 12px;
 		border: 0;
-		border-radius: 9px;
+		border-radius: var(--radius-md);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);

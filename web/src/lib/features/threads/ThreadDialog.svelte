@@ -248,7 +248,7 @@
 	pre {
 		margin: 0;
 		padding: 8px 0;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--code-bg);
 		box-shadow: inset 0 0 0 1px var(--line);
 		font-family: var(--mono);
@@ -273,7 +273,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.entries li {
@@ -300,7 +300,7 @@
 	/* The PR's own author, as GitHub marks them. */
 	.tag {
 		padding: 0 6px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--faint);
 		font-size: 11px;
@@ -319,7 +319,7 @@
 		align-items: flex-start;
 		gap: 10px;
 		padding: 14px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--popover);
 		box-shadow: inset 0 0 0 1px var(--popover-line);
 	}
@@ -338,7 +338,7 @@
 		align-self: stretch;
 	}
 	.yours {
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		overflow: hidden;
 	}
@@ -355,7 +355,7 @@
 		max-height: 200px;
 		padding: 10px 12px;
 		border: 0;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);

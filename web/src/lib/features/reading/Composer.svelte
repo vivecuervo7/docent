@@ -106,7 +106,7 @@
 		max-height: 160px;
 		padding: 9px 12px;
 		border: 0;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);

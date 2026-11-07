@@ -303,7 +303,7 @@
 		flex-direction: column;
 		gap: 2px;
 		padding: 14px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.figures strong {
@@ -329,7 +329,7 @@
 		display: flex;
 		gap: 8px;
 		padding: 14px 14px 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	/* The scale, in lines, beside the bars. */
@@ -383,7 +383,7 @@
 		max-width: 260px;
 		margin: 0;
 		padding: 10px 12px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: color-mix(in srgb, var(--surface) 94%, transparent);
 		box-shadow:
 			inset 0 0 0 1px var(--line-2),
@@ -419,7 +419,7 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		border-radius: 2px 2px 0 0;
+		border-radius: var(--radius-xs) var(--radius-xs) 0 0;
 	}
 	.bar.pr,
 	.swatch.pr {
@@ -445,7 +445,7 @@
 		width: 10px;
 		height: 10px;
 		margin-left: 8px;
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	.swatch:first-child {
 		margin-left: 0;
@@ -454,7 +454,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.reviewers li {
@@ -485,7 +485,7 @@
 	.split {
 		display: flex;
 		height: 8px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		overflow: hidden;
 		background: var(--surface-2);
 	}

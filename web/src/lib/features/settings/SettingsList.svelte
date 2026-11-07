@@ -168,7 +168,7 @@
 		display: flex;
 		padding: 2px 4px;
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: none;
 		color: var(--faint);
 		fill: currentColor;

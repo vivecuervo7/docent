@@ -298,7 +298,7 @@
 	.chip {
 		padding: 4px 11px;
 		border: 0;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		background: var(--popover);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--muted);
@@ -416,7 +416,7 @@
 	}
 	.again {
 		padding: 1px 7px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--faint);
 		font-size: 11.5px;

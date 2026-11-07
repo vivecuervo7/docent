@@ -153,7 +153,7 @@
 		height: 34px;
 		padding: 0 12px;
 		border: 0;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		background: var(--surface);
 		color: var(--muted);
 		font: inherit;
@@ -178,7 +178,7 @@
 		right: 0;
 		width: 360px;
 		padding: 14px 0 0;
-		border-radius: 14px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),

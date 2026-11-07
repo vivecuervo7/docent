@@ -131,7 +131,7 @@
 	}
 	.tag {
 		padding: 0 6px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--faint);
 		font-size: 11px;

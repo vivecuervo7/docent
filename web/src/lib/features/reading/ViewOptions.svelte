@@ -72,7 +72,7 @@
 		right: 0;
 		width: 300px;
 		padding: 8px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
@@ -85,7 +85,7 @@
 		align-items: flex-start;
 		gap: 10px;
 		padding: 9px 8px;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		font-size: 14px;
 		cursor: pointer;
 	}
@@ -119,7 +119,7 @@
 	.switch {
 		display: flex;
 		padding: 3px;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
@@ -127,7 +127,7 @@
 		flex: 1;
 		padding: 5px 8px;
 		border: 0;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--muted);
 		font: inherit;

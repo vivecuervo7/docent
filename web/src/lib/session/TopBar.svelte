@@ -121,7 +121,7 @@
 	.joint {
 		width: 28px;
 		height: 2px;
-		border-radius: 1px;
+		border-radius: var(--radius-full);
 		background: var(--line-2);
 	}
 </style>

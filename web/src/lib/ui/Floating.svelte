@@ -87,7 +87,7 @@
 		width: 440px;
 		max-width: calc(100vw - 24px);
 		box-sizing: border-box;
-		border-radius: 14px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),

@@ -39,7 +39,7 @@
 		gap: 6px;
 		padding: 4px 8px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: color-mix(in srgb, var(--surface-2) 50%, transparent);
 		color: var(--muted);
 		font: inherit;

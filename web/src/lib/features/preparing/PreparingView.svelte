@@ -169,7 +169,7 @@
 	.problem {
 		margin-top: 16px;
 		padding: 16px 18px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--del-bg);
 		display: flex;
 		flex-direction: column;

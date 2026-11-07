@@ -244,7 +244,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	li {

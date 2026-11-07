@@ -329,7 +329,7 @@
 		flex-direction: column;
 		gap: 12px;
 		padding: 14px 16px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--surface);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
@@ -341,7 +341,7 @@
 		align-items: center;
 		gap: 8px;
 		padding: 8px 8px 8px 14px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}

@@ -196,7 +196,7 @@
 		max-height: min(640px, calc(100vh - 180px));
 		display: flex;
 		flex-direction: column;
-		border-radius: 16px;
+		border-radius: var(--radius-xl);
 		background: var(--surface);
 		box-shadow:
 			0 0 0 1px var(--line-2),

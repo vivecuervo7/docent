@@ -134,7 +134,7 @@
 		width: 100%;
 		padding: 3px 8px 3px calc(8px + var(--depth) * 12px);
 		border: 0;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--faint);
 		font-family: var(--mono);
@@ -181,7 +181,7 @@
 		width: 6px;
 		height: 6px;
 		margin-left: auto;
-		border-radius: 3px;
+		border-radius: var(--radius-full);
 		background: var(--you);
 	}
 	/* Lines a file's name up under its folder's, past the folder's chevron. */

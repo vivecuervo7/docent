@@ -449,7 +449,7 @@
 	}
 	.card {
 		background: var(--agent-card);
-		border-radius: 20px;
+		border-radius: var(--radius-xl);
 		padding: 28px 28px 24px;
 		display: flex;
 		flex-direction: column;
@@ -560,7 +560,7 @@
 		margin: 0 0 0 -7px;
 		padding: 2px 7px;
 		border: 0;
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--muted);
 		font: inherit;
@@ -621,7 +621,7 @@
 		color: var(--agent-quote-text);
 		background: var(--agent-quote);
 		padding: 8px 11px;
-		border-radius: 9px;
+		border-radius: var(--radius-md);
 	}
 	.controls {
 		display: flex;
@@ -640,7 +640,7 @@
 		height: 22px;
 		padding: 0;
 		border: 0;
-		border-radius: 11px;
+		border-radius: var(--radius-full);
 		background: var(--switch-off);
 		cursor: pointer;
 		flex-shrink: 0;
@@ -651,7 +651,7 @@
 		left: 3px;
 		width: 16px;
 		height: 16px;
-		border-radius: 8px;
+		border-radius: var(--radius-full);
 		background: var(--faint);
 		transition: transform 0.15s;
 	}
@@ -704,7 +704,7 @@
 		margin: 4px 0 2px;
 		padding: 22px 16px;
 		border: 1px dashed var(--agent-menu-line);
-		border-radius: 14px;
+		border-radius: var(--radius-lg);
 		background: none;
 		color: var(--agent-text);
 		font: inherit;
@@ -736,7 +736,7 @@
 	.big {
 		height: 44px;
 		padding: 0 18px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		font-size: 14.5px;
 	}
 	.actions .primary {

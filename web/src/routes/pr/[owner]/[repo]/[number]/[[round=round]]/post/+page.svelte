@@ -427,7 +427,7 @@
 		align-items: center;
 		gap: 16px;
 		padding: 14px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--popover);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--muted);
@@ -456,7 +456,7 @@
 	.auto-merge {
 		margin: 0;
 		padding: 10px 14px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--popover);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--agent-text);
@@ -468,7 +468,7 @@
 		align-items: center;
 		gap: 12px;
 		padding: 12px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--done-bg);
 		color: var(--done);
 		font-size: 14.5px;
@@ -482,7 +482,7 @@
 		flex-direction: column;
 	}
 	.card {
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		overflow: hidden;
 		background: var(--surface);
 		box-shadow: 0 0 0 1px var(--line-2);
@@ -585,7 +585,7 @@
 	.send {
 		gap: 14px;
 		padding: 18px 20px;
-		border-radius: 14px;
+		border-radius: var(--radius-lg);
 		background: var(--surface);
 		box-shadow: 0 0 0 1px var(--line-2);
 	}
@@ -614,7 +614,7 @@
 	.big {
 		height: 42px;
 		padding: 0 18px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		font-size: 14.5px;
 	}
 	.bad {

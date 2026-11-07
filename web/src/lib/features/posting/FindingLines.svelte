@@ -65,7 +65,7 @@
 
 <style>
 	.lines {
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		overflow: hidden;
 		background: var(--code-bg);
 		font-family: var(--mono);

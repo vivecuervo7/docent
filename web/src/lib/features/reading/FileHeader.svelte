@@ -273,7 +273,7 @@
 		margin-left: 10px;
 		padding: 0;
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: var(--you);
 		cursor: pointer;
 	}
@@ -322,7 +322,7 @@
 		margin-left: 14px;
 		padding: 0 11px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--text);
 		font: inherit;

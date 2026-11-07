@@ -210,7 +210,7 @@
 	}
 	.speculative {
 		padding: 1px 7px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		box-shadow: 0 0 0 1px var(--line-2);
 		color: var(--faint);
 		font-size: 11.5px;
@@ -268,7 +268,7 @@
 	.rationale {
 		margin-top: 10px;
 		padding: 10px 14px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
 		color: var(--muted);
 		font-size: 13.5px;
@@ -277,7 +277,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		overflow: hidden;
 		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
 	}

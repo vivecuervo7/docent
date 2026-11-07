@@ -42,7 +42,7 @@
 		height: 30px;
 		padding: 0 8px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);

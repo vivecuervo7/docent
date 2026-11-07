@@ -281,7 +281,7 @@
 	.big {
 		height: 42px;
 		padding: 0 18px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		font-size: 14.5px;
 	}
 	kbd {
@@ -290,7 +290,7 @@
 		min-width: 20px;
 		height: 20px;
 		padding: 0 5px;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: var(--chosen-dim);
 		color: var(--on-chosen);
 		font-family: var(--mono);

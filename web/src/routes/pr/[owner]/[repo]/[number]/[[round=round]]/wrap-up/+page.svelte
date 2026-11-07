@@ -278,7 +278,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		overflow: hidden;
 	}
@@ -298,7 +298,7 @@
 	.big {
 		height: 42px;
 		padding: 0 18px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		font-size: 14.5px;
 	}
 	.bad {

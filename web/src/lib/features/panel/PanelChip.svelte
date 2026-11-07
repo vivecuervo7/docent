@@ -178,7 +178,7 @@
 		height: 34px;
 		padding: 0 14px;
 		border: 0;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		background: var(--agent-pill);
 		color: var(--agent-text);
 		font: inherit;
@@ -199,7 +199,7 @@
 		right: 0;
 		width: 340px;
 		padding: 6px 0 0;
-		border-radius: 14px;
+		border-radius: var(--radius-lg);
 		background: var(--popover);
 		box-shadow:
 			0 0 0 1px var(--popover-line),

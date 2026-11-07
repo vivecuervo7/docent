@@ -67,7 +67,7 @@
 		align-items: center;
 		gap: 32px;
 		padding: 16px 20px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	svg {
@@ -112,7 +112,7 @@
 	.swatch {
 		width: 10px;
 		height: 10px;
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	.dim {
 		opacity: 0.35;

@@ -25,7 +25,7 @@
 		height: 28px;
 		padding: 0;
 		border: 0;
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--faint);
 		cursor: pointer;

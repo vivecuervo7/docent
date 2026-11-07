@@ -128,7 +128,7 @@
 		min-width: 240px;
 		padding: 6px;
 		box-sizing: border-box;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
@@ -166,7 +166,7 @@
 		gap: 10px;
 		height: 34px;
 		padding: 0 10px;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		color: var(--text);
 		font-size: 14px;
 		text-decoration: none;

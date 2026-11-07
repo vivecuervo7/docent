@@ -87,7 +87,7 @@
 		display: flex;
 		gap: 12px;
 		padding: 9px 12px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		text-decoration: none;
 		color: var(--muted);
 		font-size: 14px;
@@ -117,7 +117,7 @@
 		right: -3px;
 		width: 7px;
 		height: 7px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: var(--you);
 		box-shadow: 0 0 0 2px var(--bg);
 	}

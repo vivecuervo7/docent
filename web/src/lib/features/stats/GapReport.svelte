@@ -39,7 +39,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	li {
@@ -59,7 +59,7 @@
 	.bar {
 		display: flex;
 		height: 8px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		overflow: hidden;
 	}
 	.count {
@@ -87,7 +87,7 @@
 		width: 10px;
 		height: 10px;
 		margin-left: 8px;
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	.swatch:first-child {
 		margin-left: 0;

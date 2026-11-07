@@ -67,7 +67,7 @@
 		flex-direction: column;
 		gap: 10px;
 		padding: 16px 18px;
-		border-radius: 14px;
+		border-radius: var(--radius-lg);
 		background: var(--popover);
 		box-shadow: 0 0 0 1px var(--popover-line);
 	}

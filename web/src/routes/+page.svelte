@@ -198,7 +198,7 @@
 		gap: 14px;
 		margin-bottom: -24px;
 		padding: 12px 14px 12px 18px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		font-size: 14px;
@@ -292,7 +292,7 @@
 		height: 46px;
 		padding: 0 16px;
 		border: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
@@ -306,7 +306,7 @@
 	.big {
 		height: 46px;
 		padding: 0 24px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		font-size: 15px;
 	}
 	.error {

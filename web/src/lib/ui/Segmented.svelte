@@ -45,7 +45,7 @@
 		display: flex;
 		align-self: flex-start;
 		padding: 2px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	button {
@@ -55,7 +55,7 @@
 		height: 30px;
 		padding: 0 14px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--muted);
 		font: inherit;
@@ -75,12 +75,12 @@
 		cursor: default;
 	}
 	.small {
-		border-radius: 9px;
+		border-radius: var(--radius-md);
 	}
 	.small button {
 		height: 26px;
 		padding: 0 11px;
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 		font-size: 12.5px;
 	}
 </style>

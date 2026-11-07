@@ -282,7 +282,7 @@
 		height: 18px;
 		padding: 0 6px;
 		border: 0;
-		border-radius: 9px;
+		border-radius: var(--radius-full);
 		background: none;
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--you) 70%, transparent);
 		color: var(--you-text);
@@ -302,7 +302,7 @@
 		align-items: center;
 		gap: 6px;
 		padding: 3px 10px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		background: color-mix(in srgb, var(--tone) 8%, transparent);
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
 		color: var(--tone);
@@ -349,7 +349,7 @@
 		gap: 3px;
 		min-width: 190px;
 		padding: 10px 12px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
@@ -412,7 +412,7 @@
 		margin-right: -8px;
 		padding: 0;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--agent);
 		opacity: 0.75;
