@@ -7,7 +7,8 @@
 
 <SiteHeader />
 <main class="status">
-	<p>{page.status === 404 ? 'There’s nothing here.' : `Something went wrong: ${page.error?.message}`}</p>
+	<h1>{page.status === 404 ? 'There’s nothing here' : 'Something went wrong'}</h1>
+	{#if page.status !== 404}<p>{page.error?.message}</p>{/if}
 	<a class="btn" href="/">Back to your reviews</a>
 </main>
 

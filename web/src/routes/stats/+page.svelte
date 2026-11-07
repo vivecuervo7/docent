@@ -10,6 +10,12 @@
 	import { messageOf } from '#lib/api/errors.js';
 	import { shortDate } from '#lib/ui/format.js';
 
+	// How the panel performs, run on asking and kept up to date as it runs.
+	// Asked for first, alongside the stats, and not waited for: the page has
+	// everything else to show without it, and shows its failure in its place.
+	const live = getAnalysis();
+	const analysis = $derived(live.current);
+
 	// What reviewing has come to, at a glance: when, how much, how the slices
 	// cut it down, and how the panel's findings fared.
 	const stats = $derived(await getStats());
@@ -20,9 +26,6 @@
 		return times.length ? Math.min(...times) : null;
 	});
 
-	// The analysis of how the panel performs, run on asking, kept up to date
-	// as it runs.
-	const analysis = $derived(await getAnalysis());
 	let analysisError = $state<string | null>(null);
 	async function analyse() {
 		analysisError = null;
@@ -34,7 +37,7 @@
 		analysisError = null;
 		await resetAnalysis().catch((err) => (analysisError = messageOf(err)));
 	}
-	const analysed = $derived(Object.keys(analysis.themes.overall).length > 0 || Object.keys(analysis.gaps.byTheme).length > 0);
+	const analysed = $derived(!!analysis && (Object.keys(analysis.themes.overall).length > 0 || Object.keys(analysis.gaps.byTheme).length > 0));
 	const number = (n: number) => n.toLocaleString();
 	const pct = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : '–');
 	// The scale: four even steps of a round size, the last at about the
@@ -139,17 +142,19 @@
 		<section>
 			<div class="row">
 				<h2>Reviewers</h2>
-				<button class="btn" disabled={analysis.status.running} onclick={analyse}>Analyse reviewer performance</button>
+				{#if analysis}
+					<button class="btn" disabled={analysis.status.running} onclick={analyse}>Analyse reviewer performance</button>
+				{/if}
 			</div>
-			{#if analysis.status.running}
+			{#if analysis?.status.running}
 				<p class="faint loading">
 					<Spinner size={14} />
 					{analysis.status.phase === 'gaps' ? 'Checking what others said' : 'Sorting findings into themes'}… {analysis.status.done} of {analysis.status.total}
 					{analysis.status.phase === 'gaps' ? 'pull requests' : 'findings'}
 				</p>
-			{:else if analysisError || analysis.status.error}
-				<p class="bad">Couldn’t analyse: {analysisError ?? analysis.status.error}</p>
-			{:else if analysed && analysis.pending.findings}
+			{:else if analysisError || live.error || analysis?.status.error}
+				<p class="bad">Couldn’t analyse: {analysisError ?? live.error?.message ?? analysis?.status.error}</p>
+			{:else if analysed && analysis?.pending.findings}
 				<p class="faint">{number(analysis.pending.findings)} findings since the last analysis.</p>
 			{/if}
 			<ul class="reviewers">
@@ -173,23 +178,23 @@
 			</div>
 			{#if s.overlap.reviewers.length > 1}
 				<h3>Reviewer alignment</h3>
-				<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} themes={analysis.themes.byReviewer} />
+				<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} themes={analysis?.themes.byReviewer} />
 			{/if}
-			{#if Object.keys(analysis.themes.overall).length}
+			{#if analysis && Object.keys(analysis.themes.overall).length}
 				<h3>What the kept findings were about</h3>
 				<ThemesPie counts={analysis.themes.overall} />
 			{/if}
 		</section>
 	{/if}
 
-	{#if Object.keys(analysis.gaps.byTheme).length}
+	{#if analysis && Object.keys(analysis.gaps.byTheme).length}
 		<section>
 			<h2>Panel and others, by theme</h2>
 			<GapReport gaps={analysis.gaps} kept={analysis.themes.overall} />
 		</section>
 	{/if}
 
-	{#if analysed && !analysis.status.running}
+	{#if analysed && !analysis?.status.running}
 		<footer>
 			<button class="reset" onclick={reset}>Reset analyses</button>
 			<span class="faint">The next run then goes over everything again: long, and costly.</span>
