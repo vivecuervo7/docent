@@ -1,4 +1,5 @@
-import { listModels, readOk, sendJson } from '$lib/api/client';
+import { readOk, sendJson } from '$lib/api/client';
+import { loadModels } from '$lib/features/settings/models.svelte';
 import { checkSetup, setup } from '$lib/features/settings/setup.svelte';
 import { shortDate } from '$lib/ui/format';
 import { dismissGeneration, listGenerations, stopGeneration } from '$lib/features/preparing/generations';
@@ -305,7 +306,7 @@ export class StartPage {
 
 	// What's set up on this machine, as last found, or `fresh`, checked again now.
 	async recheck(fresh = false) {
-		const [, models] = await Promise.all([checkSetup(fresh).catch(() => {}), listModels(fresh).catch(() => null)]);
+		const [, models] = await Promise.all([checkSetup(fresh).catch(() => {}), loadModels(fresh)]);
 		if (setup.current) this.login = setup.current.gh.login ?? null;
 		if (models) this.modelSources = [...new Set(models.options.map((o) => o.source))];
 	}

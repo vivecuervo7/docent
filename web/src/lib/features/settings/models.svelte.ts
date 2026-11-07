@@ -5,8 +5,9 @@ import type { ModelOption } from '$lib/types';
 // top and Settings share, so choosing in either shows in both. The list as
 // last seen in this browser is there from the first paint.
 const KEPT = 'docent.models';
-let current = $state<{ options: ModelOption[]; selected: string } | null>(kept());
-let listed: Promise<void> | null = null;
+type Listing = { options: ModelOption[]; selected: string };
+let current = $state<Listing | null>(kept());
+let listed: Promise<Listing | null> | null = null;
 
 function kept() {
 	try {
@@ -22,10 +23,13 @@ export const models = {
 	}
 };
 
-// Listed once; `fresh` lists them again, as after a provider changes.
-export function loadModels(fresh = false): Promise<void> {
+// Listed once, and again with `fresh`, as after a provider changes or setup
+// is checked again. The latest listing is what later calls get, and one that
+// failed isn't kept, so the next call tries again. Gives back what was listed,
+// or null if it failed.
+export function loadModels(fresh = false): Promise<Listing | null> {
 	if (!fresh && listed) return listed;
-	const run = listModels(fresh)
+	const run: Promise<Listing | null> = listModels(fresh)
 		.then((answer) => {
 			current = answer;
 			try {
@@ -33,9 +37,13 @@ export function loadModels(fresh = false): Promise<void> {
 			} catch {
 				// Not kept: the menu waits for the list next time.
 			}
+			return answer;
 		})
-		.catch(() => {});
-	if (!fresh) listed = run;
+		.catch(() => {
+			if (listed === run) listed = null;
+			return null;
+		});
+	listed = run;
 	return run;
 }
 
