@@ -19,6 +19,13 @@
 		padding: 0 24px;
 		font-size: 15px;
 	}
+	h1 {
+		margin: 0 0 12px;
+		font-family: var(--serif);
+		font-size: 38px;
+		font-weight: 500;
+		letter-spacing: -0.015em;
+	}
 	.status .btn {
 		text-decoration: none;
 	}

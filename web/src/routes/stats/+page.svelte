@@ -14,7 +14,9 @@
 	// Asked for first, alongside the stats, and not waited for: the page has
 	// everything else to show without it, and shows its failure in its place.
 	const live = getAnalysis();
-	const analysis = $derived(live.current);
+	// Once the stream fails, its last value can't be trusted, a run's progress
+	// included, so nothing of it shows until it's tried again.
+	const analysis = $derived(live.error ? undefined : live.current);
 
 	// What reviewing has come to, at a glance: when, how much, how the slices
 	// cut it down, and how the panel's findings fared.
@@ -153,7 +155,10 @@
 					{analysis.status.phase === 'gaps' ? 'pull requests' : 'findings'}
 				</p>
 			{:else if analysisError || live.error || analysis?.status.error}
-				<p class="bad">Couldn’t analyse: {analysisError ?? live.error?.message ?? analysis?.status.error}</p>
+				<p class="bad">
+					Couldn’t analyse: {analysisError ?? live.error?.message ?? analysis?.status.error}
+					{#if live.error}<button class="reset" onclick={() => live.reconnect()}>Try again</button>{/if}
+				</p>
 			{:else if analysed && analysis?.pending.findings}
 				<p class="faint">{number(analysis.pending.findings)} findings since the last analysis.</p>
 			{/if}
