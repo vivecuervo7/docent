@@ -222,25 +222,25 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.grow {
 		flex-grow: 1;
 	}
 	.tally {
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	h1 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 38px;
+		font-size: var(--text-5xl);
 		font-weight: 500;
 		letter-spacing: -0.015em;
 	}
 	.lede {
 		margin: 0;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	section {
 		display: flex;
@@ -248,7 +248,7 @@
 	}
 	h2 {
 		margin: 0 0 10px;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		font-weight: 600;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -260,7 +260,7 @@
 		padding: 0;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		text-decoration: underline;
 		text-underline-offset: 3px;
 		cursor: pointer;
@@ -272,7 +272,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	ul {
 		list-style: none;
@@ -285,7 +285,7 @@
 	.empty {
 		margin: 4px 0 0;
 		color: var(--faint);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.next {
 		display: flex;
@@ -293,17 +293,17 @@
 		gap: 14px;
 	}
 	.stale-note {
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.big {
 		height: 42px;
 		padding: 0 18px;
 		border-radius: var(--radius-lg);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 	}
 	.bad {
 		margin: 0;
 		color: var(--danger);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 </style>

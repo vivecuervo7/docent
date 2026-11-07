@@ -182,7 +182,7 @@
 		background: var(--agent-pill);
 		color: var(--agent-text);
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	.pill:hover,
@@ -225,16 +225,16 @@
 	.name {
 		color: var(--agent-text);
 		font-weight: 500;
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.model {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.state {
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		color: var(--muted);
 	}
 	.state.working {
@@ -244,7 +244,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		font-family: var(--mono);
 	}
 	.facts-toggle {
@@ -252,7 +252,7 @@
 		border: 0;
 		background: none;
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		text-align: left;
 		text-decoration: underline;
 		text-underline-offset: 3px;
@@ -266,18 +266,18 @@
 	.facts li {
 		padding: 6px 0;
 		border-bottom: 0;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		line-height: 1.5;
 		color: var(--muted);
 	}
 	.where {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 	}
 	.more {
 		display: block;
 		padding: 10px 16px 12px;
 		color: var(--faint);
-		font-size: 13px;
+		font-size: var(--text-base);
 		text-decoration: none;
 	}
 	.more:hover {

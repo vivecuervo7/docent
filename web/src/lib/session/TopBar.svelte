@@ -79,13 +79,13 @@
 	}
 	.brand {
 		font-family: var(--serif);
-		font-size: 21px;
+		font-size: var(--text-2xl);
 		font-weight: 600;
 		letter-spacing: -0.01em;
 		text-decoration: none;
 	}
 	.title {
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -99,7 +99,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		color: var(--muted);
 		text-decoration: none;
 	}

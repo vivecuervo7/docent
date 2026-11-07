@@ -190,7 +190,7 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.undo {
 		display: flex;
@@ -201,7 +201,7 @@
 		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow: inset 0 0 0 1px var(--line-2);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.grow {
 		flex-grow: 1;
@@ -226,12 +226,12 @@
 		gap: 5px;
 	}
 	.deleted .title {
-		font-size: 15px;
+		font-size: var(--text-lg);
 		font-weight: 500;
 		opacity: 0.7;
 	}
 	.deleted .meta {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.list-tools {
 		display: flex;
@@ -275,12 +275,12 @@
 		margin: 0;
 		font-family: var(--serif);
 		font-weight: 500;
-		font-size: 38px;
+		font-size: var(--text-5xl);
 		letter-spacing: -0.015em;
 	}
 	form p {
 		margin: 0 0 8px;
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	.row {
 		display: flex;
@@ -297,7 +297,7 @@
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font: inherit;
-		font-size: 15px;
+		font-size: var(--text-lg);
 		outline: none;
 	}
 	input:focus {
@@ -307,16 +307,16 @@
 		height: 46px;
 		padding: 0 24px;
 		border-radius: var(--radius-lg);
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	.error {
 		margin: 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		color: var(--danger);
 	}
 	.caps {
 		margin: 0 0 8px;
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;

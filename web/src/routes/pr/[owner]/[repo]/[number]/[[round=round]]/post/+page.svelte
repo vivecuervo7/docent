@@ -390,7 +390,7 @@
 	h1 {
 		margin: 0 0 12px;
 		font-family: var(--serif);
-		font-size: 38px;
+		font-size: var(--text-5xl);
 		font-weight: 500;
 		letter-spacing: -0.015em;
 	}
@@ -398,7 +398,7 @@
 	.prompt p {
 		margin: 0;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.prompt {
@@ -415,7 +415,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		white-space: nowrap;
 	}
 	.grow {
@@ -431,7 +431,7 @@
 		background: var(--popover);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--muted);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.55;
 	}
 	.stale .btn {
@@ -446,7 +446,7 @@
 	.confirm-stale {
 		margin: 0;
 		color: var(--muted);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.confirm-stale {
@@ -460,7 +460,7 @@
 		background: var(--popover);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--agent-text);
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.55;
 	}
 	.posted {
@@ -471,11 +471,11 @@
 		border-radius: var(--radius-lg);
 		background: var(--done-bg);
 		color: var(--done);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 	}
 	.posted a {
 		color: var(--done);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.review {
 		display: flex;
@@ -494,7 +494,7 @@
 		align-items: center;
 		gap: 10px;
 		min-width: 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.card header {
 		padding: 8px 10px 8px 16px;
@@ -527,7 +527,7 @@
 	}
 	.where {
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		white-space: nowrap;
 		overflow: hidden;
@@ -554,7 +554,7 @@
 		padding: 0;
 		color: var(--faint);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.link:hover {
@@ -571,7 +571,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 18px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.dropped li {
 		display: flex;
@@ -592,12 +592,12 @@
 	h2 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 22px;
+		font-size: var(--text-2xl);
 		font-weight: 500;
 	}
 	.send p {
 		margin: 0;
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.actions {
@@ -605,21 +605,21 @@
 		align-items: center;
 		justify-content: flex-end;
 		gap: 12px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.suggested {
 		margin: 8px 0 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.big {
 		height: 42px;
 		padding: 0 18px;
 		border-radius: var(--radius-lg);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 	}
 	.bad {
 		margin: 0;
 		color: var(--danger);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 </style>

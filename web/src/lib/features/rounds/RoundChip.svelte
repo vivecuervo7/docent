@@ -157,7 +157,7 @@
 		background: var(--surface);
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	.pill:hover,
@@ -198,7 +198,7 @@
 		gap: 8px;
 		padding: 9px 16px;
 		border-top: 1px solid var(--line);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.current {
 		color: var(--text);
@@ -220,7 +220,7 @@
 	.delete {
 		padding: 10px 16px 12px;
 		border-top: 1px solid var(--line);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.link.danger:hover {
 		color: var(--danger);
@@ -232,6 +232,6 @@
 		gap: 8px;
 		padding: 12px 16px 14px;
 		border-top: 1px solid var(--line);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 </style>

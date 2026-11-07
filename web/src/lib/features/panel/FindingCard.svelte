@@ -75,7 +75,7 @@
 		display: flex;
 		align-items: baseline;
 		gap: 10px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		min-width: 0;
 	}
 	.who {
@@ -86,7 +86,7 @@
 	.where {
 		min-width: 0;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		white-space: nowrap;
 		overflow: hidden;
@@ -101,12 +101,12 @@
 	}
 	.rationale {
 		margin: 0;
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.rationale {
 		color: var(--muted);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.why {
 		display: flex;
@@ -118,7 +118,7 @@
 		padding: 0;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	footer {

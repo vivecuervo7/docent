@@ -75,7 +75,7 @@
 	}
 	p {
 		margin: 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 		line-height: 1.5;
 	}
 	.ok {
@@ -88,7 +88,7 @@
 		color: var(--faint);
 	}
 	code {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		user-select: all;
 	}
 </style>

@@ -43,7 +43,7 @@
 		max-width: 640px;
 		margin: 80px auto;
 		padding: 0 24px;
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	.status .btn {
 		text-decoration: none;

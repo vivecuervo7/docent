@@ -86,7 +86,7 @@
 		gap: 10px;
 		padding: 9px 8px;
 		border-radius: var(--radius-md);
-		font-size: 14px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	label:hover {
@@ -102,7 +102,7 @@
 		gap: 3px;
 	}
 	small {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		line-height: 1.4;
 	}
 	.choice {
@@ -114,7 +114,7 @@
 		border-top: 1px solid var(--line-2);
 	}
 	.label {
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.switch {
 		display: flex;
@@ -131,7 +131,7 @@
 		background: none;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	.switch button[aria-checked='true'] {

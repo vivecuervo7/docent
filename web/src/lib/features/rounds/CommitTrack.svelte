@@ -137,7 +137,7 @@
 	.days {
 		position: relative;
 		height: 18px;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.days span {

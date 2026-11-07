@@ -21,13 +21,13 @@
 	h2 {
 		margin: 8px 0 0;
 		font-family: var(--serif);
-		font-size: 22px;
+		font-size: var(--text-2xl);
 		font-weight: 500;
 	}
 	.intro {
 		margin: 0;
 		color: var(--faint);
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 </style>

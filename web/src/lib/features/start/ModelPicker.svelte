@@ -43,7 +43,7 @@
 		background: color-mix(in srgb, var(--surface-2) 50%, transparent);
 		color: var(--muted);
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	.trigger:hover,

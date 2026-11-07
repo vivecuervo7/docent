@@ -174,7 +174,7 @@
 		gap: 10px;
 	}
 	.caps {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -184,17 +184,17 @@
 		margin: 4px 0 0;
 		font-family: var(--serif);
 		font-weight: 500;
-		font-size: 32px;
+		font-size: var(--text-4xl);
 		line-height: 1.2;
 		letter-spacing: -0.01em;
 	}
 	.mono {
 		font-family: var(--mono);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.lede {
 		margin: 22px 0 4px;
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	.loading {
 		display: flex;
@@ -263,7 +263,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.commits li {
 		display: flex;

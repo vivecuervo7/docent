@@ -45,7 +45,7 @@
 	li {
 		padding: 11px 16px;
 		border-top: 1px solid var(--line);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	li:first-child {
 		border-top: 0;
@@ -64,7 +64,7 @@
 	}
 	.count {
 		text-align: right;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.panel {
 		background: var(--state-done);
@@ -80,7 +80,7 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: 6px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.swatch {
 		display: inline-block;

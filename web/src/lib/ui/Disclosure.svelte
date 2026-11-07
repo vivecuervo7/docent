@@ -29,7 +29,7 @@
 	.caps {
 		gap: 8px;
 		color: var(--faint);
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		font-weight: 600;
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
@@ -42,12 +42,12 @@
 		gap: 10px;
 		color: var(--muted);
 		font-family: var(--serif);
-		font-size: 19px;
+		font-size: var(--text-xl);
 		font-weight: 500;
 	}
 	.heading .count {
 		font-family: var(--mono);
-		font-size: 13px;
+		font-size: var(--text-base);
 		color: var(--faint);
 	}
 </style>

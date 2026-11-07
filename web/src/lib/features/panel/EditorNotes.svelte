@@ -13,7 +13,7 @@
 		speculative,
 		onPr,
 		setAside,
-		fontSize = 13,
+		fontSize = 'var(--text-base)',
 		chevron = 14,
 		tone = 'muted'
 	}: {
@@ -24,7 +24,7 @@
 		speculative?: string;
 		onPr?: string;
 		setAside?: string;
-		fontSize?: number;
+		fontSize?: string;
 		chevron?: number;
 		tone?: 'muted' | 'faint';
 	} = $props();
@@ -42,11 +42,11 @@
 </script>
 
 {#each notes as n (n.key)}
-	<button class="fold" style:font-size="{fontSize}px" style:color="var(--{tone})" aria-expanded={!!open[n.key]} onclick={() => (open[n.key] = !open[n.key])}>
+	<button class="fold" style:font-size={fontSize} style:color="var(--{tone})" aria-expanded={!!open[n.key]} onclick={() => (open[n.key] = !open[n.key])}>
 		<Icon name="chevron" size={chevron} turned={open[n.key]} />
 		{n.label}
 	</button>
-	{#if open[n.key]}<p class="text" style:font-size="{fontSize}px" style:padding-left="{chevron + 6}px"><InlineText text={n.text} /></p>{/if}
+	{#if open[n.key]}<p class="text" style:font-size={fontSize} style:padding-left="{chevron + 6}px"><InlineText text={n.text} /></p>{/if}
 {/each}
 
 <style>

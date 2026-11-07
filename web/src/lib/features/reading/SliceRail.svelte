@@ -62,14 +62,14 @@
 		padding: 0 12px;
 	}
 	.label {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
 		color: var(--faint);
 	}
 	.count {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	ol {
 		margin: 12px 0 0;
@@ -90,7 +90,7 @@
 		border-radius: var(--radius-lg);
 		text-decoration: none;
 		color: var(--muted);
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.4;
 		overflow-wrap: anywhere;
 	}
@@ -125,6 +125,6 @@
 		align-items: center;
 		margin-top: 16px;
 		color: var(--faint);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 </style>

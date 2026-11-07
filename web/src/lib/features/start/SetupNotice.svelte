@@ -26,7 +26,7 @@
 		background: var(--agent-tint);
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent) 28%, transparent);
 		color: var(--agent-text);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	svg {
 		flex-shrink: 0;

@@ -262,7 +262,7 @@
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		outline: none;
 	}
 	.filter input:focus {
@@ -270,12 +270,12 @@
 	}
 	.note {
 		padding: 6px 10px 2px;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.group {
 		padding: 10px 10px 4px;
-		font-size: 11px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -302,7 +302,7 @@
 		background: none;
 		color: var(--text);
 		font: inherit;
-		font-size: 14px;
+		font-size: var(--text-md);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -327,10 +327,10 @@
 	   the chosen one, so the rest keep the full width. */
 	.tick {
 		color: var(--done);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.hint {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.agent {

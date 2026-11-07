@@ -81,7 +81,7 @@
 	.instructions {
 		margin: 0;
 		color: var(--muted);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		line-height: 1.5;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;

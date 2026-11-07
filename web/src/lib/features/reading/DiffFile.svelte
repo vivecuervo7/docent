@@ -651,7 +651,7 @@
 		gap: 8px;
 		max-width: 860px;
 		padding: 2px 0 16px 30px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 		color: var(--muted);
 	}
@@ -670,7 +670,7 @@
 		justify-content: space-between;
 		gap: 16px;
 		padding: 14px 16px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.hunk-header,
 	.hunk-footer {
@@ -680,7 +680,7 @@
 		min-height: 30px;
 		padding: 0 8px 0 16px;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--hunk-text);
 	}
 	.hunk-header {
@@ -711,7 +711,7 @@
 		background: none;
 		color: var(--faint);
 		font-family: var(--sans);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.expand:hover {
@@ -726,7 +726,7 @@
 		display: grid;
 		grid-template-columns: 48px 48px minmax(0, 1fr);
 		font-family: var(--mono);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		line-height: 22px;
 		tab-size: 4;
 	}
@@ -817,7 +817,7 @@
 		background: transparent;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -831,7 +831,7 @@
 		gap: 8px;
 		padding: 12px 14px;
 		font-family: var(--sans);
-		font-size: 13px;
+		font-size: var(--text-base);
 		white-space: normal;
 	}
 	.composer-head {

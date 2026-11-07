@@ -32,7 +32,7 @@
 		background: none;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		font-weight: 500;
 		cursor: pointer;
 	}

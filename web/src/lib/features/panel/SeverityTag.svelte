@@ -10,7 +10,7 @@
 
 <style>
 	.severity {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		font-weight: 500;
 		letter-spacing: 0.02em;
 		color: var(--faint);

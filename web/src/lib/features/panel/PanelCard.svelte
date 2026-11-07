@@ -445,7 +445,7 @@
 		align-items: center;
 		gap: 8px;
 		margin: -4px 0 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.card {
 		background: var(--agent-card);
@@ -463,7 +463,7 @@
 		align-items: center;
 		gap: 10px;
 		color: var(--agent);
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -471,14 +471,14 @@
 	h2 {
 		margin: 6px 0 4px;
 		font-family: var(--serif);
-		font-size: 26px;
+		font-size: var(--text-3xl);
 		font-weight: 500;
 		line-height: 1.2;
 	}
 	.lede {
 		margin: 0 0 12px;
 		color: var(--muted);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.55;
 	}
 	ul {
@@ -508,7 +508,7 @@
 		background: none;
 		color: var(--faint);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.why:hover {
@@ -527,7 +527,7 @@
 		gap: 5px;
 	}
 	.name {
-		font-size: 15px;
+		font-size: var(--text-lg);
 		font-weight: 500;
 	}
 	.picker {
@@ -548,10 +548,10 @@
 	}
 	.dot {
 		margin-left: -2px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.runs {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.trigger {
 		display: inline-flex;
@@ -564,7 +564,7 @@
 		background: none;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	.trigger :global(svg) {
@@ -579,7 +579,7 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: 8px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		line-height: 1.4;
 	}
 	.status.working {
@@ -609,14 +609,14 @@
 	}
 	.tell {
 		margin-top: 4px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.command {
 		align-items: flex-start;
 	}
 	.sentence {
 		min-width: 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		line-height: 1.5;
 		color: var(--agent-quote-text);
 		background: var(--agent-quote);
@@ -674,10 +674,10 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.default {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	.add {
@@ -689,7 +689,7 @@
 		background: none;
 		color: var(--faint);
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	.add:hover {
@@ -708,7 +708,7 @@
 		background: none;
 		color: var(--agent-text);
 		font: inherit;
-		font-size: 14px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 
@@ -717,7 +717,7 @@
 	}
 
 	.add-first .faint {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 
 	.add-first:hover {
@@ -737,7 +737,7 @@
 		height: 44px;
 		padding: 0 18px;
 		border-radius: var(--radius-lg);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 	}
 	.actions .primary {
 		flex-grow: 1;

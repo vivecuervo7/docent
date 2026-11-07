@@ -75,7 +75,7 @@
 		background: none;
 		color: var(--agent-text);
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	.count {
@@ -93,7 +93,7 @@
 		display: flex;
 		align-items: baseline;
 		gap: 8px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	input {

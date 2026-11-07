@@ -246,14 +246,14 @@
 	h1 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 38px;
+		font-size: var(--text-5xl);
 		font-weight: 500;
 		letter-spacing: -0.015em;
 	}
 	.lede {
 		margin: 0;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.row {
@@ -274,7 +274,7 @@
 	}
 	.text p {
 		margin: 0;
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 		color: var(--muted);
 	}
@@ -292,7 +292,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		background: none;
 		padding: 0;
@@ -305,21 +305,21 @@
 	}
 	.ok {
 		color: var(--done);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.meta {
 		color: var(--faint);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.bad {
 		color: var(--danger);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.narrow {
 		width: 90px;
 	}
 	.check {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		display: flex;
 		align-items: center;
 		gap: 6px;
@@ -327,6 +327,6 @@
 	}
 	.note {
 		margin: 8px 0 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 </style>

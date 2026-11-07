@@ -115,7 +115,7 @@
 		flex-grow: 1;
 		min-width: 0;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		white-space: nowrap;
 		overflow: hidden;
@@ -141,7 +141,7 @@
 		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
 	}
 	.role {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.messages p {
@@ -151,14 +151,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 	.status {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.status.bad {
 		color: var(--danger);

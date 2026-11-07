@@ -90,7 +90,7 @@
 	}
 	.brand {
 		font-family: var(--serif);
-		font-size: 21px;
+		font-size: var(--text-2xl);
 		font-weight: 600;
 		letter-spacing: -0.01em;
 		text-decoration: none;
@@ -147,11 +147,11 @@
 		min-width: 0;
 	}
 	.who strong {
-		font-size: 14px;
+		font-size: var(--text-md);
 		font-weight: 600;
 	}
 	.who span {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	hr {
@@ -168,7 +168,7 @@
 		padding: 0 10px;
 		border-radius: var(--radius-md);
 		color: var(--text);
-		font-size: 14px;
+		font-size: var(--text-md);
 		text-decoration: none;
 	}
 	.item :global(svg) {

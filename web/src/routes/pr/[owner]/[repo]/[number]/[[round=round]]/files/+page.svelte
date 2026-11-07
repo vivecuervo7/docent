@@ -44,7 +44,7 @@
 		min-height: calc(100vh - 64px);
 	}
 	.label {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -66,7 +66,7 @@
 	h1 {
 		margin: 10px 0 6px;
 		font-family: var(--serif);
-		font-size: 32px;
+		font-size: var(--text-4xl);
 		font-weight: 500;
 	}
 	.above-files {
@@ -77,6 +77,6 @@
 	}
 	p {
 		margin: 0;
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 </style>

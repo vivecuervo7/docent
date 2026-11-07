@@ -87,11 +87,11 @@
 	.total {
 		fill: var(--text);
 		font-family: var(--serif);
-		font-size: 24px;
+		font-size: var(--text-3xl);
 	}
 	.unit {
 		fill: var(--faint);
-		font-size: 11px;
+		font-size: var(--text-xs);
 	}
 	ul {
 		list-style: none;
@@ -100,7 +100,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	li {
 		display: grid;

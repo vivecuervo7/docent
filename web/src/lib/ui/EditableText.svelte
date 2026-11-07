@@ -53,13 +53,13 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.placeholder {
 		margin: 0;
 		color: var(--faint);
-		font-size: 14px;
+		font-size: var(--text-md);
 		font-style: italic;
 	}
 	.edit {
@@ -80,7 +80,7 @@
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font-family: var(--mono);
-		font-size: 13px;
+		font-size: var(--text-base);
 		line-height: 1.6;
 		outline: none;
 	}

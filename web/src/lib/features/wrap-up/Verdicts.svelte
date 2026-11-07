@@ -70,7 +70,7 @@
 		background: none;
 		color: var(--faint);
 		font: inherit;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 		text-decoration: underline dotted;
 		text-underline-offset: 3px;
@@ -90,12 +90,12 @@
 		white-space: normal;
 	}
 	.title {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	p {
 		margin: 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		line-height: 1.55;
 		color: var(--muted);
 	}

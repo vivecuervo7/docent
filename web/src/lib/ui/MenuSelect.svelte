@@ -46,7 +46,7 @@
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font: inherit;
-		font-size: 14px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	.trigger :global(svg) {

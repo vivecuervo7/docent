@@ -32,7 +32,7 @@
 		flex-direction: column;
 		align-items: stretch;
 		gap: 6px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		color: var(--muted);
 	}
 	div.field {
@@ -48,7 +48,7 @@
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font: inherit;
-		font-size: 14px;
+		font-size: var(--text-md);
 		outline: none;
 	}
 	div.field > :global(input:not([type='checkbox'])) {
@@ -72,11 +72,11 @@
 	}
 	.field :global(input.mono) {
 		font-family: var(--mono);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	small {
 		color: var(--faint);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		line-height: 1.5;
 	}
 </style>

@@ -182,7 +182,7 @@
 		padding: 0;
 		color: var(--muted);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		text-decoration: underline;
 		text-underline-offset: 3px;
 		cursor: pointer;
@@ -202,7 +202,7 @@
 		align-items: baseline;
 		gap: 10px;
 		min-width: 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.who {
 		color: var(--muted);
@@ -213,13 +213,13 @@
 		border-radius: var(--radius-full);
 		box-shadow: 0 0 0 1px var(--line-2);
 		color: var(--faint);
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		white-space: nowrap;
 	}
 	.where {
 		min-width: 0;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		white-space: nowrap;
 		overflow: hidden;
@@ -244,7 +244,7 @@
 		padding: 0;
 		color: var(--faint);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.link:hover {
@@ -255,7 +255,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	/* The agent's own reasoning, on the half brown of Docent's thread replies. */
@@ -271,7 +271,7 @@
 		border-radius: var(--radius-lg);
 		background: color-mix(in srgb, var(--popover) 50%, var(--surface-2));
 		color: var(--muted);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.talk {
 		list-style: none;
@@ -295,7 +295,7 @@
 		background: color-mix(in srgb, var(--popover) 60%, var(--bg));
 	}
 	.talk .role {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.rationale-text {
@@ -303,7 +303,7 @@
 		flex-direction: column;
 		gap: 6px;
 		color: var(--muted);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 	.why {
@@ -316,7 +316,7 @@
 		padding: 0;
 		color: var(--faint);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.decide {

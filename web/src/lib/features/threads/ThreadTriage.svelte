@@ -152,7 +152,7 @@
 				{@const threads = byVerdict(verdict)}
 				{#if threads.length}
 					<div class="group">
-						<VerdictLabel {verdict} size={13.5}>{label} · {threads.length}</VerdictLabel>
+						<VerdictLabel {verdict} size={14}>{label} · {threads.length}</VerdictLabel>
 						<ul>
 							{#each threads as t (t.id)}{@render row(t, verdict === 'addressed')}{/each}
 						</ul>
@@ -161,7 +161,7 @@
 			{/each}
 			{#if rest.length}
 				<div class="group">
-					<VerdictLabel size={13.5}>Not checked · {rest.length}</VerdictLabel>
+					<VerdictLabel size={14}>Not checked · {rest.length}</VerdictLabel>
 					<ul>
 						{#each rest as t (t.id)}{@render row(t, false)}{/each}
 					</ul>
@@ -207,7 +207,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.triage {
 		margin-top: 16px;
@@ -221,12 +221,12 @@
 		align-items: center;
 		gap: 12px;
 		min-height: 34px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	h2 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 24px;
+		font-size: var(--text-3xl);
 		font-weight: 500;
 	}
 	.grow {
@@ -278,15 +278,15 @@
 		color: var(--text-strong);
 	}
 	.meta {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.mono {
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.gist {
-		font-size: 14px;
+		font-size: var(--text-md);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -295,7 +295,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		line-height: 1.5;
 		color: var(--muted);
 	}
@@ -305,7 +305,7 @@
 		padding: 0;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		text-decoration: underline;
 		text-underline-offset: 3px;
 		cursor: pointer;
@@ -322,9 +322,9 @@
 	}
 	p {
 		margin: 0;
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.small {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 </style>

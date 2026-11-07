@@ -138,7 +138,7 @@
 		background: none;
 		color: var(--faint);
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		line-height: 1.4;
 		text-align: left;
 		cursor: pointer;

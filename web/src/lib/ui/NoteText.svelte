@@ -38,7 +38,7 @@
 		border-radius: var(--radius-md);
 		background: var(--wash);
 		overflow-x: auto;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		line-height: 1.55;
 	}
 	.md :global(pre code) {

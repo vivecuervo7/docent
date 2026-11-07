@@ -221,7 +221,7 @@
 		gap: 8px;
 		padding: 10px 10px 8px 16px;
 		border-bottom: 1px solid var(--popover-line);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.who {
 		font-weight: 500;
@@ -232,7 +232,7 @@
 		flex-grow: 1;
 		min-width: 0;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		white-space: nowrap;
 		overflow: hidden;
@@ -250,7 +250,7 @@
 	.body,
 	.rationale {
 		margin: 0;
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	/* A body can hold paragraphs, lists and rules: spaced like a thread. */
@@ -261,7 +261,7 @@
 	}
 	.rationale {
 		color: var(--muted);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.why {
 		display: flex;
@@ -273,7 +273,7 @@
 		padding: 0;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	.also ul {
@@ -303,7 +303,7 @@
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--muted);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.chip:hover {
@@ -318,7 +318,7 @@
 	}
 	.disagrees {
 		margin: 0;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		color: var(--agent);
 	}
 	.disputed {
@@ -326,7 +326,7 @@
 	}
 	.suggested {
 		flex-basis: 100%;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.also-body {
@@ -349,11 +349,11 @@
 	}
 	.separated {
 		margin: 0;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.link.small {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		text-decoration: none;
 	}
@@ -381,14 +381,14 @@
 		border-bottom: 0;
 	}
 	.role {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.turns .text {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 	.state {
@@ -396,7 +396,7 @@
 		align-items: center;
 		gap: 8px;
 		margin: 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 		color: var(--muted);
 	}
 	.state.bad {
@@ -419,7 +419,7 @@
 		border-radius: var(--radius-full);
 		box-shadow: 0 0 0 1px var(--popover-line);
 		color: var(--faint);
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		white-space: nowrap;
 	}
 	footer {

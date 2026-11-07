@@ -59,7 +59,7 @@
 		background: none;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		font-weight: 500;
 		cursor: pointer;
 	}
@@ -81,6 +81,6 @@
 		height: 26px;
 		padding: 0 11px;
 		border-radius: var(--radius-md);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 </style>
