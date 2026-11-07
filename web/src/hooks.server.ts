@@ -24,11 +24,21 @@ persistent('checks-warmed', () => {
 // anyway is logged, rather than stopping the server.
 persistent('unhandled-rejections', () => process.on('unhandledRejection', (err) => console.error('[unhandled]', err)));
 
-// Every request, pages included, as a domain rebound to this machine would
-// otherwise be served as if it were Docent's own. See requestGuard.server.ts.
-export const handle: Handle = ({ event, resolve }) => {
+// Every request SvelteKit answers, pages included, as a domain rebound to
+// this machine would otherwise be served as if it were Docent's own. (The
+// built files under _app and static/ are served before this runs; they're
+// the same for anyone.) See requestGuard.server.ts.
+export const handle: Handle = async ({ event, resolve }) => {
+	// Only server.js tells a built Docent it's on http. Started any other way
+	// it takes itself to be https, and every change its own pages make would
+	// be refused as coming from elsewhere.
+	if (event.url.protocol !== 'http:') return new Response('Start a built Docent with `npm start`, which serves it on http.', { status: 500 });
 	const refused = refusal(event.request, event.url);
-	if (!refused) return resolve(event);
-	if (event.url.pathname === '/mcp') return Response.json({ jsonrpc: '2.0', error: { code: -32000, message: refused }, id: null }, { status: 403 });
-	return Response.json({ error: refused }, { status: 403 });
+	if (refused && event.url.pathname === '/mcp') return Response.json({ jsonrpc: '2.0', error: { code: -32000, message: refused }, id: null }, { status: 403 });
+	if (refused) return Response.json({ error: refused }, { status: 403 });
+	const response = await resolve(event);
+	// No other site may show Docent in a frame, where clicks it tricks the
+	// user into would come from Docent's own page.
+	response.headers.set('content-security-policy', "frame-ancestors 'none'");
+	return response;
 };
