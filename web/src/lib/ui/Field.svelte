@@ -38,7 +38,7 @@
 	div.field {
 		align-items: flex-start;
 	}
-	.field :global(input:not([type='checkbox'])),
+	.field :global(input:not([type='checkbox'], [type='range'])),
 	.field :global(textarea) {
 		height: 36px;
 		padding: 0 12px;
@@ -51,7 +51,7 @@
 		font-size: var(--text-md);
 		outline: none;
 	}
-	div.field > :global(input:not([type='checkbox'])) {
+	div.field > :global(input:not([type='checkbox'], [type='range'])) {
 		align-self: stretch;
 	}
 	.field :global(textarea) {
@@ -63,7 +63,7 @@
 		field-sizing: content;
 		line-height: 1.5;
 	}
-	.field :global(input:focus),
+	.field :global(input:not([type='range']):focus),
 	.field :global(textarea:focus) {
 		box-shadow: inset 0 0 0 1px var(--you);
 	}
