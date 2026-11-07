@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { refusal } from './requestGuard.server.js';
+import type { RequestEvent } from '@sveltejs/kit';
+import { guard, refusal } from './requestGuard.server.js';
 
 const request = (method: string, headers: Record<string, string>) => new Request('http://localhost:17321/api/prs', { method, headers });
 const url = new URL('http://localhost:17321/api/prs');
@@ -46,5 +47,38 @@ describe('refusal', () => {
 		for (const method of ['GET', 'HEAD', 'OPTIONS']) {
 			expect(refusal(request(method, { host: 'localhost:17321', origin: 'http://evil.test' }), url)).toBeNull();
 		}
+	});
+});
+
+describe('guard', () => {
+	// Only the parts of a request event the guard reads.
+	const run = (href: string, method = 'GET', headers: Record<string, string> = { host: 'localhost:17321' }) => {
+		const url = new URL(href);
+		const event = { url, request: new Request(url, { method, headers }) } as RequestEvent;
+		return guard({ event, resolve: async () => new Response('page') });
+	};
+
+	it('answers what it lets through, and forbids other sites to frame it', async () => {
+		const response = await run('http://localhost:17321/');
+		expect(await response.text()).toBe('page');
+		expect(response.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
+	});
+
+	it('refuses with an error the page reads, or a JSON-RPC one on /mcp', async () => {
+		const page = await run('http://localhost:17321/api/prs', 'GET', { host: 'evil.test' });
+		expect(page.status).toBe(403);
+		expect((await page.json()).error).toMatch(/this machine/);
+		const mcp = await run('http://localhost:17321/mcp', 'POST', { host: 'evil.test' });
+		expect(mcp.status).toBe(403);
+		expect((await mcp.json()).error.code).toBe(-32000);
+	});
+
+	it('says to start with npm start when the server takes itself to be https, in either shape', async () => {
+		const page = await run('https://localhost:17321/');
+		expect(page.status).toBe(500);
+		expect((await page.json()).error).toMatch(/npm start/);
+		const mcp = await run('https://localhost:17321/mcp', 'POST');
+		expect(mcp.status).toBe(500);
+		expect((await mcp.json()).error.message).toMatch(/npm start/);
 	});
 });
