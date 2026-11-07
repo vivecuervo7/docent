@@ -1,5 +1,4 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
 import { modelName, setModelName } from '#lib/storage/settings.server.js';
 import { modelOptions } from '#lib/models/modelProvider.server.js';
 
@@ -14,5 +13,5 @@ export const GET: RequestHandler = async ({ url }) => {
 		selected = options[0].id;
 		setModelName(selected);
 	}
-	return json({ options, selected });
+	return Response.json({ options, selected });
 };

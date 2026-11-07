@@ -1,4 +1,4 @@
-import { json, type RequestHandler } from '@sveltejs/kit';
+import type { RequestHandler } from '@sveltejs/kit';
 import type { externalReviewers, personas } from '../../storage/settings.server.js';
 import type { personaFields } from './fields.server.js';
 import { badRequest, bodyOf, noContent, notFound } from '../../api/http.server.js';
@@ -11,18 +11,18 @@ type Check = typeof personaFields;
 
 export function collectionRoutes(store: Store, check: Check, extra: () => object = () => ({})): Record<'GET' | 'POST' | 'PUT', RequestHandler> {
 	return {
-		GET: () => json({ items: store.list(), ...extra() }),
+		GET: () => Response.json({ items: store.list(), ...extra() }),
 		POST: async ({ request }) => {
 			const checked = check(await bodyOf(request), false);
-			if ('error' in checked) return json(checked, { status: 400 });
+			if ('error' in checked) return Response.json(checked, { status: 400 });
 			const fields = Object.fromEntries(Object.entries(checked.fields).filter(([, v]) => v !== null));
-			return json({ item: (store.add as (f: Record<string, unknown>) => object)(fields) });
+			return Response.json({ item: (store.add as (f: Record<string, unknown>) => object)(fields) });
 		},
 		PUT: async ({ request }) => {
 			const order = (await bodyOf(request)).order;
 			const items = Array.isArray(order) && order.every((id) => typeof id === 'string') ? store.reorder(order) : null;
 			if (!items) return badRequest('The order has to list each one once.');
-			return json({ items });
+			return Response.json({ items });
 		}
 	};
 }
@@ -31,10 +31,10 @@ export function itemRoutes(store: Store, check: Check): Record<'PUT' | 'DELETE',
 	return {
 		PUT: async ({ request, params }) => {
 			const checked = check(await bodyOf(request), true);
-			if ('error' in checked) return json(checked, { status: 400 });
+			if ('error' in checked) return Response.json(checked, { status: 400 });
 			const item = store.update(params.id!, checked.fields);
 			if (!item) return notFound('Not found.');
-			return json({ item });
+			return Response.json({ item });
 		},
 		DELETE: ({ params }) => (store.remove(params.id!) ? noContent() : notFound('Not found.'))
 	};

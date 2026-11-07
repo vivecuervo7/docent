@@ -1,5 +1,4 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
 import { dismissGeneration, getGeneration, startGeneration, type Reuse } from '#lib/features/preparing/generation.server.js';
 import { badRequest, bodyOf, noContent, reviewModel, validParams } from '#lib/api/http.server.js';
 import type { ConversationSummary, Slice } from '#lib/types.js';
@@ -14,12 +13,12 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 	if (Array.isArray(body.reuse?.conversation?.reviewers)) reuse.conversation = body.reuse.conversation as ConversationSummary;
 	const fileNotes = body.reuse?.fileNotes;
 	if (fileNotes && typeof fileNotes === 'object' && !Array.isArray(fileNotes)) reuse.fileNotes = fileNotes as Reuse['fileNotes'];
-	return json({ generation: startGeneration(owner, repo, number, reuse, reviewModel(body)) });
+	return Response.json({ generation: startGeneration(owner, repo, number, reuse, reviewModel(body)) });
 };
 
 export const GET: RequestHandler = ({ params: { owner, repo, number } }) => {
 	if (!validParams(owner, repo, number)) return invalid();
-	return json({ generation: getGeneration(owner, repo, number) });
+	return Response.json({ generation: getGeneration(owner, repo, number) });
 };
 
 export const DELETE: RequestHandler = ({ params: { owner, repo, number } }) => {

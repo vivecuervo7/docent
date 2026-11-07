@@ -1,5 +1,4 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
 import { draftYourFeedback, type EarlierComment, type ThreadForFeedback } from '#lib/features/wrap-up/draftComments.server.js';
 import { badRequest, bodyOf, reviewModel, validParams } from '#lib/api/http.server.js';
 import { startJob } from '#lib/storage/jobs.server.js';
@@ -20,5 +19,5 @@ export const POST: RequestHandler = async ({ params: { owner, repo, number }, re
 	startJob({ owner, repo, number, round }, 'draft', body.input ?? null, () =>
 		draftYourFeedback(threads, prTitle, new AbortController().signal, reviewModel(body), earlier).then((comments) => ({ comments }))
 	);
-	return json({ started: true });
+	return Response.json({ started: true });
 };

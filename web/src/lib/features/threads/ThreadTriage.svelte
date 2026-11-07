@@ -81,7 +81,7 @@
 		const id = base && page.url.searchParams.get('thread');
 		if (base && id && all.some((t) => t.id === id) && opened?.id !== id) {
 			show(id);
-			goto(base, { replaceState: true, noScroll: true, keepFocus: true });
+			goto(base, { replace: true, reset: false });
 		}
 	});
 </script>

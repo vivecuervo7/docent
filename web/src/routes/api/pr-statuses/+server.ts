@@ -1,5 +1,4 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
 import { fetchPrStatuses } from '#lib/github/github.server.js';
 import { badRequest, bodyOf, failed, validParams } from '#lib/api/http.server.js';
 
@@ -13,7 +12,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const statuses = await fetchPrStatuses(
 			prs.map((p: Record<string, unknown>) => ({ owner: String(p.owner), repo: String(p.repo), number: String(p.number) }))
 		);
-		return json({ statuses });
+		return Response.json({ statuses });
 	} catch (err) {
 		return failed(err);
 	}

@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit/hooks';
 
 // Keeps the stats from the start, so no review saved before they're first
@@ -30,7 +29,7 @@ const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 // browser has open can't reach it by pointing its own domain here.
 export const handle: Handle = ({ event, resolve }) => {
 	if (event.url.pathname === '/mcp' && !LOCAL_HOSTS.includes(hostnameOf(event.request.headers.get('host')))) {
-		return json({ jsonrpc: '2.0', error: { code: -32000, message: 'Invalid Host' }, id: null }, { status: 403 });
+		return Response.json({ jsonrpc: '2.0', error: { code: -32000, message: 'Invalid Host' }, id: null }, { status: 403 });
 	}
 	return resolve(event);
 };

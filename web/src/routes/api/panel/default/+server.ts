@@ -1,10 +1,9 @@
 import type { RequestHandler } from './$types';
-import { json } from '@sveltejs/kit';
 import { defaultPanel, setDefaultPanel } from '#lib/storage/settings.server.js';
 import { badRequest, bodyOf } from '#lib/api/http.server.js';
 
 // The review panel a new PR starts with, the same for every repo.
-export const GET: RequestHandler = () => json({ panel: defaultPanel() });
+export const GET: RequestHandler = () => Response.json({ panel: defaultPanel() });
 
 export const PUT: RequestHandler = async ({ request }) => {
 	const panel = (await bodyOf(request)).panel;
@@ -27,5 +26,5 @@ export const PUT: RequestHandler = async ({ request }) => {
 			...(e.off ? { off: true } : {})
 		}))
 	);
-	return json({ panel: defaultPanel() });
+	return Response.json({ panel: defaultPanel() });
 };

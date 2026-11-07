@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import { DEFAULT_REVIEWER, REVIEWER_RE } from '../features/panel/agentReviews.server.js';
 import { rememberMcpUrl } from './mcpUrl.server.js';
 
@@ -12,10 +11,10 @@ export function validParams(owner: string, repo: string, number: string): boolea
 	return OWNER_REPO_RE.test(owner) && OWNER_REPO_RE.test(repo) && NUMBER_RE.test(number);
 }
 
-export const badRequest = (error: string) => json({ error }, { status: 400 });
-export const notFound = (error: string) => json({ error }, { status: 404 });
+export const badRequest = (error: string) => Response.json({ error }, { status: 400 });
+export const notFound = (error: string) => Response.json({ error }, { status: 404 });
 export const noContent = () => new Response(null, { status: 204 });
-export const forbidden = (error: string) => json({ error }, { status: 403 });
+export const forbidden = (error: string) => Response.json({ error }, { status: 403 });
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 
@@ -26,7 +25,7 @@ const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 export const fromThisApp = (request: Request, url: URL) => LOCAL_HOSTS.includes(url.hostname) && request.headers.get('origin') === url.origin;
 
 // A failure from GitHub or a model, reported to the page.
-export const failed = (err: unknown) => json({ error: (err as Error).message }, { status: 502 });
+export const failed = (err: unknown) => Response.json({ error: (err as Error).message }, { status: 502 });
 
 // The request's JSON body, or an empty one.
 export async function bodyOf(request: Request): Promise<Record<string, any>> {
