@@ -7,23 +7,35 @@
 	// same models Docent can use.
 	let value = $state('');
 	let saved = '';
+	// Choices made so far, so a reading that started before the latest one
+	// can't put the old model back.
+	let picks = 0;
 
 	$effect(() => {
 		loadModels();
+	});
+	// Read again whenever the models or Docent's choice change: one it was set
+	// to can go with its provider, and unset, it can follow Docent's model.
+	$effect(() => {
+		void models.current?.selected;
+		const at = picks;
 		fetch('/api/editor-model')
 			.then((res) => readOk<{ selected: string }>(res))
-			.then((r) => (value = saved = r.selected))
+			.then((r) => {
+				if (at === picks) value = saved = r.selected;
+			})
 			.catch(() => {});
 	});
 
 	$effect(() => {
 		if (!value || value === saved) return;
 		saved = value;
+		picks++;
 		sendJson('/api/editor-model', { model: value }, 'PUT').catch(() => {});
 	});
 </script>
 
-{#if models.current?.options.length && value}
+{#if models.current?.options.length}
 	<MenuSelect
 		bind:value
 		label="Editor model"

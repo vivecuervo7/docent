@@ -3,10 +3,10 @@ import { json } from '@sveltejs/kit';
 import { resolveModel, setEditorModel } from '$lib/storage/settings.server.js';
 import { editorModel } from '$lib/features/panel/editor.server.js';
 import { badRequest, bodyOf } from '$lib/api/http.server.js';
-import { listModelOptions } from '$lib/models/modelProvider.server.js';
 
-// The model the panel's editor uses, and the models it could.
-export const GET: RequestHandler = async () => json({ options: await listModelOptions(), selected: await editorModel() });
+// The model the panel's editor uses. Settings lists the models it could from
+// /api/models, so this answers quickly.
+export const GET: RequestHandler = async () => json({ selected: await editorModel() });
 
 export const PUT: RequestHandler = async ({ request }) => {
 	const model = (await bodyOf(request)).model;

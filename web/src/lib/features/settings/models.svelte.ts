@@ -51,5 +51,8 @@ export async function chooseModel(model: string): Promise<void> {
 	if (!current || model === current.selected) return;
 	const previous = current.selected;
 	current.selected = model;
-	current.selected = await selectModel(model).catch(() => previous);
+	const selected = await selectModel(model).catch(() => previous);
+	// A new answer once the server has it, so what follows Docent's model
+	// (an unset editor) reads it again then, not only while it was saving.
+	if (current) current = { ...current, selected };
 }
