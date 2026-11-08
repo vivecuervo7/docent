@@ -67,7 +67,9 @@
 		box-sizing: border-box;
 		padding: 0 28px;
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		/* The stages centred; when the bar is narrow the title gives way, rather
+		   than the chips running over the stages or the stages over the name. */
+		grid-template-columns: minmax(min-content, 1fr) auto minmax(max-content, 1fr);
 		align-items: center;
 		gap: 24px;
 		background: var(--bg);
@@ -87,6 +89,10 @@
 		text-decoration: none;
 	}
 	.title {
+		/* No width of its own, so the bar's narrowest is the name, not the title. */
+		flex: 1 1 0;
+		width: 0;
+		min-width: 0;
 		font-size: 13.5px;
 		white-space: nowrap;
 		overflow: hidden;
@@ -102,6 +108,7 @@
 		align-items: center;
 		gap: 8px;
 		font-size: 14px;
+		white-space: nowrap;
 		color: var(--muted);
 		text-decoration: none;
 	}
