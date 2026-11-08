@@ -42,7 +42,7 @@
 		border-radius: var(--radius-xl);
 		background: var(--surface);
 		box-shadow:
-			0 0 0 1px var(--line-2),
+			0 0 0 1px var(--float-line),
 			var(--shadow-dialog);
 		display: flex;
 		flex-direction: column;

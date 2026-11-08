@@ -84,8 +84,10 @@ const RAISED = [
 	'popover',
 	'popover-raised'
 ];
-// Agent outlines on what they edge.
+// Outlines on what they edge: the agents', and what floats over the page.
 const OUTLINES: [string, string][] = [
+	['float-line', 'surface'],
+	['float-line', 'surface-2'],
 	['agent-card-line', 'agent-card'],
 	['popover-line', 'popover'],
 	['agent-menu-line', 'agent-menu']
@@ -113,7 +115,7 @@ describe('the palette toward high contrast', () => {
 	}
 
 	for (const [line, on] of OUTLINES) {
-		it(`firms up ${line} as contrast rises`, () => {
+		it(`firms up ${line} on ${on} as contrast rises`, () => {
 			const at = STEPS.map((t) => ratio(colour(line, t), colour(on, t)));
 			for (let i = 1; i < at.length; i++) expect(at[i], `at ${STEPS[i]}`).toBeGreaterThanOrEqual(at[i - 1]);
 		});

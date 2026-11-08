@@ -24,6 +24,9 @@
 	/* Lines, and the light washes laid over the ground. */
 	--line: #202226;
 	--line-2: #2e3035;
+	/* The edge of what floats over the page (a menu, a popover, a dialog), which
+	   firms up toward high contrast as the agents' outlines do. */
+	--float-line: color-mix(in oklab, #2e3035, #44474f var(--toward));
 	--control-line: #3a3c42;
 	--wash: rgba(255, 255, 255, 0.04);
 	--wash-strong: rgba(255, 255, 255, 0.05);
