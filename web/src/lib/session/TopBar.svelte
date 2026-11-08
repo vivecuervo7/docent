@@ -4,6 +4,7 @@
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import PanelChip from '../features/panel/PanelChip.svelte';
 	import RoundChip from '../features/rounds/RoundChip.svelte';
+	import AccountMenu from '../ui/AccountMenu.svelte';
 	import StateMark from '../ui/StateMark.svelte';
 
 	// The review's stages.
@@ -53,6 +54,7 @@
 	<div class="right">
 		<RoundChip />
 		<PanelChip />
+		<span class="account"><AccountMenu size={28} /></span>
 	</div>
 </header>
 
@@ -115,8 +117,13 @@
 	}
 	.right {
 		display: flex;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 8px;
+	}
+	.account {
+		display: flex;
+		margin-left: 8px;
 	}
 	.joint {
 		width: 28px;
