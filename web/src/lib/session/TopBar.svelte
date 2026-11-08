@@ -91,11 +91,12 @@
 	}
 	.title {
 		/* No width of its own, so the bar's narrowest is the name, not the title;
-		   and no wider than about the chips opposite, so the bar stays balanced. */
+		   about as wide as the chips opposite on a laptop, so the bar keeps some
+		   space, and wider as the window gives it room. */
 		flex: 1 1 0;
 		width: 0;
 		min-width: 0;
-		max-width: 240px;
+		max-width: max(240px, 50vw - 400px);
 		font-size: 13.5px;
 		white-space: nowrap;
 		overflow: hidden;
