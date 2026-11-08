@@ -223,12 +223,11 @@
 
 	<ExternalReviewerSettings />
 
-	<AppearanceSettings />
-
 	<p class="faint note">
-		Saved on this machine{#if setup}
-			in <code>{setup.settingsFile}</code>{/if}. Keys never go back to the browser.
+		Saved on this machine{#if setup}{' '}in <code>{setup.settingsFile}</code>{/if}. Keys never go back to the browser.
 	</p>
+
+	<AppearanceSettings />
 </main>
 
 <style>
