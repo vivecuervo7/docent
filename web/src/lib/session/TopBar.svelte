@@ -28,7 +28,7 @@
 <header>
 	<div class="left">
 		<a class="brand" href="/">Docent</a>
-		<span class="faint title"><InlineText text={session.title} /></span>
+		<span class="faint title" title={session.title.replaceAll('`', '')}><InlineText text={session.title} /></span>
 	</div>
 	<nav aria-label="Review stages">
 		<a href={base} class="stage" class:current={onOverview} aria-current={onOverview ? 'page' : undefined}>
@@ -67,8 +67,9 @@
 		box-sizing: border-box;
 		padding: 0 28px;
 		display: grid;
-		/* The stages centred; when the bar is narrow the title gives way, rather
-		   than the chips running over the stages or the stages over the name. */
+		/* The stages centred when there's room; when the bar is narrow the title
+		   gives way, rather than the chips running over the stages or the stages
+		   over the name. */
 		grid-template-columns: minmax(min-content, 1fr) auto minmax(max-content, 1fr);
 		align-items: center;
 		gap: 24px;
@@ -89,10 +90,12 @@
 		text-decoration: none;
 	}
 	.title {
-		/* No width of its own, so the bar's narrowest is the name, not the title. */
+		/* No width of its own, so the bar's narrowest is the name, not the title;
+		   and no wider than about the chips opposite, so the bar stays balanced. */
 		flex: 1 1 0;
 		width: 0;
 		min-width: 0;
+		max-width: 240px;
 		font-size: 13.5px;
 		white-space: nowrap;
 		overflow: hidden;

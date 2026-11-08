@@ -97,7 +97,7 @@
 	}
 	.menu {
 		position: absolute;
-		z-index: 20;
+		z-index: 40;
 		top: calc(100% + 8px);
 		right: 0;
 		display: flex;
