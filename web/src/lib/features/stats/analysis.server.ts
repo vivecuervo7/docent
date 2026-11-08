@@ -43,7 +43,39 @@ const db = persistent('analysis-tables', () => {
 	return opened;
 });
 
-const state = persistent('analysis-state', () => ({ running: false, done: 0, total: 0 }) as Analysis['status']);
+// Those waiting for the analysis to change, told whenever its state does.
+const waiting = persistent('analysis-waiting', () => new Set<() => void>());
+
+// The state is kept across reloads in dev, and wrapped afresh each time this
+// module loads, so it tells those waiting even after an edit here.
+const state = new Proxy(
+	persistent('analysis-state', () => ({ running: false, done: 0, total: 0 }) as Analysis['status']),
+	{
+		set(target, key, value) {
+			Reflect.set(target, key, value);
+			for (const wake of waiting) wake();
+			return true;
+		}
+	}
+);
+
+// Resolves a moment after the analysis next changes, so a burst of progress
+// is read once, or straight away when `signal` aborts.
+export function nextChange(signal: AbortSignal): Promise<void> {
+	return new Promise((resolve) => {
+		let settling: ReturnType<typeof setTimeout> | undefined;
+		const done = () => {
+			waiting.delete(wake);
+			signal.removeEventListener('abort', done);
+			clearTimeout(settling);
+			resolve();
+		};
+		const wake = () => (settling ??= setTimeout(done, 250));
+		if (signal.aborted) return resolve();
+		waiting.add(wake);
+		signal.addEventListener('abort', done, { once: true });
+	});
+}
 
 const SEVERITIES = ['blocker', 'major', 'minor', 'nit'] as const;
 // What each theme takes in, for the model sorting points into them.
@@ -274,8 +306,15 @@ export function startAnalysis(): void {
 		.catch(() => {});
 }
 
+// Resetting while an analysis runs: the one way a reset can be refused.
+export class AnalysisRunning extends Error {
+	constructor() {
+		super('An analysis is running; wait for it to finish.');
+	}
+}
+
 export function resetAnalysis(): void {
-	if (state.running) throw new Error('An analysis is running; wait for it to finish.');
+	if (state.running) throw new AnalysisRunning();
 	db.exec('DELETE FROM finding_themes; DELETE FROM gap_comments;');
 	Object.assign(state, { done: 0, total: 0, error: undefined, finishedAt: undefined });
 }

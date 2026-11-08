@@ -1,49 +1,43 @@
 <script lang="ts">
 	import SiteHeader from '#lib/ui/SiteHeader.svelte';
-	import { readOk } from '#lib/api/client.js';
 	import OverlapMap from '#lib/features/stats/OverlapMap.svelte';
 	import ThemesPie from '#lib/features/stats/ThemesPie.svelte';
 	import GapReport from '#lib/features/stats/GapReport.svelte';
-	import type { Analysis, Stats } from '#lib/features/stats/stats.js';
+	import { getAnalysis, getStats, resetAnalysis, startAnalysis } from '#lib/features/stats/stats.remote.js';
 	import { summarise } from '#lib/features/stats/summary.js';
 	import Spinner from '#lib/ui/Spinner.svelte';
+	import { ask } from '#lib/ui/confirm.svelte.js';
+	import { messageOf } from '#lib/api/errors.js';
 	import { shortDate } from '#lib/ui/format.js';
+
+	// How the panel performs, run on asking and kept up to date as it runs.
+	// Asked for first, alongside the stats, and not waited for: the page has
+	// everything else to show without it, and shows its failure in its place.
+	const live = getAnalysis();
+	// Once the stream fails, its last value can't be trusted, a run's progress
+	// included, so nothing of it shows until it's tried again.
+	const analysis = $derived(live.error ? undefined : live.current);
 
 	// What reviewing has come to, at a glance: when, how much, how the slices
 	// cut it down, and how the panel's findings fared.
-	let stats = $state<Stats | null>(null);
-	let error = $state<string | null>(null);
-	fetch('/api/stats')
-		.then((res) => readOk<Stats>(res))
-		.then((s) => (stats = s))
-		.catch((err) => (error = (err as Error).message));
-
-	const s = $derived(stats ? summarise(stats) : null);
+	const stats = $derived(await getStats());
+	const s = $derived(summarise(stats));
 	// When the first counted round was worked on.
 	const since = $derived.by(() => {
-		const times = (stats?.rounds ?? []).flatMap((r) => [...r.activity, r.posted ?? 0, r.completed ?? 0]).filter((t) => t > 0);
+		const times = stats.rounds.flatMap((r) => [...r.activity, r.posted ?? 0, r.completed ?? 0]).filter((t) => t > 0);
 		return times.length ? Math.min(...times) : null;
 	});
 
-	// The analysis of how the panel performs, run on asking; while it runs,
-	// checked on every couple of seconds.
-	let analysis = $state<Analysis | null>(null);
 	let analysisError = $state<string | null>(null);
-	async function readAnalysis(method = 'GET') {
-		try {
-			analysis = await readOk<Analysis>(await fetch('/api/stats/analysis', { method }));
-			analysisError = null;
-		} catch (err) {
-			analysisError = (err as Error).message;
-		}
-		if (analysis?.status.running) setTimeout(readAnalysis, 2000);
+	async function analyse() {
+		analysisError = null;
+		await startAnalysis().catch((err) => (analysisError = messageOf(err)));
 	}
-	readAnalysis();
 	async function reset() {
-		if (!confirm('Reset the analyses? The next run goes over every finding and pull request again, which takes a while and costs model calls.')) return;
-		const res = await fetch('/api/stats/analysis', { method: 'DELETE' });
-		if (!res.ok) analysisError = await res.text();
-		await readAnalysis();
+		const body = 'The next run goes over every finding and pull request again, which takes a while and costs model calls.';
+		if (!(await ask({ title: 'Reset the analyses?', body, action: 'Reset' }))) return;
+		analysisError = null;
+		await resetAnalysis().catch((err) => (analysisError = messageOf(err)));
 	}
 	const analysed = $derived(!!analysis && (Object.keys(analysis.themes.overall).length > 0 || Object.keys(analysis.gaps.byTheme).length > 0));
 	const number = (n: number) => n.toLocaleString();
@@ -76,143 +70,140 @@
 		{#if since}<p class="faint since">Since {shortDate(since)}</p>{/if}
 	</div>
 
-	{#if error}
-		<p class="bad">Couldn’t read the stats: {error}</p>
-	{:else if !s}
-		<p class="faint loading"><Spinner size={14} /> Adding it up…</p>
-	{:else}
-		<section class="figures">
-			<div><strong>{number(s.prs)}</strong><span>pull requests</span></div>
-			<div><strong>{number(s.lines)}</strong><span>lines read</span></div>
-			<div><strong>{number(s.slices)}</strong><span>slices sliced</span></div>
-			<div><strong>{number(s.posted)}</strong><span>comments posted</span></div>
-		</section>
+	<section class="figures">
+		<div><strong>{number(s.prs)}</strong><span>pull requests</span></div>
+		<div><strong>{number(s.lines)}</strong><span>lines read</span></div>
+		<div><strong>{number(s.slices)}</strong><span>slices sliced</span></div>
+		<div><strong>{number(s.posted)}</strong><span>comments posted</span></div>
+	</section>
 
-		{#if s.reviewability.prs.length}
-			{@const most = Math.max(1, ...s.reviewability.prs.map((p) => p.size))}
-			{@const top = Math.max(most, step(most) * 4)}
-			<section>
-				<h2>Slice and dice</h2>
-				<p class="lede">
-					Pull requests averaged <strong>{number(s.reviewability.pr)}</strong> lines across
-					<strong>{number(s.reviewability.files)}</strong> files. The average slice was
-					<strong>{number(s.reviewability.slice)}</strong> lines and covered
-					<strong>{s.reviewability.sliceFiles.toLocaleString(undefined, { maximumFractionDigits: 1 })}</strong> files.
-				</p>
-				<div class="chart">
-					<div class="axis faint" aria-hidden="true">
-						{#each ticks(most) as t (t)}<span style:bottom="{height(t, top)}%">{short(t)}</span>{/each}
-					</div>
-					<div class="sizes" role="img" aria-label="Each pull request's size, with its average slice">
-						{#each ticks(most) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
-						{#each s.reviewability.prs as p, i (i)}
-							<span
-								class="pair"
-								class:dim={pointed && pointed.index !== i}
-								role="presentation"
-								onpointermove={(e) => point(e, i)}
-								onpointerleave={() => (pointed = null)}
-							>
-								<span class="bar pr" style:height="{height(p.size, top)}%"></span>
-								<span class="bar slice" style:height="{height(p.slice, top)}%"></span>
-							</span>
-						{/each}
-					</div>
-					{#if pointed}
-						{@const p = s.reviewability.prs[pointed.index]}
-						<dl class="card" class:flip={pointed.flip} style:left="{pointed.x}px" style:top="{pointed.y}px">
-							<dt class="title">{p.title}</dt>
-							<dd></dd>
-							<dt>Lines</dt>
-							<dd>{number(p.size)}</dd>
-							{#if p.lines !== p.size}
-								<dt>Read across rounds</dt>
-								<dd>{number(p.lines)}</dd>
-							{/if}
-							<dt>Files</dt>
-							<dd>{number(p.files)}</dd>
-							{#if p.rounds > 1}
-								<dt>Rounds</dt>
-								<dd>{p.rounds}</dd>
-								<dt>Slices per round</dt>
-								<dd>{(p.slices / p.rounds).toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
-							{:else}
-								<dt>Slices</dt>
-								<dd>{p.slices}</dd>
-							{/if}
-							<dt>Average slice</dt>
-							<dd>{number(p.slice)}</dd>
-							<dt>Largest slice</dt>
-							<dd>{number(p.largest)}</dd>
-						</dl>
-					{/if}
+	{#if s.reviewability.prs.length}
+		{@const most = Math.max(1, ...s.reviewability.prs.map((p) => p.size))}
+		{@const top = Math.max(most, step(most) * 4)}
+		<section>
+			<h2>Slice and dice</h2>
+			<p class="lede">
+				Pull requests averaged <strong>{number(s.reviewability.pr)}</strong> lines across
+				<strong>{number(s.reviewability.files)}</strong> files. The average slice was
+				<strong>{number(s.reviewability.slice)}</strong> lines and covered
+				<strong>{s.reviewability.sliceFiles.toLocaleString(undefined, { maximumFractionDigits: 1 })}</strong> files.
+			</p>
+			<div class="chart">
+				<div class="axis faint" aria-hidden="true">
+					{#each ticks(most) as t (t)}<span style:bottom="{height(t, top)}%">{short(t)}</span>{/each}
 				</div>
-				<div class="key faint"><span class="swatch pr"></span>Lines in the pull request <span class="swatch slice"></span>Its average slice</div>
-			</section>
-		{/if}
-
-		{#if s.reviewers.length}
-			<section>
-				<div class="row">
-					<h2>Reviewers</h2>
-					{#if analysis}
-						<button class="btn" disabled={analysis.status.running} onclick={() => readAnalysis('POST')}>Analyse reviewer performance</button>
-					{/if}
-				</div>
-				{#if analysis?.status.running}
-					<p class="faint loading">
-						<Spinner size={14} />
-						{analysis.status.phase === 'gaps' ? 'Checking what others said' : 'Sorting findings into themes'}… {analysis.status.done} of {analysis.status.total}
-						{analysis.status.phase === 'gaps' ? 'pull requests' : 'findings'}
-					</p>
-				{:else if analysisError || analysis?.status.error}
-					<p class="bad">Couldn’t analyse: {analysisError ?? analysis?.status.error}</p>
-				{:else if analysis && analysed && analysis.pending.findings}
-					<p class="faint">{number(analysis.pending.findings)} findings since the last analysis.</p>
-				{/if}
-				<ul class="reviewers">
-					{#each s.reviewers as r (r.id)}
-						<li>
-							<span class="name">{r.name}</span>
-							<span class="count faint">{number(r.raised)} {r.raised === 1 ? 'finding' : 'findings'}</span>
-							<span class="split" title="{r.kept} kept · {r.asSuggested} skipped as suggested · {r.filtered} filtered · {r.kickedBack} kicked back">
-								<span class="kept" style:flex={r.kept}></span>
-								<span class="suggested" style:flex={r.asSuggested}></span>
-								<span class="filtered" style:flex={r.filtered}></span>
-								<span class="kicked" style:flex={r.kickedBack}></span>
-							</span>
-							<span class="rate">{pct(r.kickedBack, r.kept + r.kickedBack)} kicked back</span>
-						</li>
+				<div class="sizes" role="img" aria-label="Each pull request's size, with its average slice">
+					{#each ticks(most) as t (t)}<span class="grid" style:bottom="{height(t, top)}%"></span>{/each}
+					{#each s.reviewability.prs as p, i (i)}
+						<span
+							class="pair"
+							class:dim={pointed && pointed.index !== i}
+							role="presentation"
+							onpointermove={(e) => point(e, i)}
+							onpointerleave={() => (pointed = null)}
+						>
+							<span class="bar pr" style:height="{height(p.size, top)}%"></span>
+							<span class="bar slice" style:height="{height(p.slice, top)}%"></span>
+						</span>
 					{/each}
-				</ul>
-				<div class="key faint">
-					<span class="swatch kept"></span>Kept <span class="swatch suggested"></span>Skipped as suggested
-					<span class="swatch filtered"></span>Filtered by the editor <span class="swatch kicked"></span>Kicked back by you
 				</div>
-				{#if s.overlap.reviewers.length > 1}
-					<h3>Reviewer alignment</h3>
-					<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} themes={analysis?.themes.byReviewer} />
+				{#if pointed}
+					{@const p = s.reviewability.prs[pointed.index]}
+					<dl class="card" class:flip={pointed.flip} style:left="{pointed.x}px" style:top="{pointed.y}px">
+						<dt class="title">{p.title}</dt>
+						<dd></dd>
+						<dt>Lines</dt>
+						<dd>{number(p.size)}</dd>
+						{#if p.lines !== p.size}
+							<dt>Read across rounds</dt>
+							<dd>{number(p.lines)}</dd>
+						{/if}
+						<dt>Files</dt>
+						<dd>{number(p.files)}</dd>
+						{#if p.rounds > 1}
+							<dt>Rounds</dt>
+							<dd>{p.rounds}</dd>
+							<dt>Slices per round</dt>
+							<dd>{(p.slices / p.rounds).toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
+						{:else}
+							<dt>Slices</dt>
+							<dd>{p.slices}</dd>
+						{/if}
+						<dt>Average slice</dt>
+						<dd>{number(p.slice)}</dd>
+						<dt>Largest slice</dt>
+						<dd>{number(p.largest)}</dd>
+					</dl>
 				{/if}
-				{#if analysis && Object.keys(analysis.themes.overall).length}
-					<h3>What the kept findings were about</h3>
-					<ThemesPie counts={analysis.themes.overall} />
+			</div>
+			<div class="key faint"><span class="swatch pr"></span>Lines in the pull request <span class="swatch slice"></span>Its average slice</div>
+		</section>
+	{/if}
+
+	{#if s.reviewers.length}
+		<section>
+			<div class="row">
+				<h2>Reviewers</h2>
+				{#if analysis}
+					<button class="btn" disabled={analysis.status.running} onclick={analyse}>Analyse reviewer performance</button>
 				{/if}
-			</section>
-		{/if}
+			</div>
+			{#if analysis?.status.running}
+				<p class="faint loading">
+					<Spinner size={14} />
+					{analysis.status.phase === 'gaps' ? 'Checking what others said' : 'Sorting findings into themes'}… {analysis.status.done} of {analysis.status.total}
+					{analysis.status.phase === 'gaps' ? 'pull requests' : 'findings'}
+				</p>
+			{:else if analysisError || live.error || analysis?.status.error}
+				<p class="bad">
+					Couldn’t analyse: {analysisError ?? live.error?.message ?? analysis?.status.error}
+					{#if live.error}<button class="reset" onclick={() => live.reconnect()}>Try again</button>{/if}
+				</p>
+			{:else if analysed && analysis?.pending.findings}
+				<p class="faint">{number(analysis.pending.findings)} findings since the last analysis.</p>
+			{/if}
+			<ul class="reviewers">
+				{#each s.reviewers as r (r.id)}
+					<li>
+						<span class="name">{r.name}</span>
+						<span class="count faint">{number(r.raised)} {r.raised === 1 ? 'finding' : 'findings'}</span>
+						<span class="split" title="{r.kept} kept · {r.asSuggested} skipped as suggested · {r.filtered} filtered · {r.kickedBack} kicked back">
+							<span class="kept" style:flex={r.kept}></span>
+							<span class="suggested" style:flex={r.asSuggested}></span>
+							<span class="filtered" style:flex={r.filtered}></span>
+							<span class="kicked" style:flex={r.kickedBack}></span>
+						</span>
+						<span class="rate">{pct(r.kickedBack, r.kept + r.kickedBack)} kicked back</span>
+					</li>
+				{/each}
+			</ul>
+			<div class="key faint">
+				<span class="swatch kept"></span>Kept <span class="swatch suggested"></span>Skipped as suggested
+				<span class="swatch filtered"></span>Filtered by the editor <span class="swatch kicked"></span>Kicked back by you
+			</div>
+			{#if s.overlap.reviewers.length > 1}
+				<h3>Reviewer alignment</h3>
+				<OverlapMap reviewers={s.overlap.reviewers} pairs={s.overlap.pairs} themes={analysis?.themes.byReviewer} />
+			{/if}
+			{#if analysis && Object.keys(analysis.themes.overall).length}
+				<h3>What the kept findings were about</h3>
+				<ThemesPie counts={analysis.themes.overall} />
+			{/if}
+		</section>
+	{/if}
 
-		{#if analysis && Object.keys(analysis.gaps.byTheme).length}
-			<section>
-				<h2>Panel and others, by theme</h2>
-				<GapReport gaps={analysis.gaps} kept={analysis.themes.overall} />
-			</section>
-		{/if}
+	{#if analysis && Object.keys(analysis.gaps.byTheme).length}
+		<section>
+			<h2>Panel and others, by theme</h2>
+			<GapReport gaps={analysis.gaps} kept={analysis.themes.overall} />
+		</section>
+	{/if}
 
-		{#if analysed && !analysis?.status.running}
-			<footer>
-				<button class="reset" onclick={reset}>Reset analyses</button>
-				<span class="faint">The next run then goes over everything again: long, and costly.</span>
-			</footer>
-		{/if}
+	{#if analysed && !analysis?.status.running}
+		<footer>
+			<button class="reset" onclick={reset}>Reset analyses</button>
+			<span class="faint">The next run then goes over everything again: long, and costly.</span>
+		</footer>
 	{/if}
 </main>
 
