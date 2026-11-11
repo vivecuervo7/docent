@@ -36,7 +36,7 @@
 	.md :global(pre) {
 		padding: 10px 12px;
 		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
+		background: var(--wash);
 		overflow-x: auto;
 		font-size: 12.5px;
 		line-height: 1.55;

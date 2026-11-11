@@ -70,7 +70,7 @@
 		background: var(--state-done);
 	}
 	.aside {
-		background: #627566;
+		background: var(--chart-green-soft);
 	}
 	.missed {
 		background: var(--minus-dull);

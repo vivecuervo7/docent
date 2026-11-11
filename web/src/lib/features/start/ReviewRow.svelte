@@ -197,7 +197,7 @@
 		text-underline-offset: 3px;
 	}
 	.main:hover .title {
-		color: #fff;
+		color: var(--text-strong);
 	}
 	.text {
 		flex-grow: 1;
@@ -313,7 +313,7 @@
 	}
 	.badge.new,
 	.mark.new {
-		--tone: #c8a8ff;
+		--tone: var(--state-new);
 	}
 	.badge.working,
 	.mark.working {
@@ -325,7 +325,7 @@
 	}
 	.badge.going,
 	.mark.going {
-		--tone: #ffb85c;
+		--tone: var(--state-going);
 	}
 	.badge.done,
 	.mark.done {
@@ -333,7 +333,7 @@
 	}
 	.badge.bad,
 	.mark.bad {
-		--tone: #ff8a7a;
+		--tone: var(--state-bad);
 	}
 	.mark.feedback {
 		--tone: var(--agent);
@@ -353,7 +353,7 @@
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
-			0 20px 40px -16px rgba(0, 0, 0, 0.7);
+			var(--shadow-tip);
 		font-size: 12.5px;
 		white-space: nowrap;
 	}

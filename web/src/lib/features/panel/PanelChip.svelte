@@ -179,7 +179,7 @@
 		padding: 0 14px;
 		border: 0;
 		border-radius: 999px;
-		background: #1d1a14;
+		background: var(--agent-pill);
 		color: var(--agent-text);
 		font: inherit;
 		font-size: 13.5px;
@@ -187,7 +187,7 @@
 	}
 	.pill:hover,
 	.pill[aria-expanded='true'] {
-		background: #262118;
+		background: var(--agent-pill-hover);
 	}
 	.pill > span {
 		white-space: nowrap;

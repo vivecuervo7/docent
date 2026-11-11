@@ -200,7 +200,7 @@
 		background: var(--surface);
 		box-shadow:
 			0 0 0 1px var(--line-2),
-			0 32px 80px -24px rgba(0, 0, 0, 0.85);
+			var(--shadow-bubble);
 		overflow: hidden;
 	}
 	/* Empty, it's as tall as its prompt; once there's a conversation it

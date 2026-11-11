@@ -448,15 +448,15 @@
 		font-size: 13px;
 	}
 	.card {
-		background: #1b1813;
+		background: var(--agent-card);
 		border-radius: 20px;
 		padding: 28px 28px 24px;
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 		box-shadow:
-			0 0 0 1px #2e281d,
-			0 24px 60px -30px rgba(240, 169, 75, 0.25);
+			0 0 0 1px var(--agent-card-line),
+			var(--shadow-agent-glow);
 	}
 	.kicker {
 		display: flex;
@@ -491,7 +491,7 @@
 		align-items: flex-start;
 		gap: 14px;
 		padding: 14px 0;
-		border-top: 1px solid #2a261f;
+		border-top: 1px solid var(--agent-divider);
 	}
 	/* What "auto" added sits under it. */
 	li.picked {
@@ -572,7 +572,7 @@
 	}
 	.trigger:hover,
 	.trigger[aria-expanded='true'] {
-		background: #26221a;
+		background: var(--agent-hover);
 	}
 	.status {
 		display: flex;
@@ -618,8 +618,8 @@
 		min-width: 0;
 		font-size: 13.5px;
 		line-height: 1.5;
-		color: #e6d6b8;
-		background: #14120e;
+		color: var(--agent-quote-text);
+		background: var(--agent-quote);
 		padding: 8px 11px;
 		border-radius: 9px;
 	}
@@ -641,7 +641,7 @@
 		padding: 0;
 		border: 0;
 		border-radius: 11px;
-		background: #34363c;
+		background: var(--switch-off);
 		cursor: pointer;
 		flex-shrink: 0;
 	}
@@ -668,7 +668,7 @@
 		justify-content: space-between;
 		gap: 12px;
 		margin: 2px 0 14px;
-		border-top: 1px solid #2a261f;
+		border-top: 1px solid var(--agent-divider);
 	}
 	.defaults {
 		display: flex;
@@ -703,7 +703,7 @@
 		gap: 6px;
 		margin: 4px 0 2px;
 		padding: 22px 16px;
-		border: 1px dashed #3a3226;
+		border: 1px dashed var(--agent-menu-line);
 		border-radius: 14px;
 		background: none;
 		color: var(--agent-text);
@@ -722,7 +722,7 @@
 
 	.add-first:hover {
 		border-color: var(--agent);
-		background: #221e17;
+		background: var(--agent-menu);
 	}
 
 	.add-row.empty {

@@ -110,7 +110,7 @@
 		background: var(--popover-raised);
 		box-shadow:
 			0 0 0 1px var(--popover-raised-line),
-			0 30px 70px -20px rgba(0, 0, 0, 0.8);
+			var(--shadow-raised);
 	}
 	/* A long, narrow pointer, so the bubble stands off the diff's edge. */
 	.tip {

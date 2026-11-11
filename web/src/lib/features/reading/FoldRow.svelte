@@ -67,7 +67,7 @@
 	}
 	.fold-row:hover {
 		color: var(--text);
-		background: #202127;
+		background: var(--row-hover);
 	}
 	.kind {
 		font-family: var(--mono);

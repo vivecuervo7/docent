@@ -26,7 +26,7 @@
 		position: fixed;
 		inset: 0;
 		z-index: 50;
-		background: rgba(12, 13, 15, 0.72);
+		background: var(--scrim);
 	}
 	.dialog {
 		position: fixed;
@@ -43,7 +43,7 @@
 		background: var(--surface);
 		box-shadow:
 			0 0 0 1px var(--line-2),
-			0 40px 90px -30px rgba(0, 0, 0, 0.8);
+			var(--shadow-dialog);
 		display: flex;
 		flex-direction: column;
 		gap: 16px;

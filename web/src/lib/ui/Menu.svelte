@@ -334,16 +334,16 @@
 		color: var(--faint);
 	}
 	.agent {
-		background: #221e17;
+		background: var(--agent-menu);
 		box-shadow:
-			0 0 0 1px #3a3226,
+			0 0 0 1px var(--agent-menu-line),
 			var(--shadow-menu);
 	}
 	.agent button.active {
-		background: #2e281e;
+		background: var(--agent-menu-active);
 	}
 	.agent .filter {
-		background: #221e17;
+		background: var(--agent-menu);
 	}
 	.agent .tick {
 		color: var(--agent);
