@@ -115,7 +115,6 @@
 				<StateMark state="done" size={15} />
 				<span>Panel · done</span>
 			{/if}
-			{#if panel.findingCount}<span class="faint">{plural(panel.findingCount, 'finding')}</span>{/if}
 		</button>
 		{#if open}
 			<div class="popover" role="dialog" aria-label="Your review panel">

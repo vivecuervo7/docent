@@ -4,6 +4,7 @@
 	import { isSliceReviewed, useSession } from '$lib/session/session.svelte';
 	import PanelChip from '../features/panel/PanelChip.svelte';
 	import RoundChip from '../features/rounds/RoundChip.svelte';
+	import AccountMenu from '../ui/AccountMenu.svelte';
 	import StateMark from '../ui/StateMark.svelte';
 
 	// The review's stages.
@@ -27,7 +28,7 @@
 <header>
 	<div class="left">
 		<a class="brand" href="/">Docent</a>
-		<span class="faint title"><InlineText text={session.title} /></span>
+		<span class="faint title" title={session.title.replaceAll('`', '')}><InlineText text={session.title} /></span>
 	</div>
 	<nav aria-label="Review stages">
 		<a href={base} class="stage" class:current={onOverview} aria-current={onOverview ? 'page' : undefined}>
@@ -53,6 +54,7 @@
 	<div class="right">
 		<RoundChip />
 		<PanelChip />
+		<span class="account"><AccountMenu size={28} /></span>
 	</div>
 </header>
 
@@ -65,7 +67,10 @@
 		box-sizing: border-box;
 		padding: 0 28px;
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		/* The stages centred when there's room; when the bar is narrow the title
+		   gives way, rather than the chips running over the stages or the stages
+		   over the name. */
+		grid-template-columns: minmax(min-content, 1fr) auto minmax(max-content, 1fr);
 		align-items: center;
 		gap: 24px;
 		background: var(--bg);
@@ -85,6 +90,13 @@
 		text-decoration: none;
 	}
 	.title {
+		/* No width of its own, so the bar's narrowest is the name, not the title;
+		   about as wide as the chips opposite on a laptop, so the bar keeps some
+		   space, and wider as the window gives it room. */
+		flex: 1 1 0;
+		width: 0;
+		min-width: 0;
+		max-width: max(240px, 50vw - 400px);
 		font-size: 13.5px;
 		white-space: nowrap;
 		overflow: hidden;
@@ -100,6 +112,7 @@
 		align-items: center;
 		gap: 8px;
 		font-size: 14px;
+		white-space: nowrap;
 		color: var(--muted);
 		text-decoration: none;
 	}
@@ -115,8 +128,13 @@
 	}
 	.right {
 		display: flex;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 8px;
+	}
+	.account {
+		display: flex;
+		margin-left: 8px;
 	}
 	.joint {
 		width: 28px;
