@@ -87,7 +87,7 @@
 		position: absolute;
 		top: 11px;
 		height: 2px;
-		border-radius: 1px;
+		border-radius: var(--radius-full);
 	}
 	.line {
 		left: 0;
@@ -137,7 +137,7 @@
 	.days {
 		position: relative;
 		height: 18px;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.days span {

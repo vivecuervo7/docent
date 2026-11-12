@@ -168,7 +168,7 @@
 		display: flex;
 		padding: 2px 4px;
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: none;
 		color: var(--faint);
 		fill: currentColor;
@@ -210,7 +210,7 @@
 		padding: 0;
 		color: var(--faint);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	.link:hover {
@@ -228,7 +228,7 @@
 		background: none;
 		color: var(--faint);
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	.add:hover {
@@ -247,6 +247,6 @@
 	.bad {
 		margin: 0;
 		color: var(--danger);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 </style>

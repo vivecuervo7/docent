@@ -39,13 +39,13 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	li {
 		padding: 11px 16px;
 		border-top: 1px solid var(--line);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	li:first-child {
 		border-top: 0;
@@ -59,12 +59,12 @@
 	.bar {
 		display: flex;
 		height: 8px;
-		border-radius: 4px;
+		border-radius: var(--radius-full);
 		overflow: hidden;
 	}
 	.count {
 		text-align: right;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.panel {
 		background: var(--state-done);
@@ -80,14 +80,14 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: 6px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.swatch {
 		display: inline-block;
 		width: 10px;
 		height: 10px;
 		margin-left: 8px;
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	.swatch:first-child {
 		margin-left: 0;

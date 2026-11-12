@@ -180,7 +180,7 @@
 		min-height: calc(100vh - 64px);
 	}
 	.label {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -205,7 +205,7 @@
 	h1 {
 		margin: 10px 0 10px;
 		font-family: var(--serif);
-		font-size: 32px;
+		font-size: var(--text-4xl);
 		font-weight: 500;
 		line-height: 1.2;
 		letter-spacing: -0.01em;
@@ -215,10 +215,10 @@
 		display: flex;
 		gap: 16px;
 		margin: 12px 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.done-label {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -227,7 +227,7 @@
 	h2 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 26px;
+		font-size: var(--text-3xl);
 		font-weight: 500;
 		line-height: 1.2;
 	}
@@ -238,7 +238,7 @@
 		justify-content: flex-end;
 		gap: 12px;
 		padding-top: 4px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.summary {
 		display: flex;
@@ -247,7 +247,7 @@
 		margin: 0 0 8px;
 		max-width: 860px;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	/* Fold all sits over the files' own chevrons. */
@@ -259,7 +259,7 @@
 	}
 	.hint {
 		margin: 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.finish {
 		position: sticky;
@@ -271,7 +271,7 @@
 		margin-top: 12px;
 		padding: 16px 0 24px;
 		background: linear-gradient(transparent, var(--bg) 30%);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		/* Clicks reach the code under the fade; only the bar's own controls take them. */
 		pointer-events: none;
 	}
@@ -281,8 +281,8 @@
 	.big {
 		height: 42px;
 		padding: 0 18px;
-		border-radius: 12px;
-		font-size: 14.5px;
+		border-radius: var(--radius-lg);
+		font-size: var(--text-lg);
 	}
 	kbd {
 		display: inline-grid;
@@ -290,10 +290,10 @@
 		min-width: 20px;
 		height: 20px;
 		padding: 0 5px;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: var(--chosen-dim);
 		color: var(--on-chosen);
 		font-family: var(--mono);
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 	}
 </style>

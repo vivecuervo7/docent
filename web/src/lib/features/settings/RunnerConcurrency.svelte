@@ -33,7 +33,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		color: var(--faint);
 	}
 	input {
@@ -42,19 +42,19 @@
 		height: 30px;
 		padding: 0 8px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		outline: none;
 	}
 	input:focus {
 		box-shadow: inset 0 0 0 1px var(--you);
 	}
 	.note {
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.bad {
 		color: var(--danger);

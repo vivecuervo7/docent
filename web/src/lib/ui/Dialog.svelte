@@ -39,7 +39,7 @@
 		overflow-y: auto;
 		box-sizing: border-box;
 		padding: 28px 28px 24px;
-		border-radius: 20px;
+		border-radius: var(--radius-xl);
 		background: var(--surface);
 		box-shadow:
 			0 0 0 1px var(--line-2),

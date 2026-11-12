@@ -178,7 +178,7 @@
 		flex-direction: column;
 		gap: 8px;
 		padding: 14px 16px 12px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	svg {
@@ -217,7 +217,7 @@
 	}
 	.name {
 		fill: var(--text);
-		font-size: 13px;
+		font-size: var(--text-base);
 		font-weight: 500;
 	}
 	.hit {
@@ -233,10 +233,10 @@
 		gap: 4px 18px;
 		margin: 0;
 		padding: 10px 12px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: color-mix(in srgb, var(--surface) 88%, transparent);
 		box-shadow: inset 0 0 0 1px var(--line-2);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		pointer-events: none;
 	}
 	.legend dt {
@@ -257,6 +257,6 @@
 	}
 	.hint {
 		margin: 0;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 </style>

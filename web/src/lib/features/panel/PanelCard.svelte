@@ -445,11 +445,11 @@
 		align-items: center;
 		gap: 8px;
 		margin: -4px 0 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.card {
 		background: var(--agent-card);
-		border-radius: 20px;
+		border-radius: var(--radius-xl);
 		padding: 28px 28px 24px;
 		display: flex;
 		flex-direction: column;
@@ -463,7 +463,7 @@
 		align-items: center;
 		gap: 10px;
 		color: var(--agent);
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -471,14 +471,14 @@
 	h2 {
 		margin: 6px 0 4px;
 		font-family: var(--serif);
-		font-size: 26px;
+		font-size: var(--text-3xl);
 		font-weight: 500;
 		line-height: 1.2;
 	}
 	.lede {
 		margin: 0 0 12px;
 		color: var(--muted);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.55;
 	}
 	ul {
@@ -508,7 +508,7 @@
 		background: none;
 		color: var(--faint);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.why:hover {
@@ -527,7 +527,7 @@
 		gap: 5px;
 	}
 	.name {
-		font-size: 15px;
+		font-size: var(--text-lg);
 		font-weight: 500;
 	}
 	.picker {
@@ -548,10 +548,10 @@
 	}
 	.dot {
 		margin-left: -2px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.runs {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.trigger {
 		display: inline-flex;
@@ -560,11 +560,11 @@
 		margin: 0 0 0 -7px;
 		padding: 2px 7px;
 		border: 0;
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	.trigger :global(svg) {
@@ -579,7 +579,7 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: 8px;
-		font-size: 13px;
+		font-size: var(--text-base);
 		line-height: 1.4;
 	}
 	.status.working {
@@ -609,19 +609,19 @@
 	}
 	.tell {
 		margin-top: 4px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.command {
 		align-items: flex-start;
 	}
 	.sentence {
 		min-width: 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		line-height: 1.5;
 		color: var(--agent-quote-text);
 		background: var(--agent-quote);
 		padding: 8px 11px;
-		border-radius: 9px;
+		border-radius: var(--radius-md);
 	}
 	.controls {
 		display: flex;
@@ -640,7 +640,7 @@
 		height: 22px;
 		padding: 0;
 		border: 0;
-		border-radius: 11px;
+		border-radius: var(--radius-full);
 		background: var(--switch-off);
 		cursor: pointer;
 		flex-shrink: 0;
@@ -651,7 +651,7 @@
 		left: 3px;
 		width: 16px;
 		height: 16px;
-		border-radius: 8px;
+		border-radius: var(--radius-full);
 		background: var(--faint);
 		transition: transform 0.15s;
 	}
@@ -674,10 +674,10 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.default {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	.add {
@@ -689,7 +689,7 @@
 		background: none;
 		color: var(--faint);
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 	.add:hover {
@@ -704,11 +704,11 @@
 		margin: 4px 0 2px;
 		padding: 22px 16px;
 		border: 1px dashed var(--agent-menu-line);
-		border-radius: 14px;
+		border-radius: var(--radius-lg);
 		background: none;
 		color: var(--agent-text);
 		font: inherit;
-		font-size: 14px;
+		font-size: var(--text-md);
 		cursor: pointer;
 	}
 
@@ -717,7 +717,7 @@
 	}
 
 	.add-first .faint {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 
 	.add-first:hover {
@@ -736,8 +736,8 @@
 	.big {
 		height: 44px;
 		padding: 0 18px;
-		border-radius: 12px;
-		font-size: 14.5px;
+		border-radius: var(--radius-lg);
+		font-size: var(--text-lg);
 	}
 	.actions .primary {
 		flex-grow: 1;

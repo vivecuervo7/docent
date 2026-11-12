@@ -196,7 +196,7 @@
 		max-height: min(640px, calc(100vh - 180px));
 		display: flex;
 		flex-direction: column;
-		border-radius: 16px;
+		border-radius: var(--radius-xl);
 		background: var(--surface);
 		box-shadow:
 			0 0 0 1px var(--line-2),
@@ -216,13 +216,13 @@
 		border-bottom: 1px solid var(--line-2);
 	}
 	.title {
-		font-size: 14px;
+		font-size: var(--text-md);
 		font-weight: 500;
 		white-space: nowrap;
 	}
 	.subject {
 		min-width: 0;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -236,7 +236,7 @@
 		padding: 0 4px;
 		color: var(--faint);
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.clear:hover {
@@ -263,11 +263,11 @@
 	}
 	.messages li.empty {
 		border-bottom: 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		line-height: 1.55;
 	}
 	.role {
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 	}
 	.as-written {
@@ -277,7 +277,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 	.status {
@@ -285,7 +285,7 @@
 		align-items: center;
 		gap: 8px;
 		margin: 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.status.bad {
 		color: var(--danger);

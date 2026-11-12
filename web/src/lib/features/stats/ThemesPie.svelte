@@ -67,7 +67,7 @@
 		align-items: center;
 		gap: 32px;
 		padding: 16px 20px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	svg {
@@ -87,11 +87,11 @@
 	.total {
 		fill: var(--text);
 		font-family: var(--serif);
-		font-size: 24px;
+		font-size: var(--text-3xl);
 	}
 	.unit {
 		fill: var(--faint);
-		font-size: 11px;
+		font-size: var(--text-xs);
 	}
 	ul {
 		list-style: none;
@@ -100,7 +100,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	li {
 		display: grid;
@@ -112,7 +112,7 @@
 	.swatch {
 		width: 10px;
 		height: 10px;
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	.dim {
 		opacity: 0.35;

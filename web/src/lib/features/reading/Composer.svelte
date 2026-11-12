@@ -106,12 +106,12 @@
 		max-height: 160px;
 		padding: 9px 12px;
 		border: 0;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font: inherit;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.5;
 		outline: none;
 	}
@@ -132,7 +132,7 @@
 	}
 	.foot .faint {
 		flex-grow: 1;
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.btn:disabled {
 		opacity: 0.5;

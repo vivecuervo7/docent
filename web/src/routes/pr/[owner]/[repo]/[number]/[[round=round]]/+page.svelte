@@ -112,7 +112,7 @@
 	h1 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 40px;
+		font-size: var(--text-5xl);
 		line-height: 1.12;
 		font-weight: 500;
 		letter-spacing: -0.015em;
@@ -124,7 +124,7 @@
 	}
 	.byline {
 		margin: 0;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.byline a {
 		color: var(--muted);
@@ -141,7 +141,7 @@
 	.summary p {
 		margin: 0;
 		color: var(--muted);
-		font-size: 15.5px;
+		font-size: var(--text-lg);
 		line-height: 1.65;
 	}
 	.block {
@@ -150,7 +150,7 @@
 		gap: 8px;
 	}
 	.small {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.whole-pr {
 		display: grid;
@@ -158,7 +158,7 @@
 	}
 	.whole-pr h2 {
 		margin: 0;
-		font-size: 13px;
+		font-size: var(--text-base);
 		font-weight: 600;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -174,7 +174,7 @@
 		align-items: center;
 		gap: 12px;
 		padding: 9px 0;
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	.slices a:hover {
 		color: var(--text-strong);

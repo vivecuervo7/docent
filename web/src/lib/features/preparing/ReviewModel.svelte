@@ -55,7 +55,7 @@
 		padding: 1px 6px;
 		margin: 0 -6px;
 		border: 0;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--muted);
 		font: inherit;

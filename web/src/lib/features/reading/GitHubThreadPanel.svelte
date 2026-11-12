@@ -76,7 +76,7 @@
 		flex-grow: 1;
 		min-width: 0;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--faint);
 		white-space: nowrap;
 		overflow: hidden;
@@ -88,7 +88,7 @@
 		gap: 10px;
 		padding: 8px 16px;
 		border-bottom: 1px solid var(--line);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.state {
 		flex-wrap: wrap;
@@ -126,15 +126,15 @@
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--muted);
 	}
 	.tag {
 		padding: 0 6px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--faint);
-		font-size: 11px;
+		font-size: var(--text-xs);
 		line-height: 16px;
 	}
 	.yours {
@@ -146,7 +146,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 </style>

@@ -110,7 +110,7 @@
 		gap: 10px;
 	}
 	.caps {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
@@ -123,13 +123,13 @@
 		margin: 4px 0 0;
 		font-family: var(--serif);
 		font-weight: 500;
-		font-size: 32px;
+		font-size: var(--text-4xl);
 		line-height: 1.2;
 		letter-spacing: -0.01em;
 	}
 	.mono {
 		font-family: var(--mono);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	ol {
 		list-style: none;
@@ -138,7 +138,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	li {
 		display: flex;
@@ -153,7 +153,7 @@
 	}
 	.time {
 		margin-left: auto;
-		font-size: 13px;
+		font-size: var(--text-base);
 		font-variant-numeric: tabular-nums;
 	}
 	.actions {
@@ -161,7 +161,7 @@
 		align-items: center;
 		gap: 14px;
 		margin-top: 16px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.actions .btn {
 		white-space: nowrap;
@@ -169,7 +169,7 @@
 	.problem {
 		margin-top: 16px;
 		padding: 16px 18px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--del-bg);
 		display: flex;
 		flex-direction: column;
@@ -178,7 +178,7 @@
 	}
 	.problem p {
 		margin: 0;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.5;
 		color: var(--danger-text);
 	}

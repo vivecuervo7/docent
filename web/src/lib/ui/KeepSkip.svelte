@@ -21,18 +21,19 @@
 		flex-shrink: 0;
 		display: flex;
 		padding: 2px;
-		border-radius: 9px;
+		border-radius: var(--radius-md);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	button {
 		height: 28px;
 		padding: 0 12px;
 		border: 0;
-		border-radius: 7px;
+		/* The box's corner less its 2px padding, so the gap stays even round the corner. */
+		border-radius: calc(var(--radius-md) - 2px);
 		background: none;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		font-weight: 500;
 		cursor: pointer;
 	}

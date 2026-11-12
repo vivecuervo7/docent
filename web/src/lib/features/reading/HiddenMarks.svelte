@@ -57,7 +57,7 @@
 		width: 22px;
 		height: 18px;
 		margin-top: 1px;
-		border-radius: 9px;
+		border-radius: var(--radius-full);
 	}
 	.mark.finding {
 		fill: var(--agent);
@@ -88,7 +88,7 @@
 		right: 1px;
 		width: 7px;
 		height: 7px;
-		border-radius: 4px;
+		border-radius: var(--radius-full);
 		background: var(--you);
 		box-shadow: 0 0 0 2px var(--code-bg);
 	}

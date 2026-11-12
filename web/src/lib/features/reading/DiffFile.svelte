@@ -651,7 +651,7 @@
 		gap: 8px;
 		max-width: 860px;
 		padding: 2px 0 16px 30px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 		color: var(--muted);
 	}
@@ -661,7 +661,7 @@
 	.diff {
 		margin-bottom: 18px;
 		padding-bottom: 6px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--code-bg);
 	}
 	.unshown {
@@ -670,7 +670,7 @@
 		justify-content: space-between;
 		gap: 16px;
 		padding: 14px 16px;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.hunk-header,
 	.hunk-footer {
@@ -680,7 +680,7 @@
 		min-height: 30px;
 		padding: 0 8px 0 16px;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		color: var(--hunk-text);
 	}
 	.hunk-header {
@@ -697,7 +697,7 @@
 		justify-content: flex-end;
 	}
 	.diff > .hunk-footer:last-child {
-		border-radius: 0 0 12px 12px;
+		border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 	}
 	.expand {
 		display: inline-flex;
@@ -707,11 +707,11 @@
 		height: 24px;
 		padding: 0 8px;
 		border: 0;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--faint);
 		font-family: var(--sans);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.expand:hover {
@@ -719,14 +719,14 @@
 		color: var(--text);
 	}
 	.diff > .hunk-header:first-child {
-		border-radius: 12px 12px 0 0;
+		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 	}
 	.row {
 		position: relative;
 		display: grid;
 		grid-template-columns: 48px 48px minmax(0, 1fr);
 		font-family: var(--mono);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		line-height: 22px;
 		tab-size: 4;
 	}
@@ -788,11 +788,11 @@
 	}
 	.del .edit {
 		background: var(--del-edit);
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	.add .edit {
 		background: var(--add-edit);
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	/* Threads and findings hang off the block's right edge, as folds hang
 	   off its left, so the code and its highlights keep the full width. */
@@ -817,7 +817,7 @@
 		background: transparent;
 		color: var(--muted);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -831,7 +831,7 @@
 		gap: 8px;
 		padding: 12px 14px;
 		font-family: var(--sans);
-		font-size: 13px;
+		font-size: var(--text-base);
 		white-space: normal;
 	}
 	.composer-head {

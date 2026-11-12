@@ -62,14 +62,14 @@
 		padding: 0 12px;
 	}
 	.label {
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
 		font-weight: 600;
 		color: var(--faint);
 	}
 	.count {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	ol {
 		margin: 12px 0 0;
@@ -87,10 +87,10 @@
 		display: flex;
 		gap: 12px;
 		padding: 9px 12px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		text-decoration: none;
 		color: var(--muted);
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.4;
 		overflow-wrap: anywhere;
 	}
@@ -117,7 +117,7 @@
 		right: -3px;
 		width: 7px;
 		height: 7px;
-		border-radius: 4px;
+		border-radius: var(--radius-full);
 		background: var(--you);
 		box-shadow: 0 0 0 2px var(--bg);
 	}
@@ -125,6 +125,6 @@
 		align-items: center;
 		margin-top: 16px;
 		color: var(--faint);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 </style>

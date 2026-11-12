@@ -209,7 +209,7 @@
 		background: none;
 		color: inherit;
 		font: inherit;
-		font-size: 13.5px;
+		font-size: var(--text-md);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -224,7 +224,7 @@
 		flex: 1 0 0;
 		margin-left: 6px;
 		padding: 0 12px 0 10px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	.toggle:hover :global(.chevron),
@@ -248,7 +248,7 @@
 	}
 	.stat {
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	.plus {
@@ -273,7 +273,7 @@
 		margin-left: 10px;
 		padding: 0;
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--radius-full);
 		background: var(--you);
 		cursor: pointer;
 	}
@@ -310,7 +310,7 @@
 		width: 380px;
 		padding: 12px 14px;
 		font-family: var(--sans);
-		font-size: 13px;
+		font-size: var(--text-base);
 		white-space: normal;
 	}
 	.review {
@@ -322,11 +322,11 @@
 		margin-left: 14px;
 		padding: 0 11px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--text);
 		font: inherit;
-		font-size: 13px;
+		font-size: var(--text-base);
 		cursor: pointer;
 	}
 	.review.done {

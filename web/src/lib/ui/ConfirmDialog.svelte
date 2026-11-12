@@ -24,14 +24,14 @@
 	h2 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 22px;
+		font-size: var(--text-2xl);
 		font-weight: 500;
 		line-height: 1.25;
 	}
 	p {
 		margin: 0;
 		color: var(--muted);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.actions {

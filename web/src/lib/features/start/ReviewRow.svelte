@@ -209,14 +209,14 @@
 	.title {
 		color: inherit;
 		text-decoration: none;
-		font-size: 15px;
+		font-size: var(--text-lg);
 		font-weight: 500;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 	.meta {
-		font-size: 13px;
+		font-size: var(--text-base);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -270,7 +270,7 @@
 		outline: 1px dashed color-mix(in srgb, var(--tone) 70%, transparent);
 		outline-offset: -1px;
 		font: inherit;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		font-weight: 500;
 		cursor: pointer;
 	}
@@ -282,12 +282,12 @@
 		height: 18px;
 		padding: 0 6px;
 		border: 0;
-		border-radius: 9px;
+		border-radius: var(--radius-full);
 		background: none;
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--you) 70%, transparent);
 		color: var(--you-text);
 		font: inherit;
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		font-weight: 500;
 		cursor: pointer;
 	}
@@ -302,11 +302,11 @@
 		align-items: center;
 		gap: 6px;
 		padding: 3px 10px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		background: color-mix(in srgb, var(--tone) 8%, transparent);
 		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 28%, transparent);
 		color: var(--tone);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		font-weight: 500;
 		white-space: nowrap;
 		text-decoration: none;
@@ -349,12 +349,12 @@
 		gap: 3px;
 		min-width: 190px;
 		padding: 10px 12px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow:
 			0 0 0 1px var(--line-2),
 			var(--shadow-tip);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	/* Bridges the gap down to the card, so moving onto it keeps it open. */
@@ -375,7 +375,7 @@
 		align-items: center;
 		gap: 7px;
 		font-weight: 500;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	/* The state, in its colour, where there's room to say it. */
 	.mark {
@@ -412,7 +412,7 @@
 		margin-right: -8px;
 		padding: 0;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--agent);
 		opacity: 0.75;

@@ -234,7 +234,7 @@
 	h1 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 38px;
+		font-size: var(--text-5xl);
 		font-weight: 500;
 		letter-spacing: -0.015em;
 	}
@@ -246,14 +246,14 @@
 	h2 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 22px;
+		font-size: var(--text-2xl);
 		font-weight: 500;
 	}
 	/* A part of a section, apart from what's above it. */
 	h3 {
 		margin: 14px 0 0;
 		font-family: var(--serif);
-		font-size: 17px;
+		font-size: var(--text-xl);
 		font-weight: 500;
 	}
 	.row {
@@ -266,7 +266,7 @@
 		display: flex;
 		align-items: baseline;
 		gap: 12px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.reset {
 		border: 0;
@@ -283,7 +283,7 @@
 	}
 	.since {
 		margin: -16px 0 0;
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.loading {
 		display: flex;
@@ -303,22 +303,22 @@
 		flex-direction: column;
 		gap: 2px;
 		padding: 14px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.figures strong {
 		font-family: var(--serif);
-		font-size: 30px;
+		font-size: var(--text-4xl);
 		font-weight: 500;
 	}
 	.figures span {
 		color: var(--muted);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 	.lede {
 		margin: 0;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: var(--text-lg);
 	}
 	.lede strong {
 		color: var(--text);
@@ -329,7 +329,7 @@
 		display: flex;
 		gap: 8px;
 		padding: 14px 14px 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	/* The scale, in lines, beside the bars. */
@@ -337,7 +337,7 @@
 		position: relative;
 		width: 30px;
 		height: 140px;
-		font-size: 11px;
+		font-size: var(--text-xs);
 	}
 	.axis span {
 		position: absolute;
@@ -383,12 +383,12 @@
 		max-width: 260px;
 		margin: 0;
 		padding: 10px 12px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: color-mix(in srgb, var(--surface) 94%, transparent);
 		box-shadow:
 			inset 0 0 0 1px var(--line-2),
 			var(--shadow-small);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		transform: translate(14px, 14px);
 		pointer-events: none;
 	}
@@ -419,7 +419,7 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		border-radius: 2px 2px 0 0;
+		border-radius: var(--radius-xs) var(--radius-xs) 0 0;
 	}
 	.bar.pr,
 	.swatch.pr {
@@ -438,14 +438,14 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: 6px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.swatch {
 		display: inline-block;
 		width: 10px;
 		height: 10px;
 		margin-left: 8px;
-		border-radius: 2px;
+		border-radius: var(--radius-xs);
 	}
 	.swatch:first-child {
 		margin-left: 0;
@@ -454,7 +454,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.reviewers li {
@@ -464,7 +464,7 @@
 		gap: 14px;
 		padding: 11px 16px;
 		border-top: 1px solid var(--line);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.reviewers li:first-child {
 		border-top: 0;
@@ -475,17 +475,17 @@
 		text-overflow: ellipsis;
 	}
 	.count {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.rate {
 		text-align: right;
 		color: var(--muted);
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.split {
 		display: flex;
 		height: 8px;
-		border-radius: 4px;
+		border-radius: var(--radius-full);
 		overflow: hidden;
 		background: var(--surface-2);
 	}

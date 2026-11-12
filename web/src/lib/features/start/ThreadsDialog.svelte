@@ -47,10 +47,10 @@
 	}
 	.mono {
 		font-family: var(--mono);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.title {
-		font-size: 15px;
+		font-size: var(--text-lg);
 		font-weight: 500;
 	}
 	.close {

@@ -61,7 +61,7 @@
 		background: var(--hunk-bg);
 		color: var(--muted);
 		font-family: var(--sans);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -71,12 +71,12 @@
 	}
 	.kind {
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.changes {
 		margin-left: auto;
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.plus {
 		color: var(--plus-dull);

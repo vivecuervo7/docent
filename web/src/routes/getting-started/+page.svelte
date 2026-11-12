@@ -255,14 +255,14 @@
 	h1 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 38px;
+		font-size: var(--text-5xl);
 		font-weight: 500;
 		letter-spacing: -0.015em;
 	}
 	.lede {
 		margin: 0;
 		color: var(--muted);
-		font-size: 15px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	ol {
@@ -291,13 +291,13 @@
 	h3 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 22px;
+		font-size: var(--text-2xl);
 		font-weight: 500;
 	}
 	.caps {
 		margin: 24px 0 -14px;
 		color: var(--faint);
-		font-size: 11.5px;
+		font-size: var(--text-xs);
 		font-weight: 600;
 		letter-spacing: 0.09em;
 		text-transform: uppercase;
@@ -305,13 +305,13 @@
 	.section-note {
 		margin: 0 0 -8px;
 		color: var(--faint);
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 	.step p {
 		margin: 0;
 		color: var(--muted);
-		font-size: 14.5px;
+		font-size: var(--text-lg);
 		line-height: 1.6;
 	}
 	.step a {
@@ -319,7 +319,7 @@
 	}
 	.step .status {
 		color: var(--text);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 	.step .status.ok {
 		color: var(--done);
@@ -329,19 +329,19 @@
 		flex-direction: column;
 		gap: 12px;
 		padding: 14px 16px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--surface);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.step p.small {
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.command {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		padding: 8px 8px 8px 14px;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
@@ -352,11 +352,11 @@
 		background: none;
 		overflow-x: auto;
 		white-space: nowrap;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.bad {
 		margin: 0;
 		color: var(--danger);
-		font-size: 14px;
+		font-size: var(--text-md);
 	}
 </style>

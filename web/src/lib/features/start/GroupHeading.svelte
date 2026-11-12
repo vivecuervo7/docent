@@ -36,7 +36,7 @@
 		align-items: center;
 		gap: 9px;
 		margin: 26px 0 8px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		font-weight: 500;
 		color: var(--text);
 	}
@@ -60,7 +60,7 @@
 	}
 	.count {
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		font-weight: 400;
 		color: var(--faint);
 	}
@@ -71,7 +71,7 @@
 		height: 20px;
 		margin-left: -2px;
 		border: 0;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: none;
 		color: var(--faint);
 		cursor: pointer;

@@ -199,13 +199,13 @@
 		display: flex;
 		align-items: center;
 		gap: 14px;
-		font-size: 13px;
+		font-size: var(--text-base);
 	}
 	.grow {
 		flex-grow: 1;
 	}
 	.keys {
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.link {
 		border: 0;
@@ -225,7 +225,7 @@
 	.where {
 		margin: 0;
 		font-family: var(--mono);
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		color: var(--text);
 		overflow-wrap: anywhere;
 	}
@@ -243,16 +243,16 @@
 		min-width: 0;
 	}
 	.label {
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	pre {
 		margin: 0;
 		padding: 8px 0;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--code-bg);
 		box-shadow: inset 0 0 0 1px var(--line);
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		line-height: 20px;
 		color: var(--code-text);
 		overflow-x: auto;
@@ -273,7 +273,7 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.entries li {
@@ -288,29 +288,29 @@
 	}
 	.entries .fold {
 		padding: 8px 16px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.who {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 		color: var(--muted);
 	}
 	/* The PR's own author, as GitHub marks them. */
 	.tag {
 		padding: 0 6px;
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--faint);
-		font-size: 11px;
+		font-size: var(--text-xs);
 		line-height: 16px;
 	}
 	.text {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 	.check {
@@ -319,7 +319,7 @@
 		align-items: flex-start;
 		gap: 10px;
 		padding: 14px 16px;
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		background: var(--popover);
 		box-shadow: inset 0 0 0 1px var(--popover-line);
 	}
@@ -330,7 +330,7 @@
 	}
 	.check p {
 		margin: 0;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.6;
 	}
 	.check :global(.composer),
@@ -338,7 +338,7 @@
 		align-self: stretch;
 	}
 	.yours {
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		overflow: hidden;
 	}
@@ -355,12 +355,12 @@
 		max-height: 200px;
 		padding: 10px 12px;
 		border: 0;
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		background: var(--bg);
 		box-shadow: inset 0 0 0 1px var(--line-2);
 		color: var(--text);
 		font: inherit;
-		font-size: 14px;
+		font-size: var(--text-md);
 		line-height: 1.5;
 		outline: none;
 	}
@@ -377,11 +377,11 @@
 		cursor: default;
 	}
 	.small {
-		font-size: 12.5px;
+		font-size: var(--text-sm);
 	}
 	.bad {
 		margin: 0;
 		color: var(--danger);
-		font-size: 13.5px;
+		font-size: var(--text-md);
 	}
 </style>

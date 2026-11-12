@@ -65,11 +65,11 @@
 
 <style>
 	.lines {
-		border-radius: 10px;
+		border-radius: var(--radius-lg);
 		overflow: hidden;
 		background: var(--code-bg);
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		line-height: 21px;
 	}
 	.path {
@@ -105,7 +105,7 @@
 		background: var(--hunk-bg);
 		color: var(--muted);
 		font-family: var(--mono);
-		font-size: 12px;
+		font-size: var(--text-sm);
 		cursor: pointer;
 	}
 	.fold-row:hover {
