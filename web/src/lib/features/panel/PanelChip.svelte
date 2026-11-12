@@ -100,21 +100,25 @@
 		if (run.status === 'stopped') return { text: `Stopped${took} · ${found}`, working: false };
 		return { text: 'Stopped with an error', working: false };
 	}
+
+	const label = $derived(running ? `Panel · ${running} reviewing` : checking ? `Panel · checking ${plural(checking, 'finding')}` : 'Panel · done');
+	// How many the panel found, on hover and for a screen reader rather than in
+	// the pill's text, which stays short.
+	const findings = $derived(panel.findingCount ? plural(panel.findingCount, 'finding') : '');
 </script>
 
 {#if ran.length}
 	<div class="chip">
-		<button class="pill" aria-haspopup="dialog" aria-expanded={open} onclick={() => (open = !open)}>
-			{#if running}
-				<Spinner size={15} />
-				<span>Panel · {running} reviewing</span>
-			{:else if checking}
-				<Spinner size={15} />
-				<span>Panel · checking {plural(checking, 'finding')}</span>
-			{:else}
-				<StateMark state="done" size={15} />
-				<span>Panel · done</span>
-			{/if}
+		<button
+			class="pill"
+			aria-haspopup="dialog"
+			aria-expanded={open}
+			aria-label={findings ? `${label}, ${findings}` : undefined}
+			title={findings || undefined}
+			onclick={() => (open = !open)}
+		>
+			{#if running || checking}<Spinner size={15} />{:else}<StateMark state="done" size={15} />{/if}
+			<span>{label}</span>
 		</button>
 		{#if open}
 			<div class="popover" role="dialog" aria-label="Your review panel">
