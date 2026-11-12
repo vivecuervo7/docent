@@ -90,7 +90,7 @@
 		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		box-shadow:
-			0 0 0 1px var(--line-2),
+			0 0 0 1px var(--float-line),
 			var(--shadow-float);
 		font-family: var(--sans);
 		white-space: normal;

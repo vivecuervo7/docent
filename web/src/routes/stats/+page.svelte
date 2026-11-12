@@ -386,7 +386,7 @@
 		border-radius: var(--radius-lg);
 		background: color-mix(in srgb, var(--surface) 94%, transparent);
 		box-shadow:
-			inset 0 0 0 1px var(--line-2),
+			inset 0 0 0 1px var(--float-line),
 			var(--shadow-small);
 		font-size: var(--text-sm);
 		transform: translate(14px, 14px);

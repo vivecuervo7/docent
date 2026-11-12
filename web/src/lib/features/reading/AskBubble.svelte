@@ -170,7 +170,7 @@
 		border-radius: 50%;
 		background: var(--surface-2);
 		box-shadow:
-			inset 0 0 0 1px var(--line-2),
+			inset 0 0 0 1px var(--float-line),
 			var(--shadow-small);
 		color: var(--you-text);
 		cursor: pointer;
@@ -199,7 +199,7 @@
 		border-radius: var(--radius-xl);
 		background: var(--surface);
 		box-shadow:
-			0 0 0 1px var(--line-2),
+			0 0 0 1px var(--float-line),
 			var(--shadow-bubble);
 		overflow: hidden;
 	}

@@ -4,6 +4,15 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// The contrast chosen in Settings, before the first paint, so the page
+			// doesn't show as designed and then change. The same rule as
+			// appearance.svelte.ts: a number from 0 to 1, anything else is 0.
+			try {
+				const contrast = Number(localStorage.getItem('docent.contrast'));
+				if (Number.isFinite(contrast) && contrast > 0) document.documentElement.style.setProperty('--contrast', String(Math.min(1, contrast)));
+			} catch {}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

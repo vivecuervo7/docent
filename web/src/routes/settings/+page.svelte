@@ -3,6 +3,7 @@
 	import SiteHeader from '$lib/ui/SiteHeader.svelte';
 	import { readOk, sendJson } from '$lib/api/client';
 	import { ask } from '$lib/ui/confirm.svelte';
+	import AppearanceSettings from '$lib/features/settings/AppearanceSettings.svelte';
 	import DocentModel from '$lib/features/settings/DocentModel.svelte';
 	import EditorModel from '$lib/features/settings/EditorModel.svelte';
 	import { loadModels } from '$lib/features/settings/models.svelte';
@@ -99,7 +100,7 @@
 			>{#if loading}<Spinner size={13} />{/if} Check again</button
 		>
 	</div>
-	<p class="lede">Where Docent’s models come from, then which of them it uses for what.</p>
+	<p class="lede">Where Docent’s models come from, which of them it uses for what, and how it looks.</p>
 
 	<SettingsSection title="Claude Code">
 		{#if !setup}
@@ -223,9 +224,10 @@
 	<ExternalReviewerSettings />
 
 	<p class="faint note">
-		Saved on this machine{#if setup}
-			in <code>{setup.settingsFile}</code>{/if}. Keys never go back to the browser.
+		Saved on this machine{#if setup}{' '}in <code>{setup.settingsFile}</code>{/if}. Keys never go back to the browser.
 	</p>
+
+	<AppearanceSettings />
 </main>
 
 <style>

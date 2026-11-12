@@ -1,22 +1,35 @@
 /* Docent's palette: a warm dark ground, amber for agents, blue for you.
    Every colour the app uses is named here, so a component never writes one. */
 :root {
+	/* How far toward high contrast: 0 is the palette as designed, 1 high
+	   contrast. The page's ground darkens and its text brightens; what's raised
+	   above the ground keeps its colour, so it stands out more. The agent browns
+	   take a little more colour, and the edges of agent panels, popups and
+	   controls firm up (below). */
+	--contrast: 0;
+	--toward: calc(var(--contrast) * 100%);
+
 	/* Ground and text. */
-	--bg: #121315;
+	--bg: color-mix(in oklab, #121315, #0a0a0b var(--toward));
 	--surface: #17181b;
 	--surface-2: #1b1c20;
-	--text: #e8e6e1;
+	--text: color-mix(in oklab, #e8e6e1, #fbfaf7 var(--toward));
 	/* Text brightened under the pointer. */
 	--text-strong: #fff;
-	--muted: #b0aea6;
-	--faint: #8d8b83;
+	--muted: color-mix(in oklab, #b0aea6, #d2d0c9 var(--toward));
+	--faint: color-mix(in oklab, #8d8b83, #aeaca4 var(--toward));
 	--danger: #f08a7e;
 	--danger-text: #f1d3d0;
 
 	/* Lines, and the light washes laid over the ground. */
 	--line: #202226;
 	--line-2: #2e3035;
-	--control-line: #3a3c42;
+	/* The edge of what floats over the page (a menu, a popover, a dialog), which
+	   firms up toward high contrast as the agents' outlines do. */
+	--float-line: color-mix(in oklab, #2e3035, #44474f var(--toward));
+	/* A control's edge, such as a button's, firming up toward high contrast so
+	   it holds its own on a darker page and on whatever it sits on. */
+	--control-line: color-mix(in oklab, #3a3c42, #52555b var(--toward));
 	--wash: rgba(255, 255, 255, 0.04);
 	--wash-strong: rgba(255, 255, 255, 0.05);
 	--inline-code-bg: rgba(255, 255, 255, 0.06);
@@ -31,24 +44,25 @@
 	--chosen-dim: #d8d3c7;
 	--on-chosen: #141413;
 
-	/* Agents: amber, and the browns their cards and menus sit on. */
+	/* Agents: amber, and the browns their cards and menus sit on. Toward high
+	   contrast the browns take a little more colour and their outlines firm up. */
 	--agent: #f0a94b;
 	--agent-text: #f2d9b0;
 	--agent-chip: #3a2f1d;
 	--agent-tint: rgba(240, 169, 75, 0.08);
-	--agent-card: #1b1813;
-	--agent-card-line: #2e281d;
+	--agent-card: color-mix(in oklab, #1b1813, #1d180e var(--toward));
+	--agent-card-line: color-mix(in oklab, #2e281d, #473e2e var(--toward));
 	--agent-divider: #2a261f;
 	--agent-hover: #26221a;
-	--agent-pill: #1d1a14;
+	--agent-pill: color-mix(in oklab, #1d1a14, #1f1a0e var(--toward));
 	--agent-pill-hover: #262118;
-	--agent-menu: #221e17;
-	--agent-menu-line: #3a3226;
+	--agent-menu: color-mix(in oklab, #221e17, #251d0f var(--toward));
+	--agent-menu-line: color-mix(in oklab, #3a3226, #554937 var(--toward));
 	--agent-menu-active: #2e281e;
 	--agent-quote: #14120e;
 	--agent-quote-text: #e6d6b8;
-	--popover: #1f1c17;
-	--popover-line: #342d21;
+	--popover: color-mix(in oklab, #1f1c17, #211c12 var(--toward));
+	--popover-line: color-mix(in oklab, #342d21, #4e4432 var(--toward));
 	/* A lighter brown, for a card raised over brown or near-brown. */
 	--popover-raised: #2b261f;
 	--popover-raised-line: #4a4030;
