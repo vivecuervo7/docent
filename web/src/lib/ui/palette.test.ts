@@ -86,6 +86,8 @@ const RAISED = [
 ];
 // Outlines on what they edge: the agents', and what floats over the page.
 const OUTLINES: [string, string][] = [
+	['control-line', 'bg'],
+	['control-line', 'surface'],
 	['float-line', 'surface'],
 	['float-line', 'surface-2'],
 	['agent-card-line', 'agent-card'],

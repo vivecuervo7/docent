@@ -3,14 +3,14 @@
 :root {
 	/* How far toward high contrast: 0 is the palette as designed, 1 high
 	   contrast. The page's ground darkens and its text brightens; what's raised
-	   above the ground keeps its colour, so it stands out more, except the
-	   agent browns, which take a little more colour (below). */
+	   above the ground keeps its colour, so it stands out more. The agent browns
+	   take a little more colour, and the edges of agent panels, popups and
+	   controls firm up (below). */
 	--contrast: 0;
 	--toward: calc(var(--contrast) * 100%);
 
 	/* Ground and text. */
-	--ground: #121315;
-	--bg: color-mix(in oklab, var(--ground), #0a0a0b var(--toward));
+	--bg: color-mix(in oklab, #121315, #0a0a0b var(--toward));
 	--surface: #17181b;
 	--surface-2: #1b1c20;
 	--text: color-mix(in oklab, #e8e6e1, #fbfaf7 var(--toward));
@@ -27,7 +27,9 @@
 	/* The edge of what floats over the page (a menu, a popover, a dialog), which
 	   firms up toward high contrast as the agents' outlines do. */
 	--float-line: color-mix(in oklab, #2e3035, #44474f var(--toward));
-	--control-line: #3a3c42;
+	/* A control's edge, such as a button's, firming up toward high contrast so
+	   it holds its own on a darker page and on whatever it sits on. */
+	--control-line: color-mix(in oklab, #3a3c42, #52555b var(--toward));
 	--wash: rgba(255, 255, 255, 0.04);
 	--wash-strong: rgba(255, 255, 255, 0.05);
 	--inline-code-bg: rgba(255, 255, 255, 0.06);
@@ -182,9 +184,7 @@ a {
 	padding: 0 13px;
 	border: 0;
 	border-radius: var(--radius-md);
-	/* Clear as designed; toward high contrast it keeps the designed ground
-	   rather than darkening with the page. */
-	background: color-mix(in oklab, var(--ground) var(--toward), transparent);
+	background: transparent;
 	color: var(--text);
 	box-shadow: inset 0 0 0 1px var(--control-line);
 	font: inherit;
