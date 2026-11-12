@@ -308,7 +308,8 @@
 	}
 	.chip:hover {
 		color: var(--text);
-		box-shadow: 0 0 0 1px var(--line-2);
+		/* A step firmer than its resting edge, at any contrast. */
+		box-shadow: 0 0 0 1px color-mix(in oklab, var(--popover-line), var(--text) 15%);
 	}
 	.also-text {
 		display: flex;
