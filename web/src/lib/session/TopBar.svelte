@@ -69,8 +69,10 @@
 		display: grid;
 		/* The stages centred when there's room; when the bar is narrow the title
 		   gives way, rather than the chips running over the stages or the stages
-		   over the name. */
-		grid-template-columns: minmax(min-content, 1fr) auto minmax(max-content, 1fr);
+		   over the name. The chips' column is never narrower than their widest
+		   state (a round in double figures and "checking 128 findings"), so the
+		   stages don't shift as the panel's label changes. */
+		grid-template-columns: minmax(min-content, 1fr) auto minmax(360px, 1fr);
 		align-items: center;
 		gap: 24px;
 		background: var(--bg);
