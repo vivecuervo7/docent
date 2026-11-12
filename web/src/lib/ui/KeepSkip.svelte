@@ -28,7 +28,8 @@
 		height: 28px;
 		padding: 0 12px;
 		border: 0;
-		border-radius: var(--radius-md);
+		/* The box's corner less its 2px padding, so the gap stays even round the corner. */
+		border-radius: calc(var(--radius-md) - 2px);
 		background: none;
 		color: var(--muted);
 		font: inherit;

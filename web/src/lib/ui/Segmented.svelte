@@ -55,7 +55,8 @@
 		height: 30px;
 		padding: 0 14px;
 		border: 0;
-		border-radius: var(--radius-md);
+		/* The track's corner less its 2px padding, so the gap stays even round the corner. */
+		border-radius: calc(var(--radius-lg) - 2px);
 		background: none;
 		color: var(--muted);
 		font: inherit;
@@ -80,7 +81,7 @@
 	.small button {
 		height: 26px;
 		padding: 0 11px;
-		border-radius: var(--radius-md);
+		border-radius: calc(var(--radius-md) - 2px);
 		font-size: var(--text-sm);
 	}
 </style>
