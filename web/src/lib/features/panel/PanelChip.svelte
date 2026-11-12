@@ -102,21 +102,14 @@
 	}
 
 	const label = $derived(running ? `Panel · ${running} reviewing` : checking ? `Panel · checking ${plural(checking, 'finding')}` : 'Panel · done');
-	// How many the panel found, on hover and for a screen reader rather than in
-	// the pill's text, which stays short.
-	const findings = $derived(panel.findingCount ? plural(panel.findingCount, 'finding') : '');
+	// How many the panel found, on hover once it's done rather than in the
+	// pill's text, which stays short (while checking, the text has its count).
+	const findings = $derived(!running && !checking && panel.findingCount ? plural(panel.findingCount, 'finding') : '');
 </script>
 
 {#if ran.length}
 	<div class="chip">
-		<button
-			class="pill"
-			aria-haspopup="dialog"
-			aria-expanded={open}
-			aria-label={findings ? `${label}, ${findings}` : undefined}
-			title={findings || undefined}
-			onclick={() => (open = !open)}
-		>
+		<button class="pill" aria-haspopup="dialog" aria-expanded={open} aria-label={label} title={findings || undefined} onclick={() => (open = !open)}>
 			{#if running || checking}<Spinner size={15} />{:else}<StateMark state="done" size={15} />{/if}
 			<span>{label}</span>
 		</button>
