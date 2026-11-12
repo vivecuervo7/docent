@@ -485,7 +485,7 @@
 	.split {
 		display: flex;
 		height: 8px;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-full);
 		overflow: hidden;
 		background: var(--surface-2);
 	}

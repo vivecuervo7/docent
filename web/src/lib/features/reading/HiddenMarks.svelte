@@ -88,7 +88,7 @@
 		right: 1px;
 		width: 7px;
 		height: 7px;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-full);
 		background: var(--you);
 		box-shadow: 0 0 0 2px var(--code-bg);
 	}

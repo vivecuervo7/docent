@@ -273,7 +273,7 @@
 		margin-left: 10px;
 		padding: 0;
 		border: 0;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-full);
 		background: var(--you);
 		cursor: pointer;
 	}
